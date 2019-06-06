@@ -1,0 +1,4 @@
+# Telling git not to track these folders, as archived git repo already exists and is no longer being update, ergo no need to create submodule
+
+nhats_code/
+hrs_code/

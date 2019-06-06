@@ -1,0 +1,133 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="First Heading"
+/* 
+********************HEADING******************** 
+
+Project Name:
+
+Date Started:
+
+Primary Investigator:
+Funding Source:
+
+Created by:
+
+Primary Analyst:
+Secondary Analyst:
+
+Datasets Used:
+
+Simple Outline:
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+
+//Intermediate Data Path
+global intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+gloabl datapath "E:\nhats\data\Projects\..."
+
+//Log files path
+gloabl logpath "E:\nhats\data\Projects\..."
+
+
+//SAS 
+
+
+//Intermediate Data Path
+//libname intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+//libname datapath "E:\nhats\data\Projects\..."
+
+//Log files path
+//libname logpath "E:\nhats\data\Projects\..."
+
+
+H="making dataset"
+/*
+
+Created by: 
+Date Created:
+
+Updated by:
+Date Updated:
+/*
+
+*Making dataset
+use "E:\data\hrs_cleaned\core_00_to_14.dta" 
+
+merge m:1 id using "E:\data\hrs_cleaned\death_date_2015.dta", keepusing (death_all)
+keep if _merge==3
+
+
+
+H="cleaning variables"
+*make a variable for least months to death for each person
+egen minttd=min(mnths_ivw_death), by(id)
+keep if minttd==mnths_ivw_death
+tab mnths_ivw_death
+replace mnths_ivw_death=1 if mnths_ivw_death==0
+
+*CESD by months
+tabstat cesd_tot if mnths_ivw_death<13, by(mnths_ivw_death) stat (mean sd)
+regress cesd_tot i.mnths_ivw_death if mnths_ivw_death<25
+margins mnths_ivw_death
+marginsplot
+
+
+*depressed in last week by months
+regress cesd1 i.mnths_ivw_death if mnths_ivw_death<25
+margins mnths_ivw_death
+marginsplot
+
+*was not happy in last week by months
+regress cesd4 i.mnths_ivw_death if mnths_ivw_death<25
+margins mnths_ivw_death
+marginsplot
+
+*was lonely in last week by months
+regress cesd5 i.mnths_ivw_death if mnths_ivw_death<25
+margins mnths_ivw_death
+marginsplot
+
+*did not enjoy life in last week by months
+regress cesd6 i.mnths_ivw_death if mnths_ivw_death<25
+margins mnths_ivw_death
+marginsplot
+
+*sad in last week by months
+regress cesd7 i.mnths_ivw_death if mnths_ivw_death<25
+margins mnths_ivw_death
+marginsplot
+
+
+H="analysis"
+
+
+H="Change log"
+
+
+********************Change Log******************** 
+
+
+
+Updates:
+
+
+
+12/17/2018 MH
+------------
+A formal template in Notetab was created with different headings. 
+
+12/13/2018 MH
+-------------
+Change log conception was first introduced.
+
+
+*/
