@@ -1,6 +1,34 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
-H="Step 1"
+H="Project Outline"
+/* 
+********************HEADING******************** 
+
+Project Name: How variations in state Medicaid affect caregiver burden
+
+Date Started: 6/5/19
+
+Primary Investigator: Amy Kelley
+Funding Source:
+
+Created by: OKR
+
+Primary Analyst: OKR
+Secondary Analyst: EBL
+
+Datasets Used: HRS core, exit & OOP via Kelley R01
+
+Simple Outline:
+
+/* Data paths */
+
+global datapath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data" //stealing R01 for base data 
+global ooppath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data"
+global int "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\int_data"
+global fin "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\final_data"
+
+
+H="Annualized OOP and Informal care expenditure"
 global datapath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data"
 *local logpath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs"
 global ooppath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data"
@@ -1126,10 +1154,17 @@ gen informal_1yr = informal_y1
 
 save $int\R01_mini.dta, replace
 
-H="MBSF"
+H="Cutting relevant variables and reshaping data"
 use $datapath\R01_i.dta, clear
 
-keep nflag id dem_cohort core_year race degree hisp_eth married_exit married gender srh_pf comor_in_hrs comor_in_hrs_exit age_at_death stateusps state_name
+gen death_month = month(death_date)
+gen death_year = year(death_date)
+gen exit_year = exit_year_exit
+
+replace nhres = nhres_exit if nflag==0
+
+keep nflag id dem_cohort core_year race female degree hisp_eth married_exit married gender srh_pf comor_in_hrs comor_in_hrs_exit age_at_death stateusps state_name ///
+death_month death_year exit_year nhres smoke_ever smoke_curr
 
 gen white = 0
 replace white = 1 if race==1 & hisp_eth==0
@@ -1149,9 +1184,9 @@ replace hseduc = 1 if degree>0 & degree!=.
 replace married = married_exit if nflag==0
 replace comor_in_hrs = comor_in_hrs_exit if nflag==0
 
-drop race degree married_exit comor_in_hrs_exit 
+drop race degree married_exit comor_in_hrs_exit gender
 
-local all hisp_eth gender age_at_death core_year married srh_pf comor_in_hrs stateusps state_name white black other hseduc
+local all hisp_eth female age_at_death core_year married srh_pf comor_in_hrs stateusps state_name white black other hseduc death_month death_year exit_year nhres smoke_ever smoke_curr
 
 foreach x of local all {
 
@@ -1163,12 +1198,7 @@ reshape wide `all', i(id) j(nflag)
 
 save $int\hrs_t.dta, replace 
 
-
-H="Claim files"
-global datapath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data"
-global int "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\int_data\"
-
-
+H="Getting Annual Medicaid coverage from DN state buyin"
 use $datapath\R01_i.dta, clear
 
 keep if nflag==0
@@ -1255,9 +1285,12 @@ save $int\hrs_u.dta, replace
 
 
 
-H="Step"
-drop if State==""
+H="Merging KFF data"
+import excel "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\reference_docs\Variables and KFF Data.xlsx", sheet("KFF Data") firstrow clear
 
+
+drop if State==""
+rename LTSSSpendingPerEnrollee ltss_spending
 replace ltss_spending = "" if ltss_spending=="N/A"
 
 rename State state_name
@@ -1267,7 +1300,6 @@ forvalues i=0/5 {
 gen state_name_i`i' = state_name
 gen ltss_spending_i`i' = ltss_spending
 }
-
 
 save $int\ltss.dta, replace
 use $int\hrs_u.dta, replace
@@ -1279,6 +1311,112 @@ drop if _m==2
 
 }
 cap drop _m
+
+save $int\hrs_v.dta, replace
+
+
+
+H="Getting COD from raw exit"
+libname exit 'D:\HRS\Shared\raw\HRS\hrs_public_2014\exit';
+
+data exitall;
+set exit.exit2002 exit.exit2004 exit.exit2006 exit.exit2008 exit.exit2010 exit.exit2012 exit.exit2014 exit.exit2016;
+run;
+
+data exitall (keep = hhid pn sa133m1m sa133m2m sa501 ta133m1m ta501 ta133m2m ua133m1m ua133m2m ua501 va133m1m va133m2m va501 wa133m1m wa133m2m wa501 xa133m1m xa133m2m xa501 ya133m1m ya133m2m ya501 za133m1m za133m2m za501);
+set exitall;
+run; 
+
+proc export data=exitall outfile="D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\int_data\causedeath.dta" dbms=stata replace; run;
+
+H="Cleaning COD and merging back into main data"
+use "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\int_data\causedeath.dta", clear
+
+global fin "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\final_data"
+
+gen causedeath_v1 = .
+gen causedeath_v2 = .
+
+foreach x of varlist sa133m1m ta133m1m ua133m1m va133m1m wa133m1m xa133m1m {
+
+replace causedeath_v1 = 1 if `x'>=101 & `x'<=103 // Cancer
+replace causedeath_v1 = 2 if `x'>=121 & `x'<=129 // Heart
+replace causedeath_v1 = 3 if `x'>=181 & `x'<=189 // Psychological
+
+}
+
+
+replace causedeath_v1 = 4 if causedeath_v1==.
+*replace causedeath_v2 = 4 if causedeath_v2==.
+
+la define causelbl 1"Cancer"2"Heart"3"Psych/Dem"4"Other"
+
+la values causedeath_v1 causelbl
+la values causedeath_v2 causelbl
+
+egen id = concat(hhid pn)
+
+keep id causedeath_v1
+
+merge 1:1 id using $int\hrs_v.dta, keep(match) 
+
+gen r_cod = . // respondent cause of death
+replace r_cod = 1 if dem_cohort==1 //dem
+replace r_cod = 2 if causedeath_v1==1 & r_cod==. // cancer
+replace r_cod = 3 if causedeath_v1==2 & r_cod==.  // heart
+replace r_cod = 4 if r_cod==. // other
+
+la define r_codlbl 1"Dementia"2"Cancer"3"Heart Disease"4"Other"
+la values r_cod r_codlbl
+
+save $int\medicaid_cg_burden.dta, replace
+
+H="Final pass at cleaning"
+use $int\medicaid_cg_burden.dta, clear
+
+drop causedeath_v1 bid_hrs_22 _m
+
+forvalues i = 1/7 {
+
+label var oop_y`i' "OOP spending for year `i' prior to death"
+label var informal_y`i' "Imputed costs of unpaid caregiving for year `i' prior to death"
+label var hlp_i_y`i' "Total hours of unpaid caregiving for year `i' prior to death"
+label var medicaid_n`i' "Received Medicaid benefits year `i' prior to death"
+}
+
+
+
+forvalues i= 1/5 {
+drop hisp_eth_i`i' age_at_death_i`i' female_i`i' white_i`i' black_i`i' other_i`i' hseduc_i`i' exit_year_i`i' death_year_i`i' death_month_i`i'
+}
+
+label var hisp_eth_i0 "Hispanic Ethnicity"
+label var age_at_death_i0 "Age at Death"
+label var female_i0 "Female = 1, Male = 0"
+label var white_i0 "Non-Hispanic White"
+label var black_i0 "Non-Hispanic Black"
+label var other_i0 "Other Race"
+label var hseduc_i0 "1 High School Education or GED"
+
+
+label var r_cod "HRS respondent Cause of Death"
+
+forvalues i=0/5 {
+
+label var married_i`i' "Married = 1"
+label var core_year_i`i' "Year of core interview"
+label var nhres_i`i' "Nursing home resident at interview `i' prior to death"
+label var smoke_ever_i`i' "Ever smoked at interview `i' prior to death"
+label var smoke_curr_i`i' "Currently smokes at interview `i' prior to death"
+label var srh_pf_i`i' "Self Reported Health: Poor/Fair at interview `i' prior to death"
+label var comor_in_hrs_i`i' "Number of Comorbidities at interview `i' prior to death"
+label var stateusps_i`i' "USPS State Abbreviations"
+label var state_name_i`i' "State of residence at interview `i' prior to death"
+label var ltss_spending_i`i' "LTSS matched to respondent state of residence at interview `i' prior to death"
+}
+drop smoke_ever_i0 smoke_curr_i0 srh_pf_i0 core_year_i0
+
+save $fin\medicaid_cg_burden.dta, replace 
 
 H="Changelog"
 

@@ -1,0 +1,467 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Project Outline"
+/* 
+********************HEADING******************** 
+
+Project Name: Treatment Burden at the End of Life
+
+Date Started: 6/6/19
+
+Primary Investigator: Alina Siddiqui (student of KO and CKA)
+Funding Source: ?
+
+Created by: EBL
+
+Primary Analyst: JS
+Secondary Analyst: OR
+
+Datasets Used: NHATS, NHATS-linked Medicare claims only for full death info
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+
+//Clean NHATS 
+global nhats "D:\nhats\shared\base_data\nhats cleaned"
+
+//NHATS wave 2 
+global wave2 "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_2"
+
+//NHATS cross-wave raw
+global xwave "D:\NHATS\Shared\base_data\NHATS cleaned\working"
+
+//Intermediate Data Path
+global intpath "D:\NHATS\Projects\exploratory\siddiqui_treatment_burden_eol\data\int_data"
+
+// Final Data Path
+global datapath "D:\NHATS\Projects\exploratory\siddiqui_treatment_burden_eol\data\final_data"
+
+//Log files path
+global logpath "D:\NHATS\Projects\exploratory\siddiqui_treatment_burden_eol\output\logs"
+
+//Log files path
+global outpath "D:\NHATS\Projects\exploratory\siddiqui_treatment_burden_eol\output\in_progress"
+
+
+
+H="combine data"
+//get the module and other round 2 variables not in the main dataset
+
+use "${wave2}\NHATS_Round_2_SP_File.dta", clear
+keep spid eh2* mc2meds mc2whr* mc2howpk* *chginspln *ansitindr *anhlpwdec 
+gen ind_module=eh2advicedoc!=-1
+label var ind_module "Received treatment burden module"
+
+foreach x of varlist eh2*  mc2meds mc2whr* mc2howpk* *chginspln *ansitindr *anhlpwdec {
+	replace `x'=.a if `x'==-9
+	replace `x'=.b if `x'==-8
+	replace `x'=.c if `x'==-7
+	replace `x'=.d if `x'==-1
+	label define `x' .a "Missing" .b "DK" .c "RF" .d "Inapplicaple", modify
+}
+
+
+rename eh2* *
+rename mc2* *
+
+tempfile wave2
+save `wave2'
+
+//get the LML variables that aren't already in main dataset
+use "${xwave}\round_1_to_7.dta", clear
+merge 1:1 spid wave using "${nhats}\sp_round_1_7.dta", keepusing(lml)
+keep if lml==1
+keep spid doctor docclear relg relgamt pain painhlp painhlpam bre brehlp brehlpam
+tempfile lml
+save `lml'
+
+
+//and bring them together
+use "${nhats}\sp_round_1_7.dta", clear
+
+gsort spid -wave
+by spid: carryforward *lml, replace
+keep if wave==2 & sp_ivw==1 & lml==0
+merge 1:1 spid using `wave2', gen(modm)
+merge 1:1 spid using `lml', gen(lmlm)
+gen haslml=lmlm>1
+label var haslml "Has complete LML interview"
+local keepvars advicedoc advicefam medmgmt meddif medfamdif meddelay  ///
+medtoomch spid ind_module wave age ///
+female race education educ_hs_ind srh srh_fp aveincome income_quart ///
+sr_hosp_ind sr_hosp_stays sr*ever sr_numconditions1 sr_phq2_depressed ///
+sr_gad2_anxiety prob_dem adl_index adl_independent marriedpartnered n_helpers n_paid_helpers ///
+spouse_help_ind n_social_network reg_doc_seen iadl_meds_help adverse_eat adverse_bath ///
+adverse_toil adverse_dres adverse_bed adverse_insd carenowan_lml respect_lml nhres ///
+doctor docclear relg relgamt pain painhlp painhlpam bre brehlp brehlpam ///
+whr* howpk* chginspln ansitindr anhlpwdec death_date meds modm lmlm haslml ///
+ivw_date proxy
+
+keep `keepvars'
+
+save "${intpath}\tburden_int.dta", replace
+
+H="variable cleaning & sample derivation"
+use "${intpath}\tburden_int.dta", clear
+
+
+local keepvars advicedoc advicefam medmgmt meddif medfamdif meddelay  ///
+medtoomuch spid ind_module wave age ///
+female race education education_hs_ind srh srh_fp aveincome income_quart ///
+sr_hosp_ind sr_hosp_stays sr*ever sr_numconditions1 sr_phq2_depressed ///
+sr_gad2_anxiety prob_dem adl_index adl_independent marriedpartnered n_helpers n_paid_helpers ///
+spouse_help_ind n_social_network regdocseen iadl_meds_help adverse_eat adverse_bath ///
+adverse_toil adverse_dres adverse_bed adverse_insd carenowan_lml respect_lml nhres ///
+doctor docclear relg relgamt pain painhlp painhlpam bre brehlp brehlpam ///
+whr* howpk* chginspln ansitindr anhlpwdec meds
+
+sum med* whr* howpk* chginspln ansitindr anhlpwdec pain* bre* doctor docclear ///
+relg relgamt
+
+*keep if death_date-ivw_date<=365*3
+
+
+gen care_coord_cat_lml=1 if doctor==3
+replace care_coord_cat_lml=2 if doctor==2 | (doctor==1 & docclear==1)
+replace care_coord_cat_lml=3 if doctor==1 & docclear==2
+replace care_coord_cat_lml=.a if doctor<0
+replace care_coord_cat_lml=.b if doctor==1 & docclear<0
+
+label define care_coord_cat_lml 1 "No care in LML" 2 "Clear who was in charge" ///
+3 "Not always clear" .a "DK, RF # doctors" .b "DK if clear"
+label values care_coord_cat_lml care_coord_cat_lml
+label var care_coord_cat_lml "Care coordination at EOL, categorical"
+
+gen relig_sup_cat_lml=1 if relg==3
+replace relig_sup_cat_lml=2 if relg==1 & relgamt==1
+replace relig_sup=3 if relgamt==2
+replace relig_sup=4 if relg==2 & relgamt<0
+replace relig_sup=.a if relg<0
+replace relig_sup=.b if relg==1 & relgamt<0
+
+label define relig_sup_cat_lml 1 "No care in LML" 2 "Had as much contact as was wanted" ///
+3 "Did not have as much as wanted" 4 "Did not discuss religious beliefs" ///
+.a "DK, RF if discussed" .b "DK if as much as wanted"
+label values relig_sup_cat_lml relig_sup_cat_lml
+label var relig_sup_cat_lml "Religious support at EOL, categorical"
+
+drop doctor docclear relg relgamt
+
+foreach x in pain bre {
+	gen `x'_cat_lml=1 if `x'==2 | `x'hlpam==3
+	replace `x'_cat_lml=2 if `x'==1 & `x'hlp==2
+	replace `x'_cat_lml=3 if `x'==1 & `x'hlp==1 & inlist(`x'hlpam,1,2)
+	replace `x'_cat_lml=.a if `x'<0
+	replace `x'_cat_lml=.b if `x'>0 & `x'hlp<0
+	replace `x'_cat_lml=.c if `x'>0 & `x'hlp>0 & `x'hlpam<0
+}
+
+label define pain_cat_lml 1 "No pain in LML or right amt of help" 2 "Pain, no help" ///
+3 "Pain, more or less than needed" .a "DK, RF pain in LML" .b "DK if help" ///
+.c "DK, RF if right amount"
+label values pain_cat_lml pain_cat_lml
+label var pain_cat_lml "Pain management at EOL, categorical"
+
+label define bre_cat_lml 1 "No breathing trouble in LML or right amt of help" ///
+2 "Breathing, no help" ///
+3 "Breathing, more or less than needed" .a "DK, RF breathing in LML" .b "DK if help" ///
+.c "DK, RF if right amount"
+label values bre_cat_lml bre_cat_lml
+label var bre_cat_lml "Breathing management at EOL, categorical"
+
+drop pain painhlp* bre brehlp*
+
+gen m2d=floor((death_date-ivw_date)/30.4)
+label var m2d "Months to death"
+
+
+//change race, because "other" is too small
+replace race_cat=1 if race_cat==3
+label define race 1 "Other Non-Hispanic", modify
+
+//recode advice
+
+foreach x in doc fam {
+	recode advice`x' (2=1) (3=2) (4=3)
+	label define advice`x' 1 "Make decisions independently, w/ or w/o advice" ///
+	2 "Make decisions together" 3 "Leave decisions up to them"
+	label values advice`x' advice`x'
+}
+
+
+local sampvars n ind_module inscope haslml
+
+gen n=1
+gen inscope=ind_module==1 & inrange(m2d,0,36)
+replace haslml=0 if !inscope
+label var n "All live SP interviews in NHATS wave 2"
+label var inscope "Death within 36 months"
+
+local r=1
+mat tab=J(4,1,.)
+
+foreach x of local sampvars {
+	sum n if `x'==1
+	mat tab[`r',1]=r(N)
+	if "`x'"!="haslml" keep if `x'==1
+	local r=`r'+1
+}
+
+mat rownames tab=`sampvars'
+
+frmttable, statmat(tab) varlabels sdec(0) title("Sample derivation")
+
+drop death_date ivw_date inscope n lmlm modm
+
+save "${datapath}/treatment_burden_eol_sample.dta", replace
+
+
+H="codebook"
+capture log close
+clear all
+set more off
+version 15
+
+
+//filepath globals should be set in the first NoteTab header, or you can change these below
+local logpath $logpath
+local datapath $datapath
+local outpath $outpath
+
+//date
+local date = subinstr("$S_DATE"," ","_",.)
+
+
+cd "`logpath'"
+
+// load dataset here
+
+//date
+local date = subinstr("$S_DATE"," ","_",.)
+
+
+cd "`logpath'"
+
+log using "`logpath'\data_dictionary`date'.txt", text replace //slightly easier than saving as SCML and then PDF
+
+// load dataset here
+
+
+//set filename 
+local filename serious_ill_nhats_sample
+
+
+
+// specify excel data dictionary file/filepath here
+local wkbk `logpath'\icd_9_10_data_dictionary`date'.xlsx  // put excel data dictionary file/filepath here
+
+
+assert "`filename'"!=""
+use "`datapath'/`filename'", clear
+
+
+if "`wkbk'" == "" {
+display as text "Warning: Excel file specification not found"
+} 
+else {
+display "Excel File: `wkbk'"
+}
+
+// generates variables that will contain the information
+local dispvars varname varlabel vallabelname vallabel note_1 note_2 note_3 note_4 note_5 type format ///
+mean sd min p25 p50 p75 max distinct_values n_observations n_missing 
+
+
+
+
+foreach x of local dispvars {
+	gen `x'=""
+}
+
+//gets word count so don't include them in the final output
+local excl_count : word count `dispvars'
+order `dispvars'
+
+label variable varname			"Variable Name"
+label variable varlabel			"Variable Label"
+label variable vallabelname		"Value Label Name"
+label variable vallabel			"Value Labels"
+
+/*these can be anything, but I think this may address what we need: raw vars, plain language, and code location
+  all must be included in prior code, shouldn't be done within this template*/
+label variable note_1			"Raw variables used in creation" 
+label variable note_2 			"Plain English of what the variable is"
+label variable note_3			"Location of code where variable was created" 
+label variable note_4 			"Dates of creation, alteration"
+label variable note_5			"Reference"
+label variable type				"Type (String, Numeric or Date)"
+label variable format			"Stata Display Format"
+label variable mean 			"Mean Value for numeric variables"			
+label variable sd 				"Std. Dev. for numeric variables"			
+label variable min				"Minimum Value for numeric variables"
+label variable p25				"25th percentile for numeric variables"
+label variable p50				"Median Value for numeric variables"
+label variable p75				"75th percentile for numeric variables"
+label variable max				"Maximum Value for numeric variables"
+label variable n_observations 	"Total number of observations"
+label variable distinct_values	"Number of distinct values"
+label variable n_missing		"Number missing"
+
+local i = 1
+
+
+
+foreach v of var * {
+
+
+
+	
+if "`: var label `v''" == "" {
+
+label variable `v' "No label"              // overwrites varlabel local if label is too long or not desired for output
+
+}
+
+
+replace varname			= "`v'" in `i'
+replace varlabel		= "`: var label `v''" in `i'
+replace vallabelname	= "`: val label `v''" in `i'
+replace format			= "`: format `v''" in `i'
+replace note_1			= "`: char `v'[note1]'" in `i'
+replace note_2			= "`: char `v'[note2]'" in `i'
+replace note_3			= "`: char `v'[note3]'" in `i'
+replace note_4			= "`: char `v'[note4]'" in `i'
+replace note_5			= "`: char `v'[note5]'" in `i'
+local vallabeltest = "`: val label `v''" in `i'
+if "`vallabeltest'" != "" {
+
+local val_label ""
+
+levelsof `v', local(levels)
+foreach l of local levels {
+local lab :label (`v') `l'
+local val_label "`val_label' `l',  `lab'|"
+
+}
+
+replace vallabel = "`val_label'" in `i'
+
+}
+
+
+
+
+ds `v' , has(type string)
+
+if "`r(varlist)'" == "`v'" {
+
+replace type = "String" in `i'
+
+} 
+
+ds `v' , has(type numeric)
+
+if "`r(varlist)'" == "`v'" {
+
+replace type = "Numeric" in `i'
+
+}
+
+ds `v' , has(varl *date* *Date*)
+
+if "`r(varlist)'" == "`v'" {
+
+replace type = "Date" in `i'
+
+}
+
+
+if inlist("`: format `v''" , "%dM_d,_CY", "%tCMonth_dd,_CCYY_HH:MM", "%tm", "%td", "%tmmcY") {
+
+replace type = "Date" in `i'
+
+} 
+
+
+sum `v' , d
+foreach x in mean sd min p25 p50 p75 max {
+	local `x' : di %-12.5gc `r(`x')'
+	replace `x' = "``x''" in `i'
+}
+
+gen n=1
+sum n if missing(`v')
+replace n_missing="`r(N)'" in `i'
+sum n
+replace n_observations="`r(N)'" in `i'
+drop n
+
+// section creates fills in idicator var based off of start of var label 
+// 		- project specific and would need to add indicator variable generate statement and
+//		add var to keep statement 
+// local varlabel : var label `v'
+// display "`varlabel'"
+
+// if (strpos("`: var label `v''", "RCAP") == 1) {
+//             replace redcap = "yes" in `i'
+//         }
+// 	else {
+// 	replace redcap = "no" in `i'
+// 	}
+
+*levelsof `v' , clean	
+*local countlevel : word count `r(levels)'
+
+egen tag`v'=tag(`v')
+count if tag`v'
+replace distinct_values = "`r(N)'" in `i'
+	
+	
+
+
+local ++ i
+}
+
+
+// remove min/ max of numeric identifiers here
+replace min = "" if varname == "study_id"  
+replace max = "" if varname == "study_id"
+
+// removes min/max of date variables, were numeric, considering taking the time 
+// to replace them with the display format, currently time is not available
+
+replace min = "" if type == "Date"
+replace max = "" if type == "Date"
+
+// for string vars, distinct values not as important (also would need to be calculated differently)
+
+replace distinct_values = "" if type != "Numeric"
+
+
+drop if varname == ""
+
+
+
+keep `dispvars'
+keep if _n>`excl_count'
+if "`wkbk'" == "" {
+display as text "Excel file specification Required"
+exit
+} 
+else {
+display "Excel File: `wkbk'"
+}
+assert "`wkbk'" != ""  // redundant check
+
+
+//1/4/19--ebl--put in quotes, since My Documents filepath (where I dumped it) has spaces
+export excel using "`wkbk'" , firstrow(varlabels) replace 
+
+
+log close
+exit
+
+

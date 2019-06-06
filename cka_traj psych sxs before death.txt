@@ -50,65 +50,126 @@ gloabl logpath "E:\nhats\data\Projects\..."
 
 
 H="making dataset"
-/*
-
-Created by: 
-Date Created:
-
-Updated by:
-Date Updated:
-/*
-
 *Making dataset
-use "E:\data\hrs_cleaned\core_00_to_14.dta" 
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta"
 
-merge m:1 id using "E:\data\hrs_cleaned\death_date_2015.dta", keepusing (death_all)
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta" , keepusing (death_all)
 keep if _merge==3
 
+gen days_ivw_death= death_all-c_ivw_date
+gen mnths_ivw_death= ceil(days_ivw_death/30)
+replace mnths_ivw_death=. if mnths_ivw_death<0
 
-
-H="cleaning variables"
-*make a variable for least months to death for each person
+*make a variable for least months to death for each person, and limit dataset to those within 24 months of death
 egen minttd=min(mnths_ivw_death), by(id)
 keep if minttd==mnths_ivw_death
 tab mnths_ivw_death
 replace mnths_ivw_death=1 if mnths_ivw_death==0
+keep if mnths_ivw_death<25
 
-*CESD by months
-tabstat cesd_tot if mnths_ivw_death<13, by(mnths_ivw_death) stat (mean sd)
-regress cesd_tot i.mnths_ivw_death if mnths_ivw_death<25
-margins mnths_ivw_death
-marginsplot
+drop _merge
+merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", keepusing(stratum secu)
+keep if _merge==3
 
+H="cleaning variables"
 
-*depressed in last week by months
-regress cesd1 i.mnths_ivw_death if mnths_ivw_death<25
-margins mnths_ivw_death
-marginsplot
-
-*was not happy in last week by months
-regress cesd4 i.mnths_ivw_death if mnths_ivw_death<25
-margins mnths_ivw_death
-marginsplot
-
-*was lonely in last week by months
-regress cesd5 i.mnths_ivw_death if mnths_ivw_death<25
-margins mnths_ivw_death
-marginsplot
-
-*did not enjoy life in last week by months
-regress cesd6 i.mnths_ivw_death if mnths_ivw_death<25
-margins mnths_ivw_death
-marginsplot
-
-*sad in last week by months
-regress cesd7 i.mnths_ivw_death if mnths_ivw_death<25
-margins mnths_ivw_death
-marginsplot
+*VARIABLE CLEANING
+rename cesd1 depressed
+rename cesd2 effort
+rename cesd3 restless
+rename cesd4 unhappy
+rename cesd5 lonely
+rename cesd6 notenjoy
+rename cesd7 sad
+rename cesd8 unmotivated
 
 
 H="analysis"
+*ANALYSIS
+svyset secu [pweight=wgtr], strata(stratum)
 
+*CESD by months
+graph bar cesd_tot, over(mnths_ivw_death)
+graph dot (mean) cesd_tot, over(mnths_ivw_death)
+dotplot cesd_tot, over(mnths_ivw_death) bar
+tabstat cesd_tot, by(mnths_ivw_death) stat (mean sd)
+
+
+
+svy: regress cesd_tot i.mnths_ivw_death##female cancer_hrs if mnths_ivw_death<13
+margins mnths_ivw_death#female
+marginsplot
+
+svy: logistic depressed i.mnths_ivw_death if mnths_ivw_death<13
+margins mnths_ivw_death
+marginsplot, yscale(range(0 0.6)) saving(deplog.gph, replace) 
+
+logistic effort i.mnths_ivw_death if mnths_ivw_death<13
+margins mnths_ivw_death
+marginsplot,  yscale(range(0 0.6)) saving(effortlog.gph, replace)
+
+logistic restless i.mnths_ivw_death if mnths_ivw_death<13
+margins mnths_ivw_death
+marginsplot, yscale(range(0 0.6)) saving(restlesslog.gph, replace)
+
+logistic unhappy i.mnths_ivw_death if mnths_ivw_death<13
+margins mnths_ivw_death
+marginsplot, yscale(range(0 0.6)) saving(unhappylog.gph, replace)
+
+logistic lonely i.mnths_ivw_death if mnths_ivw_death<13
+margins mnths_ivw_death
+marginsplot, yscale(range(0 0.6)) saving(lonelylog.gph, replace)
+
+logistic notenjoy i.mnths_ivw_death if mnths_ivw_death<13
+margins mnths_ivw_death
+marginsplot, yscale(range(0 0.6)) saving(notenjoylog.gph, replace)
+
+logistic sad i.mnths_ivw_death if mnths_ivw_death<13
+margins mnths_ivw_death
+marginsplot, yscale(range(0 0.6)) saving(sadlog.gph, replace)
+
+logistic unmotivated i.mnths_ivw_death if mnths_ivw_death<13
+margins mnths_ivw_death
+marginsplot, yscale(range(0 0.6)) saving(unmotivatedlog.gph, replace)
+
+graph combine deplog.gph effortlog.gph restlesslog.gph unhappylog.gph lonelylog.gph notenjoylog.gph sadlog.gph unmotivatedlog.gph
+
+fp <mnths_ivw_death>, scale: reg cesd_tot <mnths_ivw_death>
+fp plot, residuals(none) saving (allcesd.gph)
+
+drop mnths_ivw_death_1 mnths_ivw_death_2
+fp <mnths_ivw_death>, scale: logistic depressed <mnths_ivw_death> 
+fp plot, residuals(none) saving (depressed.gph)
+
+drop mnths_ivw_death_1 mnths_ivw_death_2
+fp <mnths_ivw_death>, scale: logistic effort <mnths_ivw_death> 
+fp plot, residuals(none) saving (effort.gph)
+
+drop mnths_ivw_death_1 mnths_ivw_death_2
+fp <mnths_ivw_death>, scale: logistic restless <mnths_ivw_death> 
+fp plot, residuals(none) saving (restless.gph)
+
+drop mnths_ivw_death_1 mnths_ivw_death_2
+fp <mnths_ivw_death>, scale: logistic unhappy <mnths_ivw_death> 
+fp plot, residuals(none) saving (unhappy.gph)
+
+drop mnths_ivw_death_1 mnths_ivw_death_2
+fp <mnths_ivw_death>, scale: logistic lonely <mnths_ivw_death> 
+fp plot, residuals(none) saving (lonely.gph)
+
+drop mnths_ivw_death_1 mnths_ivw_death_2
+fp <mnths_ivw_death>, scale: logistic notenjoy <mnths_ivw_death> 
+fp plot, residuals(none) saving (notenjoy.gph)
+
+drop mnths_ivw_death_1 mnths_ivw_death_2
+fp <mnths_ivw_death>, scale: logistic sad <mnths_ivw_death> 
+fp plot, residuals(none) saving (sad.gph)
+
+graph combine depressed.gph effort.gph restless.gph unhappy.gph lonely.gph notenjoy.gph sad.gph
+
+logistic cesd_tot_ge3 i.mnths_ivw_death 
+margins mnths_ivw_death
+marginsplot
 
 H="Change log"
 
