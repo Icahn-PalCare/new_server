@@ -54,7 +54,16 @@ H="making dataset"
 use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta"
 
 merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta" , keepusing (death_all)
-keep if _merge==3
+gen keep=0
+replace keep=1 if _merge==3
+
+drop _merge
+merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", keepusing(stratum secu race birth_date)
+replace keep=0 if _merge!=3
+
+H="cleaning variables"
+*VARIABLE CLEANING
+
 
 gen days_ivw_death= death_all-c_ivw_date
 gen mnths_ivw_death= ceil(days_ivw_death/30)
@@ -62,18 +71,13 @@ replace mnths_ivw_death=. if mnths_ivw_death<0
 
 *make a variable for least months to death for each person, and limit dataset to those within 24 months of death
 egen minttd=min(mnths_ivw_death), by(id)
-keep if minttd==mnths_ivw_death
+replace keep=0 if minttd!=mnths_ivw_death
 tab mnths_ivw_death
 replace mnths_ivw_death=1 if mnths_ivw_death==0
-keep if mnths_ivw_death<25
+replace keep=0 if mnths_ivw_death>12 | mnths_ivw_death==.
+replace mnths_ivw_death=. if mnths_ivw_death>12
 
-drop _merge
-merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", keepusing(stratum secu)
-keep if _merge==3
 
-H="cleaning variables"
-
-*VARIABLE CLEANING
 rename cesd1 depressed
 rename cesd2 effort
 rename cesd3 restless
@@ -83,93 +87,256 @@ rename cesd6 notenjoy
 rename cesd7 sad
 rename cesd8 unmotivated
 
+replace keep=0 if cesd_tot==.
+
+*cleaning covariates
+gen age= floor((c_ivw_date-birth_date)/365)
+recode age (min/65=1 "</=65")(66/75=2 "66-75")(76/85=3 "76-85")(86/max=4 "86+"), gen(age_cat)
+
+*recode race 
+recode race (0=.)(1=0 "0_white")(2/9=1 "1_nonwhite"),gen(nonwhite)
 
 H="analysis"
 *ANALYSIS
+
+*defining cohort 
+tab mnths_ivw_death if keep==1 
+tab mnths_ivw_death if keep==1 & proxy==0
+tab mnths_ivw_death if keep==1 & proxy==0 & cesd_tot!=.
+
+*unadjusted mean cesd score over time
+tabstat cesd_tot if keep==1, by(mnths_ivw_death) stat (mean median semean)
+tabstat cesd_tot_ge3 if keep==1, by(mnths_ivw_death) stat (mean semean)
 svyset secu [pweight=wgtr], strata(stratum)
 
 *CESD by months
 graph bar cesd_tot, over(mnths_ivw_death)
 graph dot (mean) cesd_tot, over(mnths_ivw_death)
 dotplot cesd_tot, over(mnths_ivw_death) bar
-tabstat cesd_tot, by(mnths_ivw_death) stat (mean sd)
+tabstat cesd_tot if keep==1, by(mnths_ivw_death) stat (mean semean)  format (%9.2g)
+
+*CESD component by months
+tabstat depressed if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
+tabstat effort if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
+tabstat restless if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
+tabstat unhappy if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
+tabstat lonely if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
+tabstat notenjoy if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
+tabstat sad if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
+tabstat unmotivated if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
 
 
-
-svy: regress cesd_tot i.mnths_ivw_death##female cancer_hrs if mnths_ivw_death<13
-margins mnths_ivw_death#female
-marginsplot
-
-svy: logistic depressed i.mnths_ivw_death if mnths_ivw_death<13
-margins mnths_ivw_death
-marginsplot, yscale(range(0 0.6)) saving(deplog.gph, replace) 
-
-logistic effort i.mnths_ivw_death if mnths_ivw_death<13
-margins mnths_ivw_death
-marginsplot,  yscale(range(0 0.6)) saving(effortlog.gph, replace)
-
-logistic restless i.mnths_ivw_death if mnths_ivw_death<13
-margins mnths_ivw_death
-marginsplot, yscale(range(0 0.6)) saving(restlesslog.gph, replace)
-
-logistic unhappy i.mnths_ivw_death if mnths_ivw_death<13
-margins mnths_ivw_death
-marginsplot, yscale(range(0 0.6)) saving(unhappylog.gph, replace)
-
-logistic lonely i.mnths_ivw_death if mnths_ivw_death<13
-margins mnths_ivw_death
-marginsplot, yscale(range(0 0.6)) saving(lonelylog.gph, replace)
-
-logistic notenjoy i.mnths_ivw_death if mnths_ivw_death<13
-margins mnths_ivw_death
-marginsplot, yscale(range(0 0.6)) saving(notenjoylog.gph, replace)
-
-logistic sad i.mnths_ivw_death if mnths_ivw_death<13
-margins mnths_ivw_death
-marginsplot, yscale(range(0 0.6)) saving(sadlog.gph, replace)
-
-logistic unmotivated i.mnths_ivw_death if mnths_ivw_death<13
-margins mnths_ivw_death
-marginsplot, yscale(range(0 0.6)) saving(unmotivatedlog.gph, replace)
-
-graph combine deplog.gph effortlog.gph restlesslog.gph unhappylog.gph lonelylog.gph notenjoylog.gph sadlog.gph unmotivatedlog.gph
-
-fp <mnths_ivw_death>, scale: reg cesd_tot <mnths_ivw_death>
+*drivers of overall CESD overtime
+/*
+svy subpop(keep): regress cesd_tot i.mnths_ivw_death female cancer_hrs 
+svy, subpop(keep): fracreg fp <mnths_ivw_death>, scale: reg cesd_tot <mnths_ivw_death>
 fp plot, residuals(none) saving (allcesd.gph)
 
-drop mnths_ivw_death_1 mnths_ivw_death_2
-fp <mnths_ivw_death>, scale: logistic depressed <mnths_ivw_death> 
-fp plot, residuals(none) saving (depressed.gph)
 
-drop mnths_ivw_death_1 mnths_ivw_death_2
-fp <mnths_ivw_death>, scale: logistic effort <mnths_ivw_death> 
-fp plot, residuals(none) saving (effort.gph)
 
-drop mnths_ivw_death_1 mnths_ivw_death_2
-fp <mnths_ivw_death>, scale: logistic restless <mnths_ivw_death> 
-fp plot, residuals(none) saving (restless.gph)
+mkspline mo1 1 mo2 3 mo3 6 mo4= mnths_ivw_death, marginal
 
-drop mnths_ivw_death_1 mnths_ivw_death_2
-fp <mnths_ivw_death>, scale: logistic unhappy <mnths_ivw_death> 
-fp plot, residuals(none) saving (unhappy.gph)
+regress cesd_tot mo1 if keep==1
+estat ic
+*AIC
 
-drop mnths_ivw_death_1 mnths_ivw_death_2
-fp <mnths_ivw_death>, scale: logistic lonely <mnths_ivw_death> 
-fp plot, residuals(none) saving (lonely.gph)
+regress cesd_tot mnths_ivw_death
+estat ic
+*AIC 185,834 BIC 185,851
 
-drop mnths_ivw_death_1 mnths_ivw_death_2
-fp <mnths_ivw_death>, scale: logistic notenjoy <mnths_ivw_death> 
-fp plot, residuals(none) saving (notenjoy.gph)
+fp <mnths_ivw_death>, scale: reg cesd_tot <mnths_ivw_death> if keep==1
+estat ic
+*AIC 185,752 BIC 185,779
 
-drop mnths_ivw_death_1 mnths_ivw_death_2
-fp <mnths_ivw_death>, scale: logistic sad <mnths_ivw_death> 
-fp plot, residuals(none) saving (sad.gph)
+*ss cesd_tot i.mo1##i.female mo2 mo3 mo4 cancer_hrs
+margins female#mo1
+svy, subpop(keep): regress cesd_tot mo1 
 
-graph combine depressed.gph effort.gph restless.gph unhappy.gph lonely.gph notenjoy.gph sad.gph
 
-logistic cesd_tot_ge3 i.mnths_ivw_death 
-margins mnths_ivw_death
-marginsplot
+fp <mnths_ivw_death>, scale replace: reg cesd_tot <mnths_ivw_death> female cancer_hrs i.age_cat
+fp plot, female residuals(none) 
+
+fp <mnths_ivw_death>, scale replace: reg cesd_tot <mnths_ivw_death>##female cancer_hrs i.age_cat
+margins mnths_ivw_death#female
+
+*cubic spline model
+
+mkspline mk3s=mnths_ivw_death, cubic nknots(3) displayknots
+regress cesd_tot mk3s* if keep==1
+estat ic
+
+mkspline mk4s=mnths_ivw_death, cubic nknots(4) displayknots
+regress cesd_tot mk4s* if keep==1
+estat ic
+
+mkspline mk5s=mnths_ivw_death, cubic nknots(5) displayknots
+regress cesd_tot mk5s* if keep==1
+estat ic
+
+mkspline mk6s=mnths_ivw_death, cubic nknots(6) displayknots
+regress cesd_tot i.mnths_ivw_death
+estat ic
+*/
+
+*model with one knot, just selecting location
+mkspline one1k1 1 one1k2 = mnths_ivw_death
+mkspline one2k1 2 one2k2 = mnths_ivw_death
+mkspline one3k1 3 one3k2 = mnths_ivw_death
+mkspline one4k1 4 one4k2 = mnths_ivw_death
+mkspline one6k1 6 one6k2 = mnths_ivw_death
+mkspline one9k1 9 one9k2 = mnths_ivw_death
+mkspline one12k1 12 one12k2 = mnths_ivw_death
+
+reg cesd_tot one2k1 one2k2 
+estat ic
+reg cesd_tot one3k1 one3k2 
+estat ic
+reg cesd_tot one4k1 one4k2 
+estat ic
+reg cesd_tot one6k1 one6k2 
+estat ic
+
+
+
+*one knot at 4 months before death
+
+*SEX
+svy, subpop(keep): reg cesd_tot one4k1##i.female one4k2##i.female  i.age_cat nonwhite 
+*month 1
+margins female, at(one4k1==1) cformat(%9.3g)
+margins, dydx(female) at(one4k1==1)
+*month 3
+margins female, at(one4k1==3) cformat(%9.3g)
+margins, dydx(female) at(one4k1==3)
+*month 6
+margins female, at(one4k2==2) cformat(%9.3g)
+margins, dydx(female) at(one4k2==2)
+*month 12
+margins female, at(one4k2==8) cformat(%9.3g)
+margins, dydx(female) at(one4k2==8)
+
+*AGE
+svy, subpop(keep): reg cesd_tot one4k1##i.age_cat i.female one4k2##i.age_cat  nonwhite 
+*month 1
+margins age_cat, at(one4k1==1) cformat(%9.3g)
+margins, dydx(age_cat) at(one4k1==1)
+*month 3
+margins age_cat, at(one4k1==3) cformat(%9.3g)
+margins, dydx(age_cat) at(one4k1==3)
+*month 6
+margins age_cat, at(one4k2==2) cformat(%9.3g)
+margins, dydx(age_cat) at(one4k2==2)
+*month 12
+margins age_cat, at(one4k2==8) cformat(%9.3g)
+margins, dydx(age_cat) at(one4k2==8)
+
+*RACE
+svy, subpop(keep): reg cesd_tot i.one4k1##i.nonwhite  i.one4k2##i.nonwhite i.female  i.age_cat  
+*month 1
+margins nonwhite, at(one4k1==1) cformat(%9.3g)
+margins, dydx(nonwhite) at(one4k1==1)
+*month 3
+margins nonwhite, at(one4k1==3) cformat(%9.3g)
+margins, dydx(nonwhite) at(one4k1==3)
+*month 6
+margins nonwhite, at(one4k2==2) cformat(%9.3g)
+margins, dydx(nonwhite) at(one4k2==2)
+*month 12
+margins nonwhite, at(one4k2==8) cformat(%9.3g)
+margins, dydx(nonwhite) at(one4k2==8)
+
+*INCOME
+svy, subpop(keep): reg cesd_tot i.one4k1##nw_lowest  i.one4k2##nw_lowest i.nonwhite i.female i.age_cat  
+*month 1
+margins nw_lowest, at(one4k1==1) cformat(%9.3g)
+margins, dydx(nw_lowest) at(one4k1==1)
+*month 3
+margins nw_lowest, at(one4k1==3) cformat(%9.3g)
+margins, dydx(nw_lowest) at(one4k1==3)
+*month 6
+margins nw_lowest, at(one4k2==2) cformat(%9.3g)
+margins, dydx(nw_lowest) at(one4k2==2)
+*month 12
+margins nw_lowest, at(one4k2==8) cformat(%9.3g)
+margins, dydx(nw_lowest) at(one4k2==8)
+
+*EDUCATION
+svy, subpop(keep): reg cesd_tot i.one4k1##i.hseduc  i.one4k2##i.hseduc nonwhite i.female  i.age_cat    
+*month 1
+margins hseduc, at(one4k1==1) cformat(%9.3g)
+margins, dydx(hseduc) at(one4k1==1)
+*month 3
+margins hseduc, at(one4k1==3) cformat(%9.3g)
+margins, dydx(hseduc) at(one4k1==3)
+*month 6
+margins hseduc, at(one4k2==2) cformat(%9.3g)
+margins, dydx(hseduc) at(one4k2==2)
+*month 12
+margins hseduc, at(one4k2==8) cformat(%9.3g)
+margins, dydx(hseduc) at(one4k2==8) 
+
+
+*CANCER
+svy, subpop(keep): reg cesd_tot i.one4k1##i.cancer_hrs  i.one4k2##i.cancer_hrs i.female  i.age_cat  nonwhite
+*month 1
+margins cancer_hrs, at(one4k1==1) cformat(%9.3g)
+margins, dydx(cancer_hrs) at(one4k1==1)
+*month 3
+margins cancer_hrs, at(one4k1==3) cformat(%9.3g)
+margins, dydx(cancer_hrs) at(one4k1==3)
+*month 6
+margins cancer_hrs, at(one4k2==2) cformat(%9.3g)
+margins, dydx(cancer_hrs) at(one4k2==2)
+*month 12
+margins cancer_hrs, at(one4k2==8) cformat(%9.3g)
+margins, dydx(cancer_hrs) at(one4k2==8) 
+
+*LUNG DISEASE
+svy, subpop(keep): reg cesd_tot i.one4k1##i.lung_hrs  i.one4k2##i.lung_hrs i.female  i.age_cat  nonwhite
+*month 1
+margins lung_hrs, at(one4k1==1) cformat(%9.3g)
+margins, dydx(lung_hrs) at(one4k1==1)
+*month 3
+margins lung_hrs, at(one4k1==3) cformat(%9.3g)
+margins, dydx(lung_hrs) at(one4k1==3)
+*month 6
+margins lung_hrs, at(one4k2==2) cformat(%9.3g)
+margins, dydx(lung_hrs) at(one4k2==2)
+*month 12
+margins lung_hrs, at(one4k2==8) cformat(%9.3g)
+margins, dydx(lung_hrs) at(one4k2==8) 
+
+
+*CHF
+svy, subpop(keep): reg cesd_tot i.one4k1##i.chf_hrs  i.one4k2##i.chf_hrs i.female  i.age_cat  nonwhite
+*month 1
+margins chf_hrs, at(one4k1==1) cformat(%9.3g)
+margins, dydx(chf_hrs) at(one4k1==1)
+*month 3
+margins chf_hrs, at(one4k1==3) cformat(%9.3g)
+margins, dydx(chf_hrs) at(one4k1==3)
+*month 6
+margins chf_hrs, at(one4k2==2) cformat(%9.3g)
+margins, dydx(chf_hrs) at(one4k2==2)
+*month 12
+margins chf_hrs, at(one4k2==8) cformat(%9.3g)
+margins, dydx(chf_hrs) at(one4k2==8) 
+
+
+*ADL DISABILITY
+svy, subpop(keep): reg cesd_tot i.one4k1##i.adl_independent_core  i.one4k2##i.adl_independent_core i.female  i.age_cat  nonwhite
+*month 1
+margins adl_independent_core, at(one4k1==1) cformat(%9.3g)
+margins, dydx(adl_independent_core) at(one4k1==1)
+*month 3
+margins adl_independent_core, at(one4k1==3) cformat(%9.3g)
+margins, dydx(adl_independent_core) at(one4k1==3)
+*month 6
+margins adl_independent_core, at(one4k2==2) cformat(%9.3g)
+margins, dydx(adl_independent_core) at(one4k2==2)
+*month 12
+margins adl_independent_core, at(one4k2==8) cformat(%9.3g)
+margins, dydx(adl_independent_core) at(one4k2==8)
 
 H="Change log"
 

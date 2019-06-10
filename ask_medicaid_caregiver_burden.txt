@@ -1295,10 +1295,20 @@ replace ltss_spending = "" if ltss_spending=="N/A"
 
 rename State state_name
 destring ltss_spending, replace float
+
+
+// replace missng values of ltss using the National average reported by KFF (12836)
+
+drop if state_name=="United States"
+replace ltss_spending = 12836 if ltss_spending==.
+
+xtile ltss_cat = ltss_spending, nquantiles(10)
+sum ltss_spending, d
+
 forvalues i=0/5 {
 
 gen state_name_i`i' = state_name
-gen ltss_spending_i`i' = ltss_spending
+gen ltss_cat_i`i' = ltss_cat
 }
 
 save $int\ltss.dta, replace
@@ -1306,15 +1316,13 @@ use $int\hrs_u.dta, replace
 
 forvalues i=0/5{
 cap drop _m
-merge m:1 state_name_i`i' using $int\ltss.dta, keepus(ltss_spending_i`i')
+merge m:1 state_name_i`i' using $int\ltss.dta, keepus(ltss_cat_i`i')
 drop if _m==2
 
 }
 cap drop _m
 
 save $int\hrs_v.dta, replace
-
-
 
 H="Getting COD from raw exit"
 libname exit 'D:\HRS\Shared\raw\HRS\hrs_public_2014\exit';
@@ -1412,22 +1420,20 @@ label var srh_pf_i`i' "Self Reported Health: Poor/Fair at interview `i' prior to
 label var comor_in_hrs_i`i' "Number of Comorbidities at interview `i' prior to death"
 label var stateusps_i`i' "USPS State Abbreviations"
 label var state_name_i`i' "State of residence at interview `i' prior to death"
-label var ltss_spending_i`i' "LTSS matched to respondent state of residence at interview `i' prior to death"
+label var ltss_cat_i`i' "LTSS decile matched to state of residence at interview `i' prior to death"
 }
-drop smoke_ever_i0 smoke_curr_i0 srh_pf_i0 core_year_i0
+
+sort id 
+set seed 123
+gen rid = runiform()*10000000
+replace rid = abs(rid)
+drop smoke_ever_i0 smoke_curr_i0 srh_pf_i0 core_year_i0 state*
+
+save $fin\medicaid_cg_burden_id.dta, replace 
+
+drop id
 
 save $fin\medicaid_cg_burden.dta, replace 
 
 H="Changelog"
-
-
-********************Change Log******************** 
-
-
-Updates:
-
-05/31/2019 MH
-----------
-Made file path changes and re-ran code to create datasets for new server. 
-
-5/29/19 -- Changed file paths to match new directory setup on new server. Omari
+6/8/19 - Had to remove state due to HRS requirements. Created deciles for LTSS spending 
