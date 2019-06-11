@@ -98,7 +98,7 @@ spouse_help_ind n_social_network reg_doc_seen iadl_meds_help adverse_eat adverse
 adverse_toil adverse_dres adverse_bed adverse_insd carenowan_lml respect_lml nhres ///
 doctor docclear relg relgamt pain painhlp painhlpam bre brehlp brehlpam ///
 whr* howpk* chginspln ansitindr anhlpwdec death_date meds modm lmlm haslml ///
-ivw_date proxy
+ivw_date proxy adl*help
 
 keep `keepvars'
 
@@ -192,16 +192,18 @@ foreach x in doc fam {
 }
 
 
-local sampvars n ind_module inscope haslml
+local sampvars n ind_module hasdeath inscope haslml
 
 gen n=1
 gen inscope=ind_module==1 & inrange(m2d,0,36)
+gen hasdeath=!missing(death_date)
+label var hasdeath "Death observed"
 replace haslml=0 if !inscope
 label var n "All live SP interviews in NHATS wave 2"
 label var inscope "Death within 36 months"
 
 local r=1
-mat tab=J(4,1,.)
+mat tab=J(5,1,.)
 
 foreach x of local sampvars {
 	sum n if `x'==1
@@ -212,7 +214,8 @@ foreach x of local sampvars {
 
 mat rownames tab=`sampvars'
 
-frmttable, statmat(tab) varlabels sdec(0) title("Sample derivation")
+frmttable using "${outpath}/sample_derivation.rtf", ///
+replace statmat(tab) varlabels sdec(0) title("Sample derivation")
 
 drop death_date ivw_date inscope n lmlm modm
 
@@ -227,7 +230,7 @@ version 15
 
 
 //filepath globals should be set in the first NoteTab header, or you can change these below
-local logpath $logpath
+local outpath $outpath
 local datapath $datapath
 local outpath $outpath
 
@@ -235,7 +238,7 @@ local outpath $outpath
 local date = subinstr("$S_DATE"," ","_",.)
 
 
-cd "`logpath'"
+cd "`outpath'"
 
 // load dataset here
 
@@ -243,20 +246,20 @@ cd "`logpath'"
 local date = subinstr("$S_DATE"," ","_",.)
 
 
-cd "`logpath'"
+cd "`outpath'"
 
-log using "`logpath'\data_dictionary`date'.txt", text replace //slightly easier than saving as SCML and then PDF
+log using "`outpath'\data_dictionary`date'.txt", text replace //slightly easier than saving as SCML and then PDF
 
 // load dataset here
 
 
 //set filename 
-local filename serious_ill_nhats_sample
+local filename treatment_burden_eol_sample
 
 
 
 // specify excel data dictionary file/filepath here
-local wkbk `logpath'\icd_9_10_data_dictionary`date'.xlsx  // put excel data dictionary file/filepath here
+local wkbk `filename'_data_dictionary`date'.xlsx  // put excel data dictionary file/filepath here
 
 
 assert "`filename'"!=""

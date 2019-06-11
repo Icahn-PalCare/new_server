@@ -105,9 +105,13 @@ tab mnths_ivw_death if keep==1 & proxy==0
 tab mnths_ivw_death if keep==1 & proxy==0 & cesd_tot!=.
 
 *unadjusted mean cesd score over time
-tabstat cesd_tot if keep==1, by(mnths_ivw_death) stat (mean median semean)
-tabstat cesd_tot_ge3 if keep==1, by(mnths_ivw_death) stat (mean semean)
 svyset secu [pweight=wgtr], strata(stratum)
+
+svy, subpop(keep): mean cesd_tot, over(mnths_ivw_death) cformat (%9.3g)
+tabstat cesd_tot_ge3 if keep==1, by(mnths_ivw_death) stat (mean semean)
+
+*proportion with cesd of 3+ over time
+svy, subpop(keep): mean cesd_tot_ge3, over(mnths_ivw_death) cformat (%9.3g)
 
 *CESD by months
 graph bar cesd_tot, over(mnths_ivw_death)

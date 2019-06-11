@@ -19,16 +19,30 @@ H="making file for date of first needing help"
 *making a new variable that is wide
 *clean up month of first disability-
 
-use "E:\nhats\data\Logs - NHATS setup\claire nhats setup files\pubnhats_1_6_raw.dta"
-*merge in 2017 data
-drop _merge
-merge 1:1 spid using "E:\nhats\data\NHATS Public\round_7\NHATS_Round_7_SP_File.dta", keepusing (dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
-dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr)
 
-keep spid dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
-		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
-		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
-		dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr
+use "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_7\NHATS_Round_7_SP_File.dta"
+keep spid dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr
+
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_6\NHATS_Round_6_SP_File.dta", ///
+keepusing (dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_5\NHATS_Round_5_SP_File.dta", ///
+keepusing (dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_4\NHATS_Round_4_SP_File.dta", ///
+keepusing (dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_3\NHATS_Round_3_SP_File.dta", ///
+keepusing (dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_2\NHATS_Round_2_SP_File.dta", ///
+keepusing (dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr)
+
+
 
 *make missing if "inapplicable"
 foreach var of varlist dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
@@ -128,14 +142,15 @@ foreach n of numlist 2 3 4 5 6 7 {
 *make a variable called repsecondhelp that is the wave after the one first reporting help	
 	gen repsecondhelp=repfirsthelp+1
 	replace repsecondhelp=. if repsecondhelp==8
+drop _merge
+ save "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\date of first disability.dta", replace
 
- save "E:\nhats\data\Projects\MA after disability\date of first disability.dta", replace
 
 H="****THE NEXT 4 HEADINGS MAKES DATA FILE, ONLY DO ONCE***"
 
 
 H="make file for date of death and nh"
-use "E:\nhats\data\NHATS cleaned\sp_round_1_7_beta.dta" 
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta"
 * make a variable for each person for if they had new nursing home admission
 sort spid wave
 by spid: gen firstnh=(nhres!=nhres[_n-1])
@@ -153,10 +168,10 @@ by spid, sort: gen nvals= _n ==1
 keep if nvals==1
 keep spid minnh death_date
 
-save "E:\nhats\data\Projects\MA after disability\date of death and NH.dta"
+save "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\date of death and NH.dta", replace
 
 H="making file for ma status by month"
-use "E:\nhats\data\20190326\Merged\mbsf_06_17.dta" 
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta"
 
 keep bene_id year bene_hmo_ind_01 bene_hmo_ind_02 bene_hmo_ind_03 bene_hmo_ind_04 bene_hmo_ind_05 bene_hmo_ind_06 bene_hmo_ind_07 bene_hmo_ind_08 bene_hmo_ind_09 bene_hmo_ind_10 bene_hmo_ind_11 bene_hmo_ind_12
 foreach var of varlist bene_hmo_ind_01 bene_hmo_ind_02 bene_hmo_ind_03 bene_hmo_ind_04 bene_hmo_ind_05 bene_hmo_ind_06 bene_hmo_ind_07 bene_hmo_ind_08 bene_hmo_ind_09 bene_hmo_ind_10 bene_hmo_ind_11 bene_hmo_ind_12 {
@@ -171,22 +186,22 @@ replace hmo_mo_`x'= 1 if bene_hmo_ind_`x' == "1" | bene_hmo_ind_`x'== "C"
 count
 
 egen hmoind12= concat(hmo_mo_01 hmo_mo_02 hmo_mo_03 hmo_mo_04 hmo_mo_05 hmo_mo_06 hmo_mo_07 hmo_mo_08 hmo_mo_09 hmo_mo_10 hmo_mo_11 hmo_mo_12)
-save "E:\nhats\data\Projects\MA after disability\ma status by month.dta", replace
+save "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\ma status by month.dta", replace
+
 
 H="make file for date of hospice entry"
- use "E:\nhats\data\20180625 NHATS CMS Data\merged stata\hs_09_16.dta" 
+ use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hs_09_17.dta"
  by bene_id, sort: egen first_hs= min(admit_date)
- merge m:1 bene_id using "E:\nhats\data\20180625 NHATS CMS Data\merged\xwalk_2016.dta"
+ merge m:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" 
  keep first_hs spid
- by spid, sort: gen nvals=_n
  by spid: gen nvals= _n==1
  keep if nvals==1
-save "E:\nhats\data\Projects\MA after disability\bene spid and hospice.dta"
+save "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\bene spid and hospice.dta"
 
 H="make a file for weighting vars"
-use "E:\nhats\data\NHATS cleaned\sp_round_1_7_beta.dta" 
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta"
 keep anfinwgt varstrat varunit spid wave
- save "E:\nhats\data\Projects\MA after disability\weighting vars.dta"
+ save "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\weighting vars.dta"
 
 H="***** BELOW THIS LINE, RUN EVERY TIME*****"
 
@@ -198,14 +213,14 @@ in variables describing
 
 first, crosswalk mbsf to spid so can merge with nhats data*/
 
-use bene_id year hmoind12 using "E:\nhats\data\Projects\MA after disability\ma status by month.dta", clear
-merge m:1 bene_id using "E:\nhats\data\20180625 NHATS CMS Data\merged\xwalk_2016.dta", ///
+use bene_id year hmoind12 using "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\ma status by month.dta", clear
+merge m:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" , ///
 gen(xmerge)
 tempfile mbsf
 save `mbsf'
 
 /*2nd, just pull index year*/
-use "E:\nhats\data\Projects\MA after disability\date of first disability.dta", clear
+use "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\date of first disability.dta", clear
 codebook datefirsthelp
 keep spid datefirsthelp
 rename datefirsthelp index_date
@@ -246,15 +261,15 @@ forvalues i=1/2 {
 	merge 1:1 spid using `p`i'year', keep(match master) gen(p`i'm)
 }
 
-merge 1:1 spid using "E:\nhats\data\Projects\MA after disability\date of first disability.dta"
+merge 1:1 spid using "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\date of first disability.dta"
 
 drop _merge
-merge 1:1 spid using "E:\nhats\data\Projects\MA after disability\date of death and NH.dta"
+merge 1:1 spid using "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\date of death and NH.dta"
 keep if _merge==3
 
 drop _merge
 
-merge 1:1 spid using "E:\nhats\data\Projects\MA after disability\bene spid and hospice.dta"
+merge 1:1 spid using "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\bene spid and hospice.dta"
 keep if _merge==3
 drop _merge
 
@@ -265,7 +280,7 @@ replace wave=`n' if dm`n'datehelp==index_date
 replace wave=`n' if wave==. & ds`n'datehelp==index_date
 }
 
-merge 1:1 spid wave using "E:\nhats\data\NHATS cleaned\sp_round_1_7.dta"
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta"
 
 
 H="cleaning all variables"
