@@ -1,0 +1,98 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="NHATS CMS Data Processing"
+/* 
+********************HEADING******************** 
+
+Project Name: Processing of CMS claims for NHATS
+
+Date Started: 4/3/19
+
+Primary Investigator: Amy Kelley
+Funding Source:
+
+Created by: Evan Bollens-Lund
+
+Primary Analyst:
+Secondary Analyst:
+
+Datasets Used: 
+
+Simple Outline: This is the basic processing of the claims for NHATS, to pull them from the raw extracted annual files to multi-year files by claim type
+
+Note--when a new year's data arrives, files should be extracted to the "extracted folder" below, which is pooled across years
+
+*/
+ 
+
+/*SAS */
+
+
+libname medi_raw 'D:\E_drive_clone\nhats\data\NHATS CMS DUA 28016\Extracted'; 
+libname merged 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS';
+libname cumu 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Cumulative'; 
+
+
+
+H="Get visit dates from rev center"
+libname sas 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Extracted';
+
+proc contents data=sas.hha_revenue_center_j_13; run;
+
+
+data rev_cntr;
+set sas.hha_revenue_center_j_09-sas.hha_revenue_center_j_14 sas.hha_revenue_center_15-sas.hha_revenue_center_16 sas.hha_revenue_center_k_17;
+run;
+
+proc contents data=rev_cntr; run;
+
+data rev_cntr; keep bene_id clm_id clm_thru_dt rev_cntr_dt;
+set rev_cntr;
+run;
+
+proc export data= rev_cntr outfile="D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\rev_cntr.dta" dbms=stata replace; run; 
+
+
+H="Claim files"
+/* Get dates from rev center */
+use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\rev_cntr.dta", clear
+drop clm_thru_dt
+duplicates drop 
+bysort bene_id clm_id: gen obs = _n
+bysort bene_id clm_id: egen num_visits = max(obs)
+reshape wide rev_cntr_dt, i(bene_id clm_id) j(obs)
+tempfile dates
+save `dates'
+
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\ip_06_17.dta" , clear
+
+keep bene_id disch_date 
+duplicates drop 
+gen year = year(disch_date)
+gsort bene_id year disch_date
+by bene_id year: gen obs = _n
+reshape wide disch_date, i(bene_id year) j(obs)
+tempfile ip
+save `ip'
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hh_09_17.dta" , clear
+merge 1:1 bene_id clm_id using "`dates'", keep(match) nogen 
+gen year = year(admit_date)
+merge m:1 bene_id year using "`ip'", keep(master match) nogen
+
+
+
+H="Changelog"
+
+
+********************Change Log******************** 
+
+
+Updates:
+
+05/31/2019 MH
+----------
+Made file path changes and re-ran code to create datasets for new server. 
+
+5/29/19 -- Changed file paths to match new directory setup on new server. Omari

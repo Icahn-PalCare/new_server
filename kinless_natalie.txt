@@ -1,9 +1,101 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Kinship Project"
-Kinship project 
+/* 
+********************HEADING******************** 
+
+Project Name: Kinlessness 
+
+Date Started: 
+
+Primary Investigator: 
+Student: Natalie
+Funding Source:
+
+Created by: Mohammed
+
+Primary Analyst: Mohammed
+Secondary Analyst: Evan
+
+Datasets Used: HRS Raw files, Core, Exit, Death date, Helper hours, family respondent.
+
+Simple Outline: Creating dataset, adding labels. 
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+//File paths for raw data
+
+//NEED TO CHANGE WAVE NUMBER FOR EACH WAVE
+
+global final D:\HRS\Projects\exploratory\kinless_natalie\Data\final
+global int D:\HRS\Projects\exploratory\kinless_natalie\Data\int
+global logs D:\HRS\Projects\exploratory\kinless_natalie\Output\logs
+
+cd "${work}"
 
 H="Creating dataset"
+/*
+
+Created by: Mohammed 
+Date Created: 05/28/2019
+
+Updated by: MH
+Date Updated: 06/07/2019
+
+Description: 
+	1. All decedents with an N1 within 4 years of death
+	2. Not restricting by age
+	3. Pulling variables from the N1 core and the exit both. 
+
+**************************************************
+*/
+
+local date = subinstr("$S_DATE"," ","_",.) 
+local name HRS_kinless_`date'
+di "`name'"
+
+capture log close 
+clear all
+
+set more off
+version 12
+set linesize 80
+set maxvar 10000
+
+
+log using "${logs}/`name'.smcl", text replace
+
+
+/*HRS 2012 interview with left-behind survey. 
+
+Data format is multiple observations per subject, one for each round
+*/
+
+
+clear all
+
+set maxvar 100000
+
+use "D:\HRS\Shared\raw\HRS\hrs_public_2014\exit\exit2002.dta", clear
+
+foreach i in "04" "06" "08" "10" "12" "14" "16"{
+append using "D:\HRS\Shared\raw\HRS\hrs_public_2014\exit\exit20`i'.dta"
+}
+
+keep *a103 hhid pn 
+
+gen id=hhid+pn
+duplicates drop
+egen proxy_relat_exit=rowtotal( *a103)
+
+drop *a103
+
+tempfile exit_prox
+save "`exit_prox'"
+
 use "D:\HRS\Shared\raw\HRS\hrs_public_2014\HRS raw data\extracted\H02F_R.dta", clear
 gen core_year=2002
 
@@ -11,6 +103,8 @@ foreach x in "04" "06" "08" "10" "12" "14"{
 append using "D:\HRS\Shared\raw\HRS\hrs_public_2014\HRS raw data\extracted\H`x'F_R.dta"
 replace core_year=20`x' if core_year==.
 }
+
+sort hhid pn core_year
 
 egen f001=rowmax(*f001)
 sort hhid pn core_year
@@ -22,28 +116,38 @@ replace f011=f011[_n-1] if f011[_n-1]==5 & hhid==hhid[_n-1] & pn==pn[_n-1]
 
 gen mother_liv=0 if f001==5
 replace mother_liv=1 if f001==1
+replace mother_liv=-1 if inlist(f001,8,9)
+replace mother_liv=0 if f001==.
 
 gen father_liv=0 if f011==5
 replace father_liv=1 if f011==1
+replace father_liv=-1 if inlist(f011,8,9)
+replace father_liv=0 if f011==.
 
 gen id=hhid+pn
 
 tempfile a 
 save "`a'"
 
+use "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", clear
+rename _merge merge
+tempfile fam
+save "`fam'"
+
 
 use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
 keep if core_year>=2002
 sort id core_year
 by id: keep if _n==_N
+merge 1:1 id core_year using "`fam'", keep(master match) nogen
+merge 1:1 id core_year using "`a'", keep(master match) nogen //one person dropped who didn't match HyearF_R file
+merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta", keep(match) nogen //kept people with death date only
+merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta", keep(match) nogen //keeping if exit interview
 
-//merge m:1 id using "E:\data\burden_dementia\int_data\index_dates.dta", keep(match) nogen
-merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta", keep(match) nogen
-merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta", keep(match) nogen
-merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", keep(match) nogen
+
 gen year=core_year
-merge 1:1 id year using "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2016.dta", keep(match) nogen
-drop _merge
+merge 1:1 id year using "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2016.dta", keep(master match) nogen
+
 format dod_exit14 %td
 tempfile a
 save "`a'"
@@ -51,37 +155,26 @@ save "`a'"
 use "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", clear
 drop id
 gen id=hhid+pn
-merge 1:1 id using "`a'"
 
+reshape long stateusps, i(id) j(year)
 
-keep if dod_exit14-c_ivw_date<=(365.25*4)
-
-gen died_one_year=1 if dod_exit14-c_ivw_date<=365.25
-
-gen months_bet=round((dod_exit14-c_ivw_date)/30)
-
-drop if months_bet<0
-
-label var months_bet "Months bet. Death and Core Interview"
-
-format %td birth_date
-
-gen age= round((c_ivw_date- birth_date)/365.25)
-label var age "Age at last core interview"
-
-label define cause_death_12_n 1 "Infectious Disease (not HIV/AIDS/viral hepatitis)" ///
-2 "HIV/AIDS" 3 "Cardiovascular Disease" 4 "Chronic Lower Respiratory Disease" ///
-5 "Other Respiratory Disease" 6 "Diabetes" 7 "Alzheimers Disease" 8 "N/A" 9 "Neoplasms" ///
-10 "Kidney Disease (not infectious)" 11 "Liver, Gallbladder, Stomach and/or Intestinal Disease" ///
-12 "Accidents, Suicide, Homicide" 13 "Other" 14 "Unknown"
-
-label values cause_death_12_n cause_death_12_n
-
-gen state_wave_n0=stateusps02
-foreach x in 04 06 08 10 12 14{
-replace state_wave_n0=stateusps`x'
+forvalues x=0/9{
+replace year=200`x' if year==`x'
 }
-bys hhid pn core_year: carryforward state_wave_n0, replace
+forvalues x=10/14{
+replace year=20`x' if year==`x'
+}
+forvalues x=92/98{
+replace year=19`x' if year==`x'
+}
+
+rename year core_year 
+
+merge 1:1 id core_year using "`a'", keep(match using) nogen 
+
+gen state_wave_n0=stateusps
+
+bys hhid pn : carryforward state_wave_n0, replace
 
 gen region=inlist(state_wave_n0,"CT","ME","MA","NH","RI","VT","NJ","NY","PA")
 replace region=2 if inlist(state_wave_n0,"IN","IL","MI","OH","WI" ) | ///
@@ -100,16 +193,79 @@ label var midwest "Midwest"
 label var south "South"
 label var west "West"
 
+keep if dod_exit14-c_ivw_date<=(365.25*4)
 
-keep id core_year hhid pn died_one_year months_bet child allchil married num_living_kids ///
-kid_nearby_ind female white black other* degree educ marital married resspouse reschil_d livealone ///
-nhres_2yr nhres_2yr_exit finwealth srh medicare medicaid relig imprelig pain* cesd* location adl* hosp* ///
-lwill advdir hcp icu soc* dexp duration vent depr_exit discuss help* ///
+gen died_one_year=1 if dod_exit14-c_ivw_date<=365.25
+
+gen months_bet=round((dod_exit14-c_ivw_date)/30)
+
+drop if months_bet<0
+
+merge 1:1 id using "`exit_prox'", keep(master match) nogen
+
+label var months_bet "Months bet. Death and Core Interview"
+
+format %td birth_date
+
+gen age= round((c_ivw_date- birth_date)/365.25)
+label var age "Age at last core interview"
+
+label define cause_death_12_n 1 "Infectious Disease (not HIV/AIDS/viral hepatitis)" ///
+2 "HIV/AIDS" 3 "Cardiovascular Disease" 4 "Chronic Lower Respiratory Disease" ///
+5 "Other Respiratory Disease" 6 "Diabetes" 7 "Alzheimers Disease" 8 "N/A" 9 "Neoplasms" ///
+10 "Kidney Disease (not infectious)" 11 "Liver, Gallbladder, Stomach and/or Intestinal Disease" ///
+12 "Accidents, Suicide, Homicide" 13 "Other" 14 "Unknown"
+
+label values cause_death_12_n cause_death_12_n
+
+
+label define region 1 "Northeast" 2 "Midwest" 3 "South" 4 "West" 
+
+label define duration 1 "Sudden" 2 "<1 day" 3 "<1 week" 4 "<1 month" ///
+ 5 "<1 year" 6 ">1 year" 9 "Don't Know/Refused", modify
+label values duration duration
+label define discuss 0 "No" 1 "Yes" 9 "Don't Know / Refused / Missing", modify
+label values discuss discuss
+label define srh 1 "Excellent" 2 "Very Good" 3 "Good" 4 "Fair" 5 "Poor"
+label val srh srh
+label define imprelig 1 "Very Important" 2 "Somewhat Important" 3 "Not Too Important" 4 "Don't Know/Refused/Missing", modify
+label values imprelig imprelig
+label define adl_cat 0 "Independent" 1 "Partial Dependence" 2 "Severe Dependence" ///
+     3 "Restricted to Bed", modify
+label values adl_cat adl_cat
+label define iadl_cat_core 0 "Independent" 1 "Partial Dependence" 2 "Severe Dependence", modify
+label values iadl_cat_core iadl_cat_core 
+label define adl_cat_core 0 "Independent" 1 "Partial Dependence" 2 "Severe Dependence", modify
+label values adl_cat_core adl_cat_core 
+label define iadl_cat 0 "Independent" 1 "Partial Dependence" 2 "Severe Dependence" ///
+       3 "Restricted to Bed", modify
+label values iadl_cat iadl_cat
+label define hcp 0 "No" 1 "Yes" 9 "Don't Know / Refused / Missing", modify
+label values hcp hcp
+label define marital 1 "Married" 2 "Separated" 3 "Divorced" 4 "Widowed" 5 "Never Married" 6 "Other/Don't Know", modify
+label values marital marital
+label define degree 0 "None" 1 "GED" 2 "High school" 3 "2 yr college" 4 "4 yr college" 5 "Masters" ///
+6 "Professional" 9 "Unknown, some college"
+label values degree degree
+label define educ 0 "No Formal Education" 1 "Grades 1-11" 2 "High School" 3 "Some College" 4 "College" 5 "Post College", modify
+label values educ educ
+label define soc_visit_cat 0 "none or almost never" 1 "less than once a week" 2 "less than every day up to once a week" 3 "every day or more" 
+label values educ educ
+label var mother_liv "Mother alive?"
+label var father_liv "Father alive?"
+
+keep id core_year hhid pn died_one_year months_bet father_liv mother_liv child allchil married num_living_kids ///
+kid_nearby_ind female white black other_na_api_race degree educ marital resspouse reschil_d livealone ///
+nhres_2yr nhres_2yr_exit finwealth srh medicare medicaid imprelig pain* cesd* location adl* hosp* ///
+lwill advdir hcp icu soc* dexp duration vent depr_exit discuss help_adls_kids_ind help_iadls_kids_ind ///
 kid_adult_hlphrs kid_adult_sp_hlphrs ksp_hlphrs hh_worker adl_hlp_freq_mo ///
-adl_hlp_freq_wk adl_hlp_freq_ed adl_help_hours adl_opn adl_sp_opn adl_help_ind ///
+adl_hlp_freq_wk adl_hlp_freq_ed adl_help_hours adl_help_ind ///
 n_hp n_u n_i n_k n_p n_f comor_in_hrs comor_c_hrs finwealth dem_hrs ///
-hlphrs_u hlphrs_s hlphrs_i hlphrs_k hlphrs_p
+hlphrs_u hlphrs_s hlphrs_i hlphrs_k hlphrs_p region northeast midwest south west proxy_relat_exit
+
+drop adl_helper* adl_opn adl_sp_opn adl_diff* adl_help_ind adl_hlp_freq_mo ///
+adl_hlp_freq_wk adl_hlp_freq_ed adl_hlp_freq_imp_mo adl_hlp_freq_imp_ed ///
 
 
-
+save "${final}/kinless_natalie.dta", replace
 
