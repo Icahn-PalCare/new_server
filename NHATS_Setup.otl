@@ -7397,14 +7397,61 @@ note ever_cancer: Located in NHATS Setup, NSOC Setup.
 note ever_cancer: Created: 6/13/19-MH
 lab var ever_cancer "Ever had cancer"
 
-gen ever_pain=che`w'pain==1 if che`w'pain>0
-gen ever_breath_prob=che`w'brethprb==1 if che`w'brethprb>0
+gen pain_lst_mth=che`w'pain==1 if che`w'pain>0
+note pain_lst_mth: che`w'pain
+note pain_lst_mth: Have you been bothered by pain in last month. 
+note pain_lst_mth: Located in NHATS Setup, NSOC Setup.
+note pain_lst_mth: Created: 6/14/19-MH
+lab var pain_lst_mth "Pain in last month"
+
+gen bre_lst_mth=che`w'brethprb==1 if che`w'brethprb>0
+note bre_lst_mth: che`w'brethprb
+note bre_lst_mth: Have you had breathing problems in last month.
+note bre_lst_mth: Located in NHATS Setup, NSOC Setup.
+note bre_lst_mth: Created: 6/14/19-MH
+lab var bre_lst_mth "Breathing problem in last month"
+
 gen ever_low_enrgy=che`w'lowenrgy==1 if che`w'lowenrgy>0
+note ever_low_enrgy: che`w'lowenrgy
+note ever_low_enrgy: Low energy in last month.
+note ever_low_enrgy: Located in NHATS Setup, NSOC Setup.
+note ever_low_enrgy: Created: 6/14/19-MH
+lab var ever_low_enrgy "Low energy in last month"
+
 gen ever_high_bp=che`w'highbld==1 if che`w'highbld>0
+note ever_high_bp: che`w'highbld
+note ever_high_bp: Ever had High Blood Pressure.
+note ever_high_bp: Located in NHATS Setup, NSOC Setup.
+note ever_high_bp: Created: 6/14/19-MH
+lab var ever_high_bp "Ever had High Blood Pressure"
+
 gen lost_10_lbs_yr=che`w'lost10lb==1 if che`w'lost10lb>0
+note lost_10_lbs_yr: che`w'lost10lb
+note lost_10_lbs_yr: Lost 10 or more pounds in last 12 months
+note lost_10_lbs_yr: Located in NHATS Setup, NSOC Setup.
+note lost_10_lbs_yr: Created: 6/14/19-MH
+lab var lost_10_lbs_yr "Lost 10 or more pounds in last 12 months"
+
 gen ever_osteoperosis=che`w'osteoprs==1 if che`w'osteoprs>0
+note ever_osteoperosis: che`w'osteoprs
+note ever_osteoperosis: Ever had osteoporosis or thinning of the bones.
+note ever_osteoperosis: Located in NHATS Setup, NSOC Setup.
+note ever_osteoperosis: Created: 6/14/19-MH
+lab var ever_osteoperosis "Ever had osteoporosis"
+
 gen ever_diff_seeing=che`w'seeing==1 if che`w'seeing>0
+note ever_diff_seeing: che`w'seeing
+note ever_diff_seeing: Ever had difficulty seeing.
+note ever_diff_seeing: Located in NHATS Setup, NSOC Setup.
+note ever_diff_seeing: Created: 6/14/19-MH
+lab var ever_diff_seeing "Ever had difficulty seeing"
+
 gen ever_diff_hearing=che`w'hearing==1 if che`w'hearing>0
+note ever_diff_hearing: che`w'hearing
+note ever_diff_hearing: Ever had difficulty hearing.
+note ever_diff_hearing: Located in NHATS Setup, NSOC Setup.
+note ever_diff_hearing: Created: 6/14/19-MH
+lab var ever_diff_hearing "Ever had difficulty hearing"
 
 gen cg_srh=che`w'health if che`w'health>0
 gen cg_srh_pf=inlist(cg_srh, 4,5) if !missing(cg_srh)

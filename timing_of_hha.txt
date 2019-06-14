@@ -64,7 +64,7 @@ reshape wide rev_cntr_dt, i(bene_id clm_id) j(obs)
 tempfile dates
 save `dates'
 
-
+/* Pull discharge dates from IP */
 use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\ip_06_17.dta" , clear
 
 keep bene_id disch_date 
@@ -72,14 +72,31 @@ duplicates drop
 gen year = year(disch_date)
 gsort bene_id year disch_date
 by bene_id year: gen obs = _n
-reshape wide disch_date, i(bene_id year) j(obs)
+rename disch_date disch_date_ip
+reshape wide disch_date_ip, i(bene_id year) j(obs)
 tempfile ip
 save `ip'
 
 use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hh_09_17.dta" , clear
-merge 1:1 bene_id clm_id using "`dates'", keep(match) nogen 
+merge 1:1 bene_id clm_id using "`dates'", keep(master match) nogen 
 gen year = year(admit_date)
 merge m:1 bene_id year using "`ip'", keep(master match) nogen
+
+gsort bene_id admit_date
+by bene_id: gen next_admit = admit_date[_n+1]
+gen subsq_epi = 0
+replace subsq_epi = 1 if next_admit - disch_date <=60
+label var subsq_epi "Subsequent HH episode <=60 post discharge of prior episode"
+
+by bene_id: gen obs = _n
+by bene_id: gen subsq_n1 = subse_epi[_n+1]
+egen no_seq = diff(subsq_epi subsq_n1)
+
+
+
+
+
+
 
 
 

@@ -156,6 +156,10 @@ use "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", clear
 drop id
 gen id=hhid+pn
 
+forvalues i=0(2)8{
+rename stateusps0`i' stateusps`i'
+}
+
 reshape long stateusps, i(id) j(year)
 
 forvalues x=0/9{
@@ -169,8 +173,6 @@ replace year=19`x' if year==`x'
 }
 
 rename year core_year 
-
-merge 1:1 id core_year using "`a'", keep(match using) nogen 
 
 gen state_wave_n0=stateusps
 
@@ -192,6 +194,12 @@ label var northeast "Northeast"
 label var midwest "Midwest"
 label var south "South"
 label var west "West"
+label define region 1 "Northeast" 2 "Midwest" 3 "South" 4 "West" 
+label values region region
+
+replace region=. if region==0
+
+merge 1:1 id core_year using "`a'", keep(match using) nogen 
 
 keep if dod_exit14-c_ivw_date<=(365.25*4)
 
@@ -218,8 +226,6 @@ label define cause_death_12_n 1 "Infectious Disease (not HIV/AIDS/viral hepatiti
 
 label values cause_death_12_n cause_death_12_n
 
-
-label define region 1 "Northeast" 2 "Midwest" 3 "South" 4 "West" 
 
 label define duration 1 "Sudden" 2 "<1 day" 3 "<1 week" 4 "<1 month" ///
  5 "<1 year" 6 ">1 year" 9 "Don't Know/Refused", modify
@@ -254,7 +260,15 @@ label values educ educ
 label var mother_liv "Mother alive?"
 label var father_liv "Father alive?"
 
-keep id core_year hhid pn died_one_year months_bet father_liv mother_liv child allchil married num_living_kids ///
+label define location 1  "Hospital" 2 "Nursing Home" 3 "Home" 4 "Hospice"  5 "Assisted Living/Retirement Home" 6 "Other/Don't Know "
+label values location location
+
+label define comor_c_hrs 0 "None (0)" 1 "Mild (1-3)" 2 "Moderate (4-6)" 3 "Severe (>7)", modify
+label values comor_c_hrs comor_c_hrs
+label define soc_visit_cat 0 "none or almost never" 1 "less than 1/week" 2 "less than every day up to 1x/week" 3 "every day or more", modify
+label values soc_visit_cat soc_visit_cat
+
+keep id core_year hhid pn age died_one_year months_bet father_liv mother_liv child allchil married num_living_kids ///
 kid_nearby_ind female white black other_na_api_race degree educ marital resspouse reschil_d livealone ///
 nhres_2yr nhres_2yr_exit finwealth srh medicare medicaid imprelig pain* cesd* location adl* hosp* ///
 lwill advdir hcp icu soc* dexp duration vent depr_exit discuss help_adls_kids_ind help_iadls_kids_ind ///
