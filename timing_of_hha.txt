@@ -84,17 +84,59 @@ merge m:1 bene_id year using "`ip'", keep(master match) nogen
 
 gsort bene_id admit_date
 by bene_id: gen next_admit = admit_date[_n+1]
+
 gen subsq_epi = 0
 replace subsq_epi = 1 if next_admit - disch_date <=60
 label var subsq_epi "Subsequent HH episode <=60 post discharge of prior episode"
 
+
 by bene_id: gen obs = _n
-by bene_id: gen subsq_n1 = subse_epi[_n+1]
-egen no_seq = diff(subsq_epi subsq_n1)
+replace subsq_epi = 1 if obs==1 // ensuring first obs always counts as HH sequence
 
+preserve
+keep bene_id subsq_epi obs
+reshape wide subsq_epi, i(bene_id) j(obs)
+egen hh_seq = concat(subsq_epi1-subsq_epi56)
+label var hh_seq "string of all HH episodes starting with first observed"
 
+tempfile hhstring
+save `hhstring'
 
+restore
+cap drop _m
+merge m:1 bene_id using "`hhstring'", keepus(hh_seq) nogen   
 
+replace hh_seq = subinstr(hh_seq,".","",. )
+
+gen sub_hh_seq = substr(hh_seq,obs,.)       
+replace sub_hh_seq = strltrim(sub_hh_seq)
+label var sub_hh_seq "string of all HH episodes, starting with current"
+
+gsort bene_id admit_date
+gen new_sq = 0
+by bene_id: replace new_sq = 1 if (subsq_epi[_n-1]==0 | subsq_epi[_n-1]==.) & subsq_epi==1
+label var new_sq "Start of a new HH sequence"
+
+gen len_sq = strpos(sub_hh_seq,"0") if new_sq==1
+label var len_sq "Number of HH episodes in sequence"
+
+gen post_int = 0
+label var post_int "Post-institution initiated"
+forvalues i = 1/14 {
+
+replace post_int = 1 if abs(admit_date - disch_date_ip`i')<=14 & new_sq==1
+}
+
+forvalues u = 10(10)60 {
+
+gen numvis_`u' = 0
+*label var numvis_`u' "Number of visits in the first `u' days of episode"
+
+forvalues i=1/61 {
+
+replace numvis_`u' = numvis_`u' + 1 if abs(rev_cntr_dt`i' - admit_date)<`u' & abs(rev_cntr_dt`i' - admit_date)>=(`u'-10)
+}
+}
 
 
 
