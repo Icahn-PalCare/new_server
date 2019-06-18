@@ -28,9 +28,9 @@ Note--when a new year's data arrives, files should be extracted to the "extracte
 /*SAS */
 
 
-libname medi_raw 'D:\E_drive_clone\nhats\data\NHATS CMS DUA 28016\Extracted'; 
+libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS'; 
 libname merged 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS';
-libname cumu 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Cumulative'; 
+libname proj_int 'D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data'; 
 
 
 
@@ -53,6 +53,154 @@ run;
 proc export data= rev_cntr outfile="D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\rev_cntr.dta" dbms=stata replace; run; 
 
 
+H="Get interview dates"
+
+proc import datafile="D:\nhats\shared\base_data\nhats cleaned\sp_round_1_7.dta" out=proj_int.nhats replace; run;
+
+
+data index1;
+set proj_int.nhats (keep=spid ivw_date ivw_month ivw_year);
+index_date=ivw_date;
+index_month=ivw_month;
+index_year=ivw_year;
+run;
+
+
+proc import out=xwalk
+	    datafile = "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" replace; 
+run;
+
+
+proc sql;
+create table index as select a.*, b.bene_id
+from index1 a left join
+xwalk b 
+on a.spid=b.spid;
+quit;
+
+proc sort data=index out=proj_int.index nodupkey;
+by spid bene_id index_year;
+run;
+
+
+H="check FFS"
+libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS'; 
+
+/*sort claims denominator file*/
+
+proc sort data=medi.mbsf_06_17 out=mbsf  nodupkey;
+by bene_id year;
+run;
+
+proc sort data=proj_int.index out=index1 nodupkey;
+by bene_id index_year;
+run;
+
+/*get mbsf just for interview year*/
+
+proc sql; 
+create table mbsf_index_year as select
+a.*,b.buyin12,b.year,b.hmoind12
+from index1 a inner join
+mbsf b
+on trim(left(a.bene_id))=trim(left(b.bene_id)) 
+and a.index_year=b.year;
+quit;
+
+
+proc sql;
+select count(distinct bene_id) from mbsf_index_year;
+quit;
+
+
+
+data mbsf_index_year2;
+set mbsf_index_year;
+if length(trim(left(buyin12)))=12 and index_month>0 then do;
+buyin_iy=substr(trim(left(buyin12)),1,index_month);
+hmo_iy=substr(trim(left(HMOIND12)),1,index_month);
+end;
+else do;
+buyin_iy=trim(left(buyin12));
+hmo_iy=trim(left(HMOIND12));
+end;
+format index_date date9.;
+run;
+proc means n;
+var index_month;
+run;
+
+proc sql;
+create table mbsf_index_year_bef as select
+a.bene_id,a.year as index_year,
+b.year as index_year_bef,
+b.year, b.buyin12,b.HMOIND12
+from mbsf_index_year a inner join
+mbsf b
+on trim(left(a.bene_id))=trim(left(b.bene_id))
+and 0<a.year-b.year<=1 order by bene_id,year;
+quit;
+
+
+/* and the year before... 1922 have the -2 year dn file*/
+proc sql;
+create table mbsf_index_year_2bef as select
+a.bene_id,a.bene_id,a.index_year,a.index_year_bef,
+b.year as index_year_2bef,
+b.year,b.buyin12,b.HMOIND12
+from mbsf_index_year_bef a inner join
+mbsf b
+on trim(left(a.bene_id))=trim(left(b.bene_id))
+and 0<a.index_year_bef-b.year<=1 order by bene_id,year;
+quit;
+
+/*merge the insurance data for death year, -1 and -2 years into single dataset*/
+proc sql;
+create table all_insurance as select a.*,b.buyin12 as buyin_bef,b.HMOIND12 as hmo_bef from
+mbsf_index_year2 a
+left join
+mbsf_index_year_bef b
+on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year;
+quit;
+
+proc sql;
+create table all_insurance2 as select a.*,b.buyin12 as buyin_2bef,b.HMOIND12 as hmo_2bef from
+all_insurance a
+left join
+mbsf_index_year_2bef b
+on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year; 
+quit;
+
+
+/*merge death year and year before death buy-in and hmo variables
+Trim so the final variable _6m is 6 months pre-death
+Note: indicator variables for parts a and b and hmo are null if don't
+have information for full 6 months pre-death*/
+data all_insurance3;
+set all_insurance2;
+buyin_2y=trimn(left(buyin_2bef))||trimn(left(buyin_bef))||trimn(left(buyin_iy));
+hmo_2y=trimn(left(hmo_2bef))||trimn(left(hmo_bef))||trimn(left(hmo_iy));
+
+buyin_2y_r=reverse(trim(buyin_2y));
+hmo_2y_r=reverse(trim(hmo_2y));
+
+
+/*create length of continous a&b and non-hmo coverage vars*/
+if indexc(buyin_2y_r,"0","1","2","A","B")=0 then part_ab_n_mos=length(buyin_2y_r)-1;
+if indexc(buyin_2y_r,"0","1","2","A","B") then part_ab_n_mos=indexc(buyin_2y_r,"0","1","2","A","B")-1;
+if indexc(hmo_2y_r,"1","2","4","A","B","C")=0 then non_hmo_d_n_mos=length(hmo_2y_r)-1;
+if indexc(hmo_2y_r,"1","2","4","A","B","C") then non_hmo_d_n_mos=indexc(hmo_2y_r,"1","2","4","A","B","C")-1;
+if part_ab_n_mos<=non_hmo_d_n_mos then cont_ffs_n_mos=part_ab_n_mos;
+if non_hmo_d_n_mos<part_ab_n_mos then cont_ffs_n_mos=non_hmo_d_n_mos;
+run;
+
+
+data proj_int.ffs_before;
+set all_insurance3;
+run;
+
+proc export data=all_insurance3(keep = spid ivw_month ivw_year ivw_date cont_ffs_n_mos) outfile="D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\nhats_ffs.dta" dbms=stata replace; run;
+
 H="Claim files"
 /* Get dates from rev center */
 use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\rev_cntr.dta", clear
@@ -60,6 +208,7 @@ drop clm_thru_dt
 duplicates drop 
 bysort bene_id clm_id: gen obs = _n
 bysort bene_id clm_id: egen num_visits = max(obs)
+label var num_visits "Number of visits during episode"
 reshape wide rev_cntr_dt, i(bene_id clm_id) j(obs)
 tempfile dates
 save `dates'
@@ -67,13 +216,14 @@ save `dates'
 /* Pull discharge dates from IP */
 use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\ip_06_17.dta" , clear
 
-keep bene_id disch_date 
+keep bene_id admit_date disch_date 
 duplicates drop 
 gen year = year(disch_date)
 gsort bene_id year disch_date
 by bene_id year: gen obs = _n
 rename disch_date disch_date_ip
-reshape wide disch_date_ip, i(bene_id year) j(obs)
+rename admit_date admit_date_ip
+reshape wide admit_date_ip disch_date_ip, i(bene_id year) j(obs)
 tempfile ip
 save `ip'
 
@@ -120,27 +270,44 @@ label var new_sq "Start of a new HH sequence"
 gen len_sq = strpos(sub_hh_seq,"0") if new_sq==1
 label var len_sq "Number of HH episodes in sequence"
 
+replace new_sq = 0 if len_sq==0
+replace len_sq =. if len_sq==0
+
+
+gen hosp_mid_sq = 0
+label var hosp_mid_sq "# of hospitalization mid-sequence"
+
 gen post_int = 0
 label var post_int "Post-institution initiated"
 forvalues i = 1/14 {
 
 replace post_int = 1 if abs(admit_date - disch_date_ip`i')<=14 & new_sq==1
+replace hosp_mid_sq = hosp_mid_sq + 1 if (disch_date < admit_date_ip`i') &  (admit_date_ip`i'< next_admit) & subsq_epi==1
 }
 
 forvalues u = 10(10)60 {
+local v = `u' - 10
 
 gen numvis_`u' = 0
-*label var numvis_`u' "Number of visits in the first `u' days of episode"
+label var numvis_`u' "Number of visits in the first `v' - `u' days of episode"
 
 forvalues i=1/61 {
 
-replace numvis_`u' = numvis_`u' + 1 if abs(rev_cntr_dt`i' - admit_date)<`u' & abs(rev_cntr_dt`i' - admit_date)>=(`u'-10)
+replace numvis_`u' = numvis_`u' + 1 if abs(rev_cntr_dt`i' - admit_date)<`u' & abs(rev_cntr_dt`i' - admit_date)>=`v'
 }
 }
 
+keep bene_id admit_date disch_date num_visits year next_admit subsq_epi obs hh_seq sub_hh_seq new_sq len_sq hosp_mid_sq post_int numvis_10 numvis_20 numvis_30 numvis_40 numvis_50 numvis_60
 
+rename year ivw_year 
 
+merge m:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keepus(spid) keep(match) nogen
 
+merge m:1 spid ivw_year using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", keep(match) nogen
+
+merge m:1 spid ivw_year using "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\nhats_ffs.dta", keep(match) nogen
+
+save "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", replace
 
 H="Changelog"
 
