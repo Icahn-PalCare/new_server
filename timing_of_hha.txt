@@ -1,20 +1,18 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
-H="NHATS CMS Data Processing"
+H="Project Outline"
 /* 
 ********************HEADING******************** 
 
-Project Name: Processing of CMS claims for NHATS
+Project Name: Timing of HHA
 
-Date Started: 4/3/19
+Date Started: 6/18/19
 
-Primary Investigator: Amy Kelley
+Primary Investigator: CKA
 Funding Source:
 
-Created by: Evan Bollens-Lund
-
-Primary Analyst:
-Secondary Analyst:
+Primary Analyst: OKR
+Secondary Analyst: JS
 
 Datasets Used: 
 
@@ -310,15 +308,4 @@ merge m:1 spid ivw_year using "D:\NHATS\Projects\exploratory\cka_timing_HHA\data
 save "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", replace
 
 H="Changelog"
-
-
-********************Change Log******************** 
-
-
-Updates:
-
-05/31/2019 MH
-----------
-Made file path changes and re-ran code to create datasets for new server. 
-
-5/29/19 -- Changed file paths to match new directory setup on new server. Omari
+6/19/19 -- Cleaning up file paths and code to be polished and streamlined. OKR
