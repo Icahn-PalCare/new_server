@@ -29,11 +29,12 @@ Note--when a new year's data arrives, files should be extracted to the "extracte
 libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS'; 
 libname merged 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS';
 libname proj_int 'D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data'; 
+libname sas 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Extracted';
+
 
 
 
 H="Get visit dates from rev center"
-libname sas 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Extracted';
 
 proc contents data=sas.hha_revenue_center_j_13; run;
 
@@ -268,9 +269,12 @@ label var new_sq "Start of a new HH sequence"
 gen len_sq = strpos(sub_hh_seq,"0") if new_sq==1
 label var len_sq "Number of HH episodes in sequence"
 
+/* Uncomment to require >=2 HH episodes to constitute a sequence 
 replace new_sq = 0 if len_sq==0
 replace len_sq =. if len_sq==0
+*/
 
+replace len_sq = 1 if len_sq==0
 
 gen hosp_mid_sq = 0
 label var hosp_mid_sq "# of hospitalization mid-sequence"
@@ -345,4 +349,6 @@ tab post_int prob_dem if new_sq==1, col chi2 // sequences that start post instit
 graph bar (mean) numvis_10 numvis_20 numvis_30 numvis_40 numvis_50 numvis_60, over(dem_cohort)
 
 H="Changelog"
+7/11/2019 -- Changed definition of HH seq to include single episodes as a sequence. OKR
+
 6/19/19 -- Cleaning up file paths and code to be polished and streamlined. OKR

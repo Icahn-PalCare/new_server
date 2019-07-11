@@ -211,6 +211,11 @@ drop if months_bet<0
 
 merge 1:1 id using "`exit_prox'", keep(master match) nogen
 
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta" , keep(master match) nogen keepusing(hhid pn core_year pdem)
+gen prob_dem=.
+replace prob_dem=0 if pdem<.5 & !missing(pdem)
+replace prob_dem=1 if pdem>=.5 & !missing(pdem)
+
 label var months_bet "Months bet. Death and Core Interview"
 
 format %td birth_date
@@ -219,6 +224,10 @@ gen age= round((c_ivw_date- birth_date)/365.25)
 label var age "Age at last core interview"
 
 gen age1=c_ivw_year-birthyr
+
+gen hospice_old=.
+replace hospice_old=0 if !missing(location)
+replace hospice_old=1 if location==4
 
 label define cause_death_12_n 1 "Infectious Disease (not HIV/AIDS/viral hepatitis)" ///
 2 "HIV/AIDS" 3 "Cardiovascular Disease" 4 "Chronic Lower Respiratory Disease" ///
@@ -270,6 +279,9 @@ label values comor_c_hrs comor_c_hrs
 label define soc_visit_cat 0 "none or almost never" 1 "less than 1/week" 2 "less than every day up to 1x/week" 3 "every day or more", modify
 label values soc_visit_cat soc_visit_cat
 
+label var hospice_old "Hospice, from location of death"
+label var prob_dem "Probability of Dementia"
+
 keep id core_year hhid pn age1 died_one_year months_bet father_liv mother_liv child allchil married num_living_kids ///
 kid_nearby_ind female white black other_na_api_race degree educ marital resspouse reschil_d livealone ///
 nhres_2yr nhres_2yr_exit finwealth srh medicare medicaid imprelig pain* cesd* location adl* hosp* ///
@@ -279,7 +291,7 @@ adl_hlp_freq_wk adl_hlp_freq_ed adl_help_hours adl_help_ind ///
 n_hp n_u n_i n_k n_p n_f comor_in_hrs comor_c_hrs finwealth dem_hrs ///
 hlphrs_u hlphrs_s hlphrs_i hlphrs_k hlphrs_p region northeast midwest south west ///
 proxy_relat_exit hisp_eth num_sons liv_sons num_dau liv_dau liv_step_kids num_step_kids ///
-step_dau_count step_son_count num_bro liv_bro num_sis liv_sis
+step_dau_count step_son_count num_bro liv_bro num_sis liv_sis prob_dem 
 
 
 

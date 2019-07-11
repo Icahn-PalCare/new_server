@@ -1,101 +1,32 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Project Outline"
-use  "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" , clear
+/* 
+********************HEADING******************** 
 
-gen medicaid = 0
-replace medicaid = 1 if buyin_mo>0
+Project Name: How variations in state Medicaid affect caregiver burden
 
-gsort bid_hrs_22 -medicaid +start_dt  
-*browse bid_hrs_22 medicaid start_dt
-by bid_hrs_22: gen inc_maid = 1 if _n==1 & medicaid==1
-label var inc_maid "Incident Medicaid"
+Date Started: 6/5/19
 
-gen inc_maid_date =start_dt if inc_maid==1
-label var inc_maid_date "Date of incident medicaid"
+Primary Investigator: Amy Kelley
+Funding Source:
 
-gen inc_maid_year = year(inc_maid_date)
-gen age = round((inc_maid_date - bene_dob)/365.25)
-label var age "Age at incident medicaid"
+Created by: OKR
 
+Primary Analyst: OKR
+Secondary Analyst: EBL
 
-/*** sample derivation ***/
-preserve
-by bid_hrs_22: egen drop_medicaid = max(medicaid)
-label var drop_medicaid "No Medicaid State Buy-in 1998-2015"
+Datasets Used: HRS core, exit & OOP via Kelley R01
 
-by bid_hrs_22: keep if _n==1
+Simple Outline:
 
-recode drop_medicaid (1=0) (0=1)
+/* Data paths */
 
-save $int\samplederivation.dta, replace 
-restore
-/**** ---------------- ***/
+global datapath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data" //stealing R01 for base data 
+global ooppath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data"
+global int "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\int_data"
+global fin "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\final_data"
 
-gen inc_lookback = inc_maid_date - 365
-format %td inc_lookback inc_maid_date
-
-by bid_hrs_22: carryforward inc_lookback inc_maid_date age inc_maid_year, replace
-
-gen lookback = start_dt <= inc_lookback if inc_lookback!=. //12m look back to confirm incidence
-
-/*** Sample Derivation ***/
-preserve
-*keep if lookback!=1
-egen nolookback = max(lookback)
-recode nolookback (0=1) (1=0)
-label var nolookback "Were not Medicare beneficaries 12 months prior to incident Medicaid"
-keep bid_hrs_22 start_dt nolookback inc_maid_date
-
-merge 1:1 bid_hrs_22 start_dt using $int\samplederivation.dta, keep(match) nogen
-save $int\samplederivation.dta, replace
-restore
-**** ----------------- ****/
-
-keep if lookback==1
-keep bid_hrs_22 inc_maid_date inc_maid_year age
-duplicates drop bid_hrs_22, force
-
-merge 1:1 bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keepus(hhid pn) keep(match) nogen
-merge 1:m hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keep(match) nogen
-merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", keep(master match) nogen keepus(pdem)
-
-gen samp = 0
-replace samp = 1 if (c_ivw_date- inc_maid_date)>=730 & (c_ivw_date - inc_maid_date)<2555
-bysort id: egen insamp = max(samp)
-
-/**** Sample Derivation ****/
-preserve
-gen age_lt_65 = 0
-replace age_lt_65 = 1 if age<65
-label var age_lt_65 "Age less than 65 at incident Medicaid"
-
-gen no_ivw = 0
-replace no_ivw = 1 if insamp!=1
-label var no_ivw "No core interview 2-6 years post incident Mediciad"
-
-drop if age==.
-keep bid_hrs_22 inc_maid_date age_lt_65 no_ivw
-duplicates drop
-
-merge 1:1 bid_hrs_22 inc_maid_date using $int\samplederivation.dta, nogen
-
-save $int\samplederivation.dta, replace
-/***** -------------------- ****/
-restore
-
-keep if age>=65 & insamp==1
-
-gen dem_cohort = 0 if pdem!=.
-replace dem_cohort = 1 if pdem>=0.5 & pdem!=.
-drop if (c_ivw_date - inc_maid_date)>=2555
-*drop if c_ivw_date<inc_maid_date
-
-gsort id -core_year
-by id: gen nflag = _n
-replace nflag = nflag - 1
-
-save "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\int_data\samplecore.dta", replace
 
 H="Identifying index medicaid and cores need for computation"
 use  "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" , clear
@@ -139,7 +70,7 @@ gen lookback = start_dt <= inc_lookback if inc_lookback!=. //12m look back to co
 /*** Sample Derivation ***/
 preserve
 *keep if lookback!=1
-egen nolookback = max(lookback)
+bysort bid_hrs_22: egen nolookback = max(lookback)
 recode nolookback (0=1) (1=0)
 label var nolookback "Were not Medicare beneficaries 12 months prior to incident Medicaid"
 keep bid_hrs_22 start_dt nolookback inc_maid_date
@@ -1598,7 +1529,34 @@ save $fin\medicaid_cg_burden.dta, replace
 
 
 H="Sample Derivation"
-use $int\samplederivation.dta, clear
+use "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\int_data\samplederivation.dta", clear
+ 
+gen all = 1
+ 
+local sampvars drop_medicaid nolookback dropped_nocore age_lt_65 no_ivw 
+local rd: word count all `sampvars' 1
+label var all "All HRS Medicare Beneficiaries 1998-2015"
+ 
+mat tab1= J(`rd',1,.)
+
+sum all
+mat tab1[1,1]=r(N)
+
+local r = 2
+foreach x of local sampvars {
+sum `x'
+mat tab1[`r',1] = r(sum)
+drop if `x'==1
+local ++r
+}
+
+sum all
+mat tab1[`r',1] = r(N)
+
+mat rownames tab1 = all `sampvars' "Final Sample"
+
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\output\sample_derivation_`c(current_date)'.rtf", ///
+statmat(tab1) varlabels title("Sample Derivation") sdec(0) replace
 
 H="Markdown log"
 ## Markdown Log Creation
@@ -4353,9 +4311,12 @@ drop id
 save $fin\medicaid_cg_burden.dta, replace 
 
 H="Changelog"
+7/11/2019 - Added Sample Derivation. Omari
+
 7/10/19 - Added the new per-year LTSS info in the "extract the LTSS info" header and merged in "merging together..." header. Evan
 
 7/3/2019 - Fixed the numbering of interviews so that it p1 is the first interview post medicaid, and p2 is the second. Omari
 
 6/21/19 to 6/26/19 - Rebuilt data from ground starting with HRS base. Chose incident medicaid and then required the 7 year OOP calculations to contain pre incident interview + post incident interview, with a 2 year lookback from incident. Omari 
+
 6/8/19 - Had to remove state due to HRS requirements. Created deciles for LTSS spending 
