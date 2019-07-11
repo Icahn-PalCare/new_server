@@ -104,16 +104,16 @@ quit;
 
 
 
-data all_insurance_0 (rename=(hmo_mo=hmo0 ab_mo_cnt=ab0));
+data all_insurance_0 (rename=(hmo_mo=hmo0 ab_mo_cnt=ab0 buyin_mo=buyin_mo0));
 set dn_index_quarter;
 ffs0=ab_mo_cnt>=1 & hmo_mo=0;
-set dn_index_quarter;
 format index_date date9.;
 run;
 
 data all_insurance_0b;
 set all_insurance_0;
 ab_mos0=ab0;
+buyin_mos0=buyin0;
 if ffs0=1 then ffs_mos0=ab_mos0;
 if ffs0=0 then ffs_mos0=0;
 run;
@@ -127,14 +127,14 @@ run;
 %let l=%eval(&i.-1);
 proc sql; 
 create table dn&i. as select
-a.*,b.ab_mo_cnt,b.start_dt,b.end_dt,b.hmo_mo
+a.*,b.ab_mo_cnt,b.start_dt,b.end_dt,b.hmo_mo, b.buyin_mo
 from index1 a inner join
 dn b
 on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22)) 
 and b.start_dt<=a.index_date-(&i.*(365.25/4))<=end_dt;
 quit;
 
-data all_insurance_&i.(rename=(hmo_mo=hmo&i. ab_mo_cnt=ab&i.)); 
+data all_insurance_&i.(rename=(hmo_mo=hmo&i. ab_mo_cnt=ab&i. buyin_mo=buyin_mo&i.)); 
 set dn&i.;
 ffs&i.=ab_mo_cnt>=1 & hmo_mo=0;
 format index_date date9.;
@@ -14715,7 +14715,12 @@ gen finwealth_adj2016=finwealth_adj2012*1.04535
 label var networth_adj2016 "Total net worth (Rand HxTOTB), 2016$"
 label var finwealth_adj2016 "Total non-housing financial wealth(Rand HxTOTF), 2016$"
 
-foreach x in smoke_curr married medicaid adl_dependent srh_pf prob_dem pdem m2d networth_adj2016 finwealth_adj2016 {
+by id: egen bd=max(birth_date)
+replace birth_date=bd if missing(birth_date)
+gen age_ivw=floor((ivw_date-birth_date)/365.25)
+label var age_ivw "Age at interview"
+
+foreach x in smoke_curr married medicaid nhres proxy_core adl_dependent srh_pf prob_dem pdem m2d networth_adj2016 finwealth_adj2016 age_ivw {
 	by id: egen `x'_baseline=max(cond(ind_baseline==1,`x',.))
 }
 
@@ -14749,154 +14754,6 @@ label var ind_fw_remaining "% OOP<Baseline Financial Wealth"
 
 
 save $final\R01_final.dta, replace
-/*
-preserve 
-keep if nflag==0
-keep if final==1
-
-gen all = 1
-
-local ivars female white black other hospice_exit nhres_exit married_exit reschil_d_exit resspouse_exit livealone_exit adl_independent_exit adl_severe_exit medicare_exit medicareb_exit medicaid_exit champus_exit ffs_7yr ffs_6yr ffs_5yr ffs_4yr ffs_3yr ffs_2yr ffs_1yr
-
-local medcost age_at_death tot_paid_maid_y1 tot_paid_maid_y2 tot_paid_maid_y3 tot_paid_maid_y4 tot_paid_maid_y5 tot_paid_maid_y6 tot_paid_maid_y7 tot_paid_by_mc_y1 tot_paid_by_mc_y2 tot_paid_by_mc_y3 tot_paid_by_mc_y4 tot_paid_by_mc_y5 tot_paid_by_mc_y6 tot_paid_by_mc_y7 ///
-oop_y1 oop_y2 oop_y3 oop_y4 oop_y5 oop_y6 oop_y7 oop_5yr oop_7yr informal_i_y1 informal_i_y2 informal_i_y3 informal_i_y4 informal_i_y5 informal_i_y6 informal_i_y7 informal_i_5yr informal_i_7yr
-
-local rd: word count `ivars' `medcost' 1
-
-mat tab1=J(`rd', 3,.)
-mat stars=J(`rd',3,0)
-local r = 1
-
-foreach x of local ivars {
-
-sum `x' if all==1
-
-mat tab1[`r',1] = r(mean)*100
-
-sum `x' if all==1 & dem_cohort==1
-mat tab1[`r',2] = r(mean)*100
-
-sum `x' if all==1 & dem_cohort==0
-mat tab1[`r',3] = r(mean)*100
-
-tab `x' dem_cohort if all==1, chi2
-mat stars[`r',2] = (r(p)<.01) + (r(p)<0.05)
-
-
-local ++r
-}
-
-foreach x of local medcost {
-
-sum `x' if all==1 
-
-mat tab1[`r',1] = r(mean)
-
-sum `x' if all==1 & dem_cohort==1
-mat tab1[`r',2] = r(mean)
-
-sum `x' if all==1 & dem_cohort==0
-mat tab1[`r',3] = r(mean) 
-
-ttest `x' if all==1, by(dem_cohort)
-mat stars[`r',2] = (r(p)<.01) + (r(p)<.05)
-
-
-
-local ++r
-}
-
-
-sum nflag if all==1
-mat tab1[`r',1] = r(N)
-
-sum nflag if all==1 & dem_cohort==1
-mat tab1[`r',2] = r(N)
-
-sum nflag if all==1 & dem_cohort==0
-mat tab1[`r',3] = r(N)
-
-
-
-mat rownames tab1 = `ivars' `medcost' N
-
-frmttable using "E:\projects\burden_dementia\archive logs\R01_Table1.doc", replace statmat(tab1) ///
-varlabels title("Summary Statistics For R01 Sample (Deceased 2004-2015, Age 70+ at Death, 5yr Cont. FFS)") ctitles("", "All","Dementia","No Dementia") sdec(2) ///
-annotate(stars) asymbol(*,**)note("All costs have been inflation adjusted to 2016 dollars. <0.05*, p<0.01**")
-
-/* FFS Only */
-
-
-keep if final_7yr==1
-
-local ivars female white black other hospice_exit nhres_exit married_exit reschil_d_exit resspouse_exit livealone_exit adl_independent_exit adl_severe_exit medicare_exit medicareb_exit medicaid_exit champus_exit ffs_7yr ffs_6yr ffs_5yr ffs_4yr ffs_3yr ffs_2yr ffs_1yr
-
-local medcost age_at_death tot_paid_maid_y1 tot_paid_maid_y2 tot_paid_maid_y3 tot_paid_maid_y4 tot_paid_maid_y5 tot_paid_maid_y6 tot_paid_maid_y7 tot_paid_by_mc_y1 tot_paid_by_mc_y2 tot_paid_by_mc_y3 tot_paid_by_mc_y4 tot_paid_by_mc_y5 tot_paid_by_mc_y6 tot_paid_by_mc_y7 ///
-oop_y1 oop_y2 oop_y3 oop_y4 oop_y5 oop_y6 oop_y7 oop_5yr oop_7yr informal_i_y1 informal_i_y2 informal_i_y3 informal_i_y4 informal_i_y5 informal_i_y6 informal_i_y7 informal_i_5yr informal_i_7yr
-
-
-local rd: word count `ivars' `medcost' 1
-
-mat tab1=J(`rd', 3,.)
-mat stars=J(`rd',3,0)
-local r = 1
-
-foreach x of local ivars {
-
-sum `x' if all==1
-
-mat tab1[`r',1] = r(mean)*100
-
-sum `x' if all==1 & dem_cohort==1
-mat tab1[`r',2] = r(mean)*100
-
-sum `x' if all==1 & dem_cohort==0
-mat tab1[`r',3] = r(mean)*100
-
-tab `x' dem_cohort if all==1, chi2
-mat stars[`r',2] = (r(p)<.01) + (r(p)<0.05)
-
-
-local ++r
-}
-
-foreach x of local medcost {
-
-sum `x' if all==1 
-
-mat tab1[`r',1] = r(mean)
-
-sum `x' if all==1 & dem_cohort==1
-mat tab1[`r',2] = r(mean)
-
-sum `x' if all==1 & dem_cohort==0
-mat tab1[`r',3] = r(mean) 
-
-ttest `x' if all==1, by(dem_cohort)
-mat stars[`r',2] = (r(p)<.01) + (r(p)<.05)
-
-
-
-local ++r
-}
-
-
-sum nflag if all==1
-mat tab1[`r',1] = r(N)
-
-sum nflag if all==1 & dem_cohort==1
-mat tab1[`r',2] = r(N)
-
-sum nflag if all==1 & dem_cohort==0
-mat tab1[`r',3] = r(N)
-
-
-
-mat rownames tab1 = `ivars' `medcost' N
-
-frmttable using "E:\projects\burden_dementia\archive logs\R01_Table1.doc", addtable statmat(tab1) ///
-varlabels title("Summary Statistics For R01 Sample (Deceased 2004-2015, Age 72+ at Death & 7yrs Cont. FFS)") ctitles("", "All","Dementia","No Dementia") sdec(2) ///
-annotate(stars) asymbol(*,**)note("All costs have been inflation adjusted to 2016 dollars. <0.05*, p<0.01**")
 
 
 H="***************"
@@ -17323,6 +17180,7 @@ keep if nflag==1
 local cvars1 age_at_death
 local ivars1 female married married_baseline
 local ivars2 hseduc smoke_curr smoke_curr_baseline medicaid medicaid_baseline ///
+ind_buyin_y1 ind_buyin_y7 ///
 adl_dependent adl_dependent_baseline srh_pf srh_pf_baseline ccw_ge4_y1 ///
 ccw_ge4_y7 prob_dem prob_dem_baseline proxy_core
 local cvars3 pdem pdem_baseline cumall cum1 cum2 cum3 cum4 cum5 networth_adj2016_baseline ///
@@ -18549,7 +18407,71 @@ graph export medicaid_over_time_7yrs.pdf, replace
 
 
 
+H="Medicaid graph using Buy-in during actual years"
+use $final\R01_final.dta, clear
+keep if nflag==1
+
+keep id dem_cohort ind_buyin* age_at_death female married race
+
+rename *_y* **
+reshape long ind_buyin, i(id) j(year)
+keep if year<=7
+replace year=-year+8
+label define year 1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1"
+label values year year
+
+destring id, replace
+//run unadjusted model and pull margins to easily get se bars
+xtset id year
+xtreg ind_buyin year#dem , re
+margins year#dem
+
+marginsplot, ytitle("Fraction Medicaid") xtitle("Year From Death") ///
+  saving(medicaid_fig2, replace) ///
+  title("Fraction Medicaid by Dementia Status & Year to Death") 
+  
+putexcel set "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress\Medicaid_percentages.xlsx", replace
+putexcel A1=etable
+
 H="Dataset for Jon Skinner"
+//6/28/19--pull spouse ID and use hhid pn *itot using  "D:\HRS\Shared\raw\HRS\hrs_public_2014\rand2014\main\randhrs1992_2014v2.dta", clear
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+keep if nflag==1
+keep id index_date core_year married*
+destring id, gen(hhidpn)
+merge 1:m hhidpn core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", ///
+keep(match master) nogen
+keep if s_hhidpn & !missing(s_hhidpn)
+keep s_hhidpn core_year id index_date
+rename s_hhidpn hhidpn 
+rename core_year cy_n1
+duplicates drop hh, force
+merge 1:m hhidpn using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keep(match) ///
+keepusing(core_year finw* netw* married nw_quart c_ivw_date)
+keep if core_year>cy_n1
+keep if c_ivw_date>index_date
+gen m2d=floor((c_ivw_date-index_date)/30.4)
+sort id core_year
+by id: keep if _n==1
+foreach x in finwealth networth {
+	gen s_`x'_adj2016_p1=`x'_adj2012*1.04535
+}
+rename married s_married_p1
+rename hhidpn s_hhidpn
+rename nw_quart s_nw_quart_p1
+rename core_year s_core_year_n1
+gen nflag=-1
+
+keep id s_* nflag m2d
+preserve
+keep if nflag>=0
+tempfile spouse1
+save `spouse1'
+restore
+keep if nflag>0
+tempfile spouse
+save `spouse'
+
 use hhid pn *itot using  "D:\HRS\Shared\raw\HRS\hrs_public_2014\rand2014\main\randhrs1992_2014v2.dta", clear
 gen id=hhid+pn
 
@@ -18642,12 +18564,16 @@ label var ind_fw_remaining "% OOP<Baseline Financial Wealth at core or death"
 label define comor_c_hrs 0 "None" 1 "Mild: 1-3" 2 "Moderate: 4-6" 3 "Severe: 7+"
 label var comor "SR Comorbidities, Categorical"
 
+merge 1:1 id nflag using `spouse', keep(match master)
+append using `spouse'
+by id, sort: egen ind_surv_spouse=max(cond(nflag==-1,1,0))
 gsort id nflag
 by id: carryforward `keepvars', replace
 gsort id -nflag
 by id: carryforward female degree, replace
 
-save "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\dem_decedents_wealth_for_js_061119", replace
+
+save "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\dem_decedents_wealth_for_js_07012019", replace
 
 
 H="*********************************"
@@ -19110,6 +19036,8 @@ save "`fdpath'/burden_dementia_sample_long.dta", replace
 
 
 H="changelog"
+06/24/19 - Added proxy and nursing home residence to table 1 and baseline.  Evan
+
 05/31/19 - Brought back in the helper hours by type that I'd overwritten and added code in 7 year graphs of informal care to export mean hours to excel for Amy. Evan
 
 05/29/19 - Changed filepaths and structure to run on new server.  Changed name of code file:  

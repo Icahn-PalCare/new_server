@@ -104,6 +104,26 @@ tab mnths_ivw_death if keep==1
 tab mnths_ivw_death if keep==1 & proxy==0
 tab mnths_ivw_death if keep==1 & proxy==0 & cesd_tot!=.
 
+
+*table1
+svy, subpop(keep): tab age_cat
+svy, subpop(keep): tab female
+svy, subpop(keep): tab nonwhite
+svy, subpop(keep): tab nw_lowest
+svy, subpop(keep): tab ed_less_hs
+svy, subpop(keep): tab cancer_hrs
+svy, subpop(keep): tab lung_hrs
+svy, subpop(keep): tab chf_hrs
+svy, subpop(keep): tab adl_independent_core
+
+
+
+
+
+
+
+
+
 *unadjusted mean cesd score over time
 svyset secu [pweight=wgtr], strata(stratum)
 
@@ -120,14 +140,16 @@ dotplot cesd_tot, over(mnths_ivw_death) bar
 tabstat cesd_tot if keep==1, by(mnths_ivw_death) stat (mean semean)  format (%9.2g)
 
 *CESD component by months
-tabstat depressed if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
-tabstat effort if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
-tabstat restless if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
-tabstat unhappy if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
-tabstat lonely if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
-tabstat notenjoy if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
-tabstat sad if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
-tabstat unmotivated if keep==1, by(mnths_ivw_death) stat (mean semean) format (%9.2g)
+svy, subpop(keep): mean depressed, over(mnths_ivw_death) cformat (%9.2g)
+svy, subpop(keep): mean effort, over(mnths_ivw_death) cformat (%9.2g)
+svy, subpop(keep): mean restless, over(mnths_ivw_death) cformat (%9.2g)
+svy, subpop(keep): mean unhappy, over(mnths_ivw_death) cformat (%9.2g)
+svy, subpop(keep): mean lonely, over(mnths_ivw_death) cformat (%9.2g)
+svy, subpop(keep): mean notenjoy, over(mnths_ivw_death) cformat (%9.2g)
+svy, subpop(keep): mean sad, over(mnths_ivw_death) cformat (%9.2g)
+svy, subpop(keep): mean unmotivated, over(mnths_ivw_death) cformat (%9.2g)
+
+
 
 
 *drivers of overall CESD overtime
@@ -200,7 +222,8 @@ estat ic
 reg cesd_tot one6k1 one6k2 
 estat ic
 
-
+svy, subpop(keep): reg cesd_tot one4k1
+svy, subpop(keep): reg cesd_tot one4k2
 
 *one knot at 4 months before death
 
@@ -265,19 +288,19 @@ margins nw_lowest, at(one4k2==8) cformat(%9.3g)
 margins, dydx(nw_lowest) at(one4k2==8)
 
 *EDUCATION
-svy, subpop(keep): reg cesd_tot i.one4k1##i.hseduc  i.one4k2##i.hseduc nonwhite i.female  i.age_cat    
+svy, subpop(keep): reg cesd_tot i.one4k1##i.ed_less_hs  i.one4k2##i.ed_less_hs nonwhite i.female  i.age_cat    
 *month 1
-margins hseduc, at(one4k1==1) cformat(%9.3g)
-margins, dydx(hseduc) at(one4k1==1)
+margins ed_less_hs, at(one4k1==1) cformat(%9.3g)
+margins, dydx(ed_less_hs) at(one4k1==1)
 *month 3
-margins hseduc, at(one4k1==3) cformat(%9.3g)
-margins, dydx(hseduc) at(one4k1==3)
+margins ed_less_hs, at(one4k1==3) cformat(%9.3g)
+margins, dydx(ed_less_hs) at(one4k1==3)
 *month 6
-margins hseduc, at(one4k2==2) cformat(%9.3g)
-margins, dydx(hseduc) at(one4k2==2)
+margins ed_less_hs, at(one4k2==2) cformat(%9.3g)
+margins, dydx(ed_less_hs) at(one4k2==2)
 *month 12
-margins hseduc, at(one4k2==8) cformat(%9.3g)
-margins, dydx(hseduc) at(one4k2==8) 
+margins ed_less_hs, at(one4k2==8) cformat(%9.3g)
+margins, dydx(ed_less_hs) at(one4k2==8) 
 
 
 *CANCER

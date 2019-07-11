@@ -2,7 +2,7 @@
 
 H="Project Information"
 
-/*
+/* 
 Project Name: Cancer in the Context of Aging:
 Health Characteristics, function and caregiving needs prior to a new cancer 
 diagnosis in a national sample of older adults
@@ -32,9 +32,10 @@ libname xwalk "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks";
 
 
 H="Create Analytic Dataset-NHATS"
-proc import out=nhats datafile="E:\nhats\data\NHATS cleaned\sp_round_1_7.dta"
+proc import out=nhats datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta"
 dbms=dta replace;
 run;
+
 
 proc contents data=nhats;
 run;
@@ -1784,8 +1785,6 @@ data test; set nhats1; keep bene_id sample;
 		proc sort data=test nodup out=test; by bene_id; run;
 			proc freq data=test; tables sample; run;
 
-libname out "E:\nhats\projects\Naomi QoL";
-data out.nhats_mult_canc_1516_ffs_icd10; set nhats1; run;
 
 
 /*list of ids in cancer sample*/
@@ -1793,9 +1792,10 @@ data cancer_id; set nhats1(where=(sample=1 and wave=1)); keep spid bene_id sampl
 
 H="Self Reported Cancer Before Incident Cancer"
 /**SELF REPORTED CANCER BEFORE INCIDENT DIAGNOSIS*/
-
+proc sort data=nhats1; by spid; run;
 
 proc freq data=nhats1(where=(wave=1)); tables sample sample1 sample2; run;
+proc print data=nhats1(where=(sample2=1)); var p1_int; run;
 
 data test; set nhats1 (where=(sample=1 and ivw_date=n1_int)); run;
 proc freq data=test; tables wave; run;
@@ -1804,12 +1804,13 @@ proc freq data=test (where=(wave=2)); tables sr_cancer_new; run; /*6 people with
 
 data w2id; set test(where=(wave=2 and sr_cancer_new=1)); keep bene_id spid; run;
 
+
 data w3id; set test(where=(wave=3)); keep bene_id spid; run;
 proc sort data=w3id; by spid; run;
 data wave3; merge w3id (in=a) nhats1; by spid; if a; run;
 
 data temp; set wave3; keep bene_id spid; run;
-	proc sort data=temp nodup out=temp; by bene_id; run;
+	proc sort data=temp nodup out=temp; by spid; run;
 
 
 proc freq data=wave3 (where=(wave=2)); tables sr_cancer_new; run;/*5 people with wave 3 as pre-cancer interview report a new cancer in last year during wave 2 
@@ -1822,13 +1823,16 @@ data temp2; set wave3 (where=(wave=3 and sr_cancer_new=1)); keep bene_id spid; r
 proc print data=temp1; run; proc print data=temp2; run;
 
 data w3id; set temp1 temp2; run;
-proc sort data=w3id nodup out=w3id; by bene_id; run; /*1 overlap, total of 8 with wave 3 as pre-cancer interview at wave 3 who reported new cancer in either wave 2 or wave 3*/
+proc sort data=w3id nodup out=w3id; by spid; run; /*1 overlap, total of 8 with wave 3 as pre-cancer interview at wave 3 who reported new cancer in either wave 2 or wave 3*/
 
 data w4id; set test(where=(wave=4)); keep bene_id spid; run;
 data wave4; merge w4id (in=a) nhats1; by spid; if a; run;
 
 data temp; set wave4; keep bene_id spid; run;
-	proc sort data=temp nodup out=temp; by bene_id; run; /*2 people with wave 4 as pre-cancer interview report a new cancer in last year during wave 2*/
+	proc sort data=temp nodup out=temp; by spid; run; 
+
+
+proc freq data=wave4(where=(wave=2)); tables sr_cancer_new; run;/*2 people with wave 4 as pre-cancer interview report a new cancer in last year during wave 2*/
 
 proc freq data=wave4 (where=(wave=3)); tables sr_cancer_new; run; /* 1 person with wave 4 as pre cancer interview and report of new cancer in wave 3*/
 
@@ -1842,7 +1846,7 @@ proc print data=temp1; run; proc print data=temp2; run; proc print data=temp3; r
 
 data w4id; set temp1 temp2 temp3; run;
 
-proc sort data=w4id nodup out=w4id; by bene_id; run;/*1 overlap, total of 4 people with wave 4 pre-cancer interview who reported a cancer in wave 2 wave3, or wave 4*/
+proc sort data=w4id nodup out=w4id; by spid; run;/*1 overlap, total of 4 people with wave 4 pre-cancer interview who reported a cancer in wave 2 wave3, or wave 4*/
 
 data w5id; set test(where=(wave=5)); keep bene_id spid; run;
 data wave5; merge w5id (in=a) nhats1; by spid; if a; run;
@@ -1866,7 +1870,7 @@ data temp4; set wave5(where=(wave=5 and sr_cancer_new=1)); keep bene_id spid; ru
 
 proc print data=temp1; run; proc print data=temp2; run; proc print data=temp3; run; proc print data=temp4; run;
 data w5id; set temp1 temp2 temp3 temp4; run;
-proc sort data=w5id nodup out=w5id; by bene_id; run;/*3 observations*/
+proc sort data=w5id nodup out=w5id; by spid; run;/*3 observations*/
 
 
 
@@ -1892,7 +1896,7 @@ data temp5; set wave6(where=(wave=6 and sr_cancer_new=1)); keep bene_id spid; ru
 
 
 data w6id; set temp1 temp2 temp3 temp4 temp5; run;
-proc sort data=w6id nodup out=w6id; by bene_id; run;/*1 people*/
+proc sort data=w6id nodup out=w6id; by spid; run;/*1 people*/
 
 
 data ids; set w2id w3id w4id w5id w6id; run;
@@ -1910,6 +1914,8 @@ proc print data=ids; run;
 /*look at which sample they are in*/
 proc sort data=ids; by spid; run;
 proc freq data=nhats1 (where=(ivw_date=n1_int)); tables sample sample1 sample2; run;
+proc print data=nhats1(where=(sample2=1 and wave<=6 and p1_int=ivw_date)); 
+var sample p1_int; run;
 
 data test; set nhats1(where=(ivw_date=n1_int and sample=1)); keep bene_id spid sample sample1 sample2 firstdx; run;
 proc freq data=test; tables sample sample1 sample2; run;
@@ -1940,11 +1946,560 @@ data test; set nhats1; keep spid sample; run;
 
 data inter.final_cohort_070919; set nhats1; run;
 
+
 H="Define Social Support"
 /**Define Social Support*/
+/*Social Isolation*/
+proc import out=op datafile="D:\NHATS\Shared\base_data\NHATS cleaned\op_round_1_8.dta"
+dbms=dta replace;
+run;
+
+proc contents data=op; run;
+
+proc sort data=op; by spid opid; run;
+
+proc print data=op (firstobs=50 obs=100); var spid opid wave spouse otherrel nonrel op_sn; run;
+proc freq data=op; tables spouse otherrel nonrel op_sn; run;
+
+/*Talk to friends or family about important things*/
+data op; set op;
+if (spouse=1 or otherrel=1) and op_sn=1 then talk_family=1; else talk_family=0;
+if nonrel=1 and op_sn=1 then talk_friend=1; else talk_friend=0;
+run;
+
+proc sort data=op; by spid wave opid; run;
+proc print data=op (obs=100); var spid opid wave spouse otherrel nonrel op_sn talk_family talk_friend; run;
+proc freq data=op (where=(wave=1)); tables talk_friend talk_family; run;
+
+
+/*Wave 1*/
+data wave1; set op (where=(wave=1));
+keep spid opid wave spouse otherrel nonrel op_sn talk_family talk_friend wave;
+run;
+
+proc print data=wave1 (obs=50); run;
+
+proc sql;
+create table family as
+select spid, sum(talk_family) as talk_family
+from wave1
+group by spid;
+quit;
+
+proc freq data=family; tables talk_family; run;
+
+proc sql;
+create table friend as
+select spid, sum(talk_friend) as talk_friend
+from wave1
+group by spid;
+quit;
+
+proc freq data=friend; tables talk_friend; run;
+
+data wave1; merge family friend; by spid; 
+wave=1;
+if talk_friend>=1 then talk_friend=1; else talk_friend=0;
+if talk_family>=1 then talk_family=1; else talk_family=0;
+run;
+
+proc freq data=wave1; tables talk_friend talk_family; run;
+
+/**Wave 2*/
+data wave2; set op (where=(wave=2));
+keep spid talk_family talk_friend ;
+run;
+
+proc print data=wave2 (obs=50); run;
+
+proc sql;
+create table family as
+select spid, sum(talk_family) as talk_family
+from wave2
+group by spid;
+quit;
+
+proc freq data=family; tables talk_family; run;
+
+proc sql;
+create table friend as
+select spid, sum(talk_friend) as talk_friend
+from wave2
+group by spid;
+quit;
+
+proc freq data=friend; tables talk_friend; run;
+
+data wave2; merge family friend; by spid; 
+wave=2;
+if talk_friend>=1 then talk_friend=1; else talk_friend=0;
+if talk_family>=1 then talk_family=1; else talk_family=0;
+run;
+
+proc freq data=wave2; tables talk_friend talk_family; run;
+
+/**Wave 3*/
+data wave3; set op (where=(wave=3));
+keep spid talk_family talk_friend ;
+run;
+
+proc print data=wave3 (obs=50); run;
+
+proc sql;
+create table family as
+select spid, sum(talk_family) as talk_family
+from wave3
+group by spid;
+quit;
+
+proc freq data=family; tables talk_family; run;
+
+proc sql;
+create table friend as
+select spid, sum(talk_friend) as talk_friend
+from wave3
+group by spid;
+quit;
+
+proc freq data=friend; tables talk_friend; run;
+
+data wave3; merge family friend; by spid; 
+wave=3;
+if talk_friend>=1 then talk_friend=1; else talk_friend=0;
+if talk_family>=1 then talk_family=1; else talk_family=0;
+run;
+
+proc freq data=wave3; tables talk_friend talk_family; run;
+
+/**Wave 4*/
+data wave4; set op (where=(wave=4));
+keep spid talk_family talk_friend ;
+run;
+
+proc print data=wave4 (obs=50); run;
+
+proc sql;
+create table family as
+select spid, sum(talk_family) as talk_family
+from wave4
+group by spid;
+quit;
+
+proc freq data=family; tables talk_family; run;
+
+proc sql;
+create table friend as
+select spid, sum(talk_friend) as talk_friend
+from wave4
+group by spid;
+quit;
+
+proc freq data=friend; tables talk_friend; run;
+
+data wave4; merge family friend; by spid; 
+wave=4;
+if talk_friend>=1 then talk_friend=1; else talk_friend=0;
+if talk_family>=1 then talk_family=1; else talk_family=0;
+run;
+
+proc freq data=wave4; tables talk_friend talk_family; run;
+
+/**Wave 5*/
+data wave5; set op (where=(wave=5));
+keep spid talk_family talk_friend ;
+run;
+
+proc print data=wave5 (obs=50); run;
+
+proc sql;
+create table family as
+select spid, sum(talk_family) as talk_family
+from wave5
+group by spid;
+quit;
+
+proc freq data=family; tables talk_family; run;
+
+proc sql;
+create table friend as
+select spid, sum(talk_friend) as talk_friend
+from wave5
+group by spid;
+quit;
+
+proc freq data=friend; tables talk_friend; run;
+
+data wave5; merge family friend; by spid; 
+wave=5;
+if talk_friend>=1 then talk_friend=1; else talk_friend=0;
+if talk_family>=1 then talk_family=1; else talk_family=0;
+run;
+
+proc freq data=wave5; tables talk_friend talk_family; run;
+
+/**Wave 6*/
+data wave6; set op (where=(wave=6));
+keep spid talk_family talk_friend ;
+run;
+
+proc print data=wave6 (obs=50); run;
+
+proc sql;
+create table family as
+select spid, sum(talk_family) as talk_family
+from wave6
+group by spid;
+quit;
+
+proc freq data=family; tables talk_family; run;
+
+proc sql;
+create table friend as
+select spid, sum(talk_friend) as talk_friend
+from wave6
+group by spid;
+quit;
+
+proc freq data=friend; tables talk_friend; run;
+
+data wave6; merge family friend; by spid; 
+wave=6;
+if talk_friend>=1 then talk_friend=1; else talk_friend=0;
+if talk_family>=1 then talk_family=1; else talk_family=0;
+run;
+
+proc freq data=wave6; tables talk_friend talk_family; run;
+
+proc freq data=op; tables wave; run;
+
+/*stack all waves*/
+data op_talk; set wave1 wave2 wave3 wave4 wave5 wave6; 
+if talk_friend=1 then not_talk_friend=0; if talk_friend=0 then not_talk_friend=1;  
+label not_talk_friend="Does not talk to friends about important things";
+label talk_friend="Talks to Friends about important things";
+
+if talk_family=1 then not_talk_family=0; if talk_family=0 then not_talk_family=1;
+label not_talk_family="Does not talk to family about important things";
+label talk_family="Talks to family about important things";
+
+run;
+
+proc freq data=op_talk; tables talk_friend*not_talk_friend talk_family*not_talk_family; run;
+
+proc sort data=op_talk; by spid wave; run;
+proc print data=op_talk (obs=100); run;
+
+
+/*merge back with nhats1 and reduce to the same waves*/
+data nhats1; set nhats1 (where=(wave<=6)); run;
+proc sort data=nhats1; by spid wave; run;
+proc freq data=op_talk; tables wave; run;
+data test; set op_talk; keep spid; run;
+	proc sort data=test nodup out=test; by spid; run;
+proc sort data=op_talk; by spid wave; run;
+
+data nhats1; merge nhats1 (in=a) op_talk; if a; by spid wave; run;
+
+data test; set nhats1; keep spid sample sample2; run;
+	proc sort data=test nodup out=test; by spid; run;
+		proc freq data=test; tables sample sample2; run;
 
 
 H="Define Unmet Needs"
+/**Define all Adverse Consequences of unmet need*/
+proc import out=round1 datafile="E:\nhats\data\NHATS Public\round_1\NHATS_Round_1_SP_File_stata12.dta"
+dbms=dta replace;
+run;
+
+proc import out=round2 datafile="E:\nhats\data\NHATS Public\round_2\NHATS_Round_2_SP_File_stata12.dta"
+dbms=dta replace;
+run;
+
+proc import out=round3 datafile="E:\nhats\data\NHATS Public\round_3\NHATS_Round_3_SP_File_stata12.dta"
+dbms=dta replace;
+run;
+
+proc import out=round4 datafile="E:\nhats\data\NHATS Public\round_4\NHATS_Round_4_SP_File_stata12.dta"
+dbms=dta replace;
+run;
+
+proc import out=round5 datafile="E:\nhats\data\NHATS Public\round_5\NHATS_Round_5_SP_File_stata12.dta"
+dbms=dta replace;
+run;
+
+proc import out=round6 datafile="E:\nhats\data\NHATS Public\round_6\NHATS_Round_6_SP_File_stata12.dta"
+dbms=dta replace;
+run;
+
+
+data round1; set round1; 
+keep 
+spid wave
+sc1eathlp sc1eatslfdif sc1eatwout
+sc1bathhlp sc1bathdif sc1bathwout
+sc1toilhlp sc1toildif sc1toilwout
+sc1dreshlp sc1dresdif sc1dreswout
+mo1outhlp mo1outdif  mo1outwout
+mo1insdhlp mo1insddif mo1insdwout
+mo1bedhlp mo1beddif mo1bedwout
+ha1launwout ha1laun  ha1dlaunreas  ha1laundif
+ha1shopwout ha1shop  ha1dshopreas  ha1shopdif 
+ha1mealwout ha1meal ha1dmealreas ha1mealdif
+mc1medsmis mc1meds mc1medstrk  mc1medsdif mc1medsslf   mc1dmedsreas;
+run; 
+
+data round2; set round2; 
+wave=2;
+keep 
+spid wave
+sc2eathlp sc2eatslfdif sc2eatwout
+sc2bathhlp sc2bathdif sc2bathwout
+sc2toilhlp sc2toildif sc2toilwout
+sc2dreshlp sc2dresdif sc2dreswout
+mo2outhlp mo2outdif  mo2outwout
+mo2insdhlp mo2insddif mo2insdwout
+mo2bedhlp mo2beddif mo2bedwout
+ha2launwout ha2laun  ha2dlaunreas  ha2laundif
+ha2shopwout ha2shop  ha2dshopreas  ha2shopdif 
+ha2mealwout ha2meal ha2dmealreas ha2mealdif
+mc2medsmis mc2meds mc2medstrk  mc2medsdif mc2medsslf   mc2dmedsreas;
+run; 
+
+data round3; set round3; 
+wave=3;
+keep 
+spid wave
+sc3eathlp sc3eatslfdif sc3eatwout
+sc3bathhlp sc3bathdif sc3bathwout
+sc3toilhlp sc3toildif sc3toilwout
+sc3dreshlp sc3dresdif sc3dreswout
+mo3outhlp mo3outdif  mo3outwout
+mo3insdhlp mo3insddif mo3insdwout
+mo3bedhlp mo3beddif mo3bedwout
+ha3launwout ha3laun  ha3dlaunreas  ha3laundif
+ha3shopwout ha3shop  ha3dshopreas  ha3shopdif 
+ha3mealwout ha3meal ha3dmealreas ha3mealdif
+mc3medsmis mc3meds mc3medstrk  mc3medsdif mc3medsslf   mc3dmedsreas;
+run; 
+
+data round4; set round4; 
+wave=4;
+keep 
+spid wave
+sc4eathlp sc4eatslfdif sc4eatwout
+sc4bathhlp sc4bathdif sc4bathwout
+sc4toilhlp sc4toildif sc4toilwout
+sc4dreshlp sc4dresdif sc4dreswout
+mo4outhlp mo4outdif  mo4outwout
+mo4insdhlp mo4insddif mo4insdwout
+mo4bedhlp mo4beddif mo4bedwout
+ha4launwout ha4laun  ha4dlaunreas  ha4laundif
+ha4shopwout ha4shop  ha4dshopreas  ha4shopdif 
+ha4mealwout ha4meal ha4dmealreas ha4mealdif
+mc4medsmis mc4meds mc4medstrk  mc4medsdif mc4medsslf   mc4dmedsreas;
+run; 
+
+data round5; set round5; 
+wave=5;
+keep 
+spid wave
+sc5eathlp sc5eatslfdif sc5eatwout
+sc5bathhlp sc5bathdif sc5bathwout
+sc5toilhlp sc5toildif sc5toilwout
+sc5dreshlp sc5dresdif sc5dreswout
+mo5outhlp mo5outdif  mo5outwout
+mo5insdhlp mo5insddif mo5insdwout
+mo5bedhlp mo5beddif mo5bedwout
+ha5launwout ha5laun  ha5dlaunreas  ha5laundif
+ha5shopwout ha5shop  ha5dshopreas  ha5shopdif 
+ha5mealwout ha5meal ha5dmealreas ha5mealdif
+mc5medsmis mc5meds mc5medstrk  mc5medsdif mc5medsslf   mc5dmedsreas;
+run; 
+
+data round6; set round6; 
+wave=6;
+keep 
+spid wave
+sc6eathlp sc6eatslfdif sc6eatwout
+sc6bathhlp sc6bathdif sc6bathwout
+sc6toilhlp sc6toildif sc6toilwout
+sc6dreshlp sc6dresdif sc6dreswout
+mo6outhlp mo6outdif  mo6outwout
+mo6insdhlp mo6insddif mo6insdwout
+mo6bedhlp mo6beddif mo6bedwout
+ha6launwout ha6laun  ha6dlaunreas  ha6laundif
+ha6shopwout ha6shop  ha6dshopreas  ha6shopdif 
+ha6mealwout ha6meal ha6dmealreas ha6mealdif
+mc6medsmis mc6meds mc6medstrk  mc6medsdif mc6medsslf   mc6dmedsreas;
+run; 
+
+data unmet; set round1 round2 round3 round4 round5 round6; run;
+proc freq data=unmet; tables wave; run;
+
+
+data unmet1; set unmet;
+if wave=1 then wave=1;
+if wave=2 then wave=2;
+if wave=3 then wave=3;
+if wave=4 then wave=4;
+if wave=5 then wave=5;
+if wave=6 then wave=6;
+
+/*Self care tasks*/
+array eathlp{6} sc1eathlp sc2eathlp sc3eathlp sc4eathlp sc5eathlp sc6eathlp;
+array eatdif{6} sc1eatslfdif sc2eatslfdif sc3eatslfdif sc4eatslfdif sc5eatslfdif sc6eatslfdif;
+array eatwout{6} sc1eatwout sc2eatwout sc3eatwout sc4eatwout sc5eatwout sc6eatwout;
+
+array bathhlp{6} sc1bathhlp sc2bathhlp sc3bathhlp sc4bathhlp sc5bathhlp sc6bathhlp;
+array bathdif{6} sc1bathdif sc2bathdif sc3bathdif sc4bathdif sc5bathdif sc6bathdif;
+array bathwout{6} sc1bathwout sc2bathwout sc3bathwout sc4bathwout sc5bathwout sc6bathwout;
+
+array toilhlp{6} sc1toilhlp sc2toilhlp sc3toilhlp sc4toilhlp sc5toilhlp sc6toilhlp;
+array toildif{6} sc1toildif sc2toildif sc3toildif sc4toildif sc5toildif sc6toildif;
+array toilwout{6} sc1toilwout sc2toilwout sc3toilwout sc4toilwout sc5toilwout sc6toilwout;
+
+
+array dreshlp{6} sc1dreshlp sc2dreshlp sc3dreshlp sc4dreshlp sc5dreshlp sc6dreshlp;
+array dresdif{6} sc1dresdif sc2dresdif sc3dresdif sc4dresdif sc5dresdif sc6dresdif;
+array dreswout{6} sc1dreswout sc2dreswout sc3dreswout sc4dreswout sc5dreswout sc6dreswout;
+
+do i=1 to 6;
+if wave=i then do;
+adverse_eat=.;
+if (eathlp(i)=2 and eatdif(i)=1) or eatwout(i)=2 then adverse_eat=0; 
+if eatwout(i)=1 then adverse_eat=1;
+
+adverse_bath=.;
+if (bathhlp(i)=2 and bathdif(i)=1) or bathwout(i)=2 then adverse_bath=0;
+if bathwout(i)=1 then adverse_bath=1;
+
+adverse_toilet=.;
+if (toilhlp(i)=2 and toildif(i)=1) or toilwout(i)=2 then adverse_toilet=0;
+if toilwout(i)=1 then adverse_toilet=1;
+
+adverse_dress=.;
+if (dreshlp(i)=2 and dresdif(i)=1) or dreswout(i)=2 then adverse_dress=0;
+if dreswout(i)=1 then adverse_dress=1;
+
+if adverse_eat=1 or adverse_bath=1 or adverse_toilet=1 or adverse_dress=1 then adverse_sc=1;
+if adverse_eat=0 and adverse_bath=0 and adverse_toilet=0 and adverse_dress=0 then adverse_sc=0;
+
+end;
+end;
+
+/*Mobility Tasks*/
+array moouthlp {6} mo1outhlp mo2outhlp mo3outhlp mo4outhlp mo5outhlp mo6outhlp;
+array mooutdif{6} mo1outdif mo2outdif mo3outdif mo4outdif mo5outdif mo6outdif;
+array mooutwout{6} mo1outwout mo2outwout mo3outwout mo4outwout mo5outwout mo6outwout;
+
+array moinsdhlp{6} mo1insdhlp mo2insdhlp mo3insdhlp mo4insdhlp mo5insdhlp mo6insdhlp;
+array moinsddif{6} mo1insddif mo2insddif mo3insddif mo4insddif mo5insddif mo6insddif;
+array moinsdwout{6} mo1insdwout mo2insdwout mo3insdwout mo4insdwout mo5insdwout mo6insdwout;
+
+array mobedhlp{6} mo1bedhlp mo2bedhlp mo3bedhlp mo4bedhlp mo5bedhlp mo6bedhlp;
+array mobeddif{6} mo1beddif mo2beddif mo3beddif mo4beddif mo5beddif mo6beddif;
+array mobedwout{6} mo1bedwout mo2bedwout mo3bedwout mo4bedwout mo5bedwout mo6bedwout;
+
+do i=1 to 6;
+if wave=i then do;
+adverse_outside=.;
+if (moouthlp(i)=2 and mooutdif(i)=1) or mooutwout(i)=2 then adverse_outside=0;
+if mooutwout(i)=1 then adverse_outside=1;
+
+adverse_inside=.;
+if (moinsdhlp(i)=2 and moinsddif(i)=1) or moinsdwout(i)=2 then adverse_inside=0;
+if moinsdwout(i)=1 then adverse_inside=1;
+
+adverse_bed=.;
+if (mobedhlp(i)=2 and mobeddif(i)=1) or mobedwout(i)=2 then adverse_bed=0;
+if mobedwout(i)=1 then adverse_bed=1;
+
+if adverse_outside=1 or adverse_inside=1 or adverse_bed=1 then adverse_mobility=1;
+if adverse_outside=0 and adverse_inside=0 and adverse_bed=0 then adverse_mobility=0;
+
+end;
+end;
+
+
+
+/*Household activities*/
+array launwout {6} ha1launwout ha2launwout ha3launwout ha4launwout ha5launwout ha6launwout;
+array laun {6} ha1laun ha2laun ha3laun ha4laun ha5laun ha6laun;
+array launreas{6} ha1dlaunreas ha2dlaunreas ha3dlaunreas ha4dlaunreas ha5dlaunreas ha6dlaunreas;
+array laundif{6} ha1laundif ha2laundif ha3laundif ha4laundif ha5laundif ha6laundif;
+
+array shopwout {6} ha1shopwout ha2shopwout ha3shopwout ha4shopwout ha5shopwout ha6shopwout;
+array shop {6} ha1shop ha2shop ha3shop ha4shop ha5shop ha6shop;
+array shopreas{6} ha1dshopreas ha2dshopreas ha3dshopreas ha4dshopreas ha5dshopreas ha6dshopreas;
+array shopdif{6} ha1lshopdif ha2shopdif ha3shopdif ha4shopdif ha5shopdif ha6shopdif;
+
+array mealwout {6} ha1mealwout ha2mealwout ha3mealwout ha4mealwout ha5mealwout ha6mealwout;
+array meal {6} ha1meal ha2meal ha3meal ha4meal ha5meal ha6meal;
+array mealreas{6} ha1dmealreas ha2dmealreas ha3dmealreas ha4dmealreas ha5dmealreas ha6dmealreas;
+array mealdif{6} ha1lmealdif ha2mealdif ha3mealdif ha4mealdif ha5mealdif ha6mealdif;
+
+array medsmis{6} mc1medsmis mc2medsmis mc3medsmis mc4medsmis mc5medsmis mc6medsmis;
+array meds{6} mc1meds mc2meds mc3meds mc4meds mc5meds mc6meds;
+array medstrk{6} mc1medstrk mc2medstrk mc3medstrk mc4medstrk mc5medstrk mc6medstrk;
+array medsslf{6} mc1medsslf mc2medsslf mc3medsslf mc4medsslf mc5medsslf mc6medsslf;
+array medsreas{6} mc1medsreas mc2medsreas mc3medsreas mc4medsreas mc5medsreas mc6medsreas;
+array medsdif{6} mc1medsdif mc2medsdif mc3medsdif mc4medsdif mc5medsdif mc6medsdif;
+ 
+
+
+do i=1 to 6;
+if wave=i then do;
+adverse_laun=.;
+if launwout(i)=1 then adverse_laun=1;
+if launwout(i)=2 or (launwout(i)=-1 and laun(i)^=-1) then adverse_laun=0;
+if laun(i) in (-7,-8) or launreas(i) in (-7,-8) or laundif(i) in (-7,-8) then adverse_laun=.;
+
+adverse_shop=.;
+if shopwout(i)=1 then adverse_shop=1;
+if shopwout(i)=2 or (shopwout(i)=-1 and shop(i)^=-1) then adverse_shop=0;
+if shop(i) in (-7,-8) or shopreas(i) in (-7,-8) or shopdif(i) in (-7,-8) then adverse_shop=.;
+
+adverse_meal=.;
+if mealwout(i)=1 then adverse_meal=1;
+if mealwout(i)=2 or (mealwout(i)=-1 and meal(i)^=-1) then adverse_meal=0;
+if meal(i) in (-7,-8) or mealreas(i) in (-7,-8) or mealdif(i) in (-7,-8) then adverse_meal=.;
+
+adverse_meds=.;
+if medsmis(i)=1 then adverse_meds=1;
+if medsmis(i)=2 or (medsmis(i)=-1 and meds(i)^=-1) then adverse_meds=0;
+if meds(i)=2 then adverse_meds=0;
+if meds(i) in (-1,-7,-8,-9) or medstrk(i) in (-7,-8,-9) or medsslf(i) in (-7,-8,-9) or medsreas(i) in (-7,-8,-9)
+or medsdif(i) in (-7,-8,-9) then adverse_meds=.;
+
+if adverse_laun=1 or adverse_shop=1 or adverse_meal=1 or adverse_meds=1 then adverse_ha=1;
+if adverse_laun=0 and adverse_shop=0 and adverse_meal=0 and adverse_meds=0 then adverse_ha=0;
+
+end;
+end;
+
+
+if adverse_sc=1 or adverse_mobility=1 or adverse_ha=1 then adverse_all_cat=1;
+if adverse_sc=0 and adverse_mobility=0 and adverse_ha=0 then adverse_all_cat=0; 
+label adverse_all_cat="Unmet Needs in Self Care, Mobility, or Household Activities";
+
+keep spid wave adverse_eat adverse_bath adverse_toilet adverse_dress adverse_sc
+adverse_outside adverse_inside adverse_bed adverse_mobility
+adverse_laun adverse_shop adverse_meal adverse_meds adverse_ha
+adverse_all_cat;
+
+run;
+
+proc freq data=unmet1 ; tables (adverse_eat adverse_bath
+adverse_toilet adverse_dress adverse_sc adverse_outside adverse_inside adverse_bed
+adverse_mobility adverse_laun adverse_shop adverse_meal adverse_meds adverse_ha adverse_all_cat)*wave/missing; run;
+
+
+
+libname out "E:\nhats\projects\Naomi QoL";
+
+data out.unmetneeds; set unmet1; run;
+
+
 
 
 H="Months of Coverage After Enrollment"

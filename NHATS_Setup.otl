@@ -28,7 +28,7 @@ Simple Outline: NHATS data cleanup, variable creation.
 //File paths for raw data
 
 //NEED TO CHANGE WAVE NUMBER FOR EACH WAVE
-global w 7
+global w 8
 
 global work D:\NHATS\Shared\base_data\NHATS cleaned\working
 global logs D:\NHATS\Shared\base_data\NHATS cleaned\logs
@@ -51,7 +51,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 05/31/2019
+Date Updated: 07/02/2019
 
 Description: Inital dataset cleaning, renaming varaibles, merging variables from 
 sensitive dataset, and broad structuring.
@@ -99,6 +99,7 @@ save round_`w'_1.dta, replace
 clear
 }
 
+//need to have each wave sepeartely done becuase not all waves have same variables to keep. 
 //round 1
 forvalues w=1/$w{
 use round_`w'_1.dta
@@ -179,12 +180,21 @@ sc`w'* mc`w'* sd`w'* pa`w'* hw`w'* is`w'* ht`w'* fl`w'* ir`w'* cm`w'* ew`w'* hp`
 sn`w'* dt`w'* gr`w'* wa`w'* wb`w'* ho`w'* cs`w'* re`w'* ia`w'* pd`w'* lm`w'*) ///
 (*) 
 }
-
+if `w'==8 {	
+keep `keepallwaves' re8intplace re8newstrct re8spadrsnew re8dresistrct ///
+	re8dcensdiv ip8nginslast w8an2011wgt0 lm* ep`w'*
+	
+rename (r`w'* w`w'* mo`w'* hh`w'* ip`w'* hc`w'* ss`w'* pc`w'* cp`w'* cg`w'* ha`w'* ///
+sc`w'* mc`w'* sd`w'* pa`w'* hw`w'* is`w'* ht`w'* fl`w'* ir`w'* cm`w'* ew`w'* hp`w'* ///
+sn`w'* dt`w'* gr`w'* wa`w'* wb`w'* ho`w'* cs`w'* re`w'* pd`w'* lm`w'*) ///
+(*) 
+rename (ep8eoltalk ep8poweratty ep8livngwill) (eoltalk poweratty livngwill)
+}
 save round_`w'_ltd.dta, replace
 }
 
 //check sensitive data files, keep only some variables, merge with ltd datasets
-forvalues w=1/$w{
+forvalues w=1/7{
 	use "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File.dta"
 	sort spid 
 	quietly by spid: gen dup = cond(_N==1,0,_n)
@@ -200,7 +210,8 @@ append using round_`w'_ltd.dta
 
 preserve
 
-forvalues w=1/$w{
+//change back to $w when you get sensitive file. 
+forvalues w=1/7{
 use "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File.dta", clear
 gen wave=`w'
 save "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File_new.dta", replace
@@ -237,12 +248,19 @@ merge m:1 spid using "${r6s}NHATS_Round_6_SP_Sen_Dem_File_new.dta", ///
 //merge in additional r7 sensitive data
 merge m:1 spid using "${r7s}NHATS_Round_7_SP_Sen_Dem_File_new.dta", ///
 	keepusing(r7dintvwrage hh7spageall r7ddeathage pd7mthdied pd7yrdied hc7cancerty*) nogen
+	
+/* add in when you get RD 8 Sensitive
+//merge in additional r8 sensitive data
+merge m:1 spid using "${r8s}NHATS_Round_8_SP_Sen_Dem_File_new.dta", ///
+	keepusing(r8dintvwrage hh8spageall r8ddeathage pd8mthdied pd8yrdied hc8cancerty*) nogen
+*/
 
 //3B?
 //merge in tracker status information
 
 
-merge m:1 spid using "${r7raw}NHATS_Round_7_Tracker_File", keepusing( yearsample ///
+merge m:1 spid using "${r${w}raw}NHATS_Round_${w}_Tracker_File", keepusing( yearsample ///
+w8trfinwgt0 w8tr2011wgt0 r8status r8spstat r8spstatdtmt r8spstatdtyr r8fqstatdtmt ///
 w7trfinwgt0 w7tr2011wgt0 r7status r7spstat r7spstatdtmt r7spstatdtyr r7fqstatdtmt ///
 w6trfinwgt0 w6tr2011wgt0 r6status r6spstat r6spstatdtmt r6spstatdtyr r6fqstatdtmt ///
 w5trfinwgt0 w5tr2011wgt0 r5status r5spstat r5spstatdtmt r5spstatdtyr r5fqstatdtmt ///
@@ -289,7 +307,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 05/31/2019
+Date Updated: 07/02/2019
 
 Description: This section uses the SP and OP data files and imputes
 hours of help provided to SP per methods in NHATS Technical Paper #7
@@ -614,13 +632,9 @@ la def impute_cat -1"N/A, not helper" 1"Impute" 2"Recode to zero" ///
 la val impute_cat impute_cat
 tab impute_cat wave, missing
 
-tab impute_cat op_ind_hrsmth if wave==1, missing
-tab impute_cat op_ind_hrsmth if wave==2, missing
-tab impute_cat op_ind_hrsmth if wave==3, missing
-tab impute_cat op_ind_hrsmth if wave==4, missing
-tab impute_cat op_ind_hrsmth if wave==5, missing
-tab impute_cat op_ind_hrsmth if wave==6, missing
-tab impute_cat op_ind_hrsmth if wave==7, missing
+forvalues w=1/$w{
+tab impute_cat op_ind_hrsmth if wave==`w', missing
+}
 
 ******************************************************************** 
 //save separate datasets for each round so can run imputation with weighting
@@ -729,7 +743,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 05/31/2019
+Date Updated: 07/02/2019
 
 Description: This section uses the SP and OP data files and imputes
 hours of help provided to SP per methods in NHATS Technical Paper #7
@@ -979,9 +993,9 @@ tab indephigh wave if sp_ivw_yes==1, missing
 //demographic information
 *********************************************
 *********************************************
-//age at interview, note this is missing for wave 7 b/c no wave 7 sensitive data yet
 gen age=.
-forvalues w=1/$w{
+//need to change to $w once sensitive file comes out
+forvalues w=1/7{
 	replace age=r`w'dintvwrage if wave==`w'
 	sum age if wave==`w', detail
 	}	
@@ -1311,7 +1325,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 05/31/2019
+Date Updated: 07/02/2019
 
 Description: This section uses the SP and OP data files and imputes
 hours of help provided to SP per methods in NHATS Technical Paper #7
@@ -1988,7 +2002,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 05/31/2019
+Date Updated: 07/02/2019
 
 Description: This section uses the SP and OP data files and imputes
 hours of help provided to SP per methods in NHATS Technical Paper #7
@@ -2311,7 +2325,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 05/31/2019
+Date Updated: 07/02/2019
 
 Description: 
 
@@ -2560,7 +2574,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 05/31/2019
+Date Updated: 07/02/2019
 
 Description: This section uses the SP and OP data files and imputes
 hours of help provided to SP per methods in NHATS Technical Paper #7
@@ -3213,7 +3227,8 @@ replace sr_coloncancer_had=hc1cancerty6 if wave==1
 replace sr_kidneycancer_had=hc1cancerty7 if wave==1
 replace sr_othercancer_had=hc1cancerty8 if wave==1
 
-forvalues w=4/$w{
+//NEED TO CHANGE TO $w when sensitive released for rd 8. 
+forvalues w=4/7{
 replace sr_skincancer_had=cancerty1 if wave==`w'
 replace sr_breastcancer_had=hc`w'cancerty2 if wave==`w'
 replace sr_prostatecancer_had=hc`w'cancerty3 if wave==`w'
@@ -3763,7 +3778,7 @@ gen deceased=0
 gen prob_dem=dem_3_cat==1 if !missing(dem_3_cat)
 label var prob_dem "Indicator probable dementia"
 
-forvalues w=2/7 {	
+forvalues w=2/$w {	
 replace nhres=inlist(dresid,4,5,8) if wave==`w'
 replace res_care=inlist(dresid,2,3,4,5,7,8) if wave==`w'
 replace rcfres=inlist(dresid,2,3,7) if wave==`w'
@@ -3862,8 +3877,8 @@ notes adl_bed_not_done: Located in NHATS Setup, under Part 7.
 notes adl_bed_not_done: Updated: 05/03/19-MH
 
 //construct date of ivw--use 1st of month for all, because only have mo & yr
-
-merge 1:1 spid wave using `resttrack', keep(match) nogen
+// can take out master when not beta
+merge 1:1 spid wave using `resttrack', keep(master match) nogen
 gen ivw_day=spstatdtdy
 label define ivw_day 1 "Not provided" 
 label values ivw_day ivw_day
@@ -3876,6 +3891,8 @@ forvalues w=1/$w {
 	replace ivw_year=201`w' if wave==`w' & r`w'spstatdtyr==.
 }
 
+replace ivw_day=30 if ivw_day==31 & inlist(ivw_month,4,6,9,11)
+replace ivw_day=28 if inrange(ivw_day,30,31) & ivw_month==2
 replace ivw_month=r1fqstatdtmt if wave==1 & ivw_month==.
 replace ivw_year=r1fqstatdty if wave==1 & ivw_year==.
 
@@ -4032,9 +4049,9 @@ label var died_`i' "SP died w/in `i' months, per future wave status"
 //look at death month & year. don't have, so set date to last of month
 gen dd=.
 replace pd2yrdied=pd2yrdied+2010 if pd2yrdied>0
-
+//CHANGE TO $w when RD 8 SENSITIVE RELEASED
 gen nhats_death_day=. 
-forvalues w=2/$w {
+forvalues w=2/7 {
 	foreach j in mth yr {
 		replace pd`w'`j'died=. if pd`w'`j'<0
 }
@@ -5361,7 +5378,7 @@ iadl_shop_not_done iadl_meal_help iadl_meal_diff iadl_meal_not_done iadl_bank_he
  ind_gt20hrs_wk_inf ind_gt20hrs_wk_paid anfinwgt an2011wgt death_* died_12 died_24 *_lml qoc_lml_e
  
 
-saveold "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7", replace version(12)
+saveold "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_${w}", replace version(12)
 
 gen time2d=mofd(nhats_death_date)-mofd(ivw_date)
 
@@ -5373,7 +5390,7 @@ foreach x in 12 24 {
 
 capture log close
 
-log using "D:\NHATS\Shared\base_data\NHATS cleaned\NHATS variable documentation\sp_round_1_7_variable_list.txt", text replace
+log using "D:\NHATS\Shared\base_data\NHATS cleaned\Codebooks\sp_round_1_${w}_variable_list.txt", text replace
 describe , fullnames
 log close
  
@@ -5381,10 +5398,10 @@ drop death_* died_12 died_24 ivw_day ivw_date
 
 drop time2d 
 
-saveold "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7_public_sens_only.dta", replace version(12)
+saveold "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_${w}_public_sens_only.dta", replace version(12)
 
 
-log using "D:\NHATS\Shared\base_data\NHATS cleaned\NHATS variable documentation\sp_round_1_7_pub_sens_only_variable_list.txt", text replace
+log using "D:\NHATS\Shared\base_data\NHATS cleaned\Codebooks\sp_round_1_${w}_pub_sens_only_variable_list.txt", text replace
 describe , fullnames
 log close
 
@@ -5400,20 +5417,13 @@ local i=`i'+1
 }
 }
 
-log using "D:\NHATS\Shared\base_data\NHATS cleaned\NHATS variable documentation\sp_round_1_7_sensitive_variables.txt", text replace
+log using "D:\NHATS\Shared\base_data\NHATS cleaned\Codebooks\sp_round_1_${w}_sensitive_variables.txt", text replace
 describe `senslabs', fullnames
 log close
 
 
 translate "${logs}/`name'.smcl" "${logs}/`name'.pdf"
 exit
-
-
-foreach var of varlist spid-nhats_died_24{
-notes `var'
-}
-
-
 
 
 
@@ -5426,8 +5436,8 @@ version 15
 
 
 //filepath globals should be set in the first NoteTab header, or you can change these below
-local logs "E:\nhats\codebooks\"
-local datapath "E:\nhats\data\NHATS cleaned"
+local logpath "D:\NHATS\Shared\base_data\NHATS cleaned\Codebooks"
+local datapath "D:\NHATS\Shared\base_data\NHATS cleaned"
 
 //local outpath $outpath
 
@@ -5440,7 +5450,7 @@ cd "`logpath'"
 // load dataset here
 
 
-local datapath "E:\nhats\data\NHATS cleaned"
+local datapath "D:\NHATS\Shared\base_data\NHATS cleaned"
 //date
 local date = subinstr("$S_DATE"," ","_",.)
 
@@ -5659,7 +5669,7 @@ assert "`wkbk'" != ""  // redundant check
 
 
 //1/4/19--ebl--put in quotes, since My Documents filepath (where I dumped it) has spaces
-export excel using `logs'/`wkbk' , firstrow(varlabels) replace 
+export excel using "`wkbk'" , firstrow(varlabels) replace 
 
 
 log close
@@ -5673,23 +5683,23 @@ clear all
 set more off
 capture log close
 
-cd "E:\nhats\data\NHATS Sensitive\r1_sensitive"
+cd "D:\NHATS\Shared\raw\NHATS\NHATS Sensitive\r1_sensitive"
 
 use NSOC_Round_1_File_v2.dta
 
 merge 1:1 spid opid using NSOC_Round_1_OP_Tracker_File.dta, gen(m1) keep(match master)
 merge 1:1 spid opid using NHATS_Round_1_OP_Sen_Dem_File.dta, gen(m8) keep(match master)
-merge 1:m spid opid using "E:\nhats\data\NHATS cleaned\op_round_1_4.dta", gen(m2) keep(match master)
+merge 1:m spid opid using "D:\NHATS\Shared\base_data\NHATS cleaned\op_round_1_4.dta", gen(m2) keep(match master)
 keep if wave==1
 merge m:1 spid using NSOC_Round_1_SP_Tracker_File.dta, gen(m3) keep(match master)
 tostring opid, replace
-merge 1:1 spid opid using "E:\nhats\data\NHATS Public\round_1\NHATS_Round_1_OP_File_v2.dta", ///
+merge 1:1 spid opid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_1\NHATS_Round_1_OP_File_v2.dta", ///
 gen(m4) keep(match master)
-merge m:1 spid using "E:\nhats\data\NHATS Public\round_1\NHATS_Round_1_SP_File.dta", ///
+merge m:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_1\NHATS_Round_1_SP_File.dta", ///
 gen(m5) keep(match master)
-merge m:1 spid using "E:\nhats\data\NHATS Sensitive\r2_sensitive\NHATS_Round_2_SP_Sen_Dem_File.dta", ///
+merge m:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Sensitive\r2_sensitive\NHATS_Round_2_SP_Sen_Dem_File.dta", ///
 gen(m6) keep(match master) 
-merge m:1 spid wave using "E:\nhats\data\NHATS cleaned\sp_round_1_4.dta", gen(m7) ///
+merge m:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_4.dta", gen(m7) ///
 keep(match master) keepusing(death*)
 gen cgfinwgt=w1cgfinwgt0
 gen cgvarunit=c1varunit
@@ -5923,7 +5933,7 @@ destring `x', replace
 replace `x'=. if `x'<0
 }
 }
-save "E:\nhats\data\NHATS cleaned\nsoc_round_1.dta", replace
+save "D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1.dta", replace
 /*
 gen mine=1
 append using "E:\nhats\data\Projects\Caregivers\nsoc_FULL.dta"
@@ -5945,23 +5955,23 @@ clear all
 set more off
 capture log close
 
-cd "E:\nhats\data\NHATS Sensitive\r5_sensitive"
+cd "D:\NHATS\Shared\raw\NHATS\NHATS Sensitive\r5_sensitive"
 
 use NSOC_Round_5_File.dta
 
 merge 1:1 spid opid using NSOC_Round_5_OP_Tracker_File.dta, gen(m1) keep(match master)
 merge 1:1 spid opid using NHATS_Round_5_OP_Sen_Dem_File.dta, gen(m8) keep(match master)
 gen wave=5
-merge 1:1 spid opid wave using "E:\nhats\data\NHATS cleaned\op_round_1_5.dta", gen(m2) keep(match master)
+merge 1:1 spid opid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\op_round_1_5.dta", gen(m2) keep(match master)
 merge m:1 spid using NSOC_Round_5_SP_Tracker_File.dta, gen(m3) keep(match master)
 tostring opid, replace
-merge 1:1 spid opid using "E:\nhats\data\NHATS Public\round_5\NHATS_Round_5_OP_File.dta", ///
+merge 1:1 spid opid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_5\NHATS_Round_5_OP_File.dta", ///
 gen(m4) keep(match master)
-merge m:1 spid using "E:\nhats\data\NHATS Public\round_5\NHATS_Round_5_SP_File.dta", ///
+merge m:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_5\NHATS_Round_5_SP_File.dta", ///
 gen(m5) keep(match master)
-*merge m:1 spid using "E:\nhats\data\NHATS Sensitive\r2_sensitive\NHATS_Round_2_SP_Sen_Dem_File.dta", ///
+*merge m:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Sensitive\r2_sensitive\NHATS_Round_2_SP_Sen_Dem_File.dta", ///
 *gen(m6) keep(match master) 
-merge m:1 spid wave using "E:\nhats\data\NHATS cleaned\sp_round_1_5.dta", gen(m7) ///
+merge m:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_5.dta", gen(m7) ///
 keep(match master) keepusing(death*)
 
 *15:45 1/25/2017
@@ -6198,7 +6208,7 @@ destring `x', replace
 replace `x'=. if `x'<0
 }
 }
-save "E:\nhats\data\NHATS cleaned\nsoc_round_5.dta", replace
+save "D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_5.dta", replace
 /*
 gen mine=1
 append using "E:\nhats\data\Projects\Caregivers\nsoc_FULL.dta"
@@ -6220,24 +6230,24 @@ clear all
 set more off
 capture log close
 
-cd "E:\nhats\data\NHATS Sensitive\r7_sensitive"
+cd "D:\NHATS\Shared\raw\NHATS\NHATS Sensitive\r7_sensitive"
 
 use NSOC_R7_Crss_File.dta
 
 merge 1:1 spid opid using NSOC_R7_Crss_OP_Tracker_File.dta, gen(m1) keep(match master)
 merge 1:1 spid opid using NHATS_Round_7_OP_Sen_Dem_File.dta, gen(m8) keep(match master)
 gen wave=7
-merge 1:1 spid opid wave using "E:\nhats\data\NHATS cleaned\op_round_1_7.dta", gen(m2) keep(match master)
+merge 1:1 spid opid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\op_round_1_7.dta", gen(m2) keep(match master)
 
 merge m:1 spid using NSOC_R7B_Crss_SP_Tracker_File.dta, gen(m3) keep(match master)
 tostring opid, replace
-merge 1:1 spid opid using "E:\nhats\data\NHATS Public\round_7\NHATS_Round_7_OP_File.dta", ///
+merge 1:1 spid opid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_7\NHATS_Round_7_OP_File.dta", ///
 gen(m4) keep(match master)
-merge m:1 spid using "E:\nhats\data\NHATS Public\round_7\NHATS_Round_7_SP_File.dta", ///
+merge m:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_7\NHATS_Round_7_SP_File.dta", ///
 gen(m5) keep(match master)
-*merge m:1 spid using "E:\nhats\data\NHATS Sensitive\r2_sensitive\NHATS_Round_2_SP_Sen_Dem_File.dta", ///
+*merge m:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Sensitive\r2_sensitive\NHATS_Round_2_SP_Sen_Dem_File.dta", ///
 *gen(m6) keep(match master) 
-merge m:1 spid wave using "E:\nhats\data\NHATS cleaned\sp_round_1_7.dta", gen(m7) ///
+merge m:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", gen(m7) ///
 keep(match master) keepusing(death*)
 
 *15:45 1/25/2017
@@ -6474,7 +6484,7 @@ destring `x', replace
 replace `x'=. if `x'<0
 }
 }
-save "E:\nhats\data\NHATS cleaned\nsoc_round_7.dta", replace
+save "D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_7.dta", replace
 /*
 gen mine=1
 append using "E:\nhats\data\Projects\Caregivers\nsoc_FULL.dta"
@@ -6534,7 +6544,7 @@ proc export data=death outfile="E:\nhats\data\CMS_DUA_28016\mbsf_dod.dta" replac
 
 //merge with nhats survey data
 
-use spid using "E:\nhats\data\nhats cleaned\sp_round_1_6.dta", clear
+use spid using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_6.dta", clear
 duplicates drop
 merge 1:m spid using "E:\nhats\data\CMS_DUA_28016\mbsf_dod.dta", nogen ///
 keepusing(spid death_date admit)
@@ -6543,9 +6553,9 @@ rename death_date dd_claims
 
 by spid, sort: drop if missing(dd) & _N>1
 forvalues i=2/6 {
-	merge 1:1 spid using "E:\nhats\data\NHATS Public\round_`i'\nhats_round_`i'_tracker_file", ///
+	merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_`i'\nhats_round_`i'_tracker_file", ///
 	nogen keep(match master) keepusing(r`i'status r`i'spstatdt*)
-	merge 1:1 spid using "E:\nhats\data\NHATS Sensitive\r`i'_sensitive\nhats_round_`i'_sp_sen_dem_file", ///
+	merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Sensitive\r`i'_sensitive\nhats_round_`i'_sp_sen_dem_file", ///
 	nogen keep(match master)
 }
 keep spid *died *status dd* adm *spstat*
@@ -6907,6 +6917,15 @@ H="Changelog"
 
 Updates:
 
+07/02/2019 MH
+----------
+Updated code for round 8 beta. WILL NEED TO CHANGE FILE NAME IN RAW FOLDER ONCE FULL VERSION IS RELEASED.
+Sensitive RD. 8 not out, WILL NEED TO CHANGE 7 TO $W where specified. 
+
+06/27/2019 EBL
+----------
+Corrected error in day of ivw that caused missing ivw dates (day listed as 31 where only 30 days in month)
+
 05/31/2019 MH
 ----------
 Making file path changes to match new server and new organization structure. 
@@ -7117,23 +7136,26 @@ cd "${work}"
 
 *********************************************
 
-/// global r`w'nsoc D:\NHATS\Shared\raw\NHATS\NHATS Sensitive\r`w'_sensitive
-
 clear all
 set more off
 capture log close
 
+
+
 foreach w in 1 5{
 	if `w'==1{
 		use "${r`w'nsoc}/NSOC_Round_`w'_File_v2.dta"
+		rename  (c`w'* cca`w'* cdc`w'* w`w'* chd`w'*) (*)
 	}
+
 	else if `w'==5 {
 		use "${r`w'nsoc}/NSOC_Round_`w'_File.dta"
+		rename  (c`w'* cca`w'* cdc`w'* w`w'* chd`w'*) (*)
 	}
 
 merge 1:1 spid opid using "${r`w'nsoc}/NSOC_Round_`w'_OP_Tracker_File.dta", gen(m1) keep(match master)
 merge 1:1 spid opid using "${r`w'nsoc}/NHATS_Round_`w'_OP_Sen_Dem_File.dta", gen(m8) keep(match master)
-merge 1:m spid opid using "D:\NHATS\Shared\base_data\NHATS cleaned\op_round_1_7.dta", gen(m2) keep(match master)
+merge 1:m spid opid using "D:\NHATS\Shared\base_data\NHATS cleaned\op_round_1_${wave}.dta", gen(m2) keep(match master)
 keep if wave==`w'
 merge m:1 spid using "${r`w'nsoc}/NSOC_Round_`w'_SP_Tracker_File.dta", gen(m3) keep(match master)
 tostring opid, replace
@@ -7147,502 +7169,27 @@ tostring opid, replace
 	}
 merge m:1 spid using "${r`w'raw}/NHATS_Round_`w'_SP_File.dta", ///
 gen(m5) keep(match master)
-*merge m:1 spid using "${r2s}/NHATS_Round_2_SP_Sen_Dem_File_new.dta", ///
-*gen(m6) keep(match master) 
-merge m:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", gen(m7) ///
+
+merge m:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_${wave}.dta", gen(m7) ///
 keep(match master) keepusing(death*)
 
-gen cgfinwgt=w`w'cgfinwgt0
-note cgfinwgt: w`w'cgfinwgt0
-note cgfinwgt: Caregiver weights for NSOC.
-note cgfinwgt: Located in NHATS Setup, NSOC Setup.
-note cgfinwgt: Created: 6/12/19-MH
-label var cgfinwgt "R`w' caregiver weight"
-
-gen cgvarunit=c`w'varunit
-note cgvarunit: c`w'varunit
-note cgvarunit: Caregiver varunit for NSOC.
-note cgvarunit: Located in NHATS Setup, NSOC Setup.
-note cgvarunit: Created: 6/12/19-MH
-label var cgvarunit "R`w' caregiver varunit"
-
-gen cgvarstrat=c`w'varstrat
-note cgvarstrat: c`w'varstrat
-note cgvarstrat: Caregiver varstrat for NSOC.
-note cgvarstrat: Located in NHATS Setup, NSOC Setup.
-note cgvarstrat: Created: 6/12/19-MH
-label var cgvarstrat "R`w' caregiver varstrat"
-
-gen cg_female=c`w'dgender==2
-label var cg_female "Female Caregiver"
-note cg_female: c`w'dgender
-note cg_female: If caregiver is female.
-note cg_female: Located in NHATS Setup, NSOC Setup.
-note cg_female: Created: 6/12/19-MH
-
-gen cg_spouse=c`w'relatnshp==2
-note cg_spouse: c`w'relatnshp
-note cg_spouse: If caregiver is spouse.
-note cg_spouse: Located in NHATS Setup, NSOC Setup.
-note cg_spouse: Created: 6/12/19-MH
-label var cg_spouse "Caregiver is spouse"
 
 
-gen cg_relationship_cat=cg_spouse
-replace cg_relationship_cat=2 if c`w'relatnshp>=3 & c`w'relatnshp<=8
-replace cg_relationship_cat=3 if cg_relationship_cat==0
-note cg_relationship_cat: c`w'relatnshp
-note cg_relationship_cat: Caregiver relationship to SP, categories 3.
-note cg_relationship_cat: Located in NHATS Setup, NSOC Setup.
-note cg_relationship_cat: Created: 6/12/19-MH
-label var cg_relationship_cat "Caregiver's relationhsip to SP"
-label define cg_relationship_cat 1 "Spouse" 2 "Child/In-law child/Step-child" 3 "Everyone else"
-label values cg_relationship_cat cg_relationship_cat 
-
-gen cg_relationship_cat1=cg_relationship_cat
-replace cg_relationship_cat1=2 if inlist(c`w'relatnshp,3,5,7)
-replace cg_relationship_cat1=3 if inlist(c`w'relatnshp,4,6,8)
-replace cg_relationship_cat1=4 if (c`w'relatnshp>=9 & c`w'relatnshp<=29) | ///
- c`w'relatnshp==91
-replace c`w'relatnshp=5 if (c`w'relatnshp>=30 & c`w'relatnshp<=39) | c`w'relatnshp==92
-note cg_relationship_cat1: c`w'relatnshp
-note cg_relationship_cat1: Caregiver relationship to SP, categories 5.
-note cg_relationship_cat1: Located in NHATS Setup, NSOC Setup.
-note cg_relationship_cat1: Created: 6/12/19-MH
-label var cg_relationship_cat1 "Caregiver's relationhsip to SP"
-label define cg_relationship_cat1 1 "Spouse" 2 "Daughters/step/In-law" 3 "Son/step/In-law" 4 "Other Family" 5 "Other non-family"
-label values cg_relationship_cat1 cg_relationship_cat1 
-
-gen total_hours_day=cdc`w'hlphrsdy 
-note total_hours_day: cdc`w'hlphrsdy 
-note total_hours_day: Number of hours helped per day. 
-note total_hours_day: Located in NHATS Setup, NSOC Setup.
-note total_hours_day: Created: 6/12/19-MH
-label var total_hours_day "Number of hours helped per day"
-
-gen total_days_week=cdc`w'hlpdyswk
-note total_days_week: cdc`w'hlpdyswk 
-note total_days_week: Number of days per week helped. 
-note total_days_week: Located in NHATS Setup, NSOC Setup.
-note total_days_week: Created: 6/12/19-MH
-label var total_hours_day "Number of days helped per week"
-
-gen total_days_month=cdc`w'hlpdysmt 
-note total_days_month: cdc`w'hlpdysmt 
-note total_days_month: Number of days helped in last month. 
-note total_days_month: Located in NHATS Setup, NSOC Setup.
-note total_days_month: Created: 6/12/19-MH
-label var total_hours_day "Number of days helped in last month"
-
-gen total_hours_other=cdc`w'hlphrlmt
-note total_hours_other: cdc`w'hlphrlmt
-note total_hours_other: Number of hours helped in last month. 
-note total_hours_other: Located in NHATS Setup, NSOC Setup.
-note total_hours_other: Created: 6/12/19-MH
-label var total_hours_other "Number of hours helped in last month"
-
-gen other_flag=cdc`w'hlphrmvf!=1
-note other_flag: cdc`w'hlphrmvf
-note other_flag: Verification of total hours helped per month, flag
-note other_flag: Located in NHATS Setup, NSOC Setup.
-note other_flag: Created: 6/12/19-MH
-label var other_flag "Verification of total hours helped per month, flag"
-
-foreach x in hours_day days_week days_month hours_other {
-	replace total_`x'=. if total_`x'<0
-}
-gen total_hours=total_days_week*total_hours_day*(52/12) if cdc`w'hlpsched==1
-replace total_hours=total_days_month*total_hours_day if missing(total_hours)
-replace total_hours=total_hours_other if other_flag==1
-note total_hours: total_days_week total_hours_day cdc`w'hlpsched
-note total_hours: Total hours per month
-note total_hours: Located in NHATS Setup, NSOC Setup.
-note total_hours: Created: 6/12/19-MH
-lab var total_hours "Hours per month, extrapolated"
-
-gen total_hours_week=total_hours/(52/12)
-note total_hours: total_days_week total_hours_day cdc`w'hlpsched
-note total_hours: Total hours per month
-note total_hours: Located in NHATS Setup, NSOC Setup.
-note total_hours: Created: 6/12/19-MH
-lab var total_hours "Hours per week, extrapolated"
-
-	if `w'==1{
-		gen any_living_children_sp=cs`w'dreconcil!=3
-	}
-	else {
-		gen any_living_children_sp=cs`w'dnumchild>0
-	}
-
-gen any_living_children_cg=chd`w'chldlvng if chd`w'chldlvng==1
-replace any_living_children_cg=0 if chd`w'chldlvng==2
-
-gen cg_living_children=any_living_children_sp if cg_spouse==1
-replace cg_living_children=any_living_children_cg if cg_spouse!=1
-drop any_living*
-note cg_living_children: cs`w'dreconcil cs`w'dnumchild chd`w'chldlvng
-note cg_living_children: Any living child of caregiver
-note cg_living_children: Located in NHATS Setup, NSOC Setup.
-note cg_living_children: Created: 6/12/19-MH
-lab var cg_living_children "Any living child of caregiver"
-
-gen cg_marital_status=hh`w'martlstat if cg_spouse==1
-replace cg_marital_status=chd`w'martstat if cg_spouse==0
-replace cg_marital_status=op`w'martlstat if cg_marital_status==.
-note cg_marital_status: hh`w'martlstat chd`w'martstat op`w'martlstat
-note cg_marital_status: Caregiver Marital Status, 6 categories.
-note cg_marital_status: Located in NHATS Setup, NSOC Setup.
-note cg_marital_status: Created: 6/12/19-MH
-lab var cg_marital_status "Caregiver Marital Status "
-label define cg_marital_status 1 "Married" 2 "Living with a partner" ///
-3 "Seperated" 4 "Divorced" 5 "Widowed" 6 "Never Married"
-label value cg_marital_status cg_marital_status
-
-gen cg_marr_part_ind=cg_marital_status<3 if !missing(cg_marital_status)
-note cg_marr_part_ind: hh`w'martlstat chd`w'martstat op`w'martlstat
-note cg_marr_part_ind: Caregiver is married/partnered
-note cg_marr_part_ind: Located in NHATS Setup, NSOC Setup.
-note cg_marr_part_ind: Created: 6/12/19-MH
-lab var cg_marr_part_ind "Caregiver is married/partnered"
-
-gen cg_total_in_hh=hh`w'dhshldnum if cg_spouse==1
-replace cg_total_in_hh=chd`w'numinhh if cg_spouse==0
-replace cg_total_in_hh=. if cg_total_in_hh<0
-note cg_total_in_hh: hh`w'dhshldnum chd`w'numinhh cg_spouse
-note cg_total_in_hh: Number of people in Caregivers household. 
-note cg_total_in_hh: Located in NHATS Setup, NSOC Setup.
-note cg_total_in_hh: Created: 6/12/19-MH
-lab var cg_total_in_hh "Num. people in Caregivers household"
-
-gen cg_educ=op`w'leveledu if cg_spouse==1
-replace cg_educ=chd`w'educ if cg_spouse==0
-replace cg_educ=. if cg_educ<0
-note cg_educ: op`w'leveledu chd`w'educ cg_spouse
-note cg_educ: Caregiver's education status, 9 categories"
-note cg_educ: Located in NHATS Setup, NSOC Setup.
-note cg_educ: Created: 6/12/19-MH
-lab var cg_educ "Caregiver's education status"
-label value cg_educ chd`w'educ
-
-gen cg_gt_hs=cg_educ>=4 if !missing(cg_educ)
-note cg_gt_hs: op`w'leveledu chd`w'educ cg_spouse
-note cg_gt_hs: Has High School or higher level education
-note cg_gt_hs: Located in NHATS Setup, NSOC Setup.
-note cg_gt_hs: Created: 6/12/19-MH
-lab var cg_gt_hs ">= High School level education, caregiver"
-
-gen cg_medicare=chi`w'medicare==1 if inlist(chi`w'medicare,1,2)
-note cg_medicare: chi`w'medicare
-note cg_medicare: Medicare Coverage
-note cg_medicare: Located in NHATS Setup, NSOC Setup.
-note cg_medicare: Created: 6/12/19-MH
-lab var cg_medicare "Medicare Coverage"
-
-gen cg_lives_with_sp=hh`w'livwthspo if cg_spouse==1
-replace cg_lives_with_sp=op`w'prsninhh if cg_spouse==0
-replace cg_lives_with_sp=. if cg_lives_with_sp<0
-replace cg_lives_with_sp=0 if cg_lives_with_sp==2
-note cg_lives_with_sp: hh`w'livwthspo op`w'prsninhh
-note cg_lives_with_sp: Caregiver lives with SP
-note cg_lives_with_sp: Located in NHATS Setup, NSOC Setup.
-note cg_lives_with_sp: Created: 6/12/19-MH
-lab var cg_lives_with_sp "Caregiver lives with SP"
-
-gen cg_medicaid=chi`w'medicaid==1 if chi`w'medicaid>0
-note cg_medicaid: chi`w'medicaid
-note cg_medicaid: Caregiver currently covered by Medicaid
-note cg_medicaid: Located in NHATS Setup, NSOC Setup.
-note cg_medicaid: Created: 6/13/19-MH
-lab var cg_medicaid "Medicaid status Caregiver"
-
-gen ever_heart_attack=che`w'hrta==1 if che`w'hrta>0
-note ever_heart_attack: che`w'hrta
-note ever_heart_attack: Ever had a Heart attack or myocardial infarction.
-note ever_heart_attack: Located in NHATS Setup, NSOC Setup.
-note ever_heart_attack: Created: 6/13/19-MH
-lab var ever_heart_attack "Ever had Heart Attack"
-
-gen ever_heart_disease=che`w'othheart==1 if che`w'othheart>0
-note ever_heart_disease: che`w'othheart
-note ever_heart_disease: Ever had a Heart Disease.
-note ever_heart_disease: Located in NHATS Setup, NSOC Setup.
-note ever_heart_disease: Created: 6/13/19-MH
-lab var ever_heart_disease "Ever had Heart Disease"
-
-gen ever_arthritis=che`w'arthrits==1 if che`w'arthrits>0
-note ever_arthritis: che`w'arthrits
-note ever_arthritis: Ever had Arthrits.
-note ever_arthritis: Located in NHATS Setup, NSOC Setup.
-note ever_arthritis: Created: 6/13/19-MH
-lab var ever_arthritis "Ever had Arthritis"
-
-gen ever_diabetes=che`w'diabetes==1 if che`w'diabetes>0
-note ever_diabetes: che`w'diabetes
-note ever_diabetes: Ever had Diabetes.
-note ever_diabetes: Located in NHATS Setup, NSOC Setup.
-note ever_diabetes: Created: 6/13/19-MH
-lab var ever_diabetes "Ever had Diabetes"
-
-gen ever_lung_dis=che`w'lungdis==1 if che`w'lungdis>0
-note ever_lung_dis: che`w'lungdis
-note ever_lung_dis: Ever had Lung Disease.
-note ever_lung_dis: Located in NHATS Setup, NSOC Setup.
-note ever_lung_dis: Created: 6/13/19-MH
-lab var ever_lung_dis "Ever had Lung Disease"
-
-gen ever_cancer=che`w'cancer==1 if che`w'cancer>0
-note ever_cancer: che`w'cancer
-note ever_cancer: Ever had cancer.
-note ever_cancer: Located in NHATS Setup, NSOC Setup.
-note ever_cancer: Created: 6/13/19-MH
-lab var ever_cancer "Ever had cancer"
-
-gen pain_lst_mth=che`w'pain==1 if che`w'pain>0
-note pain_lst_mth: che`w'pain
-note pain_lst_mth: Have you been bothered by pain in last month. 
-note pain_lst_mth: Located in NHATS Setup, NSOC Setup.
-note pain_lst_mth: Created: 6/14/19-MH
-lab var pain_lst_mth "Pain in last month"
-
-gen bre_lst_mth=che`w'brethprb==1 if che`w'brethprb>0
-note bre_lst_mth: che`w'brethprb
-note bre_lst_mth: Have you had breathing problems in last month.
-note bre_lst_mth: Located in NHATS Setup, NSOC Setup.
-note bre_lst_mth: Created: 6/14/19-MH
-lab var bre_lst_mth "Breathing problem in last month"
-
-gen ever_low_enrgy=che`w'lowenrgy==1 if che`w'lowenrgy>0
-note ever_low_enrgy: che`w'lowenrgy
-note ever_low_enrgy: Low energy in last month.
-note ever_low_enrgy: Located in NHATS Setup, NSOC Setup.
-note ever_low_enrgy: Created: 6/14/19-MH
-lab var ever_low_enrgy "Low energy in last month"
-
-gen ever_high_bp=che`w'highbld==1 if che`w'highbld>0
-note ever_high_bp: che`w'highbld
-note ever_high_bp: Ever had High Blood Pressure.
-note ever_high_bp: Located in NHATS Setup, NSOC Setup.
-note ever_high_bp: Created: 6/14/19-MH
-lab var ever_high_bp "Ever had High Blood Pressure"
-
-gen lost_10_lbs_yr=che`w'lost10lb==1 if che`w'lost10lb>0
-note lost_10_lbs_yr: che`w'lost10lb
-note lost_10_lbs_yr: Lost 10 or more pounds in last 12 months
-note lost_10_lbs_yr: Located in NHATS Setup, NSOC Setup.
-note lost_10_lbs_yr: Created: 6/14/19-MH
-lab var lost_10_lbs_yr "Lost 10 or more pounds in last 12 months"
-
-gen ever_osteoperosis=che`w'osteoprs==1 if che`w'osteoprs>0
-note ever_osteoperosis: che`w'osteoprs
-note ever_osteoperosis: Ever had osteoporosis or thinning of the bones.
-note ever_osteoperosis: Located in NHATS Setup, NSOC Setup.
-note ever_osteoperosis: Created: 6/14/19-MH
-lab var ever_osteoperosis "Ever had osteoporosis"
-
-gen ever_diff_seeing=che`w'seeing==1 if che`w'seeing>0
-note ever_diff_seeing: che`w'seeing
-note ever_diff_seeing: Ever had difficulty seeing.
-note ever_diff_seeing: Located in NHATS Setup, NSOC Setup.
-note ever_diff_seeing: Created: 6/14/19-MH
-lab var ever_diff_seeing "Ever had difficulty seeing"
-
-gen ever_diff_hearing=che`w'hearing==1 if che`w'hearing>0
-note ever_diff_hearing: che`w'hearing
-note ever_diff_hearing: Ever had difficulty hearing.
-note ever_diff_hearing: Located in NHATS Setup, NSOC Setup.
-note ever_diff_hearing: Created: 6/14/19-MH
-lab var ever_diff_hearing "Ever had difficulty hearing"
-
-gen cg_srh=che`w'health if che`w'health>0
-gen cg_srh_pf=inlist(cg_srh, 4,5) if !missing(cg_srh)
-
-by spid, sort: egen mosthelped=max(total_hours)
-gen cg_primary_nsoc=total_hours==mosthelped
-by spid cg_primary_nsoc, sort: gen numprim=_N if cg_primary_nsoc==1
-gen cg_primary_source=1 if numprim==1
-gen primsp=1 if numprim==2 & cg_spouse==1 & cg_primary_nsoc==1
-sum spid if primsp==1
-replace cg_primary_source=2 if primsp==1
-replace cg_primary_nsoc=0 if spid==r(mean) & primsp==.
-gen child=inlist(c`w'relatnshp,3,4) if cg_primary_nsoc==1 & numprim==2
-by spid cg_primary_nsoc, sort: egen anychild=max(child)
-replace cg_primary_nsoc=0 if anychild==1 & child==0
-by spid cg_primary_nsoc, sort: replace numprim=_N if cg_primary_nsoc==1
-replace cg_primary_source=2 if child==1 & anychild==1 & numprim==1
-gsort spid -cg_primary_nsoc -op_hrsm
-by spid: replace cg_primary_nsoc=0 if _n>1
-replace cg_primary_source=3 if cg_primary_nsoc==1 & cg_primary_source==.
-drop anychild child primsp mosthelped numprim
-local v1 che`w'health che`w'painlmt che`w'brethlmt che`w'enrgylmt cca`w'hwoftpc ///
-cca`w'hwofthom cca`w'hwoftshp cca`w'hwoftchs che`w'sleeptrb
-local v2 self_health pain_lim_act breath_lim_act enrgy_lim_act ///
-help_personal_care help_get_around help_shopping help_chores trb_back_sleep 
-gen ever_enrgy=ever_low_enrgy
-local v3 ever_pain ever_breath_prob ever_low_enrgy
-forvalues i=1/9 {
-	local va1=word("`v1'",`i')
-	local va2=word("`v2'",`i')
-	gen `va2'=`va1' if `va1'>0
-	foreach x in pain breath enrgy {
-	if "`va2'"=="`x'_lim_act" {
-		replace `va2'=5 if ever_`x'==0
-}
-}
-	gen `va2'_di=`va2'<4 if !missing(`va2')
-}
-drop ever_enrgy
-local v1 cca`w'hlpbnkng cca`w'hlpmed cca`w'hlpmdapt cca`w'hlpspkdr cca`w'hlpordmd cca`w'hlpinsrn ///
-cca`w'hlpothin cse`w'hlpgtdev cse`w'homsafer cse`w'hlppdhlp cca`w'hlpdiet cca`w'hlpfeet ///
-cca`w'hlpskin cca`w'hlpexrcs cca`w'hlpteeth cca`w'hlpmdtk cca`w'hlpshot cse`w'frfamhlp cpp`w'wrk4pay ///
-cdc`w'hlpsched cdc`w'hlpyrpls cec`w'wrk4pay
-local v2 help_bills help_track_meds help_make_appts help_speak_doc help_order_med ///
-help_insurance help_insurance_oth help_mob_dev help_home_safe help_paid_helpr ///
-help_diet help_foot help_skin help_exercise help_teeth help_medical_task ///
-help_shots_injection friend_help work_4_pay help_regular_sched help_longer_than_yr ///
-paid_last_week
-
-local vn : word count `v1'
-forvalues i=1/`vn' {
-	local va1=word("`v1'",`i')
-	local va2=word("`v2'",`i')
-	gen `va2'=`va1'==1 if `va1'>0
+save nsoc_`w'.dta
 }
 
-gen paid_hours=cec`w'hrslstwk if cec`w'hrslstwk>0
-replace paid_hours=0 if paid_last_week==0
-gen paid_hours_cat=paid_hours>20 if !missing(paid_hours)
-*replace paid_hours_cat=1 if paid_hours>20 if !missing(paid_hours)
-replace paid_hours_cat=2 if paid_hours>=40 & !missing(paid_hours)
-
-gen help_insurance_any=help_insurance if !missing(help_insurance)
-replace help_insurance_any=1 if help_insurance_oth==1
-
-local v1 cac`w'moreconf cac`w'dealbetr cac`w'closr2sp cac`w'moresat cac`w'exhaustd ///
-cac`w'toomuch cac`w'notime cac`w'uroutchg
-local v2 gain_more_conf gain_deal_better gain_closer2sp gain_more_satisfied ///
- neg_exhausted neg_too_much neg_no_time neg_no_routine
- 
-local vn : word count `v1'
-forvalues i=1/`vn' {
-	local va1=word("`v1'",`i')
-	local va2=word("`v2'",`i')
-	gen `va2'_di=`va1'<3 if `va1'>0
-}
-
-local v1 cac`w'diffinlv cac`w'diffemlv cac`w'diffphlv
-local v2 diff_financial_lv diff_emotional_lv diff_physical_lv
-local v3 cac`w'diffinc cac`w'diffemo cac`w'diffphy
-local vn : word count `v1'
-forvalues i=1/`vn' {
-	local va1=word("`v1'",`i')
-	local va2=word("`v2'",`i')
-	local va3=word("`v3'",`i')
-	gen `va2'=`va3'==1 if `va3'>0
-	gen `va2'_di=`va1'>3 if !missing(`va2') & `va3'>-2
-}
-
-gen cg_ivw_month=c`w'intmonth if c`w'intmonth>0
-gen cg_ivw_year=2011 if c`w'intmonth>0
-gen cg_ivw_date=mdy(cg_ivw_month,1,cg_ivw_year)
-format cg_ivw_date %td
-label var cg_ivw_date "NSOC interview date"
-gen n_days_sp_to_cg_ivw=c`w'dintdays
-label var n_days_sp_to_cg_ivw "Days between SP & CG interviews"
-label define n_days_sp_to_cg_ivw 1 "30 days or less" 2 "31-60 days" ///
-3 "61-90 days"  4 "91-120 days" 5 "121 days or more"
-label values n_days_sp_to_cg_ivw n_days_sp_to_cg_ivw
-gen cg_birth_year=chd`w'cgbrthyr if chd`w'cgbrthyr>0
-gen cg_birth_month=chd`w'cgbrthmt if chd`w'cgbrthmt>0
-gen cg_age=cg_ivw_year-chd`w'cgbrthyr if chd`w'cgbrthyr>0
-replace cg_age=cg_age-1 if cg_ivw_month>=cg_birth_month
-replace cg_age=op`w'age if cg_age==. & op`w'age>0
-gen cg_age_cat=floor(((cg_age-20)/5)+2)
-replace cg_age_cat=op`w'dage if op`w'dage>0 & cg_age_cat==.
-	if `w'==1{
-		replace cg_age_cat=op`w'cat if op`w'cat>0 & cg_age_cat==.
-	}
-	else {
-		*replace cg_age_cat=op`w'cat if op`w'cat>0 & cg_age_cat==.
-	}
-	
-replace cg_age_cat=1 if cg_age_cat<1
-	if `w'==1{
-		replace cg_age_cat=16 if cg_age_cat>16 & !missing(cg_age_cat)
-	}
-	else {
-		replace cg_age_cat=16 if cg_age_cat>16 & !missing(cg_age_cat)
-	}
 
 
-gen num_help_years=cdc`w'hlpyrs if cdc`w'hlpyrs>0
-replace num_help_years=0 if cdc`w'hlpyrpls==2
-replace num_help_years=cg_ivw_year-cdc`w'hlpyrst if cdc`w'hlpyrst>0 & num_help_years==.
 
-/*note, why do we base it on the categorical from the OP?
-gen cg_age_cat=op1dage if op1dage>0
-replace cg_age_cat=cg_agecat if missing(cg_age_cat)*/
-/*
-gen felt_lit_interest=che1fltltlin>1 if che1fltltlin>0
-gen felt_depressed=che1fltdown>1 if che1fltdown>0
-gen felt_nervous=che1fltnervs>1 if che1fltnervs>0
-gen felt_worry=che1fltworry>1 if che1fltworry>0
-*/
-local v1 che`w'fltltlin che`w'fltdown che`w'fltnervs che`w'fltworry
-local v2 cg_depr_pqq1 cg_depr_pqq2 cg_depr_gad1 cg_depr_gad2
-local v3 felt_lit_interest felt_depressed felt_nervous felt_worry
-local vn : word count `v1'
-forvalues i=1/`vn' {
-	local va1=word("`v1'",`i')
-	local va2=word("`v2'",`i')
-	local va3=word("`v3'",`i')
-	gen `va2'=`va1'-1 if `va1'>0
-	gen `va3'=`va1'>1 if `va1'>0
-}
-gen cg_phq2_score=cg_depr_pqq1+cg_depr_pqq2
-gen cg_gad2_score=cg_depr_gad1+cg_depr_gad2
-gen cg_phq2_depressed=cg_phq2_score>=3 if !missing(cg_phq2_score)
-gen cg_gad2_anxiety=cg_gad2_score>=3 if !missing(cg_gad2_score)
-gen flag_no_help_mth=cca`w'hlplsty==1
-gen solo_cg=n_helpers==1 if !missing(n_helpers)
-gen solo_cg_fam=n_family_helpers==1 & op_family==1 if !missing(n_family_helpers)
-gen solo_cg_informal=n_helpers-n_paid_helpers==1
-gen cg_ivw_to_sp_death=death_date-cg_ivw_date
-replace cg_ivw_to_sp_death=. if cg_ivw_to_sp_death<0 
-gen cg_ivw_to_sp_death_mos=floor(cg_ivw_to_sp_death/30.4)
-gen lives_in_hh=op`w'prsninhh==1
-//code as living w/ if spouse and says lives w/ spouse
-replace lives_in_hh=inlist(hh`w'dlvngarrg,2,3) if spouse==1 & lives_in_hh==0
 
-//transportationboth cg and sp
-gen cg_drive_sp=inlist(cca`w'hwoftdrv,1,2,3) if !missing(cca`w'hwoftdrv)
-label var cg_drive_sp "Drove SP Some/Most/Everyday"
-//drop c`w'dgender c`w'relatnshp c`w'intmonth c`w'dintdays cca`w'hwoftchs cca`w'hwoftshp cca`w'hlpordmd cca`w'hlpbnkng cca`w'cmpgrcry cca`w'cmpordrx cca`w'cmpbnkng cca`w'hwoftpc cca`w'hwofthom cca`w'hlplft cca`w'hlpspt cca`w'hlpstd cca`w'hwoftlft cca`w'hwoftspt cca`w'hwoftstd cca`w'hwoftdrv cca`w'hwoftott cca`w'hlpmed cca`w'hlpshot cca`w'hlpmdtk cca`w'hlpexrcs cca`w'hlpdiet cca`w'hlpteeth cca`w'hlpfeet cca`w'hlpskin cca`w'hlpmdapt cca`w'hlpspkdr cca`w'hlpinsrn cca`w'hlpothin cca`w'hwget2sp cca`w'tm2spunt cca`w'tm2spmin cca`w'tm2sphrs cca`w'hlplstyr cca`w'lstmhlpd cdc`w'hlpsched cdc`w'hlpdyswk cdc`w'hlpdysmt cdc`w'hlphrsdy cdc`w'hlphrmvf cdc`w'hlphrlmt cdc`w'hlphrpc cdc`w'hlphrpce cdc`w'hlpyrpls cdc`w'hlpmthst cdc`w'hlpunit cdc`w'hlpyrs cdc`w'hlpyrst cdc`w'hlpyrs5p cac`w'joylevel cac`w'arguelv cac`w'spapprlv cac`w'nerveslv cac`w'moreconf cac`w'dealbetr cac`w'closr2sp cac`w'moresat cac`w'diffinc cac`w'diffemo cac`w'diffphy cac`w'diffinlv cac`w'diffemlv cac`w'diffphlv cac`w'fmlydisa cac`w'exhaustd cac`w'toomuch cac`w'notime cac`w'uroutchg cse`w'frfamtlk cse`w'frfamact cse`w'frfamhlp cse`w'spptgrp cse`w'srv2hlp cse`w'training cse`w'fndfnhlp cse`w'hwfnd`w' cse`w'hwfnd2 cse`w'hwfnd3 cse`w'hwfnd4 cse`w'hwfnd5 cse`w'hwfnd6 cse`w'look4hlp cse`w'look`w' cse`w'look2 cse`w'look3 cse`w'look4 cse`w'look5 cse`w'look6 cse`w'hlpgtdev cse`w'homsafer cse`w'hlppdhlp cpp`w'vstfrfam cpp`w'hlpkptvs cpp`w'impvst cpp`w'gorelgs cpp`w'hlpkptrl cpp`w'imprel cpp`w'prtgroup ccp`w'hlpkptgr cpp`w'impgroup cpp`w'go4fun cpp`w'hlpkptgo cpp`w'impgo cpp`w'wrk4pay cpp`w'hlpkptwk cpp`w'volun cpp`w'hlpkptvo cpp`w'careothr cpp`w'hlpkptca che`w'health che`w'hrtattck che`w'othheart che`w'highbld che`w'arthrits che`w'osteoprs che`w'diabetes che`w'lungdis che`w'cancer che`w'seeing che`w'hearing che`w'cncrskin che`w'cncrbrst che`w'cncrpros che`w'cncroth che`w'pain che`w'painlmt che`w'brethprb che`w'brethlmt che`w'armstr che`w'armlmt che`w'legstr che`w'leglmt che`w'lowenrgy che`w'enrgylmt che`w'sleeptrb che`w'sleepint che`w'weight che`w'heightft che`w'heightin che`w'lost`w'0lb che`w'try2lose che`w'moodcher che`w'moodpcfl che`w'moodfull che`w'moodbord che`w'moodlone che`w'moodupst che`w'fltltlin che`w'fltdown che`w'fltnervs che`w'fltworry che`w'lifemng che`w'feelconf che`w'gaveup che`w'lifegood che`w'lifelone che`w'easychng che`w'rcvrqick chd`w'martstat chd`w'marendmt chd`w'marendyr chd`w'chldlvng chd`w'numchild chd`w'numchu`w'8 chd`w'numinhh chd`w'educ chd`w'educsprt chd`w'cgbrthmt chd`w'spbrthmt cec`w'wrk4pay cec`w'ownbusns cec`w'unpdwrk cec`w'misswork cec`w'look4wrk cec`w'wrkmulti cec`w'hrsweek cec`w'hrslstwk cec`w'hrslast cec`w'hrswork cec`w'flexhrs cec`w'wrksched cec`w'msswrkmt cec`w'mswkvctn cec`w'mswksick cec`w'mswkhelp cec`w'mswkfmly cec`w'mswkpers cec`w'mswkunit cec`w'mswkhlph cec`w'mswkhlpd cec`w'wkhrperd cec`w'hlpafwk`w' cec`w'hlpafwk2 cec`w'busntype cec`w'occuptn cec`w'worktype cec`w'occpdscr chi`w'medicare chi`w'medigap chi`w'medicaid chi`w'privinsr chi`w'tricare chi`w'uninsurd chi`w'insrtype chi`w'ownhome chi`w'chckacct chi`w'svgsacct chi`w'certdpst chi`w'retrplan chi`w'mutlfnds chi`w'income chi`w'inc200pv chi`w'inc`w'00pv chi`w'inc400pv chi`w'paymeds chi`w'payinsur chi`w'paymbdvc chi`w'paysfty chi`w'payasdvc chi`w'payhmhlp chi`w'pay`w'000 chi`w'pay2000 chi`w'pay500 chi`w'gifttosp chi`w'gift500 chi`w'gift`w'000 chi`w'gift`w'00 chi`w'fromsp chi`w'frsp500 chi`w'frsp`w'000 chi`w'frsp`w'00 c`w'varstrat c`w'varunit w`w'cgfinwgt0 w`w'cgfinwgt1 w`w'cgfinwgt2 w`w'cgfinwgt3 w`w'cgfinwgt4 w`w'cgfinwgt5 w`w'cgfinwgt6 w`w'cgfinwgt7 w`w'cgfinwgt8 w`w'cgfinwgt9 w`w'cgfinwgt10 w`w'cgfinwgt11 w`w'cgfinwgt12 w`w'cgfinwgt13 w`w'cgfinwgt14 w`w'cgfinwgt15 w`w'cgfinwgt16 w`w'cgfinwgt17 w`w'cgfinwgt18 w`w'cgfinwgt19 w`w'cgfinwgt20 w`w'cgfinwgt21 w`w'cgfinwgt22 w`w'cgfinwgt23 w`w'cgfinwgt24 w`w'cgfinwgt25 w`w'cgfinwgt26 w`w'cgfinwgt27 w`w'cgfinwgt28 w`w'cgfinwgt29 w`w'cgfinwgt30 w`w'cgfinwgt31 w`w'cgfinwgt32 w`w'cgfinwgt33 w`w'cgfinwgt34 w`w'cgfinwgt35 w`w'cgfinwgt36 w`w'cgfinwgt37 w`w'cgfinwgt38 w`w'cgfinwgt39 w`w'cgfinwgt40 w`w'cgfinwgt41 w`w'cgfinwgt42 w`w'cgfinwgt43 w`w'cgfinwgt44 w`w'cgfinwgt45 w`w'cgfinwgt46 w`w'cgfinwgt47 w`w'cgfinwgt48 w`w'cgfinwgt49 w`w'cgfinwgt50 w`w'cgfinwgt51 w`w'cgfinwgt52 w`w'cgfinwgt53 w`w'cgfinwgt54 w`w'cgfinwgt55 w`w'cgfinwgt56 chd`w'cgbrthyr chd`w'spbrthyr op`w'dnsoc m1 wave opishelper_allw yearnotmonth disab justone numact oneact spouse otherrel nonrel daughter son oth_fam op_adl_insd op_adl_bed op_adl_eat op_adl_bath op_adl_toil op_adl_dres op_iadl_laun op_iadl_shop op_iadl_meal op_iadl_bank op_iadl_meds regular impute_cat op_hrsmth_i paid rc_staff primary_cg max_hrs_helped num_primary_cg prim_helper_cat op_relationship_cat tot_hrsmonth_help_i n_helpers tot_hrswk_help_i op_family n_family_helpers ind_family_helper n_paid_helpers ind_paid_helper ind_rc_staff num_helpers_cat phrs tot_hrsmonth_paid_i tot_hrswk_paid_i op_hrswk_i m2 fl`w'dnsoc fl`w'dnsoccnt fl`w'dcgphncnt fl`w'dcgadonly fl`w'dnsoccomp m3 op`w'proxy op`w'relatnshp op`w'gender op`w'spouprtnr op`w'leveledu op`w'prsninhh op`w'childinhh op`w'dage op`w'chnotinhh op`w'martlstat op`w'numchldrn op`w'anychdu18 op`w'numchdu18 op`w'soclntwrk op`w'dcatgryag op`w'dsocwrkfl op`w'outhlp op`w'insdhlp op`w'bedhlp op`w'tkplhlp1 op`w'tkplhlp2 op`w'launhlp op`w'shophlp op`w'mealhlp op`w'bankhlp op`w'moneyhlp op`w'eathlp op`w'bathhlp op`w'toilhlp op`w'dreshlp op`w'medshlp op`w'dochlp op`w'dochlpmst op`w'insurhlp op`w'spcaredfr op`w'chhlpfin op`w'hlpchfin op`w'ishelper op`w'helpsched op`w'numdayswk op`w'numdaysmn op`w'numhrsday op`w'paidhelpr op`w'sppayshlp op`w'govpayhlp op`w'inspayhlp op`w'othpayhlp op`w'payunit op`w'hourlypay op`w'weeklypay op`w'monthlypy op`w'progmpaid op`w'dhrsmth op`w'contctflg op`w'dflmiss op`w'dmissadd op`w'dprobdup op`w'ddupeid m4 r`w'dresid r`w'dresidr r`w'breakoffst r`w'breakoffqt is`w'resptype is`w'reasnprx1 is`w'reasnprx2 is`w'reasnprx3 is`w'reasnprx4 is`w'reasnprx5 is`w'reasnprx6 is`w'reasnprx9 r`w'dgender r`w'd2intvrage is`w'prxyrelat is`w'prxygendr is`w'famrrutin is`w'dproxyid re`w'resistrct re`w'bldgfl re`w'dcensdiv fl`w'structure fl`w'bldgfl hc`w'health hc`w'disescn1 hc`w'disescn2 hc`w'disescn3 hc`w'disescn4 hc`w'disescn5 hc`w'disescn6 hc`w'disescn7 hc`w'disescn8 hc`w'disescn9 hc`w'disescn10 hc`w'cancerty1 hc`w'dementage hc`w'brokebon1 hc`w'brokebon2 hc`w'serdisill hc`w'hosptstay hc`w'hosovrnht hc`w'kneesurg hc`w'knesrgyr hc`w'ageknesur hc`w'hipsurg hc`w'hipsrgyr hc`w'agehipsur hc`w'catarsurg hc`w'catrsrgyr hc`w'agecatsur hc`w'bckspnsur hc`w'backsrgyr hc`w'agebcksrg hc`w'heartsurg hc`w'hartsrgyr hc`w'agehrtsrg hc`w'fllsinmth hc`w'worryfall hc`w'worrylimt hc`w'faleninyr hc`w'multifall hc`w'depresan1 hc`w'depresan2 hc`w'depresan3 hc`w'depresan4 hc`w'aslep30mn hc`w'trbfalbck hc`w'sleepmed ht`w'longlived ht`w'mthslived ht`w'yrslived ht`w'longer5yr ht`w'placedesc ht`w'retiresen ht`w'diffareun ht`w'helpmedbd ht`w'meals ht`w'spacename fl`w'facility fl`w'hotype fl`w'retirecom se`w'servcoff1 se`w'servcoff2 se`w'servcoff3 se`w'servcoff4 se`w'servcoff5 se`w'servcoff6 se`w'servcoff7 se`w'servcoff8 se`w'servcoff9 se`w'servused1 se`w'servused2 se`w'servused3 se`w'servused4 se`w'servused5 se`w'servused6 se`w'servused7 se`w'servused8 se`w'servused9 se`w'payservi1 se`w'payservi2 se`w'payservi3 se`w'payservi4 se`w'payservi5 se`w'payservi6 se`w'payservi7 se`w'payservi8 se`w'payservi9 hh`w'martlstat hh`w'yrendmarr hh`w'yrsmarliv hh`w'spgender hh`w'd2spouage hh`w'spouseduc hh`w'spoupchlp hh`w'livwthspo hh`w'placekind hh`w'proxlivsp hh`w'othlvhere hh`w'dspouseid hh`w'dlvngarrg hh`w'dhshldnum hh`w'dhshldchd cs`w'dreconcil cs`w'sistrsnum cs`w'brthrsnum cs`w'dnumchild cs`w'dnmstpchd cs`w'dnumdaugh cs`w'dnumson sn`w'dnumsn fl`w'noonetalk ho`w'entrstair ho`w'entrccomn ho`w'entrnramp ho`w'bldgamen1 ho`w'bldgamen2 ho`w'bldgamen3 ho`w'bldgamen4 ho`w'levelsflr ho`w'homeamen1 ho`w'homeamen2 ho`w'homeamen3 ho`w'bathprivt ho`w'bathamen1 ho`w'bathamen2 ho`w'bathamen3 ho`w'bathamen4 ho`w'bathamen5 ho`w'bathamen6 ho`w'bathamen7 ho`w'kitchnprv ho`w'kitchncom ho`w'microwave fl`w'onefloor fl`w'bathgrbbr fl`w'bathseat fl`w'raisedtlt fl`w'tltgrbbr em`w'modhere1 em`w'addlstyr1 em`w'addlstyr2 em`w'addlstyr3 em`w'addlstyr4 em`w'addlstyr5 em`w'addlstyr6 em`w'addlstyr7 em`w'payyufam1 em`w'payyufam2 em`w'payyufam3 em`w'payyufam4 em`w'payyufam5 em`w'payyufam6 em`w'payyufam7 em`w'paydevce1 em`w'paydevce2 em`w'paydevce3 em`w'paydevce4 em`w'paydevce5 em`w'paydevce6 em`w'paydevce7 em`w'paydevce8 em`w'paydevce9 em`w'payaltgth em`w'morls1000 em`w'morls100 cm`w'knowwell cm`w'willnghlp cm`w'peoptrstd te`w'cellphone te`w'othrphone te`w'computer te`w'compoth te`w'emailtext te`w'oftnemail te`w'online te`w'shoponli1 te`w'shoponli2 te`w'shoponli3 te`w'intrntmd1 te`w'intrntmd2 te`w'intrntmd3 md`w'canewlker md`w'cane md`w'walker md`w'wheelchar md`w'whelcrspc md`w'scooter md`w'scterinsp fl`w'cane fl`w'walker fl`w'wheelchr fl`w'whlchrhom fl`w'scooter fl`w'scooterhm ss`w'heringaid ss`w'hearphone ss`w'convwradi ss`w'convquiet ss`w'glasseswr ss`w'seewellst ss`w'seestvgls ss`w'glasscls ss`w'othvisaid ss`w'glrednewp ss`w'probchswl ss`w'probspeak ss`w'painbothr ss`w'painlimts ss`w'painmedof ss`w'painwhe`w' ss`w'painwhe2 ss`w'painwhe3 ss`w'painwhe4 ss`w'painwhe5 ss`w'painwhe6 ss`w'painwhe7 ss`w'painwhe8 ss`w'painwhe9 ss`w'painwhe10 ss`w'painwhe11 ss`w'painwhe12 ss`w'painwhe13 ss`w'probbreat ss`w'prbbrlimt ss`w'strnglmup ss`w'uplimtact ss`w'lwrbodstr ss`w'lwrbodimp ss`w'lowenergy ss`w'loenlmtat ss`w'prbbalcrd ss`w'prbbalcnt pc`w'walk6blks pc`w'walk3blks pc`w'up20stair pc`w'up10stair pc`w'car20pnds pc`w'car10pnds pc`w'geonknees pc`w'bendover pc`w'hvobovrhd pc`w'rechovrhd pc`w'opnjarwhd pc`w'grspsmobj cp`w'memrygood cp`w'knownspyr cp`w'chgthink1 cp`w'chgthink2 cp`w'chgthink3 cp`w'chgthink4 cp`w'chgthink5 cp`w'chgthink6 cp`w'chgthink7 cp`w'chgthink8 cp`w'memcogpr1 cp`w'memcogpr2 cp`w'memcogpr3 cp`w'memcogpr4 cg`w'speaktosp cg`w'quesremem cg`w'reascano1 cg`w'reascano2 cg`w'reascano3 cg`w'reascano4 cg`w'reascano5 cg`w'reascano6 cg`w'reascano7 cg`w'reascano8 cg`w'reascano9 cg`w'ratememry cg`w'ofmemprob cg`w'memcom1yr cg`w'todaydat1 cg`w'todaydat2 cg`w'todaydat3 cg`w'todaydat4 cg`w'todaydat5 cg`w'prewrdrcl cg`w'dwrdlstnm cg`w'wrdsrcal1 cg`w'wrdsrcal2 cg`w'wrdsrcal3 cg`w'wrdsrcal4 cg`w'wrdsrcal5 cg`w'wrdsrcal6 cg`w'wrdsrcal7 cg`w'wrdsrcal8 cg`w'wrdsrcal9 cg`w'wrdsrca10 cg`w'dwrdimmrc cg`w'dwrdinone cg`w'dwrdirref cg`w'wrdsntlst cg`w'numnotlst cg`w'probreca1 cg`w'probreca2 cg`w'probreca3 cg`w'probreca4 cg`w'dclkdraw cg`w'dclkimgcl cg`w'atdrwclck cg`w'presidna1 cg`w'presidna2 cg`w'presidna3 cg`w'presidna4 cg`w'vpname1 cg`w'vpname2 cg`w'vpname3 cg`w'vpname4 cg`w'wrdsdcal1 cg`w'wrdsdcal2 cg`w'wrdsdcal3 cg`w'wrdsdcal4 cg`w'wrdsdcal5 cg`w'wrdsdcal6 cg`w'wrdsdcal7 cg`w'wrdsdcal8 cg`w'wrdsdcal9 cg`w'wrdsdca10 cg`w'dwrddlyrc cg`w'dwrddnone cg`w'dwrddrref cg`w'wrdnotlst cg`w'numwrdnot cg`w'dwrd*rcl cg`w'dwrd2rcl cg`w'dwrd3rcl cg`w'dwrd4rcl cg`w'dwrd5rcl cg`w'dwrd6rcl cg`w'dwrd7rcl cg`w'dwrd8rcl cg`w'dwrd9rcl cg`w'dwrd10rcl cg`w'dwrd1dly cg`w'dwrd2dly cg`w'dwrd3dly cg`w'dwrd4dly cg`w'dwrd5dly cg`w'dwrd6dly cg`w'dwrd7dly cg`w'dwrd8dly cg`w'dwrd9dly cg`w'dwrd10dly mo`w'outoft mo`w'outcane mo`w'outwalkr mo`w'outwlchr mo`w'outsctr mo`w'outhlp mo`w'outslf mo`w'outdif mo`w'outyrgo mo`w'outwout mo`w'oftgoarea mo`w'oflvslepr mo`w'insdcane mo`w'insdwalkr mo`w'insdwlchr mo`w'insdsctr mo`w'oftholdwl mo`w'insdhlp mo`w'insdslf mo`w'insddif mo`w'insdyrgo mo`w'insdwout mo`w'beddev mo`w'bedhlp mo`w'bedslf mo`w'beddif mo`w'bedwout mo`w'doutsfdf mo`w'doutdevi mo`w'douthelp mo`w'dinsdsfdf mo`w'dinsddevi mo`w'dinsdhelp mo`w'dbedsfdf mo`w'dbeddevi mo`w'dbedhelp fl`w'didntleav fl`w'ntlvrmslp dm`w'helpmobil dm`w'helpyrmor dm`w'yrsgethlp dm`w'mthgethlp dm`w'lstyrcane dm`w'caneforyr dm`w'yrsuscane dm`w'mtfrtcane dm`w'mobhelp65 dm`w'snc65mohl dm`w'at65uscan dm`w'snc65uscn dm`w'dhlpyr dm`w'dhlpst dm`w'dhlpend dm`w'dhlpyrs dm`w'ddeviyr dm`w'ddevist dm`w'ddeviend dm`w'ddeviyrs dt`w'oftedrive dt`w'lastdrove dt`w'mthltdrov dt`w'yrlstdrov dt`w'mthagodrv dt`w'yragoldrv dt`w'ageltdrov dt`w'avoidriv1 dt`w'avoidriv2 dt`w'avoidriv3 dt`w'avoidriv4 dt`w'getoplcs1 dt`w'getoplcs2 dt`w'getoplcs3 dt`w'getoplcs4 dt`w'getoplcs5 dt`w'getoplcs6 dt`w'getoplcs7 dt`w'otfrfamtk fl`w'drives fl`w'drvlstyr ha`w'laun ha`w'launslf ha`w'whrmachi1 ha`w'whrmachi2 ha`w'whrmachi3 ha`w'whrmachi4 ha`w'whrmachi5 ha`w'whrmachi6 ha`w'dlaunreas ha`w'laundif ha`w'launoft ha`w'launwout ha`w'shop ha`w'shopslf ha`w'howpaygr1 ha`w'howpaygr2 ha`w'howpaygr3 ha`w'howpaygr4 ha`w'howpaygr5 ha`w'howpaygr6 ha`w'howpaygr7 ha`w'howgtstr1 ha`w'howgtstr2 ha`w'howgtstr3 ha`w'howgtstr4 ha`w'howgtstr5 ha`w'howgtstr6 ha`w'howgtstr7 ha`w'howgtstr8 ha`w'shopcart ha`w'shoplean ha`w'dshopreas ha`w'shopdif ha`w'shopoft ha`w'shopwout ha`w'meal ha`w'mealslf ha`w'restamels ha`w'oftmicrow ha`w'dmealreas ha`w'mealdif ha`w'mealoft ha`w'mealwout ha`w'bank ha`w'bankslf ha`w'dbankreas ha`w'bankdif ha`w'bankoft ha`w'bankwout ha`w'money ha`w'moneyhlp ha`w'dlaunsfdf ha`w'dshopsfdf ha`w'dmealsfdf ha`w'dbanksfdf ha`w'dmealwhl ha`w'dmealtkot sc`w'eatdev sc`w'eatdevoft sc`w'eathlp sc`w'eatslfoft sc`w'eatslfdif sc`w'eatwout sc`w'showrbat1 sc`w'showrbat2 sc`w'showrbat3 sc`w'prfrshbth sc`w'scusgrbrs sc`w'shtubseat sc`w'bathhlp sc`w'bathoft sc`w'bathdif sc`w'bathyrgo sc`w'bathwout sc`w'usvartoi1 sc`w'usvartoi2 sc`w'usvartoi3 sc`w'usvartoi4 sc`w'toilhlp sc`w'toiloft sc`w'toildif sc`w'toilwout sc`w'dresoft sc`w'dresdev sc`w'dreshlp sc`w'dresslf sc`w'dresdif sc`w'dresyrgo sc`w'dreswout sc`w'deatdevi sc`w'deathelp sc`w'deatsfdf sc`w'dbathdevi sc`w'dbathhelp sc`w'dbathsfdf sc`w'dtoildevi sc`w'dtoilhelp sc`w'dtoilsfdf sc`w'ddresdevi sc`w'ddreshelp sc`w'ddressfdf fl`w'showering fl`w'takingbth fl`w'washingup ds`w'gethlpeat ds`w'hlpmrtnyr ds`w'yrsgethlp ds`w'mthgethlp ds`w'gthptrn65 ds`w'gthpsin65 ds`w'dhlpyr ds`w'dhlpst ds`w'dhlpend ds`w'dhlpyrs mc`w'meds mc`w'medstrk mc`w'medsslf mc`w'whrgtmed1 mc`w'whrgtmed2 mc`w'whrgtmed3 mc`w'whrgtmed4 mc`w'howpkupm1 mc`w'howpkupm2 mc`w'howpkupm3 mc`w'medsrem mc`w'dmedsreas mc`w'medsdif mc`w'medsyrgo mc`w'medsmis mc`w'havregdoc mc`w'regdoclyr mc`w'hwgtregd1 mc`w'hwgtregd2 mc`w'hwgtregd3 mc`w'hwgtregd4 mc`w'hwgtregd5 mc`w'hwgtregd6 mc`w'hwgtregd7 mc`w'hwgtregd8 mc`w'hwgtregd9 mc`w'ansitindr mc`w'tpersevr1 mc`w'tpersevr2 mc`w'tpersevr3 mc`w'tpersevr4 mc`w'chginspln mc`w'anhlpwdec mc`w'dmedssfdf pa`w'vistfrfam pa`w'hlkepfvst pa`w'trkpfrvis pa`w'impvstfam pa`w'attrelser pa`w'htkfrrlsr pa`w'trprrelsr pa`w'imprelser pa`w'clbmtgrac pa`w'hlkpfrclb pa`w'trprkpfgr pa`w'imparclub pa`w'outfrenjy pa`w'hlkpgoenj pa`w'trprgoout pa`w'impouteny pa`w'workfrpay pa`w'hlkpfrwrk pa`w'voltrwork pa`w'hlkpfrvol pa`w'prcranoth pa`w'evrgowalk pa`w'vigoractv pa`w'helmfvact pa`w'dfavact sd`w'smokedreg sd`w'smokesnow sd`w'numcigday sd`w'agesrtsmk sd`w'agelstsmk pe`w'whhndsign pe`w'surghdwrt pe`w'surgyside pe`w'flruppain pe`w'sideflrup pe`w'surgarmsh pe`w'sidsurgar pe`w'surgyhips pe`w'sidhipsrg pe`w'stndwhold pe`w'upchbyslf pe`w'wlkdsself fl`w'lefthand fl`w'righthand fl`w'eiherhand fl`w'lftgrptst fl`w'rhtgrptst fl`w'charstnds fl`w'balstands fl`w'wlkingrse ba`w'dblssadm ba`w'dblstadm ba`w'dblftadm ba`w'dblopadm ba`w'dblcladm wa`w'dwlkadm ch`w'dschradm ch`w'drchradm gr`w'dgripadm wc`w'dwaistadm pk`w'dpeakadm ab`w'datemonth ab`w'dateyear in`w'strtabhrs in`w'strtabmin in`w'strtmampm ba`w'sxsresult ba`w'blstdsecs ba`w'blstdhndr ba`w'rsn1ssstd ba`w'rsn2ssstd ba`w'rsn3ssstd ba`w'rsn4ssstd ba`w'rsn9ssstd ba`w'stdmreslt ba`w'stdmsecs ba`w'stdmhndr ba`w'rsn1ststd ba`w'rsn2ststd ba`w'rsn3ststd ba`w'rsn4ststd ba`w'rsn9ststd ba`w'ftdmreslt ba`w'ftdmsecs ba`w'ftdmhndr ba`w'rsn1ftstd ba`w'rsn2ftstd ba`w'rsn3ftstd ba`w'rsn4ftstd ba`w'rsn9ftstd ba`w'1leoreslt ba`w'1leosfsec ba`w'1leohndr ba`w'rsn11leo ba`w'rsn21leo ba`w'rsn31leo ba`w'rsn41leo ba`w'rsn91leo ba`w'1lecreslt ba`w'1lecsfsec ba`w'1lechndr ba`w'rsn11lec ba`w'rsn21lec ba`w'rsn31lec ba`w'rsn41lec ba`w'rsn91lec wa`w'wlkcorspc wa`w'wkaidused wa`w'wlkc1rslt wa`w'wlkc1secs wa`w'wlk1hndr wa`w'rsn11wkc wa`w'rsn21wkc wa`w'rsn31wkc wa`w'rsn41wkc wa`w'rsn51wkc wa`w'rsn91wkc wa`w'wkaidusc2 wa`w'wlkc2rslt wa`w'wlkc2secs wa`w'wlk2hndr wa`w'rsn12wkc wa`w'rsn22wkc wa`w'rsn32wkc wa`w'rsn42wkc wa`w'rsn92wkc ch`w'chravail ch`w'chstcompl ch`w'chairheit ch`w'whlchrusd ch`w'sgchstres ch`w'armuse ch`w'rsn11chs ch`w'rsn21chs ch`w'rsn31chs ch`w'rsn41chs ch`w'rsn51chs ch`w'rsn91chs ch`w'2chstrslt ch`w'chstndsec ch`w'chstdhndr ch`w'chstddone ch`w'chstntdn1 ch`w'chstntdn2 ch`w'chstntdn3 ch`w'chstntdn4 ch`w'chstntdn5 ch`w'chstntdn9 ch`w'chstntat1 ch`w'chstntat2 ch`w'chstntat3 ch`w'chstntat4 ch`w'chstntat9 gr`w'handtstd1 gr`w'adjgr1ps3 gr`w'grp1reslt gr`w'grp1rdng gr`w'grp1noat1 gr`w'grp1noat2 gr`w'grp1noat3 gr`w'grp1noat4 gr`w'grp1noat9 gr`w'handtstd2 gr`w'adjgr2ps3 gr`w'grp2reslt gr`w'grp2rdng gr`w'grp2noat1 gr`w'grp2noat2 gr`w'grp2noat3 gr`w'grp2noat4 gr`w'grp2noat9 wc`w'measdiff1 wc`w'measdiff2 wc`w'measdiff3 wc`w'measdiff4 wc`w'measdiff5 wc`w'measdiff6 wc`w'measdiff9 wc`w'waistrslt wc`w'wstmsrinc wc`w'wstmsrqrt wc`w'wstbulkcl wc`w'whomeasur wc`w'wstpostn wc`w'wstnotat1 wc`w'wstnotat2 wc`w'wstnotat3 wc`w'wstnotat4 wc`w'wstnotat5 wc`w'wstnotat9 pk`w'pkarf1pos pk`w'pkarfl1ef pk`w'pkarfl1rs pk`w'pkarfl1rd pk`w'pk1noatt1 pk`w'pk1noatt2 pk`w'pk1noatt3 pk`w'pk1noatt4	pk`w'pk1noatt9	pk`w'paf2posit	pk`w'pkafl3eff	pk`w'pkarfl2rs	pk`w'pkarfl2rd	pk`w'pk2noatt1	pk`w'pk2noatt2	pk`w'pk2noatt3	pk`w'pk2noatt4	pk`w'pk2noatt9	cl`w'endtimhrs	cl`w'endtimmin	cl`w'endtmampm	r`w'dnhatssppb	r`w'dnhatsbasc	r`w'dnhatswksc	r`w'dnhatschsc	r`w'dnhatsgrav	r`w'dnhatsgrb	r`w'dnhatspkav	r`w'dnhatspkb	r`w'dsppbmiss	r`w'dorigsppb	r`w'dorigbasc	r`w'dorigwksc	r`w'dorigchsc	hw`w'currweigh	hw`w'weighat50	hw`w'lst10pnds	hw`w'trytolose	hw`w'howtallft	hw`w'howtallin	hw`w'tal50feet	hw`w'tal50inch	el`w'borninus	el`w'hlthchild	el`w'fingrowup	el`w'lvbhpar15	el`w'lvwmofaor	el`w'higstschl	el`w'mothalive	el`w'fathalive	el`w'dage2us	el`w'dsameres	rl`w'condspanh	rl`w'spkothlan	rl`w'unspokeng	rl`w'spkengwel	rl`w'dracehisp	va`w'serarmfor	va`w'memnatgrd	wb`w'offelche1	wb`w'offelche2	wb`w'offelche3	wb`w'offelche4	wb`w'truestme1	wb`w'truestme2	wb`w'truestme3	wb`w'truestme4	wb`w'ageyofeel	wb`w'agrwstmt1	wb`w'agrwstmt2	wb`w'agrwstmt3	ip`w'covmedcad	ip`w'otdrugcov	ip`w'mgapmedsp	ip`w'cmedicaid	ip`w'covtricar	ip`w'nginsnurs	ip`w'typcarco1	ip`w'typcarco2	ip`w'typcarco3	ip`w'paypremms	ip`w'longhadpl	ip`w'numyears	ip`w'agepurpol	lf`w'workfpay	lf`w'abstlstwk	lf`w'wrkplstmn	lf`w'mrthnonjb	lf`w'hrswkwork	lf`w'hrwrkltwk	lf`w'hrwrklstw	lf`w'oftpaid	lf`w'lstpaychk	lf`w'pychkamnt	lf`w'perhrpay	lf`w'perdaypay	lf`w'ernfrmwrk	lf`w'occupaton	lf`w'doccpctgy	lf`w'diffwrknw	lf`w'huswifwrk	lf`w'huwpaearn	hp`w'ownrentot	hp`w'mrtpadoff	hp`w'mthlymort	hp`w'mortpaymt	hp`w'whnpayoff	hp`w'amtstlowe	hp`w'amoutowed	hp`w'homevalue	hp`w'homvalamt	hp`w'payrent	hp`w'rentamt	hp`w'rentamout	hp`w'sec8pubsn	ia`w'recsspa1	ia`w'recsspa2	ia`w'recsspa3	ia`w'howrecssp	ia`w'recssils1	ia`w'recssils2	ia`w'recssils3	ia`w'rvapayls1	ia`w'rvapayls2	ia`w'rvapayls3	ia`w'penjobou1	ia`w'penjobou2	ia`w'penjobou3	ia`w'iraothac1	ia`w'iraothac2	ia`w'iraothac3	ia`w'mutfdstk1	ia`w'mutfdstk2	ia`w'mutfdstk3	ia`w'mutfdstk4	ia`w'ownbond1	ia`w'ownbond2	ia`w'ownbond3	ia`w'ownbond4	ia`w'bnkacccd1	ia`w'bnkacccd2	ia`w'bnkacccd3	ia`w'bnkacccd4	ia`w'bnkacccd5	ia`w'bnkacccd6	ia`w'bnkacccd7	ia`w'bnkacccd8	ia`w'bnkacccd9	ia`w'bnkaccc10	ia`w'bnkaccc11	ia`w'bnkaccc12	ia`w'realestt1	ia`w'realestt2	ia`w'realestt3	ia`w'realestt4	ia`w'ssrrpymnt	ia`w'ssrrjtamt	ia`w'ssrrjtest	ia`w'ssrrspamt	ia`w'ssrrspest	ia`w'ssrrptamt	ia`w'ssrrptest	ia`w'ssipymnt	ia`w'ssijtamt	ia`w'ssijtest	ia`w'ssispamt	ia`w'ssispest	ia`w'ssiptamt	ia`w'ssiptest	ia`w'vapymnt	ia`w'vajtamt	ia`w'vajtest	ia`w'vaspamt	ia`w'vaspest	ia`w'vaptamt	ia`w'vaptest	ia`w'penpymt	ia`w'penjtamt	ia`w'penjtest	ia`w'penspamt	ia`w'penspest	ia`w'penptamt	ia`w'penptest	ia`w'retworth	ia`w'retjtwrt	ia`w'retjtest	ia`w'retspwrt	ia`w'retspest	ia`w'retptwrt	ia`w'retptest	ia`w'rtlmwdrw	ia`w'rtlmjtwdr	ia`w'rtlmjtest	ia`w'rtlmspwdr	ia`w'rtlmspest	ia`w'rtlmptwdr	ia`w'rtlmptest	ia`w'rtyrwdrw	ia`w'rtyrjtamt	ia`w'rtyrjtest	ia`w'rtyrspamt	ia`w'rtyrspest	ia`w'rtyrptamt	ia`w'rtyrptest	ia`w'skbdwrth	ia`w'skbdjtwrt	ia`w'skbdjtest	ia`w'bndjtest	ia`w'skbdspwrt	ia`w'skbdspest	ia`w'bndspest	ia`w'skbdptwrt	ia`w'skbdptest	ia`w'bndptest	ia`w'bkcdwrth	ia`w'bkcdjtwrt	ia`w'bkcdjtest	ia`w'bnkjtest	ia`w'bkcdspwrt	ia`w'bkcdspest	ia`w'bnkspest	ia`w'bkcdptwrt	ia`w'bkcdptest	ia`w'bnkptest	ia`w'itdvinc	ia`w'itdvjtamt	ia`w'itdvjtest	ia`w'itdvspamt	ia`w'itdvspest	ia`w'itdvptamt	ia`w'itdvptest	ia`w'brewrt	ia`w'brejtwrt	ia`w'brejtest	ia`w'brespwrt	ia`w'brespest	ia`w'breptwrt	ia`w'breptest	ia`w'breiinc	ia`w'breijtamt	ia`w'breijtest	ia`w'breispamt	ia`w'breispest	ia`w'breiptamt	ia`w'breiptest	ia`w'totinc	ia`w'toincimf	ia`w'toincim1	ia`w'toincim2	ia`w'toincim3	ia`w'toincim4	ia`w'toincim5	ia`w'toincesjt	ia`w'eincimjf	ia`w'eincimj1	ia`w'eincimj2	ia`w'eincimj3	ia`w'eincimj4	ia`w'eincimj5	ia`w'toincessg	ia`w'eincimsf	ia`w'eincims1	ia`w'eincims2	ia`w'eincims3	ia`w'eincims4	ia`w'eincims5	co`w'owncartrv	co`w'manyvhcls	co`w'valuevehi	co`w'vehivalue	ew`w'pycredbal	ew`w'crecardeb	ew`w'credcdmed	ew`w'amtcrdmed	ew`w'medpaovtm	ew`w'ampadovrt	ew`w'finhlpfam	ew`w'whohelfi1	ew`w'whohelfi2	ew`w'atchhelyr	ew`w'fingftfam	ew`w'whregoth1	ew`w'whregoth2	ew`w'whregoth3	ew`w'amthlpgiv	ew`w'progneed1	ew`w'progneed2	ew`w'progneed3	ls`w'evdayact1	ls`w'evdayact2	ls`w'evdayact3	ls`w'evdayact4	ls`w'evdayact5	ls`w'evdayact6	ls`w'evdayact7	ls`w'evdayact8	ls`w'ableto1	ls`w'ableto2	ls`w'ableto3	ls`w'ableto4	ls`w'ableto5	ls`w'ableto6	ls`w'ableto7	ls`w'diskefrm1	ls`w'diskefrm2	ls`w'diskefrm3	ls`w'diskefrm4	ls`w'diskefrm5	ls`w'diskefrm6	ls`w'diskefrm7	ir`w'spattitud	ir`w'undrstand	ir`w'sppresent	ir`w'intvwhlp	ir`w'prsnhlp1	ir`w'prsnhlp2	ir`w'prsnhlp3	ir`w'prsnhlp4	ir`w'prsnhlp5	ir`w'prsnhlp6	ir`w'prsnhlp91	ir`w'sessions	ir`w'sessrsn1	ir`w'sessrsn2	ir`w'sessrsn3	ir`w'sessrsn91	ir`w'conhomapt	ir`w'insidhome	ir`w'condihom1	ir`w'condihom2	ir`w'condihom3	ir`w'condihom4	ir`w'condihom5	ir`w'clutterr1	ir`w'clutterr2	ir`w'areacond1	ir`w'areacond2	ir`w'areacond3	ir`w'areacond4	ir`w'condhome1	ir`w'condhome2	ir`w'condhome3	ir`w'condhome4	ir`w'condhome5	ir`w'fqphnprsn	fq`w'dfacdescr	fq`w'dosfacd	fq`w'prtlivnam	fq`w'dfacarea	fq`w'dosfaca	fq`w'assdnrsng	fq`w'othrlevls	fq`w'whotlevl1	fq`w'whotlevl2	fq`w'whotlevl3	fq`w'whotlevl4	fq`w'whotlevl5	fq`w'servaval1	fq`w'servaval2	fq`w'servaval3	fq`w'servaval4	fq`w'servaval5	fq`w'servaval6	fq`w'servaval7	fq`w'servaval8	fq`w'servaval9	fq`w'paysourc1	fq`w'paysourc2	fq`w'paysourc3	fq`w'paysourc4	fq`w'paysourc5	fq`w'paysourc6	fq`w'totalpaym	fq`w'mnthlyamt	fq`w'primpayer	fq`w'govsource	fq`w'dlocsp	w`w'anfinwgt0	w`w'anfinwgt1	w`w'anfinwgt2	w`w'anfinwgt3	w`w'anfinwgt4	w`w'anfinwgt5	w`w'anfinwgt6	w`w'anfinwgt7	w`w'anfinwgt8	w`w'anfinwgt9	w`w'anfinwgt10	w`w'anfinwgt11	w`w'anfinwgt12	w`w'anfinwgt13	w`w'anfinwgt14	w`w'anfinwgt15	w`w'anfinwgt16	w`w'anfinwgt17	w`w'anfinwgt18	w`w'anfinwgt19	w`w'anfinwgt20	w`w'anfinwgt21	w`w'anfinwgt22	w`w'anfinwgt23	w`w'anfinwgt24	w`w'anfinwgt25	w`w'anfinwgt26	w`w'anfinwgt27	w`w'anfinwgt28	w`w'anfinwgt29	w`w'anfinwgt30	w`w'anfinwgt31	w`w'anfinwgt32	w`w'anfinwgt33	w`w'anfinwgt34	w`w'anfinwgt35	w`w'anfinwgt36	w`w'anfinwgt37	w`w'anfinwgt38	w`w'anfinwgt39	w`w'anfinwgt40	w`w'anfinwgt41	w`w'anfinwgt42	w`w'anfinwgt43	w`w'anfinwgt44	w`w'anfinwgt45	w`w'anfinwgt46	w`w'anfinwgt47	w`w'anfinwgt48	w`w'anfinwgt49	w`w'anfinwgt50	w`w'anfinwgt51	w`w'anfinwgt52	w`w'anfinwgt53	w`w'anfinwgt54	w`w'anfinwgt55	w`w'anfinwgt56	w`w'varstrat	w`w'varunit	m5	/*r1dbirthmth	r1dbirthyr	r2dintvwrage	hh2mthendmar	hh2modob	hh2yrdob	hh2dspousage	hh2dmodoball	hh2dyrdoball	hh2spageall	r2ddeathage	pd2mthdied	pd2yrdied	m6*/	death_date	death_month	death_year	m7	startsnow
-	if `w'==1{
-		drop c1dgender c1relatnshp c1intmonth c1dintdays cca1hwoftchs cca1hwoftshp cca1hlpordmd cca1hlpbnkng cca1cmpgrcry cca1cmpordrx cca1cmpbnkng cca1hwoftpc cca1hwofthom cca1hlplft cca1hlpspt cca1hlpstd cca1hwoftlft cca1hwoftspt cca1hwoftstd cca1hwoftdrv cca1hwoftott cca1hlpmed cca1hlpshot cca1hlpmdtk cca1hlpexrcs cca1hlpdiet cca1hlpteeth cca1hlpfeet cca1hlpskin cca1hlpmdapt cca1hlpspkdr cca1hlpinsrn cca1hlpothin cca1hwget2sp cca1tm2spunt cca1tm2spmin cca1tm2sphrs cca1hlplstyr cca1lstmhlpd cdc1hlpsched cdc1hlpdyswk cdc1hlpdysmt cdc1hlphrsdy cdc1hlphrmvf cdc1hlphrlmt cdc1hlphrpc cdc1hlphrpce cdc1hlpyrpls cdc1hlpmthst cdc1hlpunit cdc1hlpyrs cdc1hlpyrst cdc1hlpyrs5p cac1joylevel cac1arguelv cac1spapprlv cac1nerveslv cac1moreconf cac1dealbetr cac1closr2sp cac1moresat cac1diffinc cac1diffemo cac1diffphy cac1diffinlv cac1diffemlv cac1diffphlv cac1fmlydisa cac1exhaustd cac1toomuch cac1notime cac1uroutchg cse1frfamtlk cse1frfamact cse1frfamhlp cse1spptgrp cse1srv2hlp cse1training cse1fndfnhlp cse1hwfnd1 cse1hwfnd2 cse1hwfnd3 cse1hwfnd4 cse1hwfnd5 cse1hwfnd6 cse1look4hlp cse1look1 cse1look2 cse1look3 cse1look4 cse1look5 cse1look6 cse1hlpgtdev cse1homsafer cse1hlppdhlp cpp1vstfrfam cpp1hlpkptvs cpp1impvst cpp1gorelgs cpp1hlpkptrl cpp1imprel cpp1prtgroup ccp1hlpkptgr cpp1impgroup cpp1go4fun cpp1hlpkptgo cpp1impgo cpp1wrk4pay cpp1hlpkptwk cpp1volun cpp1hlpkptvo cpp1careothr cpp1hlpkptca che1health che1hrtattck che1othheart che1highbld che1arthrits che1osteoprs che1diabetes che1lungdis che1cancer che1seeing che1hearing che1cncrskin che1cncrbrst che1cncrpros che1cncroth che1pain che1painlmt che1brethprb che1brethlmt che1armstr che1armlmt che1legstr che1leglmt che1lowenrgy che1enrgylmt che1sleeptrb che1sleepint che1weight che1heightft che1heightin che1lost10lb che1try2lose che1moodcher che1moodpcfl che1moodfull che1moodbord che1moodlone che1moodupst che1fltltlin che1fltdown che1fltnervs che1fltworry che1lifemng che1feelconf che1gaveup che1lifegood che1lifelone che1easychng che1rcvrqick chd1martstat chd1marendmt chd1marendyr chd1chldlvng chd1numchild chd1numchu18 chd1numinhh chd1educ chd1educsprt chd1cgbrthmt chd1spbrthmt cec1wrk4pay cec1ownbusns cec1unpdwrk cec1misswork cec1look4wrk cec1wrkmulti cec1hrsweek cec1hrslstwk cec1hrslast cec1hrswork cec1flexhrs cec1wrksched cec1msswrkmt cec1mswkvctn cec1mswksick cec1mswkhelp cec1mswkfmly cec1mswkpers cec1mswkunit cec1mswkhlph cec1mswkhlpd cec1wkhrperd cec1hlpafwk1 cec1hlpafwk2 cec1busntype cec1occuptn cec1worktype cec1occpdscr chi1medicare chi1medigap chi1medicaid chi1privinsr chi1tricare chi1uninsurd chi1insrtype chi1ownhome chi1chckacct chi1svgsacct chi1certdpst chi1retrplan chi1mutlfnds chi1income chi1inc200pv chi1inc100pv chi1inc400pv chi1paymeds chi1payinsur chi1paymbdvc chi1paysfty chi1payasdvc chi1payhmhlp chi1pay1000 chi1pay2000 chi1pay500 chi1gifttosp chi1gift500 chi1gift1000 chi1gift100 chi1fromsp chi1frsp500 chi1frsp1000 chi1frsp100 c1varstrat c1varunit w1cgfinwgt0 w1cgfinwgt1 w1cgfinwgt2 w1cgfinwgt3 w1cgfinwgt4 w1cgfinwgt5 w1cgfinwgt6 w1cgfinwgt7 w1cgfinwgt8 w1cgfinwgt9 w1cgfinwgt10 w1cgfinwgt11 w1cgfinwgt12 w1cgfinwgt13 w1cgfinwgt14 w1cgfinwgt15 w1cgfinwgt16 w1cgfinwgt17 w1cgfinwgt18 w1cgfinwgt19 w1cgfinwgt20 w1cgfinwgt21 w1cgfinwgt22 w1cgfinwgt23 w1cgfinwgt24 w1cgfinwgt25 w1cgfinwgt26 w1cgfinwgt27 w1cgfinwgt28 w1cgfinwgt29 w1cgfinwgt30 w1cgfinwgt31 w1cgfinwgt32 w1cgfinwgt33 w1cgfinwgt34 w1cgfinwgt35 w1cgfinwgt36 w1cgfinwgt37 w1cgfinwgt38 w1cgfinwgt39 w1cgfinwgt40 w1cgfinwgt41 w1cgfinwgt42 w1cgfinwgt43 w1cgfinwgt44 w1cgfinwgt45 w1cgfinwgt46 w1cgfinwgt47 w1cgfinwgt48 w1cgfinwgt49 w1cgfinwgt50 w1cgfinwgt51 w1cgfinwgt52 w1cgfinwgt53 w1cgfinwgt54 w1cgfinwgt55 w1cgfinwgt56 chd1cgbrthyr chd1spbrthyr op1dnsoc m1 wave opishelper_allw yearnotmonth disab justone numact oneact spouse otherrel nonrel daughter son oth_fam op_adl_insd op_adl_bed op_adl_eat op_adl_bath op_adl_toil op_adl_dres op_iadl_laun op_iadl_shop op_iadl_meal op_iadl_bank op_iadl_meds regular impute_cat op_hrsmth_i paid rc_staff primary_cg max_hrs_helped num_primary_cg prim_helper_cat op_relationship_cat tot_hrsmonth_help_i n_helpers tot_hrswk_help_i op_family n_family_helpers ind_family_helper n_paid_helpers ind_paid_helper ind_rc_staff num_helpers_cat phrs tot_hrsmonth_paid_i tot_hrswk_paid_i op_hrswk_i m2 fl1dnsoc fl1dnsoccnt fl1dcgphncnt fl1dcgadonly fl1dnsoccomp m3 op1proxy op1relatnshp op1gender op1spouprtnr op1leveledu op1prsninhh op1childinhh op1dage op1chnotinhh op1martlstat op1numchldrn op1anychdu18 op1numchdu18 op1soclntwrk op1dcatgryag op1dsocwrkfl op1outhlp op1insdhlp op1bedhlp op1tkplhlp1 op1tkplhlp2 op1launhlp op1shophlp op1mealhlp op1bankhlp op1moneyhlp op1eathlp op1bathhlp op1toilhlp op1dreshlp op1medshlp op1dochlp op1dochlpmst op1insurhlp op1spcaredfr op1chhlpfin op1hlpchfin op1ishelper op1helpsched op1numdayswk op1numdaysmn op1numhrsday op1paidhelpr op1sppayshlp op1govpayhlp op1inspayhlp op1othpayhlp op1payunit op1hourlypay op1weeklypay op1monthlypy op1progmpaid op1dhrsmth op1contctflg op1dflmiss op1dmissadd op1dprobdup op1ddupeid m4 r1dresid r1dresidr r1breakoffst r1breakoffqt is1resptype is1reasnprx1 is1reasnprx2 is1reasnprx3 is1reasnprx4 is1reasnprx5 is1reasnprx6 is1reasnprx9 r1dgender r1d2intvrage is1prxyrelat is1prxygendr is1famrrutin is1dproxyid re1resistrct re1bldgfl re1dcensdiv fl1structure fl1bldgfl hc1health hc1disescn1 hc1disescn2 hc1disescn3 hc1disescn4 hc1disescn5 hc1disescn6 hc1disescn7 hc1disescn8 hc1disescn9 hc1disescn10 hc1cancerty1 hc1dementage hc1brokebon1 hc1brokebon2 hc1serdisill hc1hosptstay hc1hosovrnht hc1kneesurg hc1knesrgyr hc1ageknesur hc1hipsurg hc1hipsrgyr hc1agehipsur hc1catarsurg hc1catrsrgyr hc1agecatsur hc1bckspnsur hc1backsrgyr hc1agebcksrg hc1heartsurg hc1hartsrgyr hc1agehrtsrg hc1fllsinmth hc1worryfall hc1worrylimt hc1faleninyr hc1multifall hc1depresan1 hc1depresan2 hc1depresan3 hc1depresan4 hc1aslep30mn hc1trbfalbck hc1sleepmed ht1longlived ht1mthslived ht1yrslived ht1longer5yr ht1placedesc ht1retiresen ht1diffareun ht1helpmedbd ht1meals ht1spacename fl1facility fl1hotype fl1retirecom se1servcoff1 se1servcoff2 se1servcoff3 se1servcoff4 se1servcoff5 se1servcoff6 se1servcoff7 se1servcoff8 se1servcoff9 se1servused1 se1servused2 se1servused3 se1servused4 se1servused5 se1servused6 se1servused7 se1servused8 se1servused9 se1payservi1 se1payservi2 se1payservi3 se1payservi4 se1payservi5 se1payservi6 se1payservi7 se1payservi8 se1payservi9 hh1martlstat hh1yrendmarr hh1yrsmarliv hh1spgender hh1d2spouage hh1spouseduc hh1spoupchlp hh1livwthspo hh1placekind hh1proxlivsp hh1othlvhere hh1dspouseid hh1dlvngarrg hh1dhshldnum hh1dhshldchd cs1dreconcil cs1sistrsnum cs1brthrsnum cs1dnumchild cs1dnmstpchd cs1dnumdaugh cs1dnumson sn1dnumsn fl1noonetalk ho1entrstair ho1entrccomn ho1entrnramp ho1bldgamen1 ho1bldgamen2 ho1bldgamen3 ho1bldgamen4 ho1levelsflr ho1homeamen1 ho1homeamen2 ho1homeamen3 ho1bathprivt ho1bathamen1 ho1bathamen2 ho1bathamen3 ho1bathamen4 ho1bathamen5 ho1bathamen6 ho1bathamen7 ho1kitchnprv ho1kitchncom ho1microwave fl1onefloor fl1bathgrbbr fl1bathseat fl1raisedtlt fl1tltgrbbr em1modhere1 em1addlstyr1 em1addlstyr2 em1addlstyr3 em1addlstyr4 em1addlstyr5 em1addlstyr6 em1addlstyr7 em1payyufam1 em1payyufam2 em1payyufam3 em1payyufam4 em1payyufam5 em1payyufam6 em1payyufam7 em1paydevce1 em1paydevce2 em1paydevce3 em1paydevce4 em1paydevce5 em1paydevce6 em1paydevce7 em1paydevce8 em1paydevce9 em1payaltgth em1morls1000 em1morls100 cm1knowwell cm1willnghlp cm1peoptrstd te1cellphone te1othrphone te1computer te1compoth te1emailtext te1oftnemail te1online te1shoponli1 te1shoponli2 te1shoponli3 te1intrntmd1 te1intrntmd2 te1intrntmd3 md1canewlker md1cane md1walker md1wheelchar md1whelcrspc md1scooter md1scterinsp fl1cane fl1walker fl1wheelchr fl1whlchrhom fl1scooter fl1scooterhm ss1heringaid ss1hearphone ss1convwradi ss1convquiet ss1glasseswr ss1seewellst ss1seestvgls ss1glasscls ss1othvisaid ss1glrednewp ss1probchswl ss1probspeak ss1painbothr ss1painlimts ss1painmedof ss1painwhe1 ss1painwhe2 ss1painwhe3 ss1painwhe4 ss1painwhe5 ss1painwhe6 ss1painwhe7 ss1painwhe8 ss1painwhe9 ss1painwhe10 ss1painwhe11 ss1painwhe12 ss1painwhe13 ss1probbreat ss1prbbrlimt ss1strnglmup ss1uplimtact ss1lwrbodstr ss1lwrbodimp ss1lowenergy ss1loenlmtat ss1prbbalcrd ss1prbbalcnt pc1walk6blks pc1walk3blks pc1up20stair pc1up10stair pc1car20pnds pc1car10pnds pc1geonknees pc1bendover pc1hvobovrhd pc1rechovrhd pc1opnjarwhd pc1grspsmobj cp1memrygood cp1knownspyr cp1chgthink1 cp1chgthink2 cp1chgthink3 cp1chgthink4 cp1chgthink5 cp1chgthink6 cp1chgthink7 cp1chgthink8 cp1memcogpr1 cp1memcogpr2 cp1memcogpr3 cp1memcogpr4 cg1speaktosp cg1quesremem cg1reascano1 cg1reascano2 cg1reascano3 cg1reascano4 cg1reascano5 cg1reascano6 cg1reascano7 cg1reascano8 cg1reascano9 cg1ratememry cg1ofmemprob cg1memcom1yr cg1todaydat1 cg1todaydat2 cg1todaydat3 cg1todaydat4 cg1todaydat5 cg1prewrdrcl cg1dwrdlstnm cg1wrdsrcal1 cg1wrdsrcal2 cg1wrdsrcal3 cg1wrdsrcal4 cg1wrdsrcal5 cg1wrdsrcal6 cg1wrdsrcal7 cg1wrdsrcal8 cg1wrdsrcal9 cg1wrdsrca10 cg1dwrdimmrc cg1dwrdinone cg1dwrdirref cg1wrdsntlst cg1numnotlst cg1probreca1 cg1probreca2 cg1probreca3 cg1probreca4 cg1dclkdraw cg1dclkimgcl cg1atdrwclck cg1presidna1 cg1presidna2 cg1presidna3 cg1presidna4 cg1vpname1 cg1vpname2 cg1vpname3 cg1vpname4 cg1wrdsdcal1 cg1wrdsdcal2 cg1wrdsdcal3 cg1wrdsdcal4 cg1wrdsdcal5 cg1wrdsdcal6 cg1wrdsdcal7 cg1wrdsdcal8 cg1wrdsdcal9 cg1wrdsdca10 cg1dwrddlyrc cg1dwrddnone cg1dwrddrref cg1wrdnotlst cg1numwrdnot cg1dwrd1rcl cg1dwrd2rcl cg1dwrd3rcl cg1dwrd4rcl cg1dwrd5rcl cg1dwrd6rcl cg1dwrd7rcl cg1dwrd8rcl cg1dwrd9rcl cg1dwrd10rcl cg1dwrd1dly cg1dwrd2dly cg1dwrd3dly cg1dwrd4dly cg1dwrd5dly cg1dwrd6dly cg1dwrd7dly cg1dwrd8dly cg1dwrd9dly cg1dwrd10dly mo1outoft mo1outcane mo1outwalkr mo1outwlchr mo1outsctr mo1outhlp mo1outslf mo1outdif mo1outyrgo mo1outwout mo1oftgoarea mo1oflvslepr mo1insdcane mo1insdwalkr mo1insdwlchr mo1insdsctr mo1oftholdwl mo1insdhlp mo1insdslf mo1insddif mo1insdyrgo mo1insdwout mo1beddev mo1bedhlp mo1bedslf mo1beddif mo1bedwout mo1doutsfdf mo1doutdevi mo1douthelp mo1dinsdsfdf mo1dinsddevi mo1dinsdhelp mo1dbedsfdf mo1dbeddevi mo1dbedhelp fl1didntleav fl1ntlvrmslp dm1helpmobil dm1helpyrmor dm1yrsgethlp dm1mthgethlp dm1lstyrcane dm1caneforyr dm1yrsuscane dm1mtfrtcane dm1mobhelp65 dm1snc65mohl dm1at65uscan dm1snc65uscn dm1dhlpyr dm1dhlpst dm1dhlpend dm1dhlpyrs dm1ddeviyr dm1ddevist dm1ddeviend dm1ddeviyrs dt1oftedrive dt1lastdrove dt1mthltdrov dt1yrlstdrov dt1mthagodrv dt1yragoldrv dt1ageltdrov dt1avoidriv1 dt1avoidriv2 dt1avoidriv3 dt1avoidriv4 dt1getoplcs1 dt1getoplcs2 dt1getoplcs3 dt1getoplcs4 dt1getoplcs5 dt1getoplcs6 dt1getoplcs7 dt1otfrfamtk fl1drives fl1drvlstyr ha1laun ha1launslf ha1whrmachi1 ha1whrmachi2 ha1whrmachi3 ha1whrmachi4 ha1whrmachi5 ha1whrmachi6 ha1dlaunreas ha1laundif ha1launoft ha1launwout ha1shop ha1shopslf ha1howpaygr1 ha1howpaygr2 ha1howpaygr3 ha1howpaygr4 ha1howpaygr5 ha1howpaygr6 ha1howpaygr7 ha1howgtstr1 ha1howgtstr2 ha1howgtstr3 ha1howgtstr4 ha1howgtstr5 ha1howgtstr6 ha1howgtstr7 ha1howgtstr8 ha1shopcart ha1shoplean ha1dshopreas ha1shopdif ha1shopoft ha1shopwout ha1meal ha1mealslf ha1restamels ha1oftmicrow ha1dmealreas ha1mealdif ha1mealoft ha1mealwout ha1bank ha1bankslf ha1dbankreas ha1bankdif ha1bankoft ha1bankwout ha1money ha1moneyhlp ha1dlaunsfdf ha1dshopsfdf ha1dmealsfdf ha1dbanksfdf ha1dmealwhl ha1dmealtkot sc1eatdev sc1eatdevoft sc1eathlp sc1eatslfoft sc1eatslfdif sc1eatwout sc1showrbat1 sc1showrbat2 sc1showrbat3 sc1prfrshbth sc1scusgrbrs sc1shtubseat sc1bathhlp sc1bathoft sc1bathdif sc1bathyrgo sc1bathwout sc1usvartoi1 sc1usvartoi2 sc1usvartoi3 sc1usvartoi4 sc1toilhlp sc1toiloft sc1toildif sc1toilwout sc1dresoft sc1dresdev sc1dreshlp sc1dresslf sc1dresdif sc1dresyrgo sc1dreswout sc1deatdevi sc1deathelp sc1deatsfdf sc1dbathdevi sc1dbathhelp sc1dbathsfdf sc1dtoildevi sc1dtoilhelp sc1dtoilsfdf sc1ddresdevi sc1ddreshelp sc1ddressfdf fl1showering fl1takingbth fl1washingup ds1gethlpeat ds1hlpmrtnyr ds1yrsgethlp ds1mthgethlp ds1gthptrn65 ds1gthpsin65 ds1dhlpyr ds1dhlpst ds1dhlpend ds1dhlpyrs mc1meds mc1medstrk mc1medsslf mc1whrgtmed1 mc1whrgtmed2 mc1whrgtmed3 mc1whrgtmed4 mc1howpkupm1 mc1howpkupm2 mc1howpkupm3 mc1medsrem mc1dmedsreas mc1medsdif mc1medsyrgo mc1medsmis mc1havregdoc mc1regdoclyr mc1hwgtregd1 mc1hwgtregd2 mc1hwgtregd3 mc1hwgtregd4 mc1hwgtregd5 mc1hwgtregd6 mc1hwgtregd7 mc1hwgtregd8 mc1hwgtregd9 mc1ansitindr mc1tpersevr1 mc1tpersevr2 mc1tpersevr3 mc1tpersevr4 mc1chginspln mc1anhlpwdec mc1dmedssfdf pa1vistfrfam pa1hlkepfvst pa1trkpfrvis pa1impvstfam pa1attrelser pa1htkfrrlsr pa1trprrelsr pa1imprelser pa1clbmtgrac pa1hlkpfrclb pa1trprkpfgr pa1imparclub pa1outfrenjy pa1hlkpgoenj pa1trprgoout pa1impouteny pa1workfrpay pa1hlkpfrwrk pa1voltrwork pa1hlkpfrvol pa1prcranoth pa1evrgowalk pa1vigoractv pa1helmfvact pa1dfavact sd1smokedreg sd1smokesnow sd1numcigday sd1agesrtsmk sd1agelstsmk pe1whhndsign pe1surghdwrt pe1surgyside pe1flruppain pe1sideflrup pe1surgarmsh pe1sidsurgar pe1surgyhips pe1sidhipsrg pe1stndwhold pe1upchbyslf pe1wlkdsself fl1lefthand fl1righthand fl1eiherhand fl1lftgrptst fl1rhtgrptst fl1charstnds fl1balstands fl1wlkingrse ba1dblssadm ba1dblstadm ba1dblftadm ba1dblopadm ba1dblcladm wa1dwlkadm ch1dschradm ch1drchradm gr1dgripadm wc1dwaistadm pk1dpeakadm ab1datemonth ab1dateyear in1strtabhrs in1strtabmin in1strtmampm ba1sxsresult ba1blstdsecs ba1blstdhndr ba1rsn1ssstd ba1rsn2ssstd ba1rsn3ssstd ba1rsn4ssstd ba1rsn9ssstd ba1stdmreslt ba1stdmsecs ba1stdmhndr ba1rsn1ststd ba1rsn2ststd ba1rsn3ststd ba1rsn4ststd ba1rsn9ststd ba1ftdmreslt ba1ftdmsecs ba1ftdmhndr ba1rsn1ftstd ba1rsn2ftstd ba1rsn3ftstd ba1rsn4ftstd ba1rsn9ftstd ba11leoreslt ba11leosfsec ba11leohndr ba1rsn11leo ba1rsn21leo ba1rsn31leo ba1rsn41leo ba1rsn91leo ba11lecreslt ba11lecsfsec ba11lechndr ba1rsn11lec ba1rsn21lec ba1rsn31lec ba1rsn41lec ba1rsn91lec wa1wlkcorspc wa1wkaidused wa1wlkc1rslt wa1wlkc1secs wa1wlk1hndr wa1rsn11wkc wa1rsn21wkc wa1rsn31wkc wa1rsn41wkc wa1rsn51wkc wa1rsn91wkc wa1wkaidusc2 wa1wlkc2rslt wa1wlkc2secs wa1wlk2hndr wa1rsn12wkc wa1rsn22wkc wa1rsn32wkc wa1rsn42wkc wa1rsn92wkc ch1chravail ch1chstcompl ch1chairheit ch1whlchrusd ch1sgchstres ch1armuse ch1rsn11chs ch1rsn21chs ch1rsn31chs ch1rsn41chs ch1rsn51chs ch1rsn91chs ch12chstrslt ch1chstndsec ch1chstdhndr ch1chstddone ch1chstntdn1 ch1chstntdn2 ch1chstntdn3 ch1chstntdn4 ch1chstntdn5 ch1chstntdn9 ch1chstntat1 ch1chstntat2 ch1chstntat3 ch1chstntat4 ch1chstntat9 gr1handtstd1 gr1adjgr1ps3 gr1grp1reslt gr1grp1rdng gr1grp1noat1 gr1grp1noat2 gr1grp1noat3 gr1grp1noat4 gr1grp1noat9 gr1handtstd2 gr1adjgr2ps3 gr1grp2reslt gr1grp2rdng gr1grp2noat1 gr1grp2noat2 gr1grp2noat3 gr1grp2noat4 gr1grp2noat9 wc1measdiff1 wc1measdiff2 wc1measdiff3 wc1measdiff4 wc1measdiff5 wc1measdiff6 wc1measdiff9 wc1waistrslt wc1wstmsrinc wc1wstmsrqrt wc1wstbulkcl wc1whomeasur wc1wstpostn wc1wstnotat1 wc1wstnotat2 wc1wstnotat3 wc1wstnotat4 wc1wstnotat5 wc1wstnotat9 pk1pkarf1pos pk1pkarfl1ef pk1pkarfl1rs pk1pkarfl1rd pk1pk1noatt1 pk1pk1noatt2 pk1pk1noatt3 pk1pk1noatt4 pk1pk1noatt9 pk1paf2posit pk1pkafl3eff pk1pkarfl2rs pk1pkarfl2rd pk1pk2noatt1 pk1pk2noatt2 pk1pk2noatt3 pk1pk2noatt4 pk1pk2noatt9 cl1endtimhrs cl1endtimmin cl1endtmampm r1dnhatssppb r1dnhatsbasc r1dnhatswksc r1dnhatschsc r1dnhatsgrav r1dnhatsgrb r1dnhatspkav r1dnhatspkb r1dsppbmiss r1dorigsppb r1dorigbasc r1dorigwksc r1dorigchsc hw1currweigh hw1weighat50 hw1lst10pnds hw1trytolose hw1howtallft hw1howtallin hw1tal50feet hw1tal50inch el1borninus el1hlthchild el1fingrowup el1lvbhpar15 el1lvwmofaor el1higstschl el1mothalive el1fathalive el1dage2us el1dsameres rl1condspanh rl1spkothlan rl1unspokeng rl1spkengwel rl1dracehisp va1serarmfor va1memnatgrd wb1offelche1 wb1offelche2 wb1offelche3 wb1offelche4 wb1truestme1 wb1truestme2 wb1truestme3 wb1truestme4 wb1ageyofeel wb1agrwstmt1 wb1agrwstmt2 wb1agrwstmt3 ip1covmedcad ip1otdrugcov ip1mgapmedsp ip1cmedicaid ip1covtricar ip1nginsnurs ip1typcarco1 ip1typcarco2 ip1typcarco3 ip1paypremms ip1longhadpl ip1numyears ip1agepurpol lf1workfpay lf1abstlstwk lf1wrkplstmn lf1mrthnonjb lf1hrswkwork lf1hrwrkltwk lf1hrwrklstw lf1oftpaid lf1lstpaychk lf1pychkamnt lf1perhrpay lf1perdaypay lf1ernfrmwrk lf1occupaton lf1doccpctgy lf1diffwrknw lf1huswifwrk lf1huwpaearn hp1ownrentot hp1mrtpadoff hp1mthlymort hp1mortpaymt hp1whnpayoff hp1amtstlowe hp1amoutowed hp1homevalue hp1homvalamt hp1payrent hp1rentamt hp1rentamout hp1sec8pubsn ia1recsspa1 ia1recsspa2 ia1recsspa3 ia1howrecssp ia1recssils1 ia1recssils2 ia1recssils3 ia1rvapayls1 ia1rvapayls2 ia1rvapayls3 ia1penjobou1 ia1penjobou2 ia1penjobou3 ia1iraothac1 ia1iraothac2 ia1iraothac3 ia1mutfdstk1 ia1mutfdstk2 ia1mutfdstk3 ia1mutfdstk4 ia1ownbond1 ia1ownbond2 ia1ownbond3 ia1ownbond4 ia1bnkacccd1 ia1bnkacccd2 ia1bnkacccd3 ia1bnkacccd4 ia1bnkacccd5 ia1bnkacccd6 ia1bnkacccd7 ia1bnkacccd8 ia1bnkacccd9 ia1bnkaccc10 ia1bnkaccc11 ia1bnkaccc12 ia1realestt1 ia1realestt2 ia1realestt3 ia1realestt4 ia1ssrrpymnt ia1ssrrjtamt ia1ssrrjtest ia1ssrrspamt ia1ssrrspest ia1ssrrptamt ia1ssrrptest ia1ssipymnt ia1ssijtamt ia1ssijtest ia1ssispamt ia1ssispest ia1ssiptamt ia1ssiptest ia1vapymnt ia1vajtamt ia1vajtest ia1vaspamt ia1vaspest ia1vaptamt ia1vaptest ia1penpymt ia1penjtamt ia1penjtest ia1penspamt ia1penspest ia1penptamt ia1penptest ia1retworth ia1retjtwrt ia1retjtest ia1retspwrt ia1retspest ia1retptwrt ia1retptest ia1rtlmwdrw ia1rtlmjtwdr ia1rtlmjtest ia1rtlmspwdr ia1rtlmspest ia1rtlmptwdr ia1rtlmptest ia1rtyrwdrw ia1rtyrjtamt ia1rtyrjtest ia1rtyrspamt ia1rtyrspest ia1rtyrptamt ia1rtyrptest ia1skbdwrth ia1skbdjtwrt ia1skbdjtest ia1bndjtest ia1skbdspwrt ia1skbdspest ia1bndspest ia1skbdptwrt ia1skbdptest ia1bndptest ia1bkcdwrth ia1bkcdjtwrt ia1bkcdjtest ia1bnkjtest ia1bkcdspwrt ia1bkcdspest ia1bnkspest ia1bkcdptwrt ia1bkcdptest ia1bnkptest ia1itdvinc ia1itdvjtamt ia1itdvjtest ia1itdvspamt ia1itdvspest ia1itdvptamt ia1itdvptest ia1brewrt ia1brejtwrt ia1brejtest ia1brespwrt ia1brespest ia1breptwrt ia1breptest ia1breiinc ia1breijtamt ia1breijtest ia1breispamt ia1breispest ia1breiptamt ia1breiptest ia1totinc ia1toincimf ia1toincim1 ia1toincim2 ia1toincim3 ia1toincim4 ia1toincim5 ia1toincesjt ia1eincimjf ia1eincimj1 ia1eincimj2 ia1eincimj3 ia1eincimj4 ia1eincimj5 ia1toincessg ia1eincimsf ia1eincims1 ia1eincims2 ia1eincims3 ia1eincims4 ia1eincims5 co1owncartrv co1manyvhcls co1valuevehi co1vehivalue ew1pycredbal ew1crecardeb ew1credcdmed ew1amtcrdmed ew1medpaovtm ew1ampadovrt ew1finhlpfam ew1whohelfi1 ew1whohelfi2 ew1atchhelyr ew1fingftfam ew1whregoth1 ew1whregoth2 ew1whregoth3 ew1amthlpgiv ew1progneed1 ew1progneed2 ew1progneed3 ls1evdayact1 ls1evdayact2 ls1evdayact3 ls1evdayact4 ls1evdayact5 ls1evdayact6 ls1evdayact7 ls1evdayact8 ls1ableto1 ls1ableto2 ls1ableto3 ls1ableto4 ls1ableto5 ls1ableto6 ls1ableto7 ls1diskefrm1 ls1diskefrm2 ls1diskefrm3 ls1diskefrm4 ls1diskefrm5 ls1diskefrm6 ls1diskefrm7 ir1spattitud ir1undrstand ir1sppresent ir1intvwhlp ir1prsnhlp1 ir1prsnhlp2 ir1prsnhlp3 ir1prsnhlp4 ir1prsnhlp5 ir1prsnhlp6 ir1prsnhlp91 ir1sessions ir1sessrsn1 ir1sessrsn2 ir1sessrsn3 ir1sessrsn91 ir1conhomapt ir1insidhome ir1condihom1 ir1condihom2 ir1condihom3 ir1condihom4 ir1condihom5 ir1clutterr1 ir1clutterr2 ir1areacond1 ir1areacond2 ir1areacond3 ir1areacond4 ir1condhome1 ir1condhome2 ir1condhome3 ir1condhome4 ir1condhome5 ir1fqphnprsn fq1dfacdescr fq1dosfacd fq1prtlivnam fq1dfacarea fq1dosfaca fq1assdnrsng fq1othrlevls fq1whotlevl1 fq1whotlevl2 fq1whotlevl3 fq1whotlevl4 fq1whotlevl5 fq1servaval1 fq1servaval2 fq1servaval3 fq1servaval4 fq1servaval5 fq1servaval6 fq1servaval7 fq1servaval8 fq1servaval9 fq1paysourc1 fq1paysourc2 fq1paysourc3 fq1paysourc4 fq1paysourc5 fq1paysourc6 fq1totalpaym fq1mnthlyamt fq1primpayer fq1govsource fq1dlocsp w1anfinwgt0 w1anfinwgt1 w1anfinwgt2 w1anfinwgt3 w1anfinwgt4 w1anfinwgt5 w1anfinwgt6 w1anfinwgt7 w1anfinwgt8 w1anfinwgt9 w1anfinwgt10 w1anfinwgt11 w1anfinwgt12 w1anfinwgt13 w1anfinwgt14 w1anfinwgt15 w1anfinwgt16 w1anfinwgt17 w1anfinwgt18 w1anfinwgt19 w1anfinwgt20 w1anfinwgt21 w1anfinwgt22 w1anfinwgt23 w1anfinwgt24 w1anfinwgt25 w1anfinwgt26 w1anfinwgt27 w1anfinwgt28 w1anfinwgt29 w1anfinwgt30 w1anfinwgt31 w1anfinwgt32 w1anfinwgt33 w1anfinwgt34 w1anfinwgt35 w1anfinwgt36 w1anfinwgt37 w1anfinwgt38 w1anfinwgt39 w1anfinwgt40 w1anfinwgt41 w1anfinwgt42 w1anfinwgt43 w1anfinwgt44 w1anfinwgt45 w1anfinwgt46 w1anfinwgt47 w1anfinwgt48 w1anfinwgt49 w1anfinwgt50 w1anfinwgt51 w1anfinwgt52 w1anfinwgt53 w1anfinwgt54 w1anfinwgt55 w1anfinwgt56 w1varstrat w1varunit m5 /*r1dbirthmth r1dbirthyr r2dintvwrage hh2mthendmar hh2modob hh2yrdob hh2dspousage hh2dmodoball hh2dyrdoball hh2spageall r2ddeathage pd2mthdied pd2yrdied m6*/ death_date death_month death_year m7 
-	}
-	else {
-		drop c5relatnshp c5intmonth c5dintdays cca5hwoftchs cca5hwoftshp cca5hlpordmd cca5hlpbnkng cca5cmpgrcry cca5cmpordrx cca5cmpbnkng cca5hwoftpc cca5hwofthom cca5hlplft cca5hlpspt cca5hlpstd cca5hwoftlft cca5hwoftspt cca5hwoftstd cca5hwoftdrv cca5hwoftott cca5hlpmed cca5hlpshot cca5hlpmdtk cca5hlpexrcs cca5hlpdiet cca5hlpteeth cca5hlpfeet cca5hlpskin cca5hlpmdapt cca5hlpspkdr cca5hlpinsrn cca5hlpothin cca5hlpdramt cca5hwget2sp cca5tm2spunt cca5tm2spmin cca5tm2sphrs flcca5routing cca5hlplstyr cca5lstmhlpd cdc5hlpsched cdc5hlpdyswk cdc5hlpdysmt cdc5hlphrsdy cdc5hlphrmvf cdc5hlphrlmt cdc5hlphrpc cdc5hlphrpce cdc5hlpyrpls cdc5hlpmthst cdc5hlpunit cdc5hlpyrs cdc5hlpyrst cdc5hlpyrs5p cac5joylevel cac5arguelv cac5spapprlv cac5nerveslv cac5moreconf cac5dealbetr cac5closr2sp cac5moresat cac5diffinc cac5diffemo cac5diffphy cac5diffinlv cac5diffemlv cac5diffphlv cac5fmlydisa cac5careamt flcac5routing cac5exhaustd cac5toomuch cac5notime cac5uroutchg cse5frfamtlk cse5frfamact cse5frfamhlp cse5spptgrp cse5srv2hlp cse5training cse5fndfnhlp cse5hwfnd1 cse5hwfnd2 cse5hwfnd3 cse5hwfnd4 cse5hwfnd5 cse5hwfnd6 cse5look4hlp cse5look1 cse5look2 cse5look3 cse5look4 cse5look5 cse5look6 cse5hlpgtdev cse5homsafer cse5hlppdhlp cpp5vstfrfam cpp5hlpkptvs cpp5impvst cpp5gorelgs cpp5hlpkptrl cpp5imprel cpp5prtgroup cpp5hlpkptgr cpp5impgroup cpp5go4fun cpp5hlpkptgo cpp5impgo cpp5wrk4pay cpp5hlpkptwk cpp5volun cpp5hlpkptvo cpp5careothr cpp5hlpkptca che5health che5hrtattck che5othheart che5highbld che5arthrits che5osteoprs che5diabetes che5lungdis che5cancer che5seeing che5hearing che5cncrskin che5cncrbrst che5cncrpros che5cncroth che5pain che5painlmt che5brethprb che5brethlmt che5armstr che5armlmt che5legstr che5leglmt che5lowenrgy che5enrgylmt che5sleeptrb che5sleepint flche5routing che5weight che5heightft che5heightin che5lost10lb che5try2lose che5moodcher che5moodpcfl che5moodfull che5moodbord che5moodlone che5moodupst che5fltltlin che5fltdown che5fltnervs che5fltworry che5lifemng che5feelconf che5gaveup che5lifegood che5lifelone che5easychng che5rcvrqick chd5martstat chd5dmartstat chd5marendmt chd5marendyr chd5chldlvng chd5numchild chd5dnumchild chd5numchu18 chd5numinhh chd5dnuminhh flchd5routing chd5educ chd5deduc chd5educsprt chd5deducsprt chd5cgbrthmt chd5dcgbrthmt chd5cgbrthyr chd5dcgbrthyr chd5age chd5spbrthmt chd5dspbrthmt chd5spbrthyr chd5dspbrthyr chd5dspouage c5dgender crl5dcgracehisp /*crl5draceimpfl*/ cec5wrk4pay cec5ownbusns cec5unpdwrk cec5misswork cec5look4wrk cec5wrkmulti cec5hrsweek cec5hrslstwk cec5hrslast cec5hrswork cec5flexhrs cec5wrksched cec5msswrkmt cec5mswkvctn cec5mswksick cec5mswkhelp cec5mswkfmly cec5mswkpers cec5mswkunit cec5mswkhlph cec5mswkhlpd cec5wkhrperd cec5hlpafwk1 cec5hlpafwk2 cec5busntype cec5occuptn cec5worktype cec5occpdscr chi5medicare chi5medigap chi5medicaid chi5privinsr chi5tricare chi5uninsurd chi5insrtype chi5ownhome chi5chckacct chi5svgsacct chi5certdpst chi5retrplan chi5mutlfnds chi5income chi5inc200pv chi5inc100pv chi5inc400pv chi5paymeds chi5payinsur chi5paymbdvc chi5paysfty chi5payasdvc chi5payhmhlp chi5pay1000 chi5pay2000 chi5pay500 chi5gifttosp chi5gift500 chi5gift1000 chi5gift100 chi5fromsp chi5frsp500 chi5frsp1000 chi5frsp100 c5varstrat c5varunit w5cgfinwgt0 w5cgfinwgt1 w5cgfinwgt2 w5cgfinwgt3 w5cgfinwgt4 w5cgfinwgt5 w5cgfinwgt6 w5cgfinwgt7 w5cgfinwgt8 w5cgfinwgt9 w5cgfinwgt10 w5cgfinwgt11 w5cgfinwgt12 w5cgfinwgt13 w5cgfinwgt14 w5cgfinwgt15 w5cgfinwgt16 w5cgfinwgt17 w5cgfinwgt18 w5cgfinwgt19 w5cgfinwgt20 w5cgfinwgt21 w5cgfinwgt22 w5cgfinwgt23 w5cgfinwgt24 w5cgfinwgt25 w5cgfinwgt26 w5cgfinwgt27 w5cgfinwgt28 w5cgfinwgt29 w5cgfinwgt30 w5cgfinwgt31 w5cgfinwgt32 w5cgfinwgt33 w5cgfinwgt34 w5cgfinwgt35 w5cgfinwgt36 w5cgfinwgt37 w5cgfinwgt38 w5cgfinwgt39 w5cgfinwgt40 w5cgfinwgt41 w5cgfinwgt42 w5cgfinwgt43 w5cgfinwgt44 w5cgfinwgt45 w5cgfinwgt46 w5cgfinwgt47 w5cgfinwgt48 w5cgfinwgt49 w5cgfinwgt50 w5cgfinwgt51 w5cgfinwgt52 w5cgfinwgt53 w5cgfinwgt54 w5cgfinwgt55 w5cgfinwgt56
-	}
 
-foreach x of varlist * {
-if "`x'"!="opid" {
-destring `x', replace
-replace `x'=. if `x'<0
-}
-}
-save "D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_`w'_n1.dta", replace
-}
-/*
-gen mine=1
-append using "E:\nhats\data\Projects\Caregivers\nsoc_FULL.dta"
 
-foreach x of varlist * {
-if "`x'"!="spid" & "`x'"!="opid" {
-duplicates tag spid opid `x', gen(dup)
-sum dup
-if r(sd)==0 &r(mean)==1 {
-drop `x'
-}
-drop dup
-}
-}
+
+
+
+
+
+
+
+
+
