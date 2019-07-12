@@ -225,9 +225,16 @@ label var age "Age at last core interview"
 
 gen age1=c_ivw_year-birthyr
 
+rename hospice hospice1
 gen hospice_old=.
 replace hospice_old=0 if !missing(location)
 replace hospice_old=1 if location==4
+
+gen hospice=.
+replace hospice=0 if hospice1==0 | hospice_old==0
+replace hospice=1 if hospice1==1 | hospice_old==1
+
+label var hospice "Hospice"
 
 label define cause_death_12_n 1 "Infectious Disease (not HIV/AIDS/viral hepatitis)" ///
 2 "HIV/AIDS" 3 "Cardiovascular Disease" 4 "Chronic Lower Respiratory Disease" ///
@@ -282,16 +289,19 @@ label values soc_visit_cat soc_visit_cat
 label var hospice_old "Hospice, from location of death"
 label var prob_dem "Probability of Dementia"
 
+
+
 keep id core_year hhid pn age1 died_one_year months_bet father_liv mother_liv child allchil married num_living_kids ///
-kid_nearby_ind female white black other_na_api_race degree educ marital resspouse reschil_d livealone ///
-nhres_2yr nhres_2yr_exit finwealth srh medicare medicaid imprelig pain* cesd* location adl* hosp* ///
+kid_nearby_ind female white black other_na_api_race degree marital resspouse reschil_d livealone ///
+nhres_2yr nhres_2yr_exit srh medicare medicaid imprelig pain* cesd* location adl* hospice ///
 lwill advdir hcp icu soc* dexp duration vent depr_exit discuss help_adls_kids_ind help_iadls_kids_ind ///
 kid_adult_hlphrs kid_adult_sp_hlphrs ksp_hlphrs hh_worker adl_hlp_freq_mo ///
 adl_hlp_freq_wk adl_hlp_freq_ed adl_help_hours adl_help_ind ///
-n_hp n_u n_i n_k n_p n_f comor_in_hrs comor_c_hrs finwealth dem_hrs ///
+n_hp n_u n_i n_k n_p n_f comor_in_hrs comor_c_hrs dem_hrs ///
 hlphrs_u hlphrs_s hlphrs_i hlphrs_k hlphrs_p region northeast midwest south west ///
 proxy_relat_exit hisp_eth num_sons liv_sons num_dau liv_dau liv_step_kids num_step_kids ///
-step_dau_count step_son_count num_bro liv_bro num_sis liv_sis prob_dem 
+step_dau_count step_son_count num_bro liv_bro num_sis liv_sis prob_dem proxy_core ///
+nw_*
 
 
 
