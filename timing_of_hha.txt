@@ -571,14 +571,117 @@ use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta
 gen homebound = 0 if homebound_cat!=.
 replace homebound = 1 if homebound_cat==1
 
+gen all = 1
+
 bysort sq_id: egen ind_hosp_sq = max(hosp_mid_sq)
 replace ind_hosp_sq = 1 if ind_hosp_sq>0
 label var ind_hosp_sq "Hospitalized mid-sequence"
 
-
+keep if new_sq==1
+cap drop obs
+bysort bene_id: gen obs = _n
+by bene_id: egen num_seq = max(obs)
+label var num_seq "Av. # of sequences per person"
 
 local ivars white hisp black female educ_hs_ind medicaid married metro_ind adl_independent homebound srh_fp ind_hosp_sq otherinformal_help_ind northeast midwest south west
-local cvars age hhm aveincome len_sq days_last_ivw
+local cvars age hhm aveincome len_sq days_last_ivw sr_numconditions1 num_seq
+
+local full 1 `ivars' 1 `cvars' 1 1
+local rd: word count `full'
+
+mat tab1=J(`rd',4,.)
+mat stars=J(`rd',4,0)
+
+local r = 2
+local c = 1
+
+foreach x of local ivars {
+
+sum `x'
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if dem_cohort==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c 
+
+sum `x' if dem_cohort==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' dem_cohort, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+logit post_int `x'
+mat tab1[`r',`c']=exp(el(e(b),1,1))
+mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
+
+local c = 1
+local ++r
+}
+local ++r
+foreach x of local cvars {
+
+sum `x'
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if dem_cohort==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if dem_cohort==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x', by(dem_cohort)
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+logit post_int `x'
+mat tab1[`r',`c']=exp(el(e(b),1,1))
+mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
+
+local c =1
+local ++r
+}
+
+logit post_int dem_cohort
+mat tab1[`r',4]=exp(el(e(b),1,1))
+mat stars[`r',4]=(e(p)<.01) + (e(p)<.05)
+
+local ++r
+
+sum all
+mat tab1[`r',1] = r(sum)
+
+sum all if dem_cohort==0
+mat tab1[`r',2] = r(sum)
+
+sum all if dem_cohort==1
+mat tab1[`r',3] = r(sum)
+
+mat rownames tab1= "Categorical Predictors (%)" `ivars' "Continuous Predictors (Average)" `cvars' dem_cohort "Sample Size"
+
+frmttable using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\table1_`c(current_date)'.rtf", replace statmat(tab1) ///
+varlabels title("Table 1: Unique HH Sequences: 12m FFS prior to admit date of first episode in sequence") ///
+ctitles("" "All" "Non-Dementia" "Probable Dementia" "Unadjusted Logit OR: Outcome is Post-Institutional") sdec(2) annotate(stars) asymbol(*,**) ///
+note("NHATS Interview required in same year (before start of sequence) or prior calendar year. *p<0.05, **p<0.01")
+
+outreg, clear
+logit post_int age hisp black female educ_hs_ind medicaid married metro_ind adl_independent midwest south west hhm aveincome sr_numconditions1
+
+outreg using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\logit_`c(current_date)'", ///
+varlabels stats(e_b e_ci p) nosubstat ///
+title("Adjusted Logistic Regression: Outcome=Sequence initatiated post institution") ///
+ctitles("" "Std. Coefficient" "95% CI" "P-value") ///
+note("Standardized Coefficients, <1 indicates less likely to be initatied post institution") ///
+starlevels(10 5 1) summstat(N) landscape replace
+
+
 
 H="Changelog"
 7/11/2019 -- Changed definition of HH seq to include single episodes as a sequence. OKR
