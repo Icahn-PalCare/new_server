@@ -7358,7 +7358,8 @@ by spid: keep if _n==1
 
 save "${intpath}\index_stay", replace
 
-keep spid bene_id index_date
+keep spid bene_id index_date ivw_date
+gen ivw_year=year(ivw_date)
 saveold "${intpath}\index", replace version(12)
 
 H="get Charlson"
@@ -7901,7 +7902,7 @@ label var charls_17 "AIDS/HIV, Charlson"
 label var charls_index "Charlson score index, not weighted"
 label var charls_index_wt "Charlson score index, weighted"		
 		
-//save "${int_data}\charlson", replace
+save "${int_data}\charlson", replace
 
 H="merge nsoc and save final datasets"
 //use NHATS only dataset, merge in NSOC, select variables for final dataset
@@ -7930,16 +7931,149 @@ save `nsoc'
 use "${intpath}\index_stay", clear
 merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", ///
 keep(match master) nogen
+
+replace livearr=livearr-1 if livearr>2
+replace livearr=4 if rcfres==1
+replace livearr=5 if nhres==1
+label define livearrang 1 "Lives alone" 3 "With others (and not spouse)" 4 "Residential Care Facility" ///
+5 "Nursing Home", modify
+
 keep spid wave ivw_date index_date icu_days ind_procedure los ind_comp* icd9 *iss* ///
 age female race educ* aveincome income_quart maritalstat married medicaid medigap ///
-tricare livealone livearr sr_numc prob_dem dem_3_cat adl_impair adl_index sr_phq2_depr ///
-sr_gad2_a reg_doc_* sr_hosp* n_helpers ind_paid n_trauma ind_prev_trauma
+tricare livealone livearr rcfres nhres sr_numc prob_dem dem_3_cat adl_impair adl_index sr_phq2_depr ///
+sr_gad2_a reg_doc_* sr_hosp* n_helpers n_paid ind_paid ind_no_helpers n_trauma ind_prev_trauma bene_id ///
+spouse_help_ind
+
+merge 1:1 bene_id using "${int_data}\charlson", keepusing(charls_*wt) nogen
+gen ch3plus=charls_index_wt>2 if !missing(charls)
+label var ch3plus "Charlson score >2"
+
+gen adl_cat=adl_index==0 if !missing(adl_index)
+replace adl_cat=2 if inrange(adl_index,1,2)
+replace adl_cat=3 if inrange(adl_index,3,6)
+label var adl_cat "ADLs, categorical"
+label define adl_cat 1 "Independent in ADLs" 2 "Dependent in 1-2" 3 "Dependent in 3+"
+label values adl_cat adl_cat
+
+gen help_cat=ind_no_helpers
+replace help_cat=2 if !ind_paid
+replace help_cat=3 if n_helpers>n_paid
+replace help_cat=4 if n_helpers==n_paid
+label var help_cat "Caregiving, categorical"
+label define help_cat 1 "No helpers" 2 "Informal help only" 3 "Informal & paid" ///
+4 "Paid help only"
+label values help_cat help_cat
+
+label define race 1 "White/Other Non-Hispanic", modify
+replace race=1 if race==3
+rename race_cat race
+label copy edulbl education
+label values education education
+
+// Income adjusted for cpi inflation; now in terms of 2017 dollars.
+gen income_adj=0
+replace income_adj= (245.120/224.939)*aveincome if wave==1
+replace income_adj= (245.120/229.594)*aveincome if wave==2
+replace income_adj= (245.120/232.957)*aveincome if wave==3
+replace income_adj= (245.120/236.736)*aveincome if wave==4
+replace income_adj= (245.120/237.017)*aveincome if wave==5
+replace income_adj= (245.120/240.007)*aveincome if wave==6
+replace income_adj=aveincome if wave==7
+label var income_adj "Income, adjusted to 2017$"
+
 save "${intpath}\trauma_dyad_nhats", replace
 
 merge 1:m spid wave using `nsoc', keep(match) nogen
 save "${intpath}\trauma_dyad_nsoc", replace
 
 H="table 1"
+
+use "${intpath}\trauma_dyad_nhats", clear
+
+local cvars1 age
+local ivars1 female 
+local catvars1 race /*education*/ livearrang
+local cvars2
+local ivars2 married educ_hs_ind medicaid medigap tricare
+local catvars2
+local cvars3 income_adj 
+local ivars3 
+local catvars3 income_quart
+local cvars4 charls_index_wt
+local ivars4 ch3plus prob_dem sr_phq2_depr 
+local catvars4 
+local cvars5 n_helpers
+local ivars5
+local catvars5 help_cat
+
+forvalues i=1/5 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+forvalues i=1/5 {
+local rows `rows' `cvars`i'' `cvars`i'' `cvars`i'' `ivars`i'' `cativars`i''
+}
+
+local rn : word count `rows' 1
+local r=1
+local c=1
+
+mat tab=J(`rn',2,.)
+mat stars=J(`rn',2,0)
+
+local n=_N
+forvalues i=1/5 {
+	foreach x of local cvars`i' {
+		sum `x' /*if inlist(dem_cohort,`y')*/, d
+		mat tab[`r',`c']=r(mean)
+		mat tab [`r'+1,`c']=r(sd)
+		mat tab[`r'+2,`c']=r(p50)
+		mat tab[`r',`c'+1]=`n'-r(N)
+		local r=`r'+3
+		
+}
+	foreach x of local ivars`i' {
+		sum `x' 
+		if r(N)*r(mean)>=11 mat tab[`r',`c']=r(mean)*100
+		if r(N)*r(mean)>=11 mat tab[`r',`c'+1]=`n'-r(N)
+		local r=`r'+1
+}
+	foreach x of local catvars`i' {
+		sum `x'
+		mat tab[`r',`c'+1]=`n'-r(N)
+		foreach z of local `x' {
+			sum `z' 
+			if r(N)*r(mean)>=11 mat tab[`r',`c']=r(mean)*100
+			local r=`r'+1
+}
+}
+}
+mat tab[`r',`c']=`n'
+	
+
+mat rownames tab=`cvars1' SD Median `ivars1' `cativars1' `ivars2' `cativars2' ///
+income_adj SD Median `ivars3' `cativars3' charls_index_wt SD Median `ivars4' `cativars4' ///
+n_helpers SD Median `ivars5' `cativars5' N
+
+frmttable , ///
+statmat(tab) title("Characteristics of Decedents, by Dementia Status") ///
+ctitles("" "Mean/%" "N Missing") varlabels ///
+sdec(2,0) annotate(stars) asymbol(*,**) replace
 
 
 H="**********NSOC**********"

@@ -290,7 +290,7 @@ gen post_int = 0
 label var post_int "Post-institution initiated"
 forvalues i = 1/14 {
 
-replace post_int = 1 if abs(admit_date - disch_date_ip`i')<=14 & new_sq==1
+replace post_int = 1 if (admit_date - disch_date_ip`i')<=14 & (admit_date - disch_date_ip`i')>=0 & new_sq==1
 replace hosp_mid_sq = hosp_mid_sq + 1 if (disch_date < admit_date_ip`i') &  (admit_date_ip`i'< next_admit) & subsq_epi==1
 }
 
@@ -302,7 +302,7 @@ label var numvis_`u' "Number of visits in the first `v' - `u' days of episode"
 
 forvalues i=1/61 {
 
-replace numvis_`u' = numvis_`u' + 1 if abs(rev_cntr_dt`i' - admit_date)<`u' & abs(rev_cntr_dt`i' - admit_date)>=`v'
+replace numvis_`u' = numvis_`u' + 1 if (rev_cntr_dt`i' - admit_date)<`u' & (rev_cntr_dt`i' - admit_date)>=`v'
 }
 }
 
@@ -379,9 +379,51 @@ merge m:1 spid wave using "`dem'", keepus(never_dementia dem_cohort) keep(match)
 
 keep if never_dementia==1 | dem_cohort==1
 
-save "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", replace
+gen homebound = 0 if homebound_cat!=.
+replace homebound = 1 if homebound_cat==1
+
+gen adl_dep_2 = 0 if adl_index !=.
+replace adl_dep_2 = 1 if adl_index>0 & adl_index<=2
+label var adl_dep_2 "1-2 ADL Dependent"
+
+gen adl_dep_3 = 0 if adl_index!=.
+replace adl_dep_3 = 1 if adl_index>=3 & adl_index<=6
+label var adl_dep_3 "3+ ADL Dependent"
+
+gen len_sq_1 = 0 if len_sq!=.
+replace len_sq_1 = 1 if len_sq==1
+label var len_sq_1 "1 HH Episode in sequence"
+
+gen len_sq_2 = 0 if len_sq!=.
+replace len_sq_2 = 1 if len_sq==2
+label var len_sq_2 "2 HH Episodes in sequence"
+
+gen len_sq_3 = 0 if len_sq!=.
+replace len_sq_3 = 1 if len_sq>=3 & len_sq<=6
+label var len_sq_3 "3-6 HH Episodes in a sequence"
+
+gen len_sq_4 = 0 if len_sq!=.
+replace len_sq_4 = 1 if len_sq>6 & len_sq!=.
+label var len_sq_4 "7+ HH Episodes in a sequence"
+
+bysort sq_id: egen ind_hosp_sq = max(hosp_mid_sq)
+replace ind_hosp_sq = 1 if ind_hosp_sq>0
+label var ind_hosp_sq "Hospitalized mid-sequence"
+
+gen chronic_con_0 = 0 if sr_numconditions1!=.
+replace chronic_con_0 = 1 if sr_numconditions1==0
+label var chronic_con_0 "0 Self-Report Chronic Conditions"
+
+gen chronic_con_1 = 0 if sr_numconditions1!=.
+replace chronic_con_1 = 1 if sr_numconditions1>0 & sr_numconditions1<=3
+label var chronic_con_1 "1-3 Self-Report Chronic Conditions"
+
+gen chronic_con_2 = 0 if sr_numconditions1!=.
+replace chronic_con_2 = 1 if sr_numconditions1>3 & sr_numconditions1!=.
+label var chronic_con_2 "4+ Self-Report Chronic Conditions "
 
 
+saveold "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", version(12) replace
 
 
 H="EDA"
@@ -557,25 +599,48 @@ graph export "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\hh_sequences.p
 
 use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", clear
 
+gen visits_30 = numvis_10 + numvis_20 + numvis_30
+gen visits_60 = numvis_40 + numvis_50 + numvis_60
+
+
+expand 2, gen(vis_30)
+replace visits_30 = . if vis_30==1
+
+gen tot_vis = visits_30
+replace tot_vis = visits_60 if tot_vis==.
+
+
+
+collapse (mean) mean_vis = tot_vis (sd) vis_sd= tot_vis (count) n=tot_vis, by(dem_cohort vis_30)
+
+
+gen hiwrite_30 = mean_vis + invttail(n-1,0.025)*(vis_sd/sqrt(n))
+gen lowrite_30 = mean_vis - invttail(n-1,0.025)*(vis_sd/sqrt(n))
+
+
+
+
+graph twoway (bar mean_vis vis_30) (rcap hiwrite_30 lowrite_30 vis_30), by(dem_cohort)
+
+gen dem_vis = .
+replace dem_vis = 0 if dem_cohort==0 & vis_30==0
+replace dem_vis = 1 if dem_cohort==0 & vis_30==1
+replace dem_vis = 2 if dem_cohort==1 & vis_30==0
+replace dem_vis = 3 if dem_cohort==1 & vis_30==1
+
+
+twoway (bar mean_vis dem_vis if dem_cohort==0) (bar mean_vis dem_vis if dem_cohort==1) (rcap hiwrite_30 lowrite_30 dem_vis, color(black)), legend(order(1 "Non-Dementia" 2 "Dementia")) xlabel(0 "Days 1-30" 1 "Days 31-60" 2 "Days 1-30" 3 "Days 31-60", noticks) ytitle("Average # of visits in an episode") xtitle(" ") yscale(range(0/10))
+
 graph bar visits_30 visits_60, over(dem_cohort) blabel(total) ytitle("Average # of visits in an episode") legend(order(1 "Days 1-30" 2 "Days 31-60"))
 graph export "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\vistis_bar.png", replace 
 
-
-*graph box visits_30 visits_60, over(dem_cohort)
 
 
 
 H="Table 1"
 use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", clear
 
-gen homebound = 0 if homebound_cat!=.
-replace homebound = 1 if homebound_cat==1
-
 gen all = 1
-
-bysort sq_id: egen ind_hosp_sq = max(hosp_mid_sq)
-replace ind_hosp_sq = 1 if ind_hosp_sq>0
-label var ind_hosp_sq "Hospitalized mid-sequence"
 
 keep if new_sq==1
 cap drop obs
@@ -583,7 +648,19 @@ bysort bene_id: gen obs = _n
 by bene_id: egen num_seq = max(obs)
 label var num_seq "Av. # of sequences per person"
 
-local ivars white hisp black female educ_hs_ind medicaid married metro_ind adl_independent homebound srh_fp ind_hosp_sq otherinformal_help_ind northeast midwest south west
+gen num_seq_1 = 0
+replace num_seq_1 = 1 if num_seq==1
+label var num_seq_1 "Percentage of people with 1 sequence"
+
+gen num_seq_2 = 0
+replace num_seq_2 = 1 if num_seq>=2 & num_seq<=3
+label var num_seq_2 "Percentage of people with 2-3 sequences"
+
+gen num_seq_3 = 0
+replace num_seq_3 = 1 if num_seq>3
+label var num_seq_3 "Percentage of people with 4+ Sequences"
+
+local ivars white hisp black female educ_hs_ind medicaid married metro_ind adl_independent adl_dep_2 adl_dep_3 homebound srh_fp ind_hosp_sq otherinformal_help_ind northeast midwest south west len_sq_1 len_sq_2 len_sq_3 len_sq_4 chronic_con_0 chronic_con_1 chronic_con_2 num_seq_1 num_seq_2 num_seq_3 livealone
 local cvars age hhm aveincome len_sq days_last_ivw sr_numconditions1 num_seq
 
 local full 1 `ivars' 1 `cvars' 1 1
@@ -672,7 +749,7 @@ ctitles("" "All" "Non-Dementia" "Probable Dementia" "Unadjusted Logit OR: Outcom
 note("NHATS Interview required in same year (before start of sequence) or prior calendar year. *p<0.05, **p<0.01")
 
 outreg, clear
-logit post_int age hisp black female educ_hs_ind medicaid married metro_ind adl_independent midwest south west hhm aveincome sr_numconditions1
+logit post_int age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort
 
 outreg using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\logit_`c(current_date)'", ///
 varlabels stats(e_b e_ci p) nosubstat ///
