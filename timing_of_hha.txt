@@ -467,140 +467,45 @@ tab post_int prob_dem if new_sq==1, col chi2 // sequences that start post instit
 graph bar (mean) numvis_10 numvis_20 numvis_30 numvis_40 numvis_50 numvis_60, over(dem_cohort)
 
 H="Graphs"
-/*************** Graph 1 *************/
+/*************** Line Graph *************/
 use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", clear
 
-preserve // all
-replace post_int=. if post_int==1
-gen all = 1
+gen comm_int = 0
+replace comm_int = 1 if post_int==0
 
-bysort year: egen per_com_all = count(post_int)
-by year: egen year_tot = total(all)
+logit comm_int year##dem_cohort
+margins year##dem_cohort
+marginsplot, ytitle("Community Initiated (%)") title("All HH episodes") legend(size(medsmall) order(1 "Non-Dementia" 2 "Dementia"3 "All")) 
 
-replace per_com_all = per_com_all / year_tot
-label var per_com_all "All"
+graph export "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\hh_episodes_`c(current_date)'.png", replace 
 
-sum per_com_all
-gen sd_all = r(sd)
 
-keep year per_com_all sd_all
-tempfile a
-save `a'
-
-restore
-
-preserve // dementia
-keep if dem_cohort==1
-replace post_int=. if post_int==1
-gen all = 1
-
-bysort year: egen per_com_dem = count(post_int)
-by year: egen year_tot = total(all)
-
-replace per_com_dem = per_com_dem / year_tot
-label var per_com_dem "Dementia"
-
-sum per_com_dem
-gen sd_dem = r(sd)
-
-keep year per_com_dem sd_dem
-tempfile b
-save `b'
-
-restore
-
-// nondementia
-keep if dem_cohort==0
-replace post_int=. if post_int==1
-gen all = 1
-
-bysort year: egen per_com_nodem = count(post_int)
-by year: egen year_tot = total(all)
-
-replace per_com_nodem = per_com_nodem / year_tot
-label var per_com_nodem "Non-Dementia"
-
-sum per_com_nodem 
-gen sd_nodem = r(sd)
-
-keep year per_com_nodem sd_nodem
-merge m:m year using `a', nogen
-merge m:m year using `b', nogen
-
-twoway connected per_com_all per_com_dem per_com_nodem year, ytitle("Community Initiated (%)") title("All HH episodes") legend(size(medsmall))
-graph export "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\hh_episodes.png", replace 
-
-/*********** Graph 2 *****************/
-
+/*************** Line Graph # 2 *************/
 use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", clear
+
+gen comm_int = 0
+replace comm_int = 1 if post_int==0
 
 keep if new_sq==1
 
-preserve // all
-replace post_int=. if post_int==1
-gen all = 1
+logit comm_int year##dem_cohort
+margins year##dem_cohort
+marginsplot, ytitle("Community Initiated (%)") title("All HH Sequences") legend(size(medsmall) order(1 "Non-Dementia" 2 "Dementia"3 "All")) 
 
-bysort year: egen per_com_all = count(post_int)
-by year: egen year_tot = total(all)
+graph export "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\hh_sequences_`c(current_date)'.png", replace 
 
-replace per_com_all = per_com_all / year_tot
-label var per_com_all "All"
-sum per_com_all
-gen sd_all = r(sd)
 
-keep year per_com_all sd_all
-tempfile a
-save `a'
-
-restore
-
-preserve // dementia
-keep if dem_cohort==1
-replace post_int=. if post_int==1
-gen all = 1
-
-bysort year: egen per_com_dem = count(post_int)
-by year: egen year_tot = total(all)
-
-replace per_com_dem = per_com_dem / year_tot
-label var per_com_dem "Dementia"
-
-sum per_com_dem
-gen sd_dem = r(sd)
-
-keep year per_com_dem sd_dem
-tempfile b
-save `b'
-
-restore
-
-// nondementia
-keep if dem_cohort==0
-replace post_int=. if post_int==1
-gen all = 1
-
-bysort year: egen per_com_nodem = count(post_int)
-by year: egen year_tot = total(all)
-
-replace per_com_nodem = per_com_nodem / year_tot
-label var per_com_nodem "Non-Dementia"
-
-sum per_com_nodem 
-gen sd_nodem = r(sd)
-
-keep year per_com_nodem sd_nodem
-merge m:m year using `a', nogen
-merge m:m year using `b', nogen
-
-twoway connected per_com_all per_com_dem per_com_nodem year, ytitle("Community Initiated (%)") title("All HH Sequences") legend(size(medsmall))
-graph export "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\hh_sequences.png", replace 
-
-/********** Graph 3 **************/
-
+/****** Bar Graph **********/
 use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", clear
 
 gen visits_30 = numvis_10 + numvis_20 + numvis_30
 gen visits_60 = numvis_40 + numvis_50 + numvis_60
+
+hist visits_30, percent bin(15) by(dem_cohort) xtitle("# of visits in first 30 days")
+graph export "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\hist_30_`c(current_date)'.png", replace
+
+hist visits_60, percent bin(15) by(dem_cohort) xtitle("# of visits days 31 - 60")
+graph export "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\hist_60_`c(current_date)'.png", replace
 
 
 expand 2, gen(vis_30)
@@ -610,14 +515,11 @@ gen tot_vis = visits_30
 replace tot_vis = visits_60 if tot_vis==.
 
 
-
 collapse (mean) mean_vis = tot_vis (sd) vis_sd= tot_vis (count) n=tot_vis, by(dem_cohort vis_30)
 
 
 gen hiwrite_30 = mean_vis + invttail(n-1,0.025)*(vis_sd/sqrt(n))
 gen lowrite_30 = mean_vis - invttail(n-1,0.025)*(vis_sd/sqrt(n))
-
-
 
 
 graph twoway (bar mean_vis vis_30) (rcap hiwrite_30 lowrite_30 vis_30), by(dem_cohort)
@@ -631,11 +533,7 @@ replace dem_vis = 3 if dem_cohort==1 & vis_30==1
 
 twoway (bar mean_vis dem_vis if dem_cohort==0) (bar mean_vis dem_vis if dem_cohort==1) (rcap hiwrite_30 lowrite_30 dem_vis, color(black)), legend(order(1 "Non-Dementia" 2 "Dementia")) xlabel(0 "Days 1-30" 1 "Days 31-60" 2 "Days 1-30" 3 "Days 31-60", noticks) ytitle("Average # of visits in an episode") xtitle(" ") yscale(range(0/10))
 
-graph bar visits_30 visits_60, over(dem_cohort) blabel(total) ytitle("Average # of visits in an episode") legend(order(1 "Days 1-30" 2 "Days 31-60"))
-graph export "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\vistis_bar.png", replace 
-
-
-
+graph export "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\vistis_bar_`c(current_date)'.png", replace 
 
 H="Table 1"
 use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", clear
@@ -761,6 +659,8 @@ starlevels(10 5 1) summstat(N) landscape replace
 
 
 H="Changelog"
+7/15/19 - 7/16/19 - Changed Sequence definition to include 1 episode as a sequence. Created tables and Graphs. OKR
+
 7/11/2019 -- Changed definition of HH seq to include single episodes as a sequence. OKR
 
 6/19/19 -- Cleaning up file paths and code to be polished and streamlined. OKR

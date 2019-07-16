@@ -42,6 +42,8 @@ foreach w in 1 5 7{
 global r`w'nsoc D:\NHATS\Shared\raw\NHATS\NHATS Sensitive\r`w'_sensitive
 }
 
+global nsoc_wave 7
+
 cd "${work}"
 
 H="NHATS Data Cleaning Part 1 (1_combine_waves)"
@@ -7156,7 +7158,7 @@ foreach w in 1 5 7{
 		
 merge 1:1 spid opid using "${r`w'nsoc}/NSOC_Round_`w'_OP_Tracker_File.dta", gen(m1) keep(match master)
 merge 1:1 spid opid using "${r`w'nsoc}/NHATS_Round_`w'_OP_Sen_Dem_File.dta", gen(m8) keep(match master)
-merge 1:m spid opid using "D:\NHATS\Shared\base_data\NHATS cleaned\op_round_1_${wave}.dta", gen(m2) keep(match master)
+merge 1:m spid opid using "D:\NHATS\Shared\base_data\NHATS cleaned\op_round_1_${w}.dta", gen(m2) keep(match master)
 keep if wave==`w'
 merge m:1 spid using "${r`w'nsoc}/NSOC_Round_`w'_SP_Tracker_File.dta", gen(m3) keep(match master)
 tostring opid, replace
@@ -7171,7 +7173,7 @@ tostring opid, replace
 merge m:1 spid using "${r`w'raw}/NHATS_Round_`w'_SP_File.dta", ///
 gen(m5) keep(match master)
 
-merge m:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_${wave}.dta", gen(m7) ///
+merge m:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_${w}.dta", gen(m7) ///
 keep(match master) keepusing(death*)
 
 capture drop training
@@ -7795,4 +7797,4 @@ replace `x'=. if `x'<0
 }
 }
 
-save "D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1_${wave}_n1.dta", replace
+save "D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1_${nsoc_wave}_n1.dta", replace

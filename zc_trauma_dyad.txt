@@ -31,13 +31,13 @@ global nhats "D:\nhats\shared\base_data\nhats cleaned"
 global intpath "D:\nhats\Projects\trauma\zc_trauma_dyad\data\int_data"
 
 // Final Data Path
-global datapath "D:\NHATS\Projects\exploratory\zc_trauma_dyad\data\final_data"
+global datapath "D:\NHATS\Projects\trauma\zc_trauma_dyad\data\final_data"
 
 //Log files path
-global logpath "D:\NHATS\Projects\exploratory\zc_trauma_dyad\output\logs"
+global logpath "D:\NHATS\Projects\trauma\zc_trauma_dyad\output\logs"
 
 //Log files path
-global outpath "D:\NHATS\Projects\exploratory\zc_trauma_dyad\output\in_progress"
+global outpath "D:\NHATS\Projects\trauma\zc_trauma_dyad\output\in_progress"
 
 H="********NHATS*********"
 
@@ -92,12 +92,13 @@ foreach x in ip_06 {
 		gen ind_procedure=!missing(icd_prcdr_cd1)
 
 		label define discharge_disp 1 "Home, no services" 2 "Home with services" ///
-		3 "SNF/Rehab Facility" 4 "Hospice (including home)" 5 "Other"
+		3 "SNF" 4 "Rehab Facility" 5 "Hospice (including home)" 6 "Other"
 		gen discharge_disp=ptnt_dschrg_stus_cd=="01"
 		replace discharge_disp=2 if inlist(ptnt_dschrg_stus_cd,"06","08")
-		replace discharge_disp=3 if inlist(ptnt_dschrg_stus_cd,"03","61","62")
-		replace discharge_disp=4 if inlist(ptnt_dschrg_stus_cd,"50","51")
-		replace discharge_disp=5 if !discharge_disp
+		replace discharge_disp=3 if inlist(ptnt_dschrg_stus_cd,"03","61")
+		replace discharge_disp=4 if inlist(ptnt_dschrg_stus_cd,"62")
+		replace discharge_disp=5 if inlist(ptnt_dschrg_stus_cd,"50","51")
+		replace discharge_disp=6 if !discharge_disp
 		label values discharge_disp discharge_disp
 		gen los=disch_date-admit_date+1
 		keep bene_id icd_dgns_cd* admit_date icu_days ind_procedure discharge_disp ///
@@ -7210,6 +7211,34 @@ replace trauma=1 if  substr(diag,1,5)=="94853" ///
 | substr(diag,1,4)=="9598" ///
 | substr(diag,1,4)=="9599"
 
+
+//tbi
+gen tbi=trauma==1 & inlist(substr(diag,1,1),"8") & inlist(substr(diag,2,1),"0") & ///
+inlist(substr(diag,3,1),"0","1","3","4")
+
+replace tbi=trauma==1 & inlist(substr(diag,1,1),"8") & inlist(substr(diag,2,1),"5") & ///
+inlist(substr(diag,3,1),"0","1","2","3","4")
+
+replace tbi=trauma==1 & diag=="95901"
+
+replace tbi=trauma==1 if inlist(substr(diag,1,3),"S02") & inlist(substr(diag,4,1),"0","1","8")
+replace tbi=trauma==1 if inlist(substr(diag,1,3),"S02") & inlist(substr(diag,4,1),"9") ///
+ & inlist(substr(diag,5,1),"1")
+replace tbi=trauma==1 if inlist(substr(diag,1,3),"S06") & ///
+inlist(substr(diag,4,1),"0","1","2","3","4","5","6","8","9")
+replace tbi=trauma==1 if inlist(substr(diag,1,3),"S09") & inlist(substr(diag,4,1),"8")
+replace tbi=trauma==1 if inlist(substr(diag,1,3),"S09") & inlist(substr(diag,4,1),"9") & ///
+inlist(substr(diag,5,1),"0")
+
+
+//motor vehicle crash--V87?
+gen vehicle_crash=inlist(substr(diag,1,4),"V890","V892","V894") ///
+| inlist(substr(diag,1,3),"X82","V38","V34","V30","V39","E81")
+
+//falls
+gen fall=inlist(substr(diag,1,3),"E88") | inlist(substr(diag,1,1),"W") & ///
+ inlist(substr(diag,2,1),"0","1")
+
 //get complications 
 //note--only have ICD-9, need to get 10 from Zara at some point
 gen ind_comp_intraop=inlist(substr(diag,1,3),"900","901","902","903","904") & num>1
@@ -7282,7 +7311,10 @@ forvalues m=2/5 {
 	
 }
 
+rename discharge_disp z
+
 drop m* d*
+rename z discharge_disp
 duplicates drop
 
 tempfile trauma
@@ -7904,6 +7936,67 @@ label var charls_index_wt "Charlson score index, weighted"
 		
 save "${int_data}\charlson", replace
 
+H="get utilization 12 weeks post discharge"
+use bene_id index_date using "${intpath}\index_stay", clear
+rename index admit_date
+//first get discharge date for index
+merge 1:m bene_id admit_date using "D:/NHATS/Shared/raw/CMS/NHATS CMS DUA 28016/Merged/STATA\ip_06_17.dta", keep(match master) keepusing(disch_date) nogen
+
+//1 person admitted twice on same day, keep one that had overnight stay
+by bene_id, sort: drop if _N==2 & admit_date==disch_date
+rename disch_date ddate
+keep bene_id ddate
+tempfile index
+save `index'
+
+//get readmissions
+merge 1:m bene_id using "D:/NHATS/Shared/raw/CMS/NHATS CMS DUA 28016/Merged/STATA\ip_06_17.dta", keep(match master) nogen
+gen inr=inrange(admit_date,ddate,ddate+83)
+by bene_id, sort: egen n_readmit=total(inr)
+gen er=inrange(erdaycnt,1,15000) & inr
+by bene_id: egen n_ip_ed=total(er)
+keep bene_id n_readm n_ip
+duplicates drop
+tempfile ip
+save `ip'
+
+//get ed visits from op
+use `index', clear
+merge 1:m bene_id  using "D:/NHATS/Shared/raw/CMS/NHATS CMS DUA 28016/Merged/STATA\op_09_17.dta", keep(match master) nogen keepusing(admit_date erday)
+gen inr=inrange(admit_date,ddate,ddate+83)
+gen er=inrange(erdaycnt,1,15000) & inr
+by bene_id, sort: egen n_op_ed=total(er)
+keep bene_id n_op
+duplicates drop
+tempfile op
+save `op'
+
+
+//snf & hh days
+foreach x in snf hh {
+	use `index', clear
+	merge 1:m bene_id using "D:/NHATS/Shared/raw/CMS/NHATS CMS DUA 28016/Merged/STATA/`x'_09_17.dta", keep(match master) nogen
+	gen inr=inrange(admit_date,ddate,ddate+83)
+	replace disch_date=ddate+83 if disch_date>ddate+83
+	gen los=disch_date-admit_date
+	replace los=1 if los==0
+	replace los=0 if !inr
+	sort bene_id admit_date disch_date
+	by bene_id, sort: egen n_`x'_days=total(los)
+	keep bene_id n_`x'
+	duplicates drop
+	tempfile `x'
+	save ``x''
+}
+
+use `index', clear
+foreach x in ip op snf hh {
+	merge 1:1 bene_id using ``x'', nogen keep(match)
+}
+
+egen n_ed_vis=rowtotal(n_ip n_op)
+save "${intpath}/utilization.dta", replace
+
 H="merge nsoc and save final datasets"
 //use NHATS only dataset, merge in NSOC, select variables for final dataset
 
@@ -7938,15 +8031,33 @@ replace livearr=5 if nhres==1
 label define livearrang 1 "Lives alone" 3 "With others (and not spouse)" 4 "Residential Care Facility" ///
 5 "Nursing Home", modify
 
+gen inj_cat=1 if tbi==1
+replace inj_cat=2 if !tbi & ind_issbr_6==1
+replace inj_cat=3 if !tbi & ind_issbr_5==1
+replace inj_cat=4 if !tbi & ind_issbr_1==1
+replace inj_cat=5 if ind_issbr_2==1
+replace inj_cat=6 if ind_issbr_3==1
+replace inj_cat=7 if ind_issbr_4==1
+replace inj_cat=8 if n_issbr>1
+label define inj_cat 1 "TBI" 2 "Other Head/Neck" 3 "Face" 4 "Abdomen" 5 "Chest" ///
+6 "External" 7 "Extremities" 8 "Multiple"
+label values inj_cat inj_cat
+
 keep spid wave ivw_date index_date icu_days ind_procedure los ind_comp* icd9 *iss* ///
 age female race educ* aveincome income_quart maritalstat married medicaid medigap ///
 tricare livealone livearr rcfres nhres sr_numc prob_dem dem_3_cat adl_impair adl_index sr_phq2_depr ///
 sr_gad2_a reg_doc_* sr_hosp* n_helpers n_paid ind_paid ind_no_helpers n_trauma ind_prev_trauma bene_id ///
-spouse_help_ind
+spouse_help_ind tbi vehicle_crash fall inj discharge_disp ind_trauma_hosp
 
-merge 1:1 bene_id using "${int_data}\charlson", keepusing(charls_*wt) nogen
+//merge charls & utilization
+merge 1:1 bene_id using "${intpath}\charlson", keepusing(charls_*wt) nogen
 gen ch3plus=charls_index_wt>2 if !missing(charls)
 label var ch3plus "Charlson score >2"
+
+merge 1:1 bene_id using "${intpath}\utilization", nogen
+foreach x in readmit snf_days hh_days ed_vis {
+	gen ind_`x'=n_`x'>0 if !missing(n_`x')
+}
 
 gen adl_cat=adl_index==0 if !missing(adl_index)
 replace adl_cat=2 if inrange(adl_index,1,2)
@@ -7970,6 +8081,10 @@ rename race_cat race
 label copy edulbl education
 label values education education
 
+//time trauma to ivw_date
+gen traum2ivw=ivw_date-index_date
+label var traum2 "Days from trauma to interview"
+
 // Income adjusted for cpi inflation; now in terms of 2017 dollars.
 gen income_adj=0
 replace income_adj= (245.120/224.939)*aveincome if wave==1
@@ -7981,8 +8096,21 @@ replace income_adj= (245.120/240.007)*aveincome if wave==6
 replace income_adj=aveincome if wave==7
 label var income_adj "Income, adjusted to 2017$"
 
+//ISS categorical
+gen iss_cat=1 if iss==1
+replace iss_cat=2 if inrange(iss,2,3)
+replace iss_cat=3 if iss==4
+replace iss_cat=4 if inrange(iss,5,8)
+replace iss_cat=5 if iss==9
+replace iss_cat=6 if iss>9
+
+label define iss_cat 1 "ISS, categorical: 1" 2 "	2-3" 3 "	4" 4 "	5-8" 5 "	9" 6 "	10+"
+label values iss_cat iss_cat
+
+
 save "${intpath}\trauma_dyad_nhats", replace
 
+preserve
 merge 1:m spid wave using `nsoc', keep(match) nogen
 save "${intpath}\trauma_dyad_nsoc", replace
 
@@ -8070,10 +8198,135 @@ mat rownames tab=`cvars1' SD Median `ivars1' `cativars1' `ivars2' `cativars2' //
 income_adj SD Median `ivars3' `cativars3' charls_index_wt SD Median `ivars4' `cativars4' ///
 n_helpers SD Median `ivars5' `cativars5' N
 
-frmttable , ///
+frmttable using "${outpath}\table_1`c(current_date)'.rtf", ///
 statmat(tab) title("Characteristics of Decedents, by Dementia Status") ///
 ctitles("" "Mean/%" "N Missing") varlabels ///
 sdec(2,0) annotate(stars) asymbol(*,**) replace
+
+
+H="injury & hospitalization characteristics"
+
+use "${intpath}\trauma_dyad_nhats", clear
+
+local cvars1 traum2ivw
+local ivars1  
+local catvars1 inj_cat
+local cvars2
+local ivars2 fall vehicle_crash 
+local catvars2
+local cvars3 iss
+local ivars3 
+local catvars3 iss_cat
+local cvars4 los icu_days
+local ivars4 ind_procedure ind_comp_any 
+local catvars4 
+local cvars5 n_readmit n_snf_days n_hh_days n_ed_vis
+local ivars5 ind_readmit ind_snf_days ind_hh_days ind_ed_vis
+local catvars5 
+
+forvalues i=1/5 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+forvalues i=1/5 {
+local rows `rows' `cvars`i'' `cvars`i'' `cvars`i'' `ivars`i'' `cativars`i''
+}
+
+local rn : word count `rows' 1
+local r=1
+local c=1
+
+mat tab=J(`rn',2,.)
+mat stars=J(`rn',2,0)
+
+local n=_N
+forvalues i=1/5 {
+	foreach x of local cvars`i' {
+		sum `x' /*if inlist(dem_cohort,`y')*/, d
+		mat tab[`r',`c']=r(mean)
+		mat tab [`r'+1,`c']=r(sd)
+		mat tab[`r'+2,`c']=r(p50)
+		mat tab[`r',`c'+1]=`n'-r(N)
+		local r=`r'+3
+		
+}
+	foreach x of local ivars`i' {
+		sum `x' 
+		if r(N)*r(mean)>=11 | r(N)==0 mat tab[`r',`c']=r(mean)*100
+		if r(N)*r(mean)>=11 | r(N)==0 mat tab[`r',`c'+1]=`n'-r(N)
+		local r=`r'+1
+}
+	foreach x of local catvars`i' {
+		sum `x'
+		mat tab[`r',`c'+1]=`n'-r(N)
+		foreach z of local `x' {
+			sum `z' 
+			if r(N)*r(mean)>=11 | r(N)==0 mat tab[`r',`c']=r(mean)*100
+			local r=`r'+1
+}
+}
+}
+mat tab[`r',`c']=`n'
+	
+
+local cvars1 traum2ivw
+local ivars1  
+local catvars1 inj_cat
+local cvars2
+local ivars2 fall vehicle_crash 
+local catvars2
+local cvars3 iss
+local ivars3 
+local catvars3 iss_cat
+local cvars4 los icu_days
+local ivars4 ind_procedure ind_comp_any 
+local catvars4 
+local cvars5 n_readmit n_snf_days n_hh_days n_ed_vis
+local ivars5 ind_readmit ind_snf_days ind_hh_days ind_ed_vis
+local catvars5 
+
+mat rownames tab=`cvars1' SD Median `ivars1' `cativars1' `ivars2' `cativars2' ///
+`cvars3' SD Median `ivars3' `cativars3' los SD Median icu_days SD Median `ivars4' `cativars4' ///
+n_readmit SD Median n_snf_days SD Median n_hh_days SD Median n_ed_vis SD Median `ivars5' `cativars5' N
+
+frmttable using "${outpath}\stay_and_util_tables`c(current_date)'.rtf", ///
+statmat(tab) title("Characteristics of Decedents, by Dementia Status") ///
+ctitles("" "Mean/%" "N Missing") varlabels ///
+sdec(2,0) annotate(stars) asymbol(*,**) replace
+
+local rn : word count ind_comp_intraop ind_comp_cardiac ind_comp_resp ind_comp_vasc ind_comp_wound ind_comp_genitourinary ind_comp_gastro ind_comp_neuro ind_comp_infect ind_comp_misc ind_comp_any
+
+mat tab=J(`rn',2,.)
+local r=1
+
+foreach x of varlist ind_comp* {
+	sum `x'
+	mat tab[`r',1]=r(mean)*r(N)
+	mat tab[`r',2]=r(mean)*100
+	local r=`r'+1
+}
+
+mat rownames tab=ind_comp_intraop ind_comp_cardiac ind_comp_resp ind_comp_vasc ind_comp_wound ind_comp_genitourinary ind_comp_gastro ind_comp_neuro ind_comp_infect ind_comp_misc ind_comp_any
+
+frmttable using "${outpath}\stay_and_util_tables`c(current_date)'.rtf", ///
+addtable statmat(tab) title("Complications, detailed") ///
+ctitles("" "N" "%") sdec(0,2)
+
 
 
 H="**********NSOC**********"
