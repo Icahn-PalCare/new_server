@@ -1,4 +1,4 @@
-= V4 Outline MultiLine NoSorting TabWidth=30
+= V7 Outline MultiLine NoSorting TabWidth=30
 
 H="Outline"
 /* 
@@ -8104,7 +8104,7 @@ replace iss_cat=4 if inrange(iss,5,8)
 replace iss_cat=5 if iss==9
 replace iss_cat=6 if iss>9
 
-label define iss_cat 1 "ISS, categorical: 1" 2 "	2-3" 3 "	4" 4 "	5-8" 5 "	9" 6 "	10+"
+label define iss_cat 1 "ISS, categorical: 1" 2 "  2-3" 3 "  4" 4 "  5-8" 5 "  9" 6 "  10+"
 label values iss_cat iss_cat
 
 
