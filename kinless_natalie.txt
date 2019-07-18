@@ -43,7 +43,7 @@ Created by: Mohammed
 Date Created: 05/28/2019
 
 Updated by: MH
-Date Updated: 07/15/2019
+Date Updated: 07/18/2019
 
 Description: 
 	1. All decedents with an N1 within 4 years of death
@@ -230,11 +230,11 @@ gen hospice_old=.
 replace hospice_old=0 if !missing(location)
 replace hospice_old=1 if location==4
 
-gen hospice=.
-replace hospice=0 if hospice1==0 | hospice_old==0
-replace hospice=1 if hospice1==1 | hospice_old==1
+gen hospice_sr=.
+replace hospice_sr=0 if hospice1==0 | hospice_old==0
+replace hospice_sr=1 if hospice1==1 | hospice_old==1
 
-label var hospice "Hospice"
+label var hospice "Self-Report Hospice"
 
 label define cause_death_12_n 1 "Infectious Disease (not HIV/AIDS/viral hepatitis)" ///
 2 "HIV/AIDS" 3 "Cardiovascular Disease" 4 "Chronic Lower Respiratory Disease" ///
@@ -244,7 +244,26 @@ label define cause_death_12_n 1 "Infectious Disease (not HIV/AIDS/viral hepatiti
 
 label values cause_death_12_n cause_death_12_n
 
+gen liv_alone=.
+replace liv_alone=0 if resspouse==1 | livealone==0
+replace liv_alone=1 if resspouse==0 & livealone==1
 
+tempfile claim 
+save "`claim'"
+
+use "D:\HRS\Shared\raw\CMS\CMS_DUA_51675_2014\Merged\Stata\hs_1998_2015.dta", clear
+duplicates drop bid_hrs_22, force
+keep bid_hrs_22 admit_year disch_year
+
+merge 1:m bid_hrs_22 using "`claim'", keep(using match)
+gen hospice_c=1 if _merge==3
+gen hospice_full=.
+replace hospice_full=0 if hospice_sr==0 & hospice_c==.
+replace hospice_full=1 if hospice_sr==1 | hospice_c==1
+
+label var liv_alone "Live-alone"
+label hospice_c "Hospice from Claims"
+label hospice_full "Hospice from Claims/SR"
 label define duration 1 "Sudden" 2 "<1 day" 3 "<1 week" 4 "<1 month" ///
  5 "<1 year" 6 ">1 year" 9 "Don't Know/Refused", modify
 label values duration duration
@@ -292,8 +311,8 @@ label var nhres "Nursing Home Resident, from exit interview"
 
 
 keep id core_year hhid pn age1 died_one_year months_bet father_liv mother_liv child allchil married num_living_kids ///
-kid_nearby_ind female white black other_na_api_race degree marital resspouse reschil_d livealone ///
-nhres nhres_n1 srh medicare medicaid imprelig pain* cesd* location adl* hospice ///
+kid_nearby_ind female white black other_na_api_race degree marital resspouse reschil_d liv_alone ///
+nhres nhres_n1 srh medicare medicaid imprelig pain* cesd* location adl* hospice_sr ///
 lwill advdir hcp icu soc* dexp duration vent depr_exit discuss help_adls_kids_ind help_iadls_kids_ind ///
 kid_adult_hlphrs kid_adult_sp_hlphrs ksp_hlphrs hh_worker adl_hlp_freq_mo ///
 adl_hlp_freq_wk adl_hlp_freq_ed adl_help_hours adl_help_ind ///
@@ -301,7 +320,7 @@ n_hp n_u n_i n_k n_p n_f comor_in_hrs comor_c_hrs dem_hrs ///
 hlphrs_u hlphrs_s hlphrs_i hlphrs_k hlphrs_p region northeast midwest south west ///
 proxy_relat_exit hisp_eth num_sons liv_sons num_dau liv_dau liv_step_kids num_step_kids ///
 step_dau_count step_son_count num_bro liv_bro num_sis liv_sis prob_dem proxy_core ///
-nw_* hosp hosp hosp_nights_2yr hosp_stays_2yr hosp_last_2yr 
+nw_* hospice_c hospice_full hosp_nights_2yr hosp_stays_2yr hosp_last_2yr has*kid liv_alone
 
 
 
@@ -322,6 +341,9 @@ H="Changelog"
 
 
 Updates:
+07/18/2019 MH
+------------
+Changed vars for live_alone, has*kids, and hospice. Added in hospice from claims.
 
 07/15/2019 MH
 ------------

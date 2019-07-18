@@ -1,4 +1,4 @@
-= V7 Outline MultiLine NoSorting TabWidth=30
+= V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Outline"
 /* 
@@ -101,14 +101,15 @@ foreach x in ip_06 {
 		replace discharge_disp=6 if !discharge_disp
 		label values discharge_disp discharge_disp
 		gen los=disch_date-admit_date+1
-		keep bene_id icd_dgns_cd* admit_date icu_days ind_procedure discharge_disp ///
+		keep bene_id icd_dgns_cd* icd_dgns_e_cd* admit_date icu_days ind_procedure discharge_disp ///
 		los traumhos
 }
 	
 	else keep bene_id icd_dgns_cd* admit_date disch_date 
 	gen clm_num=_n
-	reshape long icd_dgns_cd, i(clm_num) j(num)
-	rename icd diag
+	reshape long icd_dgns_cd icd_dgns_e_cd, i(clm_num) j(num)
+	rename icd_dgns_cd diag
+	rename icd_dgns_e_cd ecode
 	*keep if inlist(substr(diag,1,1),"8","9","S","T") 
 	drop if missing(diag)
 	gen type=`type'
@@ -7232,12 +7233,14 @@ inlist(substr(diag,5,1),"0")
 
 
 //motor vehicle crash--V87?
-gen vehicle_crash=inlist(substr(diag,1,4),"V890","V892","V894") ///
-| inlist(substr(diag,1,3),"X82","V38","V34","V30","V39","E81")
+gen vehicle_crash=/*inlist(substr(ecode,1,4),"V890","V892","V894") ///
+| inlist(substr(ecode,1,3),"X82","V38","V34","V30","V39","E81","V00","V02","V03") ///
+| inlist(substr(ecode,1,3),"V04","V05","V09") ///
+| inlist(substr(ecode,1,2),"V6")*/ inlist(substr(ecode,1,3),"V12","V13","V14") | inlist(substr(ecode,1,2),"V2","V3","V4","V5","V6","V7") | (inlist(substr(ecode,1,2),"E8") & inlist(substr(ecode,3,1),"1","2"))
 
 //falls
-gen fall=inlist(substr(diag,1,3),"E88") | inlist(substr(diag,1,1),"W") & ///
- inlist(substr(diag,2,1),"0","1")
+gen fall=inlist(substr(ecode,1,3),"E88") | inlist(substr(ecode,1,1),"W") & ///
+ inlist(substr(ecode,2,1),"0","1")
 
 //get complications 
 //note--only have ICD-9, need to get 10 from Zara at some point
@@ -7313,7 +7316,7 @@ forvalues m=2/5 {
 
 rename discharge_disp z
 
-drop m* d*
+drop m* d* ecode n num
 rename z discharge_disp
 duplicates drop
 
@@ -7381,6 +7384,7 @@ destring traumhos, replace
 by spid wave index_date, sort: egen ind_trauma_hosp=max(traumhos)
 label var ind_trauma_hosp "Trauma hospital"
 drop traumhos
+preserve
 
 //only keep highest iss per ivw
 sort spid wave iss
