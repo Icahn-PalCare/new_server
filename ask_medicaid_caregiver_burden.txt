@@ -28,6 +28,103 @@ global int "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\dat
 global fin "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\final_data"
 
 
+H="Step 1"
+use  "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" , clear
+
+gen medicaid = 0
+replace medicaid = 1 if buyin_mo>0
+
+gsort bid_hrs_22 -medicaid +start_dt  
+by bid_hrs_22: gen inc_maid = 1 if _n==1 & medicaid==1
+label var inc_maid "Incident Medicaid"
+
+gen inc_maid_date =start_dt if inc_maid==1
+label var inc_maid_date "Date of incident medicaid"
+
+gen inc_maid_year = year(inc_maid_date)
+gen age = round((inc_maid_date - bene_dob)/365.25)
+label var age "Age at incident medicaid"
+
+by bid_hrs_22: egen drop_medicaid = max(medicaid)
+label var drop_medicaid "No Medicaid State Buy-in 1998-2015"
+
+recode drop_medicaid (1=0) (0=1)
+
+gen inc_lookback = inc_maid_date - 365
+format %td inc_lookback inc_maid_date
+
+by bid_hrs_22: carryforward inc_lookback inc_maid_date age inc_maid_year, replace
+
+gen lookback = start_dt <= inc_lookback if inc_lookback!=. //12m look back to confirm incidence
+
+bysort bid_hrs_22: egen nolookback = max(lookback)
+recode nolookback (0=1) (1=0)
+label var nolookback "Were not Medicare beneficaries 12 months prior to incident Medicaid"
+
+keep bid_hrs_22 inc_maid_date inc_maid_year age drop_medicaid nolookback lookback
+gsort bid_hrs_22 -lookback inc_maid_date
+duplicates drop bid_hrs_22, force
+
+/**** Merge xwalk, core, exit and pdem *****/
+merge 1:1 bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keepus(hhid pn) keep(match) nogen
+merge 1:m hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keep(match) nogen
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", keep(master match) nogen keepus(pdem)
+merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta", keep(master match)
+
+gen exitivw = 1 if _m==3
+label var exitivw "Exit interview"
+drop _m
+/**** Flag availability of N1, P1 & P2/Exit *****/
+gen core_in_24 = 0
+replace core_in_24 = 1 if (c_ivw_date-inc_maid_date)<=730 & (c_ivw_date-inc_maid_date)>=0
+label var core_in_24 "1+ Core interview within 24m of incident medicaid"
+
+gen core_exit_48 = 0
+replace core_exit_48 = 1 if (c_ivw_date-inc_maid_date)>730 & (c_ivw_date-inc_maid_date)<=1460
+replace core_exit_48 = 1 if (e_ivw_date-inc_maid_date)>730 & (e_ivw_date-inc_maid_date)<=1460
+label var core_exit_48 "1+ Core/Exit within 24-48m of incident medicaid"
+
+bysort hhidpn inc_maid_date: carryforward inc_maid_date, replace
+
+gsort hhidpn c_ivw_date
+by hhidpn: gen n1_date = c_ivw_date[_n-1]
+
+gen n1_in_36 = 0
+replace n1_in_36 = 1 if (c_ivw_date-n1_date)<=1095 & core_in_24==1 & (n1_date < inc_maid_date)
+
+label var n1_in_36 "N1 core interview within 36 months of P1"
+
+by id: egen no_core_24 = max(core_in_24)
+recode (0=1) (1=0)
+label var no_core_24 "No core interview within 24m of incident medicaid"
+
+by id: egen no_core_exit = max(core_exit_48)
+recode (0=1) (1=0)
+label var no_core_exit "No core/exit 24-48m of incident medicaid"
+
+gen age_lt_66 = 0
+replace age_lt_66 = 1 if age<66
+label var age_lt_66 "Age less than 66 at incident Medicaid"
+
+
+*gen dem_cohort = 0 if pdem!=.
+*replace dem_cohort = 1 if pdem>=0.5 & pdem!=.
+
+
+save $int\fullcore.dta, replace
+
+drop if (c_ivw_date - inc_maid_date)>=2555
+*drop if c_ivw_date<inc_maid_date
+
+gsort id -core_year
+by id: gen nflag = _n
+replace nflag = nflag - 1
+
+save "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\data\int_data\samplecore.dta", replace
+
+H="********* 3rd Iteration (OLD) ************"
+
+
 H="Identifying index medicaid and cores need for computation"
 use  "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" , clear
 

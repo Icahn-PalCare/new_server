@@ -1,0 +1,267 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Outline"
+/* 
+********************HEADING******************** 
+
+Project Name: Adverse Consequences of Unmet Need among Probable Dementia Patients
+
+Date Started: 7/18/19
+
+Primary Investigator: Jenny Reckrey
+Funding Source: GEMSSTAR
+
+Created by: EBL
+
+Primary Analyst: EBL
+Secondary Analyst: MH
+
+Datasets Used: nhats
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+
+//Clean NHATS 
+global nhats "D:\nhats\shared\base_data\nhats cleaned"
+
+//Intermediate Data Path
+global intpath "D:\nhats\Projects\caregiving\jr_dem_paid_cgs_and_unmet_needs\data\int_data"
+
+// Final Data Path
+global datapath "D:\NHATS\Projects\caregiving\jr_dem_paid_cgs_and_unmet_needs\data\final_data"
+
+//Log files path
+global logpath "D:\NHATS\Projects\caregiving\jr_dem_paid_cgs_and_unmet_needs\output\logs"
+
+//Log files path
+global outpath "D:\NHATS\Projects\caregiving\jr_dem_paid_cgs_and_unmet_needs\output\in_progress"
+
+H="Sample derivation"
+//Sample derivation
+
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", clear
+
+
+
+local samplevars all inrange spivw nonh nolml prob_dem //anyh
+
+gen all=1
+gen inrange=inlist(wave,1,5)
+gen spivw=sp_ivw==1
+gen nonh=!nhres
+gen nolml=!lml
+gen anyh=n_help>0
+label var all "All NHATS waves 1-7"
+label var inrange "Wave 1 and/or 5"
+label var spivw "SP interview completed"
+label var nonh "Community dwelling at interview"
+label var nolml "Non-deceased (not LML ivw)"
+label var anyh "Receives any help"
+
+local rn : word count `samplevars'
+
+mat tab=J(`rn',3,.)
+local r=1
+
+local denom=_N
+
+foreach x of local samplevars {
+	keep if `x'==1
+	mat tab[`r',1]=`denom'-_N
+	local denom=_N
+	mat tab[`r',2]=_N
+	duplicates report spid
+	mat tab[`r',3]=r(unique_value)
+	local r=`r'+1
+}
+
+mat rownames tab=`samplevars'
+
+frmttable using "${outpath}\sample_derivation.rtf", statmat(tab) varlabels sdec(0) title("Sample Derivation") ///
+ctitles("" "Interviews don't meet" "Interviews do meet" "Unique SPs") replace
+
+
+//clean/add variables
+
+label var tot_paidhrs "Hours per week of paid help, conditional on any"
+rename homebound_cat hb
+rename race_cat race
+gen help_cat=ind_no_helpers
+replace help_cat=2 if !ind_paid & n_helpers
+replace help_cat=3 if n_helpers>n_paid & ind_paid
+replace help_cat=4 if n_helpers==n_paid & ind_paid
+label var help_cat "Caregiving, categorical"
+label define help_cat 1 "No helpers" 2 "Informal help only" 3 "Informal & paid" ///
+4 "Paid help only"
+label values help_cat help_cat
+
+//get impairment/help/unmet need in same categories
+drop eatdev dress dresd
+egen adv_any=rowmax(adverse*)
+egen adv_sc=rowmax(adverse_eat adverse_bath adverse_toil adverse_dres)
+egen adv_hh=rowmax(adverse_laun adverse_shop adverse_meal adverse_bank)
+egen adv_mob=rowmax(adverse_insd adverse_out adverse_bed)
+label var adv_any "Any adverse consequence of unmet need"
+label var adv_sc "Adverse consequence of unmet self-care need"
+label var adv_hh "Adverse consequence of unmet household need"
+label var adv_mob "Adverse consequence of unmet mobility need"
+
+egen impair_sc=rowmax(eat bath toil dres)
+egen impair_hh=rowmax(laun shop meal_j bank_j)
+egen impair_mob=rowmax(insd out bed)
+egen impair_any=rowmax(impair_*)
+label var impair_any "Any impairment"
+label var impair_sc "Self-care impairment"
+label var impair_hh "Household impairment"
+label var impair_mob "Mobility impairment"
+rename adl_ins_help adl_insd_help
+
+label define impcat 1 "No impairment or help" 2 "Impairment, no help, no adverse consequences" ///
+3 "Impairment & help, no adverse consequences" 4 "No impairment, but help, no adverse consequences" 5 "No help, adverse consequences" 6 "Help, adverse consequences"
+
+foreach x in eat toil insd bed dres bath laun shop meal bank {
+	rename *adl_`x'_help adl_`x'_help
+	gen `x'_cat=`x'_jenny+1 
+	replace `x'_cat=3 if adl_`x'_help==1 & `x'_jenny==1 & adverse_`x'==0
+	replace `x'_cat=4 if adl_`x'_help==1 & `x'_jenny==0 & adverse_`x'==0
+	replace `x'_cat=5 if adl_`x'_help==0 & adverse_`x'==1
+	replace `x'_cat=6 if adl_`x'_help==1 & adverse_`x'==1
+	label values `x'_cat impcat
+}
+
+	
+	
+save "${intpath}\dem_wave_1_5_w_help_sample.dta", replace
+
+H="table 1"
+//table 1
+
+use "${intpath}\dem_wave_1_5_w_help_sample.dta", clear
+foreach x of varlist tot_*_i {
+replace `x'=0 if n_helpers==0 
+}
+replace ind_gt20hrs_wk_paid=0 if n_helpers==0
+
+local cvars1 age
+local ivars1 female 
+local catvars1 race /*education*/ livearrang
+local cvars2
+local ivars2 married educ_hs_ind medicaid medigap tricare
+local catvars2
+local cvars3 
+local ivars3 
+local catvars3 income_quart 
+local cvars4 
+local ivars4 prob_dem sr_phq2_depressed 
+local catvars4 hb
+local cvars5 n_helpers
+local ivars5
+local catvars5 help_cat
+local cvars6 tot_hrswk_help_i tot_hrswk_paid_i  tot_paidhrs
+local ivars6 ind_gt20hrs_wk_paid
+local catvars6
+local cvars7 adlcount_jenny iadlcount_jenny
+local ivars7 adv_any adv_sc adv_hh adv_mob
+local catvars7 wave
+
+forvalues i=1/7 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+forvalues i=1/7 {
+local rows `rows' `cvars`i'' `ivars`i'' `catvars`i'' `cativars`i''
+}
+
+local rn : word count `rows' 1
+local r=1
+local c=1
+
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',4,0)
+
+local n=_N
+forvalues i=1/7 {
+	foreach x of local cvars`i' {
+		sum `x' [aw=anfinw], d
+		mat tab[`r',`c']=r(mean)
+		mat tab [`r',`c'+1]=r(sd)
+		mat tab[`r',`c'+2]=r(p50)
+		mat tab[`r',`c'+3]=`n'-r(N)
+		local r=`r'+1
+		local rownames `rownames' `x'
+		
+}
+	foreach x of local ivars`i' {
+		sum `x' [aw=anfinw] 
+		if r(N)*r(mean)>=11 mat tab[`r',`c']=r(mean)*100
+		if r(N)*r(mean)>=11 mat tab[`r',`c'+3]=`n'-r(N)
+		local r=`r'+1
+		local rownames `rownames' `x'
+}
+	foreach x of local catvars`i' {
+		local rownames `rownames' `x'
+		local r=`r'+1
+		sum `x' [aw=anfinw]
+		mat tab[`r',`c'+3]=`n'-r(N)
+		foreach z of local `x' {
+			sum `z' [aw=anfinw] 
+			if r(N)*r(mean)>=11 mat tab[`r',`c']=r(mean)*100
+			local r=`r'+1
+			local rownames `rownames' `z'
+}
+}
+}
+mat tab[`r',`c']=`n'
+	
+
+mat rownames tab=`rownames' N
+
+frmttable using "${outpath}\table_1_`c(current_date)'.rtf", ///
+statmat(tab) title("Characteristics of Sample") ///
+ctitles("" "Mean/%" "SD" "Median" "N Missing") varlabels ///
+sdec(2,1,1,0) annotate(stars) asymbol(*,**) replace ///
+note("Among community-dwelling SPs in 2011 & 2015 with probable dementia")
+
+
+
+
+H="looking at impairment, help, and unmet need"
+
+use "${intpath}\dem_wave_1_5_w_help_sample.dta", clear
+label var eat_cat "Eating"
+label var toil_cat "Toileting"
+label var insd_cat "Getting around inside" 
+label var bed_cat "Transferring"
+label var dres_cat "Dressing" 
+label var bath_cat "Bathing" 
+label var laun_cat "Laundry"
+label var shop_cat "Shopping"
+label var meal_cat "Meals"
+
+local g
+foreach x in eat toil insd bed dres bath laun shop meal {
+local lab : var label `x'_cat
+graph hbar [pw=anfinw], over(`x'_cat, label(labsize(small))) name(`x', replace) ytitle("`lab'", size(medium)) blabel(bar, format(%4.1f))
+local g `g' `x'
+}
+
+graph combine `g',  ycommon xcommon rows(3) ysize(8) xsize(15) saving("${outpath}\impairment_categories", replace)
+graph export "${outpath}\impairment_categories.pdf", replace

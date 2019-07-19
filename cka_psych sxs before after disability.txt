@@ -16,7 +16,7 @@ capture log close
 
 
 H="making file for date of first needing help"
-*making a new variable that is wide
+*making file for day of first/last disability
 *clean up month of first disability-
 
 
@@ -122,12 +122,13 @@ foreach n of numlist 2 3 4 5 6 7 8 {
 gen ds`n'datehelpend=mdy(ds`n'helpendmo, 1, ds`n'helpendyr)
 format ds`n'datehelpend %td
 }
-*drop the other date variables
+/*drop the other date variables
 drop dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
 		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
 		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
 		dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr 
-
+*/
+		
 gen datefirsthelp= dm8datehelp 
 	replace datefirsthelp= ds8datehelp if ds8datehelp!=. & ds8datehelp<datefirsthelp
 	
@@ -153,6 +154,35 @@ format datefirsthelp %td
 drop if datefirsthelp==.
 *drops 4 observations: 10004347 and 10004340: one is a -7 (refused), another is missing the year of disability start- just has month
 
+*make a variable for first date of help ending
+gen datefirsthelpend= dm8datehelpend 
+	replace datefirsthelpend= ds8datehelpend if ds8datehelpend!=. & ds8datehelpend<datefirsthelpend
+	
+	replace datefirsthelpend= dm7datehelpend if dm7datehelpend!=. & dm7datehelpend<datefirsthelpend
+	replace datefirsthelpend= ds7datehelpend if ds7datehelpend!=. & ds7datehelpend<datefirsthelpend
+	
+	replace datefirsthelpend= dm6datehelpend if dm6datehelpend!=. & dm6datehelpend<datefirsthelpend
+	replace datefirsthelpend= ds6datehelpend if ds6datehelpend!=. & ds6datehelpend<datefirsthelpend
+	
+	replace datefirsthelpend= dm5datehelpend if dm5datehelpend!=. & dm5datehelpend<datefirsthelpend
+	replace datefirsthelpend= ds5datehelpend if ds5datehelpend!=. & ds5datehelpend<datefirsthelpend
+
+	replace datefirsthelpend= dm4datehelpend if dm4datehelpend!=. & dm4datehelpend<datefirsthelpend
+	replace datefirsthelpend= ds4datehelpend if ds4datehelpend!=. & ds4datehelpend<datefirsthelpend
+
+	replace datefirsthelpend= dm3datehelpend if dm3datehelpend!=. & dm3datehelpend<datefirsthelpend
+	replace datefirsthelpend= ds3datehelpend if ds3datehelpend!=. & ds3datehelpend<datefirsthelpend
+	
+	replace datefirsthelpend= dm2datehelpend if dm2datehelpend!=. & dm2datehelpend<datefirsthelpend
+	replace datefirsthelpend= ds2datehelpend if ds2datehelpend!=. & ds2datehelpend<datefirsthelpend
+format datefirsthelpend %td	
+
+*days before first help starts and ends
+gen daysdurhelp=datefirsthelpend-datefirsthelp
+drop if daysdurhelp<0
+*217 people dropped who had a report of ending help before help started
+*total sample=3,797
+
 *make a variable called repfirsthelp that is the wave of first reporting help
 gen repfirsthelp=.
 foreach n of numlist 2 3 4 5 6 7 8 {
@@ -173,21 +203,55 @@ use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
 merge m:1 spid using "D:\NHATS\Projects\trajectories and disability\cka_psych sxs before after disability\data\date of first disability.dta"
 drop if _merge==1
 
-
+*keeping those with an interview within 12 months of date of first help
 gen day_dif= ivw_date-datefirsthelp
 gen mnth_dif= floor((ivw_date-datefirsthelp)/30)
 drop if abs(mnth_dif)>12
 
 
+
 H="****below this heading: analysis. okay to run more than once***"
 
 
+H="cleaning vars"
+*cleaning variables
+recode mnth_dif (-12/-10=1)(-9/-7=2)(-6/-4=3)(-3/-1=4)(0/3=5)(4/6=6)(7/9=7)(10/12=8), gen(quart_dif)
+recode mnth_dif (-12/-11=1)(-10/-9=2)(-8/-7=3)(-6/-5=4)(-4/-3=5)(-2/-1=6)(0/1=7)(2/3=8)(4/5=9)(6/7=10)(8/9=11)(10/12=12), gen(bi_dif)
+
+*data for time from help start to end
+*categories for duration of disability
+recode daysdurhelp (365/max=1 "never recover")(0/180=2 "recover in first 6 months") (181/365=3 "recover in months 6-12"), gen(cat_durhelp)
+replace cat_durhelp=1 if daysdurhelp==.
+
+gen keep_norecover=0
+replace keep=1 if cat_durhelp!=2
+gen keep_recover=0
+replace keep_recover=1 if cat_durhelp==2
+
 H="analysis"
 *analysis
-recode mnth_dif (-12/-10=-4)(-9/-7=-3)(-6/-4=-2)(-3/-1=-1)(0/3=1)(4/6=2)(7/9=3)(10/12=4), gen(quart_dif)
-recode mnth_dif (-12/-11=-6)(-10/-9=-5)(-8/-7=-4)(-6/-5=-3)(-4/-3=-2)(-2/-1=-1)(0/1=1)(2/3=2)(4/5=3)(6/7=4)(8/9=5)(10/12=6), gen(bi_dif)
 
-(0/3=1)(4/6=2)(7/9=3)(10/12=4), gen(bi_dif)
+
+*analysis
+*1: survey adjusted rates
+tab bi_dif sr_phq2_depressed 
+
+svyset  varunit [pweight=anfinwgt], strat(varstrat)
+svy: mean sr_phq2_depressed, over(bi_dif)
+svy , subpop(keep_norecover): logistic sr_phq2_depressed i.quart_dif proxy
+margins quart_dif
+svy , subpop(keep_recover): logistic sr_phq2_depressed i.quart_dif  proxy
+margins quart_dif
+
+svy , subpop(keep_norecover): logistic sr_gad2_anxiety i.quart_dif proxy
+margins quart_dif
+svy , subpop(keep_recover): logistic sr_gad2_anxiety i.quart_dif  proxy
+margins quart_dif
+
+
+
+
+tab bi_dif
 
 tab bi_dif sr_phq2_depressed 
 tab bi_dif sr_phq2_depressed if indhelpstop==1
