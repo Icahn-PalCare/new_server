@@ -45,10 +45,6 @@ gen inc_maid_year = year(inc_maid_date)
 gen age = round((inc_maid_date - bene_dob)/365.25)
 label var age "Age at incident medicaid"
 
-by bid_hrs_22: egen drop_medicaid = max(medicaid)
-label var drop_medicaid "No Medicaid State Buy-in 1998-2015"
-
-recode drop_medicaid (1=0) (0=1)
 
 gen inc_lookback = inc_maid_date - 365
 format %td inc_lookback inc_maid_date
@@ -61,19 +57,21 @@ bysort bid_hrs_22: egen nolookback = max(lookback)
 recode nolookback (0=1) (1=0)
 label var nolookback "Were not Medicare beneficaries 12 months prior to incident Medicaid"
 
-keep bid_hrs_22 inc_maid_date inc_maid_year age drop_medicaid nolookback lookback
+keep bid_hrs_22 inc_maid_date inc_maid_year age nolookback lookback
 gsort bid_hrs_22 -lookback inc_maid_date
 duplicates drop bid_hrs_22, force
 
-/**** Merge xwalk, core, exit and pdem *****/
+/**** Merge xwalk, core, helper, exit and pdem *****/
 merge 1:1 bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keepus(hhid pn) keep(match) nogen
 merge 1:m hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keep(match) nogen
 merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", keep(master match) nogen keepus(pdem)
-merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta", keep(master match)
+append using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta"
 
-gen exitivw = 1 if _m==3
-label var exitivw "Exit interview"
-drop _m
+gen year = core_year
+replace year = exit_year if year==.
+merge 1:1 id year using "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2016.dta", keep(master match) nogen
+
+
 /**** Flag availability of N1, P1 & P2/Exit *****/
 gen core_in_24 = 0
 replace core_in_24 = 1 if (c_ivw_date-inc_maid_date)<=730 & (c_ivw_date-inc_maid_date)>=0
@@ -94,23 +92,39 @@ replace n1_in_36 = 1 if (c_ivw_date-n1_date)<=1095 & core_in_24==1 & (n1_date < 
 
 label var n1_in_36 "N1 core interview within 36 months of P1"
 
-by id: egen no_core_24 = max(core_in_24)
-recode (0=1) (1=0)
+gen age_66 = 0
+replace age_66 = 1 if age<66
+
+
+/***** Create Sample Derivation Variables *****/
+
+by hhidpn: egen no_core_24 = max(core_in_24)
+recode no_core_24 (0=1) (1=0)
 label var no_core_24 "No core interview within 24m of incident medicaid"
 
-by id: egen no_core_exit = max(core_exit_48)
-recode (0=1) (1=0)
+by hhidpn: egen no_core_exit = max(core_exit_48)
+recode no_core_exit (0=1) (1=0)
 label var no_core_exit "No core/exit 24-48m of incident medicaid"
 
-gen age_lt_66 = 0
-replace age_lt_66 = 1 if age<66
+by hhidpn: egen age_lt_66 = max(age_66) 
+*recode age_lt_66 (1=0) (0=1)
 label var age_lt_66 "Age less than 66 at incident Medicaid"
+
+by hhidpn: egen drop_medicaid = max(medicaid)
+label var drop_medicaid "No Medicaid State Buy-in 1998-2015"
+recode drop_medicaid (1=0) (0=1)
+
+
+
+
+drop if drop_medicaid==1 | nolookback==1 | no_core_24==1 | no_core_exit==1 | age_lt_66==1
+
 
 
 *gen dem_cohort = 0 if pdem!=.
 *replace dem_cohort = 1 if pdem>=0.5 & pdem!=.
 
-
+/*
 save $int\fullcore.dta, replace
 
 drop if (c_ivw_date - inc_maid_date)>=2555
