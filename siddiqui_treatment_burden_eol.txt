@@ -98,7 +98,7 @@ spouse_help_ind n_social_network reg_doc_seen iadl_meds_help adverse_eat adverse
 adverse_toil adverse_dres adverse_bed adverse_insd carenowan_lml respect_lml nhres ///
 doctor docclear relg relgamt pain painhlp painhlpam bre brehlp brehlpam ///
 whr* howpk* chginspln ansitindr anhlpwdec death_date meds modm lmlm haslml ///
-ivw_date proxy adl*help
+ivw_date proxy adl*help livealone livearrang
 
 keep `keepvars'
 
