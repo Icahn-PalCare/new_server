@@ -602,6 +602,8 @@ replace q0ind=5 if q8ind==5
 	sort spid wave
 	bysort spid: gen income_less_15k_prior=income_less_15k[_n-1] 
 	
+	recode income_quart (1=1)(2/4=0), gen(inc_low_qrt)
+	bysort spid: gen inc_low_qrt_prior=inc_low_qrt[_n-1] 
 	
 	*prior anxiety and depression
 	sort spid wave
@@ -656,8 +658,15 @@ replace persontime_p= cont_ffs_p_mos if switch_ffs_p==1
 *replace with time until went onto hospice if that's shorter
 replace persontime_p=months_hosp if months_hosp<persontime_p & months_hosp>0
 
+*any switch
+gen switch_any=0
+replace switch_any=1 if switch_ma_n==1 | switch_ma_p==1 | switch_ffs_n==1 |switch_ffs_p==1
 	
+gen keepMA=keep 
+replace keepMA=0 if firsthmo==0
 
+gen keepFFS=keep 
+replace keepFFS=0 if firsthmo==1
 
 H="all tables and figures"
 *TABLES AND FIGURES
@@ -668,6 +677,8 @@ svyset  varunit [pweight=anfinwgt], strat(varstrat)
 tab firsthmo if keep==1
 svy, subpop(keep): tab firsthmo
 svy, subpop(keep): tab firsthmo, count format(%20.2f)
+svy, subpop(keepMA): tab switch_any
+svy, subpop(keepFFS): tab switch_any
 
 
 svy, subpop(keep):tab female firsthmo, column
@@ -683,7 +694,7 @@ svy, subpop(keep):tab regdum3 firsthmo, column
 svy, subpop(keep):tab regdum4 firsthmo, column
 
 svy, subpop(keep):tab not_hs_educ firsthmo, column
-svy, subpop(keep):tab income_less_15k_prior firsthmo, column
+svy, subpop(keep):tab inc_low_qrt_prior firsthmo, column
 svy, subpop(keep):tab medicaid_prior firsthmo, column
 svy, subpop(keep):tab dem_2_cat_prior firsthmo, column
 svy, subpop(keep):tab sr_phq2_depressed_prior firsthmo, column
@@ -722,8 +733,8 @@ svy, subpop(keepMA): logistic 	switch_any				regdum4
 svy, subpop(keepMA): tab 		not_hs_educ 			switch_any, column 
 svy, subpop(keepMA): logistic 	switch_any				not_hs_educ
 
-svy, subpop(keepMA): tab 		income_less_15k 		switch_any, column 
-svy, subpop(keepMA): logistic 	switch_any				income_less_15k
+svy, subpop(keepMA): tab 		inc_low_qrt 			switch_any, column 
+svy, subpop(keepMA): logistic 	switch_any				inc_low_qrt
 
 svy, subpop(keepMA): tab 		medicaid 				switch_any, column 
 svy, subpop(keepMA): logistic 	switch_any				medicaid
@@ -788,8 +799,8 @@ svy, subpop(keepFFS): logistic 	switch_any				regdum4
 svy, subpop(keepFFS): tab 		not_hs_educ 			switch_any, column 
 svy, subpop(keepFFS): logistic 	switch_any				not_hs_educ
 
-svy, subpop(keepFFS): tab 		income_less_15k 		switch_any, column 
-svy, subpop(keepFFS): logistic 	switch_any				income_less_15k
+svy, subpop(keepFFS): tab 		inc_low_qrt	 			switch_any, column 
+svy, subpop(keepFFS): logistic 	switch_any				inc_low_qrt
 
 svy, subpop(keepFFS): tab 		medicaid 				switch_any, column 
 svy, subpop(keepFFS): logistic 	switch_any				medicaid

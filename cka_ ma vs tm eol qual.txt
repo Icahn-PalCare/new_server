@@ -1696,3 +1696,1151 @@ replace ma2=1 if death_month==11 & nov_c==1 & jan_c==1 & feb_c==1 & mar_c==1 & a
 replace ma2=1 if death_month==12 & dec_c==1 & jan_c==1 & feb_c==1 & mar_c==1 & apr_c==1 & may_c==1 & jun_c==1 & jul_c==1 & aug_c==1 & sep_c==1 & oct_c==1 & nov_c==1 & dec_c_1==1
 
 
+
+
+H="Part1--Joan Teno part"
+use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\raw_w1_w8.dta", clear
+
+
+ 
+*** This is for wave 2 ***********************
+gen family_friend_resp = . 
+replace family_friend_resp =1 if is2prxyrelat >=1 & is2prxyrelat <=30
+replace family_friend_resp =0 if is2prxyrelat == 31| is2prxyrelat==37| is2prxyrelat==39| is2prxyrelat==40
+replace family_friend_resp = 1 if is2prxyrelat==33|is2prxyrelat==34|is2prxyrelat==35|is2prxyrelat==36
+replace family_friend_resp = 1 if is2prxyrelat==91|is2prxyrelat==92
+replace family_friend_resp = 0 if is2famrrutin ==3|is2famrrutin ==4
+replace family_friend_resp = . if r2dlmlint !=1 
+***********************
+
+gen family_friend_resp3 = . 
+replace family_friend_resp3 =1 if is3prxyrelat >=1 & is3prxyrelat <=30
+replace family_friend_resp3 =0 if is3prxyrelat == 31| is3prxyrelat==37| is3prxyrelat==39| is3prxyrelat==40
+replace family_friend_resp3 = 1 if is3prxyrelat==33|is3prxyrelat==34|is3prxyrelat==35|is3prxyrelat==36
+replace family_friend_resp3 = 1 if is3prxyrelat==91|is3prxyrelat==92
+replace family_friend_resp3 = 0 if is3famrrutin ==3|is3famrrutin ==4
+replace family_friend_resp3 = . if r3dlmlint !=1 
+
+gen family_friend_resp4 = . 
+replace family_friend_resp4 =1 if is4prxyrelat >=1 & is4prxyrelat <=30
+replace family_friend_resp4 =0 if is4prxyrelat == 31| is4prxyrelat==37| is4prxyrelat==39| is4prxyrelat==40
+replace family_friend_resp4 = 1 if is4prxyrelat==33|is4prxyrelat==34|is4prxyrelat==35|is4prxyrelat==36
+replace family_friend_resp4 = 1 if is4prxyrelat==91|is4prxyrelat==92
+replace family_friend_resp4 = 0 if is4famrrutin ==3|is4famrrutin ==4
+replace family_friend_resp4 = . if r4dlmlint !=1 
+
+gen family_friend_resp5 = . 
+replace family_friend_resp5 =1 if is5prxyrelat >=1 & is5prxyrelat <=30
+replace family_friend_resp5 =0 if is5prxyrelat == 31| is5prxyrelat==37| is5prxyrelat==39| is5prxyrelat==40
+replace family_friend_resp5 = 1 if is5prxyrelat==33|is5prxyrelat==34|is5prxyrelat==35|is5prxyrelat==36
+replace family_friend_resp5 = 1 if is5prxyrelat==91|is5prxyrelat==92
+replace family_friend_resp5 = 0 if is5famrrutin ==3|is5famrrutin ==4
+replace family_friend_resp5 = . if r5dlmlint !=1 
+
+gen family_friend_resp6 = . 
+replace family_friend_resp6 =1 if is6prxyrelat >=1 & is6prxyrelat <=30
+replace family_friend_resp6 =0 if is6prxyrelat == 31| is6prxyrelat==37| is6prxyrelat==39| is6prxyrelat==40
+replace family_friend_resp6 = 1 if is6prxyrelat==33|is6prxyrelat==34|is6prxyrelat==35|is6prxyrelat==36
+replace family_friend_resp6 = 1 if is6prxyrelat==91|is6prxyrelat==92
+replace family_friend_resp6 = 0 if is6famrrutin ==3|is6famrrutin ==4
+replace family_friend_resp6 = . if r6dlmlint !=1 
+
+gen family_friend_resp7 = . 
+replace family_friend_resp7 =1 if is7prxyrelat >=1 & is7prxyrelat <=30
+replace family_friend_resp7 =0 if is7prxyrelat == 31| is7prxyrelat==37| is7prxyrelat==39| is7prxyrelat==40
+replace family_friend_resp7 = 1 if is7prxyrelat==33|is7prxyrelat==34|is7prxyrelat==35|is7prxyrelat==37
+replace family_friend_resp7 = 1 if is7prxyrelat==91|is7prxyrelat==92
+replace family_friend_resp7 = 0 if is7famrrutin ==3|is7famrrutin ==4
+replace family_friend_resp7 = . if r7dlmlint !=1
+
+gen family_friend_resp8 = . 
+replace family_friend_resp8 =1 if is8prxyrelat >=1 & is8prxyrelat <=30
+replace family_friend_resp8 =0 if is8prxyrelat == 31| is8prxyrelat==38| is8prxyrelat==39| is8prxyrelat==40
+replace family_friend_resp8 = 1 if is8prxyrelat==33|is8prxyrelat==34|is8prxyrelat==35|is8prxyrelat==38
+replace family_friend_resp8 = 1 if is8prxyrelat==91|is8prxyrelat==92
+replace family_friend_resp8 = 0 if is8famrrutin ==3|is8famrrutin ==4
+replace family_friend_resp8 = . if r8dlmlint !=1
+
+
+
+ gen wave_nhat=0
+ replace wave_nhat = 2 if r2dresid==6 
+ replace wave_nhat = 3 if r3dresid==6 
+ replace wave_nhat = 4 if r4dresid==6 
+ replace wave_nhat = 5 if r5dresid==6
+ replace wave_nhat = 6 if r6dresid==6
+ replace wave_nhat = 7 if r7dresid==6
+ replace wave_nhat = 8 if r8dresid==6
+
+ 
+ *** NOTE this programming in error - problem with merge with Rl1dracehisp ******
+** Note they are sampling with replacement for file has 12,427 with decedents all having Race 
+/*
+gen black = 0 if rl1dracehisp != . 
+replace black = 1 if rl1dracehisp ==2 */
+********************************************** see fix with race variable ********
+
+
+gen site_of_death2 = . 
+replace site_of_death2 = 1 if pd2placedied ==1
+replace site_of_death2 = 2 if pd2placedied ==2
+replace site_of_death2 = 3 if pd2placedied ==3
+replace site_of_death2 = 4 if pd2placedied ==4
+replace site_of_death2 = 5 if pd2placedied ==5
+replace site_of_death2 = 5 if pd2placedied ==91
+
+gen site_of_death3 = . 
+replace site_of_death3 = 1 if pd3placedied ==1
+replace site_of_death3 = 2 if pd3placedied ==2
+replace site_of_death3 = 3 if pd3placedied ==3
+replace site_of_death3 = 4 if pd3placedied ==4
+replace site_of_death3 = 5 if pd3placedied ==5
+replace site_of_death3 = 5 if pd3placedied ==91
+
+
+gen site_of_death4 = . 
+replace site_of_death4 = 1 if pd4placedied ==1
+replace site_of_death4 = 2 if pd4placedied ==2
+replace site_of_death4 = 3 if pd4placedied ==3
+replace site_of_death4 = 4 if pd4placedied ==4
+replace site_of_death4 = 5 if pd4placedied ==5
+replace site_of_death4 = 5 if pd4placedied ==91
+
+gen site_of_death5 = . 
+replace site_of_death5 = 1 if pd5placedied ==1
+replace site_of_death5 = 2 if pd5placedied ==2
+replace site_of_death5 = 3 if pd5placedied ==3
+replace site_of_death5 = 4 if pd5placedied ==4
+replace site_of_death5 = 5 if pd5placedied ==5
+replace site_of_death5 = 5 if pd5placedied ==91
+
+gen site_of_death6 = . 
+replace site_of_death6 = 1 if pd6placedied ==1
+replace site_of_death6 = 2 if pd6placedied ==2
+replace site_of_death6 = 3 if pd6placedied ==3
+replace site_of_death6 = 4 if pd6placedied ==4
+replace site_of_death6 = 5 if pd6placedied ==5
+replace site_of_death6 = 5 if pd6placedied ==91
+
+gen site_of_death7 = . 
+replace site_of_death7 = 1 if pd7placedied ==1
+replace site_of_death7 = 2 if pd7placedied ==2
+replace site_of_death7 = 3 if pd7placedied ==3
+replace site_of_death7 = 4 if pd7placedied ==4
+replace site_of_death7 = 5 if pd7placedied ==5
+replace site_of_death7 = 5 if pd7placedied ==91
+
+gen site_of_death8 = . 
+replace site_of_death8 = 1 if pd8placedied ==1
+replace site_of_death8 = 2 if pd8placedied ==2
+replace site_of_death8 = 3 if pd8placedied ==3
+replace site_of_death8 = 4 if pd8placedied ==4
+replace site_of_death8 = 5 if pd8placedied ==5
+replace site_of_death8 = 5 if pd8placedied ==91
+
+
+label define sod2 5 "other" 4 "hospice ipu" 3 "nh" 2 "hospital" 1 "home" 
+label values site_of_death3 sod2 
+label values site_of_death2 sod2 
+label values site_of_death4 sod2
+label values site_of_death5 sod2
+label values site_of_death6 sod2
+label values site_of_death7 sod2
+label values site_of_death8 sod2
+
+
+**Generate site_of_death_w2w3w4w5w76 variable
+**1=died at home, 2=died in hospital other unit/ED/don't know, 3=ICU, 4=palliative care unit
+**5=inpatient hospice unit, 6=NH, 7=hospice residence, 8=in transit, 9=other
+
+gen site_of_death_w2w8 = . 
+replace site_of_death_w2w8 = 1 if pd2placedied ==1
+replace site_of_death_w2w8 = 2 if pd2placedied ==2 & pd2hospdied ==5
+replace site_of_death_w2w8 = 2 if pd2placedied ==2 & pd2hospdied ==4
+replace site_of_death_w2w8 = 2 if pd2placedied ==2 & pd2hospdied ==-8
+replace site_of_death_w2w8 = 2 if pd2placedied ==2 & pd2hospdied ==1
+replace site_of_death_w2w8 = 3 if pd2placedied ==2 & pd2hospdied ==1
+replace site_of_death_w2w8 = 4 if pd2placedied ==2 & pd2hospdied ==2
+replace site_of_death_w2w8 = 5 if pd2placedied ==2 & pd2hospdied ==3
+replace site_of_death_w2w8 = 6 if pd2placedied ==3
+replace site_of_death_w2w8 = 7 if pd2placedied ==4
+replace site_of_death_w2w8 = 8 if pd2placedied ==5
+replace site_of_death_w2w8 = 9 if pd2placedied ==91
+
+replace site_of_death_w2w8 = 1 if pd3placedied ==1
+replace site_of_death_w2w8 = 2 if pd3placedied ==2 & pd3hospdied ==5
+replace site_of_death_w2w8 = 2 if pd3placedied ==2 & pd3hospdied ==4
+replace site_of_death_w2w8 = 2 if pd3placedied ==2 & pd2hospdied ==-8
+replace site_of_death_w2w8 = 2 if pd3placedied ==2 & pd3hospdied ==1
+replace site_of_death_w2w8 = 3 if pd3placedied ==2 & pd3hospdied ==1
+replace site_of_death_w2w8 = 4 if pd3placedied ==2 & pd3hospdied ==2
+replace site_of_death_w2w8 = 5 if pd3placedied ==2 & pd3hospdied ==3
+replace site_of_death_w2w8 = 6 if pd3placedied ==3
+replace site_of_death_w2w8 = 7 if pd3placedied ==4
+replace site_of_death_w2w8 = 8 if pd3placedied ==5
+replace site_of_death_w2w8 = 9 if pd3placedied ==91
+
+replace site_of_death_w2w8 = 1 if pd4placedied ==1
+replace site_of_death_w2w8 = 2 if pd4placedied ==2 & pd4hospdied ==5
+replace site_of_death_w2w8 = 2 if pd4placedied ==2 & pd4hospdied ==4
+replace site_of_death_w2w8 = 2 if pd4placedied ==2 & pd4hospdied ==-8
+replace site_of_death_w2w8 = 3 if pd4placedied ==2 & pd4hospdied ==1
+replace site_of_death_w2w8 = 4 if pd4placedied ==2 & pd4hospdied ==2
+replace site_of_death_w2w8 = 5 if pd4placedied ==2 & pd4hospdied ==3
+replace site_of_death_w2w8 = 6 if pd4placedied ==3
+replace site_of_death_w2w8 = 7 if pd4placedied ==4
+replace site_of_death_w2w8 = 8 if pd4placedied ==5
+replace site_of_death_w2w8 = 9 if pd4placedied ==91
+
+replace site_of_death_w2w8 = 1 if pd5placedied ==1
+replace site_of_death_w2w8 = 2 if pd5placedied ==2 & pd5hospdied ==5
+replace site_of_death_w2w8 = 2 if pd5placedied ==2 & pd5hospdied ==4
+replace site_of_death_w2w8 = 2 if pd5placedied ==2 & pd5hospdied ==-8
+replace site_of_death_w2w8 = 3 if pd5placedied ==2 & pd5hospdied ==1
+replace site_of_death_w2w8 = 4 if pd5placedied ==2 & pd5hospdied ==2
+replace site_of_death_w2w8 = 5 if pd5placedied ==2 & pd5hospdied ==3
+replace site_of_death_w2w8 = 6 if pd5placedied ==3
+replace site_of_death_w2w8 = 7 if pd5placedied ==4
+replace site_of_death_w2w8 = 8 if pd5placedied ==5
+replace site_of_death_w2w8 = 9 if pd5placedied ==91
+
+replace site_of_death_w2w8 = 1 if pd6placedied ==1
+replace site_of_death_w2w8 = 2 if pd6placedied ==2 & pd6hospdied ==5
+replace site_of_death_w2w8 = 2 if pd6placedied ==2 & pd6hospdied ==4
+replace site_of_death_w2w8 = 2 if pd6placedied ==2 & pd6hospdied ==-8
+replace site_of_death_w2w8 = 3 if pd6placedied ==2 & pd6hospdied ==1
+replace site_of_death_w2w8 = 4 if pd6placedied ==2 & pd6hospdied ==2
+replace site_of_death_w2w8 = 5 if pd6placedied ==2 & pd6hospdied ==3
+replace site_of_death_w2w8 = 6 if pd6placedied ==3
+replace site_of_death_w2w8 = 7 if pd6placedied ==4
+replace site_of_death_w2w8 = 8 if pd6placedied ==5
+replace site_of_death_w2w8 = 9 if pd6placedied ==91
+
+replace site_of_death_w2w8 = 1 if pd7placedied ==1
+replace site_of_death_w2w8 = 2 if pd7placedied ==2 & pd7hospdied ==5
+replace site_of_death_w2w8 = 2 if pd7placedied ==2 & pd7hospdied ==4
+replace site_of_death_w2w8 = 2 if pd7placedied ==2 & pd7hospdied ==-8
+replace site_of_death_w2w8 = 3 if pd7placedied ==2 & pd7hospdied ==1
+replace site_of_death_w2w8 = 4 if pd7placedied ==2 & pd7hospdied ==2
+replace site_of_death_w2w8 = 5 if pd7placedied ==2 & pd7hospdied ==3
+replace site_of_death_w2w8 = 6 if pd7placedied ==3
+replace site_of_death_w2w8 = 7 if pd7placedied ==4
+replace site_of_death_w2w8 = 8 if pd7placedied ==5
+replace site_of_death_w2w8 = 9 if pd7placedied ==91
+
+replace site_of_death_w2w8 = 1 if pd8placedied ==1
+replace site_of_death_w2w8 = 2 if pd8placedied ==2 & pd8hospdied ==5
+replace site_of_death_w2w8 = 2 if pd8placedied ==2 & pd8hospdied ==4
+replace site_of_death_w2w8 = 2 if pd8placedied ==2 & pd8hospdied ==-8
+replace site_of_death_w2w8 = 3 if pd8placedied ==2 & pd8hospdied ==1
+replace site_of_death_w2w8 = 4 if pd8placedied ==2 & pd8hospdied ==2
+replace site_of_death_w2w8 = 5 if pd8placedied ==2 & pd8hospdied ==3
+replace site_of_death_w2w8 = 6 if pd8placedied ==3
+replace site_of_death_w2w8 = 7 if pd8placedied ==4
+replace site_of_death_w2w8 = 8 if pd8placedied ==5
+replace site_of_death_w2w8 = 9 if pd8placedied ==91
+
+
+**Genrate variable of place living prior to death, 1=at SPs home, 2=hospital, 3=NH, 91=other
+
+gen site_pre_death = 0 if r2dresid ==6| r3dresid ==6| r4dresid ==6|r5dresid==6 |r6dresid==6 |r7dresid==6 |r8dresid==6
+replace site_pre_death = pd2placepre if r2dresid==6
+replace site_pre_death = pd3placepre if r3dresid==6
+replace site_pre_death = pd4placepre if r4dresid==6
+replace site_pre_death = pd5placepre if r5dresid==6
+replace site_pre_death = pd6placepre if r6dresid==6
+replace site_pre_death = pd7placepre if r7dresid==6
+replace site_pre_death = pd8placepre if r8dresid==6
+
+					   
+*************** run this once there is a merge *************
+
+
+label define sodw2w6 9 "other" 8 "in transit" 7 "hospice residence" 6  " nursing home" 5 "hospice IPU" 4 "palliative care unit in hospital" 3 "ICU" 2 "hospital" 1 "home" 
+label values site_of_death_w2w8 sodw2w6
+
+  
+  /*** modification of Vicki to account for the problem with weights 
+  
+           ***************************************************
+           
+           1. Restrict both samples to persons residing in the community prior to terminal events 
+           2. get all the names of weights. strata, and sampling unit
+           3. Create a common set of variables 
+  
+
+           
+*** Programing to create the NHATs data set */
+
+
+
+
+gen had_pain3 = lm3pain
+gen had_pain2 = lm2pain
+gen had_pain4 = lm4pain
+gen had_pain5 = lm5pain
+gen had_pain6 = lm6pain
+gen had_pain7 = lm7pain
+gen had_pain8 = lm8pain
+
+*pain
+
+gen unmet_pain2 = . 
+replace unmet_pain2 = 1 if lm2painhlp==2 
+replace unmet_pain2 =1 if lm2painhlpam ==1
+replace unmet_pain2 =1 if lm2painhlpam ==2
+replace unmet_pain2 =0 if lm2painhlpam ==3 
+
+gen unmet_pain3 = . 
+replace unmet_pain3 = 1 if lm3painhlp==2 
+replace unmet_pain3 =1 if lm3painhlpam ==1
+replace unmet_pain3 =1 if lm3painhlpam ==2
+replace unmet_pain3 =0 if lm3painhlpam ==3 
+
+gen unmet_pain4 = . 
+replace unmet_pain4 = 1 if lm4painhlp==2 
+replace unmet_pain4 =1 if lm4painhlpam ==1
+replace unmet_pain4 =1 if lm4painhlpam ==2
+replace unmet_pain4 =0 if lm4painhlpam ==3 
+
+gen unmet_pain5 = . 
+replace unmet_pain5 = 1 if lm5painhlp==2 
+replace unmet_pain5 =1 if lm5painhlpam ==1
+replace unmet_pain5 =1 if lm5painhlpam ==2
+replace unmet_pain5 =0 if lm5painhlpam ==3 
+
+gen unmet_pain6 = . 
+replace unmet_pain6 =1 if lm6painhlp==2 
+replace unmet_pain6 =1 if lm6painhlpam ==1
+replace unmet_pain6 =1 if lm6painhlpam ==2
+replace unmet_pain6 =0 if lm6painhlpam ==3 
+
+gen unmet_pain7 = . 
+replace unmet_pain7 =1 if lm7painhlp==2 
+replace unmet_pain7 =1 if lm7painhlpam ==1
+replace unmet_pain7 =1 if lm7painhlpam ==2
+replace unmet_pain7 =0 if lm7painhlpam ==3 
+
+gen unmet_pain8 = . 
+replace unmet_pain8 =1 if lm8painhlp==2 
+replace unmet_pain8 =1 if lm8painhlpam ==1
+replace unmet_pain8 =1 if lm8painhlpam ==2
+replace unmet_pain8 =0 if lm8painhlpam ==3 
+
+*breathlessness
+gen had_bre2 = lm2bre 
+gen unmet_bre2 = . 
+replace unmet_bre2 = 1 if lm2brehlp==2 
+replace unmet_bre2 =1 if lm2brehlpam ==1
+replace unmet_bre2 =1 if lm2brehlpam ==2
+replace unmet_bre2 =0 if lm2brehlpam ==3
+
+gen had_bre3 = lm3bre 
+gen unmet_bre3 = . 
+replace unmet_bre3 = 1 if lm3brehlp==2 
+replace unmet_bre3 =1 if lm3brehlpam ==1
+replace unmet_bre3 =1 if lm3brehlpam ==2
+replace unmet_bre3 =0 if lm3brehlpam ==3
+
+gen had_bre4 = lm4bre 
+gen unmet_bre4 = . 
+replace unmet_bre4 = 1 if lm4brehlp==2 
+replace unmet_bre4 =1 if lm4brehlpam ==1
+replace unmet_bre4 =1 if lm4brehlpam ==2
+replace unmet_bre4 =0 if lm4brehlpam ==3
+
+gen had_bre5 = lm5bre 
+gen unmet_bre5 = . 
+replace unmet_bre5 = 1 if lm5brehlp==2 
+replace unmet_bre5 =1 if lm5brehlpam ==1
+replace unmet_bre5 =1 if lm5brehlpam ==2
+replace unmet_bre5 =0 if lm5brehlpam ==3
+
+gen had_bre6 = lm6bre 
+gen unmet_bre6 = . 
+replace unmet_bre6 =1 if lm6brehlp==2 
+replace unmet_bre6 =1 if lm6brehlpam ==1
+replace unmet_bre6 =1 if lm6brehlpam ==2
+replace unmet_bre6 =0 if lm6brehlpam ==3
+
+gen had_bre7 = lm7bre 
+gen unmet_bre7 = . 
+replace unmet_bre7 =1 if lm7brehlp==2 
+replace unmet_bre7 =1 if lm7brehlpam ==1
+replace unmet_bre7 =1 if lm7brehlpam ==2
+replace unmet_bre7 =0 if lm7brehlpam ==3
+
+gen had_bre8 = lm8bre 
+gen unmet_bre8 = . 
+replace unmet_bre8 =1 if lm8brehlp==2 
+replace unmet_bre8 =1 if lm8brehlpam ==1
+replace unmet_bre8 =1 if lm8brehlpam ==2
+replace unmet_bre8 =0 if lm8brehlpam ==3
+
+*sad or anxious
+
+gen had_sad2 = lm2sad 
+gen unmet_sad2 = . 
+replace unmet_sad2 = 1 if lm2sadhlp==2 
+replace unmet_sad2 =1 if lm2sadhlpam ==1
+replace unmet_sad2 =1 if lm2sadhlpam ==2
+replace unmet_sad2 =0 if lm2sadhlpam ==3
+
+gen had_sad3 = lm3sad 
+gen unmet_sad3 = . 
+replace unmet_sad3 = 1 if lm3sadhlp==2 
+replace unmet_sad3 =1 if lm3sadhlpam ==1
+replace unmet_sad3 =1 if lm3sadhlpam ==2
+replace unmet_sad3 =0 if lm3sadhlpam ==3
+
+gen had_sad4 = lm4sad 
+gen unmet_sad4 = . 
+replace unmet_sad4 = 1 if lm4sadhlp==2 
+replace unmet_sad4 =1 if lm4sadhlpam ==1
+replace unmet_sad4 =1 if lm4sadhlpam ==2
+replace unmet_sad4 =0 if lm4sadhlpam ==3
+
+gen had_sad5 = lm5sad 
+gen unmet_sad5 = . 
+replace unmet_sad5 = 1 if lm5sadhlp==2 
+replace unmet_sad5 =1 if lm5sadhlpam ==1
+replace unmet_sad5 =1 if lm5sadhlpam ==2
+replace unmet_sad5 =0 if lm5sadhlpam ==3
+
+gen had_sad6 = lm6sad 
+gen unmet_sad6 = . 
+replace unmet_sad6 =1 if lm6sadhlp==2 
+replace unmet_sad6 =1 if lm6sadhlpam ==1
+replace unmet_sad6 =1 if lm6sadhlpam ==2
+replace unmet_sad6 =0 if lm6sadhlpam ==3
+
+gen had_sad7 = lm7sad 
+gen unmet_sad7 = . 
+replace unmet_sad7 =1 if lm7sadhlp==2 
+replace unmet_sad7 =1 if lm7sadhlpam ==1
+replace unmet_sad7 =1 if lm7sadhlpam ==2
+replace unmet_sad7 =0 if lm7sadhlpam ==3
+
+gen had_sad8 = lm8sad 
+gen unmet_sad8 = . 
+replace unmet_sad8 =1 if lm8sadhlp==2 
+replace unmet_sad8 =1 if lm8sadhlpam ==1
+replace unmet_sad8 =1 if lm8sadhlpam ==2
+replace unmet_sad8 =0 if lm8sadhlpam ==3
+
+*care decisions/respect/etc
+gen care_decision2 = lm2caredecis
+gen care_decision3 = lm3caredecis
+gen care_decision4 = lm4caredecis
+gen care_decision5 = lm5caredecis
+gen care_decision6 = lm6caredecis
+gen care_decision7 = lm7caredecis
+gen care_decision8 = lm8caredecis
+
+
+gen care_notwant2 = lm2carenowan 
+gen care_notwant3 = lm3carenowan 
+gen care_notwant4 = lm4carenowan 
+gen care_notwant5 = lm5carenowan 
+gen care_notwant6 = lm6carenowan
+gen care_notwant7 = lm7carenowan
+gen care_notwant8 = lm8carenowan
+
+
+gen always_respect2 = lm2respect 
+gen always_respect3 = lm3respect 
+gen always_respect4 = lm4respect 
+gen always_respect5 = lm5respect 
+gen always_respect6 = lm6respect
+gen always_respect7 = lm7respect
+gen always_respect8 = lm8respect
+
+
+gen informed2 = lm2informed 
+gen informed3 = lm3informed 
+gen informed4 = lm4informed 
+gen informed5 = lm5informed 
+gen informed6 = lm6informed
+gen informed7 = lm7informed
+gen informed8 = lm8informed
+
+
+gen more_than_one_md2 = lm2doctor
+gen more_than_one_md3 = lm3doctor
+gen more_than_one_md4 = lm4doctor
+gen more_than_one_md5 = lm5doctor
+gen more_than_one_md6 = lm6doctor
+gen more_than_one_md7 = lm7doctor
+gen more_than_one_md8 = lm8doctor
+
+
+gen md_in_charge2 = lm2docclear 
+gen md_in_charge3 = lm3docclear 
+gen md_in_charge4 = lm4docclear 
+gen md_in_charge5 = lm5docclear 
+gen md_in_charge6 = lm6docclear
+gen md_in_charge7 = lm7docclear
+gen md_in_charge8 = lm8docclear
+
+
+gen overall_rate2 = lm2ratecare 
+gen overall_rate3 = lm3ratecare 
+gen overall_rate4 = lm4ratecare 
+gen overall_rate5 = lm5ratecare 
+gen overall_rate6 = lm6ratecare
+gen overall_rate7 = lm7ratecare
+gen overall_rate8 = lm8ratecare
+
+*religious needs
+gen unmet_relig2 = . 
+replace unmet_relig2 = 1 if lm2relg == 2 
+replace unmet_relig2 = 1 if lm2relgamt == 2 
+replace unmet_relig2 = 0 if lm2relgamt==1 
+
+gen unmet_relig3 = . 
+replace unmet_relig3 = 1 if lm3relg == 2 
+replace unmet_relig3 = 1 if lm3relgamt == 2 
+replace unmet_relig3 = 0 if lm3relgamt==1 
+
+gen unmet_relig4 = . 
+replace unmet_relig4 = 1 if lm4relg == 2 
+replace unmet_relig4 = 1 if lm4relgamt == 2 
+replace unmet_relig4 = 0 if lm4relgamt==1 
+
+gen unmet_relig5 = . 
+replace unmet_relig5 = 1 if lm5relg == 2 
+replace unmet_relig5 = 1 if lm5relgamt == 2 
+replace unmet_relig5 = 0 if lm5relgamt==1 
+
+gen unmet_relig6 = . 
+replace unmet_relig6 = 1 if lm6relg == 2 
+replace unmet_relig6 = 1 if lm6relgamt == 2 
+replace unmet_relig6 = 0 if lm6relgamt==1 
+
+gen unmet_relig7 = . 
+replace unmet_relig7 = 1 if lm7relg == 2 
+replace unmet_relig7 = 1 if lm7relgamt == 2 
+replace unmet_relig7 = 0 if lm7relgamt==1 
+
+gen unmet_relig8 = . 
+replace unmet_relig8 = 1 if lm8relg == 2 
+replace unmet_relig8 = 1 if lm8relgamt == 2 
+replace unmet_relig8 = 0 if lm8relgamt==1 
+
+gen sunit2= w2varunit
+gen sunit3= w3varunit
+gen sunit4= w4varunit
+gen sunit5= w5varunit
+gen sunit6= w6varunit
+gen sunit7= w7varunit
+gen sunit8= w8varunit
+
+
+gen pweight2 = w2anfinwgt0
+gen pweight3 = w3anfinwgt0
+gen pweight4 = w4anfinwgt0
+gen pweight5 = w5anfinwgt0
+gen pweight6 = w6anfinwgt0
+gen pweight7 = w7anfinwgt0
+gen pweight8 = w8anfinwgt0
+
+
+gen strata2 = w2varstrat
+gen strata3 = w3varstrat
+gen strata4 = w4varstrat
+gen strata5 = w5varstrat
+gen strata6 = w6varstrat
+gen strata7 = w7varstrat
+gen strata8 = w8varstrat
+
+
+gen nhat_w2w8 = . 
+
+replace nhat_w2w8 = 1 if pd2placedied != -1 & family_friend_resp==1 & r2dresid==6 
+replace nhat_w2w8 = 1 if pd3placedied != -1 & family_friend_resp3 ==1 & r3dresid ==6
+replace nhat_w2w8 = 1 if pd4placedied != -1 & family_friend_resp4 ==1 & r4dresid ==6
+replace nhat_w2w8 = 1 if pd5placedied != -1 & family_friend_resp5 ==1 & r5dresid ==6
+replace nhat_w2w8 = 1 if pd6placedied != -1 & family_friend_resp6 ==1 & r6dresid ==6
+replace nhat_w2w8 = 1 if pd7placedied != -1 & family_friend_resp7 ==1 & r7dresid ==6
+replace nhat_w2w8 = 1 if pd8placedied != -1 & family_friend_resp8 ==1 & r8dresid ==6
+
+************************************************************************
+
+
+** spouse race cancer age bedbound in the last month 
+
+**Generate variable spouse=1 if proxy is a spouse
+ 
+gen spouse = 0 
+replace spouse = 1 if is2prxyrelat ==2
+replace spouse = 1 if is3prxyrelat ==2 
+replace spouse = 1 if is4prxyrelat ==2 
+replace spouse = 1 if is5prxyrelat ==2 
+replace spouse = 1 if is6prxyrelat ==2 
+replace spouse = 1 if is7prxyrelat ==2 
+replace spouse = 1 if is8prxyrelat ==2 
+
+
+**Generate variable child = 1 if proxy is a child
+
+gen child = 0 
+replace child = 1 if is2prxyrelat >=3 & is2prxyrelat <=6
+replace child = 1 if is3prxyrelat >=3 & is3prxyrelat <=6
+replace child = 1 if is4prxyrelat >=3 & is4prxyrelat <=6
+replace child = 1 if is5prxyrelat >=3 & is5prxyrelat <=6
+replace child = 1 if is6prxyrelat >=3 & is6prxyrelat <=6
+replace child = 1 if is7prxyrelat >=3 & is7prxyrelat <=6
+replace child = 1 if is8prxyrelat >=3 & is8prxyrelat <=6
+
+**Generate other_family=1 if proxy is anothr family member besides child or spouse
+
+gen other_family = 0 
+replace other_family = 1 if is2prxyrelat >=7 & is2prxyrelat <=29
+replace other_family = 1 if is3prxyrelat >=7 & is3prxyrelat <=29
+replace other_family = 1 if is4prxyrelat >=7 & is4prxyrelat <=29
+replace other_family = 1 if is5prxyrelat >=7 & is5prxyrelat <=29
+replace other_family = 1 if is6prxyrelat >=7 & is6prxyrelat <=29
+replace other_family = 1 if is7prxyrelat >=7 & is7prxyrelat <=29
+replace other_family = 1 if is8prxyrelat >=7 & is8prxyrelat <=29
+
+*Generate other_friend=1 if proxy is a friend/non-family member
+
+gen other_friend = 0 
+replace other_friend = 1 if is2prxyrelat >=30 & is2prxyrelat <=92
+replace other_friend = 1 if is3prxyrelat >=30 & is3prxyrelat <=92
+replace other_friend = 1 if is4prxyrelat >=30 & is4prxyrelat <=92
+replace other_friend = 1 if is5prxyrelat >=30 & is5prxyrelat <=92
+replace other_friend = 1 if is6prxyrelat >=30 & is6prxyrelat <=92
+replace other_friend = 1 if is7prxyrelat >=30 & is7prxyrelat <=92
+replace other_friend = 1 if is8prxyrelat >=30 & is8prxyrelat <=92
+ 
+ 
+**Generate deathage_cat variable for decedent age at death
+**1=65-69, 2=70-74, 3=75-79, 4=80-84, 5=85-89, 6=90+ 
+ 
+gen deathage_cat = r2d2deathage 
+
+replace deathage_cat = 1 if r3d2deathage ==1
+replace deathage_cat = 2 if r3d2deathage ==2
+replace deathage_cat = 3 if r3d2deathage ==3
+replace deathage_cat = 4 if r3d2deathage ==4
+replace deathage_cat = 5 if r3d2deathage ==5
+replace deathage_cat = 6 if r3d2deathage ==6
+
+replace deathage_cat = 1 if r4d2deathage ==1
+replace deathage_cat = 2 if r4d2deathage ==2
+replace deathage_cat = 3 if r4d2deathage ==3
+replace deathage_cat = 4 if r4d2deathage ==4
+replace deathage_cat = 5 if r4d2deathage ==5
+replace deathage_cat = 6 if r4d2deathage ==6
+
+replace deathage_cat = 1 if r5d2deathage ==1
+replace deathage_cat = 2 if r5d2deathage ==2
+replace deathage_cat = 3 if r5d2deathage ==3
+replace deathage_cat = 4 if r5d2deathage ==4
+replace deathage_cat = 5 if r5d2deathage ==5
+replace deathage_cat = 6 if r5d2deathage ==6
+
+replace deathage_cat = 1 if r6d2deathage ==1
+replace deathage_cat = 2 if r6d2deathage ==2
+replace deathage_cat = 3 if r6d2deathage ==3
+replace deathage_cat = 4 if r6d2deathage ==4
+replace deathage_cat = 5 if r6d2deathage ==5
+replace deathage_cat = 6 if r6d2deathage ==6
+
+replace deathage_cat = 1 if r7d2deathage ==1
+replace deathage_cat = 2 if r7d2deathage ==2
+replace deathage_cat = 3 if r7d2deathage ==3
+replace deathage_cat = 4 if r7d2deathage ==4
+replace deathage_cat = 5 if r7d2deathage ==5
+replace deathage_cat = 6 if r7d2deathage ==6
+
+replace deathage_cat = 1 if r8d2deathage ==1
+replace deathage_cat = 2 if r8d2deathage ==2
+replace deathage_cat = 3 if r8d2deathage ==3
+replace deathage_cat = 4 if r8d2deathage ==4
+replace deathage_cat = 5 if r8d2deathage ==5
+replace deathage_cat = 6 if r8d2deathage ==6
+**1=65-69, 2=70-74, 3=75-79, 4=80-84, 5=85-89, 6=90+ 
+
+label define agecat 1 "65-69" 2 "70-74" 3 "75-79" 4 "80-84" 5 "85-89" 6 "90+"
+label values deathage_cat agecat 
+replace deathage_cat=. if deathage_cat==-8 | deathage_cat==-7 | deathage_cat==-1
+
+gen diff_get_out_bed = 0 
+replace diff_get_out_bed = 1 if pd2outbed >=3 & pd2outbed <=5
+replace diff_get_out_bed = 1 if pd3outbed >=3 & pd3outbed <=5
+replace diff_get_out_bed = 1 if pd4outbed >=3 & pd4outbed <=5
+replace diff_get_out_bed = 1 if pd5outbed >=3 & pd5outbed <=5
+replace diff_get_out_bed = 1 if pd6outbed >=3 & pd6outbed <=5
+replace diff_get_out_bed = 1 if pd7outbed >=3 & pd7outbed <=5
+replace diff_get_out_bed = 1 if pd8outbed >=3 & pd8outbed <=5
+
+
+**Generate variable recode_overall_rate which is combined waves rating of care in last month of life (lm*ratecare)
+** 1=excellent, 5=poor
+
+gen recode_overall_rate = overall_rate2
+replace recode_overall_rate = overall_rate3 if overall_rate2 == -1 
+replace recode_overall_rate = overall_rate4 if overall_rate3 == -1 
+replace recode_overall_rate = overall_rate5 if overall_rate4 == -1 
+replace recode_overall_rate = overall_rate6 if overall_rate5 == -1 
+replace recode_overall_rate = overall_rate7 if overall_rate6 == -1 
+replace recode_overall_rate = overall_rate8 if overall_rate7 == -1 
+
+
+recode recode_overall_rate (-8=.) (-7 =.) (-1=.) 
+
+**Generate variable recode_informed, combined waves of how often family kept informed of condition
+** 1= always, 4= never
+
+gen recode_informed = informed2
+replace recode_informed = informed3 if informed2 ==-1 
+replace recode_informed = informed4 if informed3 ==-1 
+replace recode_informed = informed5 if informed4 ==-1 
+replace recode_informed = informed6 if informed5 ==-1 
+replace recode_informed = informed7 if informed6 ==-1 
+replace recode_informed = informed8 if informed7 ==-1 
+
+recode recode_informed (-8=.) (-7=.) (-1=.)
+
+gen recode_always_respect = always_respect2
+replace recode_always_respect = always_respect3 if always_respect2 ==-1 
+replace recode_always_respect = always_respect4 if always_respect3 ==-1 
+replace recode_always_respect = always_respect5 if always_respect4 ==-1 
+replace recode_always_respect = always_respect6 if always_respect5 ==-1 
+replace recode_always_respect = always_respect7 if always_respect6 ==-1 
+replace recode_always_respect = always_respect8 if always_respect7 ==-1 
+
+recode recode_always_respect (-8 =.) (-7=.) (-1=.) 
+
+**Generate variable recode_care_notwant that is combined waves whether any care received in last month
+**that pt would not have wanted, 1=yes
+
+gen recode_care_notwant = care_notwant2
+replace recode_care_notwant = care_notwant3 if care_notwant2 == -1 
+replace recode_care_notwant = care_notwant4 if care_notwant3 == -1 
+replace recode_care_notwant = care_notwant5 if care_notwant4 == -1
+replace recode_care_notwant = care_notwant6 if care_notwant5 == -1 
+replace recode_care_notwant = care_notwant7 if care_notwant6 == -1 
+replace recode_care_notwant = care_notwant8 if care_notwant7 == -1 
+recode recode_care_notwant (-8 =.) (-7=.) (3=.) (-1=.)
+
+**Generate variable recode_care_decision that is combined waves whether decision in last month made
+**without input from pt or family, 1=yes
+
+gen recode_care_decision = care_decision2
+replace recode_care_decision = care_decision3 if care_decision2 ==-1 
+replace recode_care_decision = care_decision4 if care_decision3 ==-1 
+replace recode_care_decision = care_decision5 if care_decision4 ==-1 
+replace recode_care_decision = care_decision6 if care_decision5 ==-1 
+replace recode_care_decision = care_decision7 if care_decision6 ==-1 
+replace recode_care_decision = care_decision8 if care_decision7 ==-1 
+
+recode recode_care_decision (-8 =.) (-7=.) (-1=.) 
+
+gen recode_had_pain = had_pain2
+replace recode_had_pain = had_pain3 if had_pain2 ==-1 
+replace recode_had_pain = had_pain4 if had_pain3 ==-1 
+replace recode_had_pain = had_pain5 if had_pain4 ==-1 
+replace recode_had_pain = had_pain6 if had_pain5 ==-1 
+replace recode_had_pain = had_pain7 if had_pain6 ==-1 
+replace recode_had_pain = had_pain8 if had_pain7 ==-1 
+
+recode recode_had_pain (-8 =.) (-7=.) (-1=.) 
+
+gen unmet_pain = unmet_pain2
+replace unmet_pain = unmet_pain3 if unmet_pain2 ==. & r3dresid ==6
+replace unmet_pain = unmet_pain4 if unmet_pain3 ==. & r4dresid ==6
+replace unmet_pain = unmet_pain5 if unmet_pain4 ==. & r5dresid ==6
+replace unmet_pain = unmet_pain6 if unmet_pain5 ==. & r6dresid ==6
+replace unmet_pain = unmet_pain7 if unmet_pain6 ==. & r7dresid ==6
+replace unmet_pain = unmet_pain8 if unmet_pain7 ==. & r8dresid ==6
+
+
+gen unmet_bre = unmet_bre2
+replace unmet_bre = unmet_bre3 if unmet_bre2 ==. & r3dresid ==6
+replace unmet_bre = unmet_bre4 if unmet_bre3 ==. & r4dresid ==6
+replace unmet_bre = unmet_bre5 if unmet_bre4 ==. & r5dresid ==6
+replace unmet_bre = unmet_bre6 if unmet_bre5 ==. & r6dresid ==6
+replace unmet_bre = unmet_bre7 if unmet_bre6 ==. & r7dresid ==6
+replace unmet_bre = unmet_bre8 if unmet_bre7 ==. & r8dresid ==6
+
+
+gen unmet_sad = unmet_sad2
+replace unmet_sad = unmet_sad3 if unmet_sad2 ==. & r3dresid ==6
+replace unmet_sad = unmet_sad4 if unmet_sad3 ==. & r4dresid ==6
+replace unmet_sad = unmet_sad5 if unmet_sad4 ==. & r5dresid ==6
+replace unmet_sad = unmet_sad6 if unmet_sad5 ==. & r6dresid ==6
+replace unmet_sad = unmet_sad7 if unmet_sad6 ==. & r7dresid ==6
+replace unmet_sad = unmet_sad8 if unmet_sad7 ==. & r8dresid ==6
+
+
+gen unmet_relig = unmet_relig2
+replace unmet_relig = unmet_relig3 if unmet_relig2 ==. & r3dresid ==6
+replace unmet_relig = unmet_relig4 if unmet_relig3 ==. & r4dresid ==6
+replace unmet_relig = unmet_relig5 if unmet_relig4 ==. & r5dresid ==6
+replace unmet_relig = unmet_relig6 if unmet_relig5 ==. & r6dresid ==6
+replace unmet_relig = unmet_relig7 if unmet_relig6 ==. & r7dresid ==6
+replace unmet_relig = unmet_relig8 if unmet_relig7 ==. & r8dresid ==6
+
+
+gen recode_had_bre = had_bre2
+replace recode_had_bre = had_bre3 if had_bre2==-1 
+replace recode_had_bre = had_bre4 if had_bre3==-1 
+replace recode_had_bre = had_bre5 if had_bre4==-1 
+replace recode_had_bre = had_bre6 if had_bre5==-1 
+replace recode_had_bre = had_bre7 if had_bre6==-1 
+replace recode_had_bre = had_bre8 if had_bre7==-1 
+
+recode recode_had_bre (-8 =.) (-7=.) (-1=.) 
+
+**Generate variable "recode_had_sad" for combined waves if pt had feelings of anxiety or sadness
+**in last month of life, 1=yes
+
+gen recode_had_sad = had_sad2
+replace recode_had_sad = had_sad3 if had_sad2==-1 
+replace recode_had_sad = had_sad4 if had_sad3==-1 
+replace recode_had_sad = had_sad5 if had_sad4==-1 
+replace recode_had_sad = had_sad6 if had_sad5==-1 
+replace recode_had_sad = had_sad7 if had_sad6==-1 
+replace recode_had_sad = had_sad8 if had_sad7==-1 
+
+recode recode_had_sad (-8 =.) (-7=.) (-1=.) 
+
+
+gen di_recode_always_respect = .  
+replace di_recode_always_respect = 1 if recode_always_respect >=2 & recode_always_respect <=5
+replace di_recode_always_respect = 0 if recode_always_respect ==1
+
+**Generate variable di_recode_informed for not kept informed of condition (all responses other 
+**than "always")
+
+gen di_recode_informed = .  
+replace di_recode_informed = 1 if recode_informed >=2 & recode_informed <=5
+replace di_recode_informed  = 0 if recode_informed ==1
+
+
+gen age_cat1 =0 
+replace age_cat1 = deathage_cat==1
+gen age_cat2 =0 
+replace age_cat2 = deathage_cat==2
+gen age_cat3 =0 
+replace age_cat3 = deathage_cat==3
+gen age_cat4 =0 
+replace age_cat4 = deathage_cat==4
+gen age_cat5 =0 
+replace age_cat5 = deathage_cat==5
+gen age_85 = 0
+replace age_85 =1  if deathage_cat >=6
+ 
+*************************************
+
+
+gen resp_sex = is2prxygendr if r2dresid==6  
+replace resp_sex = is3prxygendr if r3dresid==6  
+replace resp_sex = is4prxygendr if r4dresid==6  
+replace resp_sex = is5prxygendr if r5dresid==6 
+replace resp_sex = is6prxygendr if r6dresid==6  
+replace resp_sex = is7prxygendr if r7dresid==6  
+replace resp_sex = is8prxygendr if r8dresid==6  
+recode resp_sex (-1=.)
+
+ 
+
+gen pweight = pweight2 
+replace pweight = pweight3 if r3dresid==6
+replace pweight = pweight4 if r4dresid==6 
+replace pweight = pweight5 if r5dresid==6 
+replace pweight = pweight6 if r6dresid==6
+replace pweight = pweight7 if r7dresid==6
+replace pweight = pweight8 if r8dresid==6
+
+
+gen strata = strata2 
+replace strata = strata3 if r3dresid==6
+replace strata = strata4 if r4dresid==6
+replace strata = strata5 if r5dresid==6
+replace strata = strata6 if r6dresid==6
+replace strata = strata7 if r7dresid==6
+replace strata = strata8 if r8dresid==6
+
+gen sunit = sunit2 
+replace sunit= sunit3 if r3dresid==6
+replace sunit= sunit4 if r4dresid==6
+replace sunit= sunit5 if r5dresid==6
+replace sunit= sunit6 if r6dresid==6
+replace sunit= sunit7 if r7dresid==6
+replace sunit= sunit8 if r8dresid==6
+
+
+gen inanal = 0 
+replace inanal = 1 if family_friend_resp ==1 & r2dresid==6
+replace inanal = 1 if family_friend_resp3 ==1 & r3dresid==6
+replace inanal = 1 if family_friend_resp4 ==1 & r4dresid==6
+replace inanal = 1 if family_friend_resp5 ==1 & r5dresid==6
+replace inanal = 1 if family_friend_resp6 ==1 & r6dresid==6
+replace inanal = 1 if family_friend_resp7 ==1 & r7dresid==6
+replace inanal = 1 if family_friend_resp8 ==1 & r8dresid==6
+
+
+svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
+
+****
+
+gen hosp_last_month = . 
+replace hosp_last_month = 1 if pd3hospcelml ==1 |pd4hospcelml ==1 |pd5hospcelml ==1 |pd6hospcelml ==1 |pd7hospcelml ==1 |pd8hospcelml ==1
+replace hosp_last_month = 0 if pd3hospcelml ==2 |pd4hospcelml ==2 |pd5hospcelml ==2 |pd6hospcelml ==2 |pd7hospcelml ==2 |pd8hospcelml ==2
+
+
+
+** create disease categories 
+
+
+gen mi_all = 0 
+replace mi_all = 1 if  mi_1==1 & family_friend_resp ==1 & r2dresid==6
+replace mi_all = 1 if  mi_2==1 & family_friend_resp3 ==1 & r3dresid==6
+replace mi_all = 1 if  mi_3==1 & family_friend_resp4 ==1 & r4dresid==6
+replace mi_all = 1 if  mi_4==1 & family_friend_resp5 ==1 & r5dresid==6
+replace mi_all = 1 if  mi_5==1 & family_friend_resp6 ==1 & r6dresid==6
+replace mi_all = 1 if  mi_6==1 & family_friend_resp7 ==1 & r7dresid==6
+replace mi_all = 1 if  mi_7==1 & family_friend_resp8 ==1 & r8dresid==6
+
+
+gen dm_all = 0 
+replace dm_all = 1 if  dm_1==1 & family_friend_resp ==1 & r2dresid==6
+replace dm_all = 1 if  dm_2==1 & family_friend_resp3 ==1 & r3dresid==6
+replace dm_all = 1 if  dm_3==1 & family_friend_resp4 ==1 & r4dresid==6
+replace dm_all = 1 if  dm_4==1 & family_friend_resp5 ==1 & r5dresid==6
+replace dm_all = 1 if  dm_5==1 & family_friend_resp6 ==1 & r6dresid==6
+replace dm_all = 1 if  dm_6==1 & family_friend_resp7 ==1 & r7dresid==6
+replace dm_all = 1 if  dm_7==1 & family_friend_resp8 ==1 & r8dresid==6
+
+
+gen lung_all = 0 
+replace lung_all = 1 if  lung_1==1 & family_friend_resp ==1 & r2dresid==6
+replace lung_all = 1 if  lung_2==1 & family_friend_resp3 ==1 & r3dresid==6
+replace lung_all = 1 if  lung_3==1 & family_friend_resp4 ==1 & r4dresid==6
+replace lung_all = 1 if  lung_4==1 & family_friend_resp5 ==1 & r5dresid==6
+replace lung_all = 1 if  lung_5==1 & family_friend_resp6 ==1 & r6dresid==6
+replace lung_all = 1 if  lung_6==1 & family_friend_resp7 ==1 & r7dresid==6
+replace lung_all = 1 if  lung_7==1 & family_friend_resp8 ==1 & r8dresid==6
+
+
+gen cva_all = 0 
+replace cva_all = 1 if  cva_1==1 & family_friend_resp ==1 & r2dresid==6
+replace cva_all = 1 if  cva_2==1 & family_friend_resp3 ==1 & r3dresid==6
+replace cva_all = 1 if  cva_3==1 & family_friend_resp4 ==1 & r4dresid==6
+replace cva_all = 1 if  cva_4==1 & family_friend_resp5 ==1 & r5dresid==6
+replace cva_all = 1 if  cva_5==1 & family_friend_resp6 ==1 & r6dresid==6
+replace cva_all = 1 if  cva_6==1 & family_friend_resp7 ==1 & r7dresid==6
+replace cva_all = 1 if  cva_7==1 & family_friend_resp8 ==1 & r8dresid==6
+
+
+gen dementia_all = 0 
+replace dementia_all = 1 if  dementia_1==1 & family_friend_resp ==1 & r2dresid==6
+replace dementia_all = 1 if  dementia_2==1 & family_friend_resp3 ==1 & r3dresid==6
+replace dementia_all = 1 if  dementia_3==1 & family_friend_resp4 ==1 & r4dresid==6
+replace dementia_all = 1 if  dementia_4==1 & family_friend_resp5 ==1 & r5dresid==6
+replace dementia_all = 1 if  dementia_5==1 & family_friend_resp6 ==1 & r6dresid==6
+replace dementia_all = 1 if  dementia_6==1 & family_friend_resp7 ==1 & r7dresid==6
+replace dementia_all = 1 if  dementia_7==1 & family_friend_resp8 ==1 & r8dresid==6
+
+
+gen cancer_all = 0 
+replace cancer_all = 1 if  cancer_1==1 & family_friend_resp ==1 & r2dresid==6
+replace cancer_all = 1 if  cancer_2==1 & family_friend_resp3 ==1 & r3dresid==6
+replace cancer_all = 1 if  cancer_3==1 & family_friend_resp4 ==1 & r4dresid==6
+replace cancer_all = 1 if  cancer_4==1 & family_friend_resp5 ==1 & r5dresid==6
+replace cancer_all = 1 if  cancer_5==1 & family_friend_resp6 ==1 & r6dresid==6
+replace cancer_all = 1 if  cancer_6==1 & family_friend_resp7 ==1 & r7dresid==6
+replace cancer_all = 1 if  cancer_7==1 & family_friend_resp8 ==1 & r8dresid==6
+
+
+
+gen site_of_death_hospice = site_of_death_w2w8
+replace site_of_death_hospice = 7 if site_of_death_w2w8 ==1 & hosp_last_month ==1
+replace site_of_death_hospice = 8 if site_of_death_w2w8 ==5 & hosp_last_month ==1
+
+**Generate variable "excellent" if overall care in last month of life rated excellent. 1=yes, 0 if otherwise
+
+gen excellent = 0 if recode_overall_rate !=. 
+replace excellent =1 if recode_overall_rate ==1 
+
+
+
+
+H="Part2-- MA added in"
+tempfile nhats
+save "`nhats'"
+
+/*
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", clear
+
+merge 1:m bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hs_09_17.dta", gen(hospm) keep(master match) keepusing(ptnt_dschrg_stus_cd )
+gen ind_hospice=hospm==3
+by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"20","40","41","42"), 0,1))
+
+drop ptnt_dschrg_stus_cd
+
+duplicates drop 
+
+merge 1:1 spid using "`nhats'", nogen 
+merge 1:1 spid using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\death_date.dta", nogen
+
+*/
+
+
+///////////////////////
+
+
+//MBSF GETTING MA first part for methods 1 and 2. 
+
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
+sort bene_id year 
+keep if death_date!=.
+keep bene_id death_date
+tempfile death
+save "`death'"
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hs_09_17.dta", clear
+
+sort bene_id clm_hospc_start_dt_id
+
+gen hospice_month= month(clm_hospc_start_dt_id)
+gen hospice_year= year(clm_hospc_start_dt_id)
+
+by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"20","40","41","42"), 0,1))
+
+sort bene_id clm_hospc_start_dt_id
+
+merge m:1 bene_id using "`death'", keep(master match) nogen
+
+gen hs_12_pre=0
+by bene_id, sort: replace hs_12_pre=1 if (death_date-clm_hospc_start_dt_id<=366) & (death_date-clm_hospc_start_dt_id>=0)
+
+by bene_id, sort: egen ind_hs_12_pre=max(hs_12_pre)
+
+by bene_id: keep if _n==1
+
+tempfile hs
+save "`hs'"
+
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
+
+gen death_month=month(death_date)
+
+local month jan feb mar apr may jun jul aug sep oct nov dec
+local a=1
+
+gen ma1=0
+
+di `a'
+foreach x in `month'{
+gen `x'_c=substr(hmoind12,`a',1)
+replace `x'_c="1" if `x'_c!="0"
+destring `x'_c, replace
+replace ma1=1 if death_month==`a' & `x'_c==1
+local a=`a'+1
+di `a'
+}
+sort bene_id
+tempfile ma1 
+save "`ma1'"
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
+
+replace year=year+1
+
+local month jan feb mar apr may jun jul aug sep oct nov dec
+local a=1
+
+
+foreach x in `month'{
+gen `x'_c_1=substr(hmoind12,`a',1)
+replace `x'_c_1="1" if `x'_c_1!="0"
+destring `x'_c_1, replace
+local a=`a'+1
+}
+
+
+keep *_c_1 year bene_id
+
+tempfile ma2 
+save "`ma2'"
+
+
+use "`ma1'", clear
+
+merge 1:1 bene_id year using "`ma2'", keep(match) nogen
+
+
+gen ma2=0 
+
+
+/*
+consecutive MA status--don't want
+*/
+
+replace ma2=1 if death_month==1 & (jan_c==1 | jan_c_1==1 | feb_c_1==1 | mar_c_1==1 | apr_c_1==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==2 & (feb_c==1 | jan_c==1 | feb_c_1==1 | mar_c_1==1 | apr_c_1==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==3 & (mar_c==1 | jan_c==1 | feb_c==1 | mar_c_1==1 | apr_c_1==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==4 & (apr_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==5 & (may_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==6 & (jun_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==7 & (jul_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==8 & (aug_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==9 & (sep_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==10 & (oct_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==11 & (nov_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c==1 | oct_c==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==12 & (dec_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c==1 | oct_c==1 | nov_c==1 | dec_c_1==1)
+
+sort bene_id year
+
+//by bene_id: keep if _n==_N
+
+
+merge m:1 bene_id using "`hs'", gen(hospm) keep(master match)
+
+gen ind_hospice=hospm==3
+
+gen ma_month_bef_hs=0
+local a=1
+local month dec_c_1 jan_c feb_c mar_c apr_c may_c jun_c jul_c aug_c sep_c oct_c nov_c 
+foreach x in `month'{
+replace ma_month_bef_hs=1 if hospice_month==`a' & `x'==1
+local a=`a'+1
+}
+
+replace ma1=1 if ind_died_on_hospice==1 & year==hospice_year & ma_month_bef_hs==1
+
+replace ma2=1 if ind_hs_12_pre==1 & year==hospice_year & ma_month_bef_hs==1
+
+sort bene_id year
+by bene_id: keep if _n==_N
+
+merge 1:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keep(match) nogen
+
+keep bene_id spid ma1 ma2 ind_hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year
+merge 1:m spid using "`nhats'", nogen
+
+label var ma1 "MA approach 1"
+label var ma2 "MA approach 2 (12 month)"
+label var ind_hs_12_pre "Hospice claim 12-months pre death"
+label var ind_died_on_hospice "Died in Hospice"
+label var ma_month_bef_hs "Had MA month before Hospice"
+
+save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
