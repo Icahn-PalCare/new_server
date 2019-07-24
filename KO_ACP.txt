@@ -2437,7 +2437,7 @@ Created by: Mohammed
 Date Created: 03/25/2019
 
 Updated by: MH
-Date Updated: 04/02/2019
+Date Updated: 07/24/2019
 
 Description: Multinomial Logit model with base being no ACP. 3 different model 
 specifications created. Social variable changed.
@@ -2463,56 +2463,63 @@ Using a Multinomail Logisitic Regression with the base being Formal ACP.
 
 use "${final}/nhats_acp.dta", clear
 
-local vars age female education4 lninc non_white ownhome livesalone_ind ///
-married noone_talk1 ind_kids srh_fp
+local vars livesalone_ind ind_kids maritalstat1 maritalstat4 maritalstat5 maritalstat6 soc_iso
+
+foreach x in `vars'{
+tab `x', m
+}
 
 mlogit cat `vars', rrr b(2) 
 
 ///getting sample sizes for each group
 forvalues x=0/3{
-sum `vars' if cat==`x' & cat!=. & noone_talk1!=. & lninc!=. & education4!=. & ///
-ownhome!=. & srh_fp!=. & ind_kids!=.
+sum `vars' if cat==`x' & cat!=. & soc_iso!=. & livesalone_ind!=. & ind_kids!=. & ///
+maritalstat1!=. & maritalstat4!=. & maritalstat5!=. & maritalstat6!=.
 local `x'=`r(N)'
 }
 
-outreg using "${output}/mlogit_nhats_3model", varlabels stats(e_b e_ci p) ctitles(" " " " "Relative Risk Ratios") ///
-title("NHATS Multinomial Logistic Model") note("Base is Formal received" \ "0-No ACP(`0') vs Base(`2')" \ ///
-"1-Informal(`1') vs Base(`2')" \ "3-Two-Pronged(`3') vs Base(`2')") replace 
+outreg using "${output}/mlogit_nhats_3model", varlabels stats(e_b e_ci p) ctitles("" "Two-Pronged (N=`3')" "Discussions(N=`1') " "No ACP (N=`0')" \ "" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" \"" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)") ///
+title("NHATS Multinomial Logistic Model") /*note("Base is Formal received" \ "0-No ACP(`0') vs Base(`2')" \ ///
+"1-Informal(`1') vs Base(`2')" \ "3-Two-Pronged(`3') vs Base(`2')")*/ starlevels(10 5 1) replace  eq_merge
 
 
-local vars age female education4 lninc non_white ownhome livesalone_ind ///
-married noone_talk1 ind_kids srh_fp sr_hosp_ind
+local vars1 age female education4 lninc non_white ownhome 
+foreach x in `vars1'{
+tab `x', m
+}
 
-mlogit cat `vars', rrr b(2) 
+mlogit cat `vars' `vars1', rrr b(2) 
 
 ///getting sample sizes for each group
 forvalues x=0/3{
-sum `vars' if cat==`x' & cat!=. & noone_talk1!=. & lninc!=. & education4!=. & ///
-ownhome!=. & srh_fp!=. & sr_hosp_ind!=. & ind_kids!=.
+sum `vars' if cat==`x' & cat!=. & soc_iso!=. & livesalone_ind!=. & ind_kids!=. & ///
+maritalstat1!=. & maritalstat4!=. & maritalstat5!=. & maritalstat6!=. & age!=. & female!=. & education4!=. & lninc!=. & non_white!=. & ownhome!=.
 local `x'=`r(N)'
 }
 
-outreg using "${output}/mlogit_nhats_3model", varlabels stats(e_b e_ci p) ctitles(" " " " "Relative Risk Ratios") ///
-title("NHATS Multinomial Logistic Model") note("Base is Formal received" \ "0-No ACP(`0') vs Base(`2')" \ ///
-"1-Informal(`1') vs Base(`2')" \ "3-Two-Pronged(`3') vs Base(`2')") addtable replace 
+outreg using "${output}/mlogit_nhats_3model", varlabels stats(e_b e_ci p) ctitles("" "Two-Pronged (N=`3')" "Discussions(N=`1') " "No ACP (N=`0')" \ "" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" \"" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)") ///
+title("NHATS Multinomial Logistic Model") /*note("Base is Formal received" \ "0-No ACP(`0') vs Base(`2')" \ ///
+"1-Informal(`1') vs Base(`2')" \ "3-Two-Pronged(`3') vs Base(`2')")*/ starlevels(10 5 1) replace merge eq_merge
 
 
+local vars2 srh_fp sr_hosp_ind adl_impair prob_dem sr_hosp_ind sr_phq2_depressed 
 
-local vars age female education4 lninc non_white ownhome livesalone_ind ///
-married noone_talk1 ind_kids srh_fp sr_hosp_ind sr_phq2_depressed sr_gad2_anxiety
+foreach x in `vars2'{
+tab `x', m
+}
 
-mlogit cat `vars', rrr b(2) 
+mlogit cat `vars' `vars1' `vars2', rrr b(2) 
 
 ///getting sample sizes for each group
 forvalues x=0/3{
-sum `vars' if cat==`x' & cat!=. & noone_talk1!=. & lninc!=. & education4!=. & ///
-ownhome!=. & srh_fp!=. & sr_hosp_ind!=. & sr_phq2_depressed!=. & sr_gad2_anxiety!=. & ind_kids!=.
+sum `vars' if cat==`x' & cat!=. & soc_iso!=. & livesalone_ind!=. & ind_kids!=. & ///
+maritalstat1!=. & maritalstat4!=. & maritalstat5!=. & maritalstat6!=. & age!=. & female!=. & education4!=. & lninc!=. & non_white!=. & ownhome!=. & srh_fp!=. & sr_hosp_ind!=. & adl_impair!=. & prob_dem!=. & sr_hosp_ind!=. & sr_phq2_depressed!=.
 local `x'=`r(N)'
 }
 
-outreg using "${output}/mlogit_nhats_3model", varlabels stats(e_b e_ci p) ctitles(" " " " "Relative Risk Ratios") ///
-title("NHATS Multinomial Logistic Model") note("Base is Formal received" \ "0-No ACP(`0') vs Base(`2')" \ ///
-"1-Informal(`1') vs Base(`2')" \ "3-Two-Pronged(`3') vs Base(`2')") addtable replace 
+outreg using "${output}/mlogit_nhats_3model", varlabels stats(e_b e_ci p) ctitles("" "Two-Pronged (N=`3')" "Discussions(N=`1') " "No ACP (N=`0')" \ "" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" \"" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)") ///
+title("NHATS Multinomial Logistic Model") /*note("Base is Formal received" \ "0-No ACP(`0') vs Base(`2')" \ ///
+"1-Informal(`1') vs Base(`2')" \ "3-Two-Pronged(`3') vs Base(`2')")*/ starlevels(10 5 1) replace merge eq_merge
 
 capture log close
 
@@ -2523,7 +2530,7 @@ Created by: Mohammed
 Date Created: 04/22/2019
 
 Updated by: MH
-Date Updated: 05/31/2019
+Date Updated: 07/24/2019
 
 Description: Multinomial Logit model with base being no ACP. 3 different model 
 specifications created. Social varaible changed.
@@ -2549,8 +2556,9 @@ HRS ACP section 3 different model sepcification.
 */
 
 
-local vars age female educ4 lnassets non_white h12wohous live_alone married talk ///
-living_kids_ind srh_pf 
+local vars live_alone living_kids_ind married marital_div marital_wid marital_nev noone_talk
+
+
 
 foreach x in `vars'{
 tab `x', m
@@ -2560,48 +2568,40 @@ mlogit cat `vars', b(2) rr
 
 ///getting sample sizes for each group
 forvalues x=0/3{
-sum `vars' if cat==`x' & cat!=. & female!=. & lnassets!=. & non_white!=. & srh_pf!=. & h12wohous!=. ///
-& live_alone!=. & talk!=. & living_kids_ind!=.
+sum `vars' if cat==`x' & cat!=. & live_alone!=. & living_kids_ind!=. & married!=. & marital_div!=. & marital_wid!=. & marital_nev!=. & noone_talk!=.
 local `x'=`r(N)'
 }
 
-outreg using "${output}\mlogit_hrs_3model", varlabels stats(e_b e_ci p) ctitles(" " " " "Relative Risk Ratios") ///
-title("HRS Multinomial Logistic Model") note("Base is Formal received" \ "0-No ACP (`0') vs Base (`2')" \ ///
-"1-Informal (`1') vs Base (`2')" \ "3-Two-Pronged (`3') vs Base (`2')" ) replace 
+outreg using "${output}\mlogit_hrs_3model", varlabels stats(e_b e_ci p) ctitles("" "Two-Pronged (N=`3')" "Discussions(N=`1') " "No ACP (N=`0')" \ "" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" \"" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)") ///
+title("HRS Multinomial Logistic Model") replace eq_merge starlevels(10 5 1)
 
 
-local vars age female educ4 lnassets non_white h12wohous live_alone married talk ///
-living_kids_ind srh_pf hosp_last_2yr
+local vars1 age female educ4 lnassets non_white h12wohous 
 
-mlogit cat `vars', b(2) rr
+mlogit cat `vars' `vars1', b(2) rr
 
 ///getting sample sizes for each group
 forvalues x=0/3{
-sum `vars' if cat==`x' & lnassets!=. & non_white!=. & srh_pf!=. & hosp_last_2yr!=. & h12wohous!=. ///
-& live_alone!=. & talk!=. & living_kids_ind!=.
+sum `vars' if cat==`x' & live_alone!=. & living_kids_ind!=. & married!=. & marital_div!=. & marital_wid!=. & marital_nev!=. & noone_talk!=. & age!=. & female!=. & educ4!=. & lnassets!=. & non_white!=. & h12wohous!=. 
 local `x'=`r(N)'
 }
 
-outreg using "${output}\mlogit_hrs_3model", varlabels stats(e_b e_ci p) ctitles(" " " " "Relative Risk Ratios") ///
-title("HRS Multinomial Logistic Model") note("Base is Formal received" \ "0-No ACP (`0') vs Base (`2')" \ ///
-"1-Informal (`1') vs Base (`2')" \ "3-Two-Pronged (`3') vs Base (`2')" ) addtable replace 
+outreg using "${output}\mlogit_hrs_3model", varlabels stats(e_b e_ci p) ctitles("" "Two-Pronged (N=`3')" "Discussions(N=`1') " "No ACP (N=`0')" \ "" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" \"" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)") ///
+title("HRS Multinomial Logistic Model") merge eq_merge replace starlevels(10 5 1)
 
 
-local vars age female educ4 lnassets non_white h12wohous live_alone married talk ///
-living_kids_ind srh_pf hosp_last_2yr cesd_tot_ge3_n consc neuro 
+local vars2 srh_pf adl_imp dem hosp_last_2yr cesd_tot_ge3_n 
 
-mlogit cat `vars', b(2) rr
+mlogit cat `vars' `vars1' `vars2', b(2) rr
 
 ///getting sample sizes for each group
 forvalues x=0/3{
-sum `vars' if cat==`x' & lnassets!=. & non_white!=. & srh_pf!=. & hosp_last_2yr!=. & h12wohous!=. ///
-& live_alone!=. & talk!=. & living_kids_ind!=.
+sum `vars' if cat==`x' & live_alone!=. & living_kids_ind!=. & married!=. & marital_div!=. & marital_wid!=. & marital_nev!=. & noone_talk!=. & age!=. & female!=. & educ4!=. & lnassets!=. & non_white!=. & h12wohous!=. & srh_pf!=. & adl_imp!=. & dem!=. & hosp_last_2yr!=. & cesd_tot_ge3_n!=. 
 local `x'=`r(N)'
 }
 
-outreg using "${output}\mlogit_hrs_3model", varlabels stats(e_b e_ci p) ctitles(" " " " "Relative Risk Ratios") ///
-title("HRS Multinomial Logistic Model") note("Base is Formal received" \ "0-No ACP (`0') vs Base (`2')" \ ///
-"1-Informal (`1') vs Base (`2')" \ "3-Two-Pronged (`3') vs Base (`2')" ) addtable replace 
+outreg using "${output}\mlogit_hrs_3model", varlabels stats(e_b e_ci p) ctitles("" "Two-Pronged (N=`3')" "Discussions(N=`1') " "No ACP (N=`0')" \ "" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" \"" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)") ///
+title("HRS Multinomial Logistic Model") merge eq_merge replace starlevels(10 5 1) 
 
 
 capture log close
@@ -2615,6 +2615,9 @@ H="Changelog"
 
 
 Updates:
+07/24/2019 MH
+------------
+Created new tables and changed model specification. Changed How HRS live_alone defined. 
 
 05/31/2019 MH
 ------------

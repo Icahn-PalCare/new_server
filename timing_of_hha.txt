@@ -252,6 +252,20 @@ reshape wide admit_date_snf disch_date_snf, i(bene_id year) j(obs)
 tempfile snf
 save `snf'
 
+/* Pull dates from hospice */
+
+use "D:\NHATS\Shared\base_data\CMS_claims\Stata\hs_09_17.dta", clear 
+keep bene_id admit_date disch_date
+duplicates drop
+gen year = year(disch_date)
+gsort bene_id year disch_date 
+by bene_id year: gen obs = _n
+rename disch_date disch_date_hs
+rename admit_date admit_date_hs
+reshape wide admit_date_hs disch_date_hs, i(bene_id year) j(obs)
+tempfile hs
+save `hs'
+
 /*** Merge HH dataset with SNF, IP and rev_cntr dates ****/
 
 use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hh_09_17.dta" , clear
@@ -259,6 +273,7 @@ merge 1:1 bene_id clm_id using "`dates'", keep(master match) nogen
 gen year = year(admit_date)
 merge m:1 bene_id year using "`ip'", keep(master match) nogen
 merge m:1 bene_id year using "`snf'", keep(master match) nogen
+merge m:1 bene_id year using "`hs'", keep(master match) nogen
 
 gsort bene_id admit_date
 by bene_id: gen next_admit = admit_date[_n+1]
@@ -315,16 +330,49 @@ label var hosp_mid_sq "# of hospitalization mid-sequence"
 
 gen post_int = 0
 label var post_int "Post-institution initiated"
+
+gen snf_in_60 = 0
+label var snf_in_60 "SNF admit within 60 days of sequence start date"
+
+gen snf_in_12m = 0
+label var snf_in_12m "SNF admit within 12m of sequence start date"
+
+gen ip_in_60 = 0
+gen ip_in_12m = 0
+gen hs_in_60 = 0
+gen hs_in_12m = 0
+label var ip_in_60 "IP admit within 60 days of sequence start date"
+label var ip_in_12m "IP admit within 12m of sequence start date"
+label var hs_in_60 "Hospice admit within 60 days of sequence start date"
+label var hs_in_12m "Hospice admit within 12m of sequence start date"
+
 forvalues i = 1/14 {
 
 replace post_int = 1 if (admit_date - disch_date_ip`i')<=14 & (admit_date - disch_date_ip`i')>=0 & new_sq==1
 replace hosp_mid_sq = hosp_mid_sq + 1 if (disch_date < admit_date_ip`i') &  (admit_date_ip`i'< next_admit) & subsq_epi==1
+
+replace ip_in_60 = 1 if (admit_date_ip`i' - admit_date)<=60 & (admit_date_ip`i' - admit_date)>=0 & new_sq==1
+
+replace ip_in_12m = 1 if (admit_date_ip`i' - admit_date)<=365 & (admit_date_ip`i' - admit_date)>=0 & new_sq==1
+
 }
 
 forvalues i = 1/17 {
 
 replace post_int = 1 if (admit_date - disch_date_snf`i')<=14 & (admit_date - disch_date_snf`i')>=0 & new_sq==1
+
+replace snf_in_60 = 1 if (admit_date_snf`i'- admit_date)<=60 &  (admit_date_snf`i'- admit_date)>=0 & new_sq==1
+
+replace snf_in_12m = 1 if (admit_date_snf`i'- admit_date)<=365 &  (admit_date_snf`i'- admit_date)>=0 & new_sq==1
 }
+
+forvalues i = 1/50 {
+
+replace hs_in_60 = 1 if (admit_date_hs`i'- admit_date)<=60 &  (admit_date_hs`i'- admit_date)>=0 & new_sq==1
+
+replace hs_in_12m = 1 if (admit_date_hs`i'- admit_date)<=365 &  (admit_date_hs`i'- admit_date)>=0 & new_sq==1
+}
+
 
 forvalues u = 10(10)60 {
 local v = `u' - 10
@@ -338,7 +386,7 @@ replace numvis_`u' = numvis_`u' + 1 if (rev_cntr_dt`i' - admit_date)<`u' & (rev_
 }
 }
 
-keep bene_id admit_date disch_date num_visits year next_admit subsq_epi obs hh_seq sub_hh_seq new_sq len_sq hosp_mid_sq post_int sq_id numvis_10 numvis_20 numvis_30 numvis_40 numvis_50 numvis_60
+keep bene_id admit_date disch_date num_visits year next_admit subsq_epi obs hh_seq sub_hh_seq new_sq len_sq hosp_mid_sq post_int sq_id numvis_10 numvis_20 numvis_30 numvis_40 numvis_50 numvis_60 snf_in_12m snf_in_60 ip_in_12m ip_in_60 hs_in_12m hs_in_60
 
 *rename year ivw_year 
 gen ivw_year = year - 1
@@ -711,7 +759,7 @@ graph hbar vis_0_2 vis_3_6 vis_7 [pw=anfinwgt], over(dem_cohort) blabel(bar) tit
 graph export "$output\hbar_3160_weighted_`c(current_date)'.png", replace
 
 H="Table 1 + Logits"
-<I></I>use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", clear
+use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta", clear
 
 gen all = 1
 
@@ -733,7 +781,7 @@ gen num_seq_3 = 0
 replace num_seq_3 = 1 if num_seq>3
 label var num_seq_3 "Percentage of people with 4+ Sequences"
 
-local ivars1 white hisp black female educ_hs_ind medicaid married metro_ind adl_independent adl_dep_2 adl_dep_3 homebound srh_fp ind_hosp_sq otherinformal_help_ind northeast midwest south west chronic_con_0 chronic_con_1 chronic_con_2  livealone died_in_12m
+local ivars1 white hisp black female educ_hs_ind medicaid married metro_ind adl_independent adl_dep_2 adl_dep_3 homebound srh_fp ind_hosp_sq otherinformal_help_ind northeast midwest south west chronic_con_0 chronic_con_1 chronic_con_2 livealone died_in_12m died_in_60 snf_in_12m snf_in_60 ip_in_12m ip_in_60 hs_in_12m hs_in_60 
 local cvars1 age hhm aveincome days_last_ivw sr_numconditions1 
 local ivars2 post_int any_vis_60 len_sq_1 len_sq_2 len_sq_3 len_sq_4 num_seq_1 num_seq_2 num_seq_3
 local cvars2 len_sq num_seq
@@ -917,7 +965,6 @@ ctitles("" "Std. Coefficient" "95% CI" "P-value") ///
 note("Standardized Coefficients, <1 indicates less likely to be initatied post institution") ///
 starlevels(10 5 1) summstat(N) landscape replace
 
-
 outreg, clear
 logit any_vis_60 age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort post_int died_in_12m
 
@@ -955,8 +1002,7 @@ label var num_seq_3 "Percentage of people with 4+ Sequences"
 
 svyset sq_id [pw=anfinwgt], strata(varstrat)
 
-
-local ivars1 white hisp black female educ_hs_ind medicaid married metro_ind adl_independent adl_dep_2 adl_dep_3 homebound srh_fp ind_hosp_sq otherinformal_help_ind northeast midwest south west chronic_con_0 chronic_con_1 chronic_con_2  livealone died_in_12m
+local ivars1 white hisp black female educ_hs_ind medicaid married metro_ind adl_independent adl_dep_2 adl_dep_3 homebound srh_fp ind_hosp_sq otherinformal_help_ind northeast midwest south west chronic_con_0 chronic_con_1 chronic_con_2 livealone died_in_12m died_in_60 snf_in_12m snf_in_60 ip_in_12m ip_in_60 hs_in_12m hs_in_60 
 local cvars1 age hhm aveincome days_last_ivw sr_numconditions1 
 local ivars2 post_int any_vis_60 len_sq_1 len_sq_2 len_sq_3 len_sq_4 num_seq_1 num_seq_2 num_seq_3
 local cvars2 len_sq num_seq
