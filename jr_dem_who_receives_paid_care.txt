@@ -1,0 +1,42 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Outline"
+/* 
+********************HEADING******************** 
+
+
+Primary Investigator: Jenny Reckrey
+Funding Source: GEMSSTAR
+
+Created by: EBL
+
+Primary Analyst: EBL
+Secondary Analyst: MH
+
+Datasets Used: nhats
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+
+//Clean NHATS 
+global nhats "D:\nhats\shared\base_data\nhats cleaned"
+
+//Intermediate Data Path
+global intpath "D:\nhats\Projects\caregiving\jr_dem_who_receives_paid_care\data\int_data"
+
+// Final Data Path
+global datapath "D:\NHATS\Projects\caregiving\jr_dem_who_receives_paid_care\data\final_data"
+
+//Log files path
+global logpath "D:\NHATS\Projects\caregiving\jr_dem_who_receives_paid_care\output\logs"
+
+//Log files path
+global outpath "D:\NHATS\Projects\caregiving\jr_dem_who_receives_paid_care\output\in_progress"
+
+H="Sample derivation"
+//Sample derivation
+
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", clear
