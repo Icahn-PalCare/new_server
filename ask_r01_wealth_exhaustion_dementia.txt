@@ -18054,23 +18054,588 @@ restore
 }
 
 
-H="sample of informal care"
+H="7 year table with p-values"
+/*note--it takes forever to run through the whole thing, but if you don't need
+everything done it's possible to run chunks by selecting imp, commenting out 
+graphs you don't need, and/or dropping anything not needed from the varlist
+*/
+
+/*loop through each type of NH night imputation*/
+
+set trace off
+
+*foreach imp in a b c d {
+use "E:\data\serious_ill\int_data\core_ids_1yr_criteria_5.dta", clear
+sort id core_year
+by id: keep if _n==_N
+keep id wage*
+duplicates drop
+tempfile t1
+save `t1'
 
 use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+merge m:1 id using `t1', nogen keep(match master)
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\graphs"
 
+keep if nflag==0
+keep if ffs_84==1
+keep if final_7yr==1
+
+forvalues i=1/7 {
+	gen wi_mc`i'=tot_paid_by_mc_y`i'/wage_index_2012
+}
+
+keep id tot_paid_by_mc_y* tot_paid_maid_y* oop_y* informal_y* dem_cohort wi_* ///
+imputed_nh_costs_b_y*
+
+rename tot_paid_by_mc_y* mc*
+rename tot_paid_maid_y* mcaid*
+
+foreach x of varlist mcaid* {
+	replace `x'=0 if missing(`x')
+}
+
+rename (oop_y* informal_y* imputed_nh_costs_b_y*) (oop* informal* nh*)
+
+foreach x in mc mcaid oop informal nh wi_mc {
+	forvalues i=1/7 {
+		replace `x'`i'=`x'`i'/1000
+}
+	gen cum`x'7=`x'7
+	forvalues i=6(-1)1 {
+		gen cum`x'`i'=cum`x'`=`i'+1'+`x'`i'
+}
+}
+
+keep id mc* mcaid* oop* informal* cum* dem_cohort nh*
+
+forvalues i=1/7 {
+	egen all`i'=rowtotal(mc`i' mcaid`i' oop`i' informal`i' nh`i')
+	egen cumall`i'=rowtotal(cum*`i')
+	foreach x in mc mcaid oop informal nh all {
+		gen pct`x'`i'=100*`x'`i'/all`i'
+		gen pctcum`x'`i'=100*cum`x'`i'/cumall`i'
+		replace pctcum`x'`i'=100 if cumall`i'==0
+}
+}
+
+foreach y in "" cum pct pctcum {
+	local tablevars`y'
+	foreach x in all oop informal mc mcaid nh {
+		forvalues i=1/7 {
+			local tablevars`y' `tablevars'`y' `y'`x'`i'
+}
+}
+}		
+
+local rn : word count `tablevars' 1
+
+
+
+local title "Annual Expenditures"
+local replace replace
+
+foreach y in "" cum /*pct pctcum*/ {
+	mat tab=J(`rn',5,.)
+	mat stars=J(`rn',5,0)
+	local r=1
+	local c=1	
+	if "`y'"=="cum" local title "Cumulative Expenditures"
+	if "`y'"=="pct" local title "Percent of Total Annual Expenditures" 
+	if "`y'"=="pctcum" local title "Percent of Total Cumulative Expenditures"
+	
+	foreach z in "0,1" 0 1 {
+		foreach x in all oop informal mc mcaid nh {	
+			forvalues i=1/7 {
+				sum `y'`x'`i' if inlist(dem_cohort,`z')
+				mat tab[`r',`c']=r(mean)
+				if "`z'"=="1" {
+					ttest `y'`x'`i', by(dem_cohort)
+					mat tab[`r',`c'+1]=r(p)
+					mat tab[`r',`c'+2]=r(p)/*/(`rn'-1)*/
+					mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+					mat stars[`r',`c'+2]=(r(p)<(.05/(`rn'-1)))+(r(p)<(.01/(`rn'-1)))
+}
+				local r=`r'+1
+}
+}			
+		sum dem_cohort if inlist(dem_cohort,`z')
+		mat tab[`r',`c']=r(N)
+		local c=`c'+1
+		local r=1
+
+}
+
+	mat rownames tab=`tablevars' N
+
+	frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\exp_with_p_value.rtf", statmat(tab) ///
+	title("Total Spending Last 7 Years of Life by Dementia Status:" \"`title'") ///
+	ctitles("" "Full Sample" "Non-dementia" "Dementia" "P-value" "Bonferonni") ///
+	sdec(2,2,2,3) annotate(stars) asymbol(*,**) `replace'
+	local replace addtable varlabels ///
+	note("*,** = P significant at <.05,<.01 without the Bonferonni correction and <`=0.05/(`rn'-1)', <`=0.01/(`rn'-1)' with")
+	
+}
+			
+/*
+reshape long mc mcaid oop informal nh cummc cummcaid cumoop cuminformal cumnh wi_mc, ///
+i(id) j(year_before_death)
+
+replace year=-year+8
+
+label define year 1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1"
+label values year year
+*/
+
+
+H="Graphs split by NH status"
+/*note--it takes forever to run through the whole thing, but if you don't need
+everything done it's possible to run chunks by selecting imp, commenting out 
+graphs you don't need, and/or dropping anything not needed from the varlist
+*/
+
+/*loop through each type of NH night imputation*/
+
+set trace off
+
+foreach imp in b {
+foreach nh in 0 1 {
+
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress"
+
+by id, sort: egen nh_n1=max(cond(nflag==1,nhres,.))
+by id: egen nh_any=max(nhres)
+replace nh_any=1 if nhres_exit==1
+egen nh_hundo=rowtotal(nh_nights_y*)
+replace nh_hundo=nh_hundo>=100 & !missing(nh_hundo)
+
+keep if nflag==0
+keep if ffs_84==1
+keep if final_7yr==1
+
+preserve
+keep if nh_n1==`nh'
+
+keep id tot_paid_by_mc_y* tot_paid_maid_y* oop_y* informal_y* dem_cohort  ///
+imputed_nh_costs_`imp'_y*
+
+rename tot_paid_by_mc_y* mc*
+rename tot_paid_maid_y* mcaid*
+
+foreach x of varlist mcaid* {
+	replace `x'=0 if missing(`x')
+}
+
+rename (oop_y* informal_y* imputed_nh_costs_`imp'_y*) (oop* informal* nh*)
+
+foreach x in mc mcaid oop informal nh  {
+	forvalues i=1/7 {
+		replace `x'`i'=`x'`i'/1000
+}
+	gen cum`x'7=`x'7
+	forvalues i=6(-1)1 {
+		gen cum`x'`i'=cum`x'`=`i'+1'+`x'`i'
+}
+}
+
+keep id mc* mcaid* oop* informal* cum* dem_cohort  nh*
+
+
+reshape long mc mcaid oop informal cummc cummcaid cumoop cuminformal nh cumnh , ///
+i(id) j(year_before_death)
+
+replace year=-year+8
+
+label define year 1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1"
+label values year year
+
+foreach x in "" cum {
+	egen `x'all=rowtotal(`x'mc `x'mcaid `x'oop `x'informal `x'nh)
+}
+
+local se
+foreach x in mc mcaid oop informal all cummc cummcaid cumoop cuminformal cumall ///
+nh cumnh  {
+	local se `se' se_`x'=`x'
+}
+
+collapse (mean) mc mcaid oop informal all cummc cummcaid cumoop cuminformal cumall ///
+nh cumnh  (semean) `se', by(dem_cohort year_before_death)
+
+foreach x in mc mcaid oop informal all cummc cummcaid cumoop cuminformal cumall ///
+nh cumnh  {
+		gen `x'_ul=`x'+1.96*se_`x'
+		gen `x'_ll=`x'-1.96*se_`x'
+}
+
+foreach x in mc mcaid oop informal all nh {
+	rename `x' annu`x'
+}
+
+
+
+
+
+
+graph bar annumcaid annunh annumc annuoop annuinf, over(dem_cohort)  over(year) ///
+stack saving(annu_stack_1_nh`imp'_`nh', replace) percent 
+graph export annu_stack_1_nh`imp'_`nh'.pdf, replace
+
+graph bar  annunh annumcaid annumc annuoop annuinformal if dem_cohort==0, over(year) stack percent ///
+saving(annu_stack_no_dem_`nh', replace)  title("No dementia" "Annual") ///
+legend(label(2 "Medicaid") label(3 "Medicare") label(4 "OOP") label(5 "Informal") ///
+	label(1 "Imputed NH Cost")) //legend(row(1))
+graph bar annunh annumcaid annumc annuoop annuinformal if dem_cohort==1,over(year)  ///
+saving(annu_stack_dem_`nh', replace) stack percent title("Dementia" "Annual") ///
+legend(label(2 "Medicaid") label(3 "Medicare") label(4 "OOP") label(5 "Informal") ///
+	label(1 "Imputed NH Cost")) 
+
+graph bar cumnh cummcaid  cummc cumoop cuminformal if dem_cohort==0,over(year)  ///
+saving(cum_stack_no_dem_`nh', replace) stack percent  title("No dementia" "Cumulative") ///
+legend(label(2 "Medicaid") label(3 "Medicare") label(4 "OOP") label(5 "Informal") ///
+	label(1 "Imputed NH Cost")) 
+graph bar cumnh  cummcaid cummc cumoop cuminformal if dem_cohort==1,over(year)  ///
+saving(cum_stack_dem_`nh', replace) stack percent  title("Dementia" "Cumulative") ///
+legend(label(2 "Medicaid") label(3 "Medicare") label(4 "OOP") label(5 "Informal") ///
+	label(1 "Imputed NH Cost")) 
+
+graph combine annu_stack_no_dem_`nh'.gph annu_stack_dem_`nh'.gph cum_stack_no_dem_`nh'.gph cum_stack_dem_`nh'.gph, ///
+rows(1) xsize(12) ysize(4)  ycommon 
+graph save stacked_percentage_bars_7yrs_`nh'.gph, replace
+graph export stacked_percentage_bars_7yrs_nh`imp'_`nh'.pdf, replace
+
+drop *se_* *ul *ll
+export excel using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress\graphs_data_nh.xls", ///
+firstrow(variables) sheet(`imp'_`nh', replace) 
+restore
+}
+}
+
+
+
+H="Medicaid graphs"
+
+
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\graphs"
+
+use bid_hrs_22 ffs_84 using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+keep if ffs_84==1
+drop if missing(bid)
+duplicates drop
+merge 1:m bid_hrs_22 using "E:\data\CMS_DUA_51675_2014\Merged\Stata\basf_1998_2015.dta", ///
+keep(match) nogen
+keep bid buyin_mo start_dt
+gen year=year(start_dt)
+drop if missing(bid_hrs)
+tempfile mbsf
+save `mbsf'
+
+import excel "E:\data\hrs_restricted_2014\Ref Docs\Medicaid generosity.xlsx", sheet("Sheet1") firstrow case(lower) clear
+rename location stateusps
+tempfile generosity
+save `generosity'
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta" if ffs_84==1, clear
+drop buyin_mo
+sort id nflag
+by id: carryforward bid_hrs_22, replace
+replace year=index_year if nflag==0
+sort id year nflag
+by id year: keep if _n==1
+merge m:1 stateusps using `generosity', gen(gm)
+drop if gm==2
+duplicates report bid_hrs_22 year
+merge 1:1 bid_hrs_22 year using `mbsf', gen(mbsf)
+drop if mbsf==2
+tab mbsf
+tab medicaid
+gen mbsf_medicaid=buyin_mo>=1 if !missing(buyin_mo)
+tab mbsf_medicaid
+tab nflag
+gen t2d=index_date-c_ivw_date
+replace t2d=0 if index_year==year
+sum t2d
+gen y2d=ceil(t2d/365.25)
+tab y2d
+gen baseline=1 if year>=7
+replace baseline=y2d>=7
+sort id baseline y2d
+by id baseline: drop if baseline & _n>1
+replace y2d=7 if y2d>7
+replace year=-y2d+8
+replace medicaid=medicaid_exit if missing(medicaid)
+replace medicaid=0 if missing(medicaid)
+preserve
+collapse (mean) medicaid mbsf_medicaid generous (count) nmcaid=medicaid nmbsf=mbsf_medicaid n=generous, by(year)
+
+
+
+twoway (connected medicaid year) (connected mbsf_ year) (connected generous year), ///
+xlabel(1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1" 8 "at death")xtitle("")  ytitle("") ///
+legend(label(1 "SR Medicaid") label(2 "Medicaid from Buy-in") ///
+label(3 "Resides in Generous State")) saving(medicaid_over_time, replace)
+
+restore
+preserve
+collapse (mean) medicaid mbsf_medicaid generous (count) ///
+nmcaid=medicaid nmbsf=mbsf_medicaid n=generous, by(year dem_cohort)
+
+twoway (connected medicaid year if dem_cohort==1) (connected mbsf_ year if dem_cohort==1) (connected generous year if dem_cohort==1), ///
+xlabel(1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1" 8 "at death")xtitle("")  ytitle("") ///
+legend(label(1 "SR Medicaid") label(2 "Medicaid from Buy-in") ///
+label(3 "Resides in Generous State")) saving(medicaid_over_time_dem, replace) ///
+title("No Dementia")
+
+twoway (connected medicaid year if dem_cohort==0) (connected mbsf_ year if dem_cohort==0) (connected generous year if dem_cohort==0), ///
+xlabel(1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1" 8 "at death")xtitle("")  ytitle("") ///
+legend(label(1 "SR Medicaid") label(2 "Medicaid from Buy-in") ///
+label(3 "Resides in Generous State")) saving(medicaid_over_time_no_dem, replace) title("Dementia") 
+
+graph combine medicaid_over_time_no_dem.gph medicaid_over_time_dem.gph, ycommon ///
+saving(medicaid_combined, replace)
+graph export medicaid_combined.pdf, replace
+
+twoway (connected medicaid year if dem_cohort==1) (connected mbsf_ year if dem_cohort==1) ///
+(connected medicaid year if dem_cohort==0) (connected mbsf_ year if dem_cohort==0), ///
+xlabel(1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1" 8 "at death")xtitle("")  ytitle("") ///
+legend(label(1 "SR Medicaid-Dem") label(2 "Medicaid from Buy-in-Dem") ///
+label(3 "SR Medicaid-no-Dem") label(4 "Medicaid from Buy-in-no-Dem")) ///
+saving(medicaid_over_time_7yrs, replace)
+graph export medicaid_over_time_7yrs.pdf, replace
+
+
+
+H="Medicaid graph using Buy-in during actual years"
+use $final\R01_final.dta, clear
 keep if nflag==1
 
-merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", gen(famm) keep(match master)
+keep id dem_cohort ind_buyin* age_at_death female married race
 
-gen kidcat=kid_adult_ind+1
-replace kidcat=3 if kid_adult_nearby==1
-replace kidcat=4 if living_kids_ind==1 & kid_adult_ind==0
+rename *_y* **
+reshape long ind_buyin, i(id) j(year)
+keep if year<=7
+replace year=-year+8
+label define year 1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1"
+label values year year
 
-label define kidcat 1 "No living kids" 2 "Adult kids w/in 10mi" 3 "Adult kids only >10mi" 4 "Minor living children only"
-label values kidcat kidcat
+destring id, replace
+//run unadjusted model and pull margins to easily get se bars
+xtset id year
+xtreg ind_buyin year#dem , re
+margins year#dem
 
-tab kidcat married if !dem_cohort, row chi2
-tab kidcat married if dem_cohort, row chi2
+marginsplot, ytitle("Fraction Medicaid") xtitle("Year From Death") ///
+  saving(medicaid_fig2, replace) ///
+  title("Fraction Medicaid by Dementia Status & Year to Death") 
+  
+putexcel set "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress\Medicaid_percentages.xlsx", replace
+putexcel A1=etable
+
+H="Dataset for Jon Skinner"
+//6/28/19--pull spouse ID and use hhid pn *itot using  "D:\HRS\Shared\raw\HRS\hrs_public_2014\rand2014\main\randhrs1992_2014v2.dta", clear
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+keep if nflag==1
+keep id index_date core_year married*
+destring id, gen(hhidpn)
+merge 1:m hhidpn core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", ///
+keep(match master) nogen
+keep if s_hhidpn & !missing(s_hhidpn)
+keep s_hhidpn core_year id index_date
+rename s_hhidpn hhidpn 
+rename core_year cy_n1
+duplicates drop hh, force
+merge 1:m hhidpn using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keep(match) ///
+keepusing(core_year finw* netw* married nw_quart c_ivw_date)
+keep if core_year>cy_n1
+keep if c_ivw_date>index_date
+gen m2d=floor((c_ivw_date-index_date)/30.4)
+sort id core_year
+by id: keep if _n==1
+foreach x in finwealth networth {
+	gen s_`x'_adj2016_p1=`x'_adj2012*1.04535
+}
+rename married s_married_p1
+rename hhidpn s_hhidpn
+rename nw_quart s_nw_quart_p1
+rename core_year s_core_year_n1
+gen nflag=-1
+
+keep id s_* nflag m2d
+preserve
+keep if nflag>=0
+tempfile spouse1
+save `spouse1'
+restore
+keep if nflag>0
+tempfile spouse
+save `spouse'
+
+use hhid pn *itot using  "D:\HRS\Shared\raw\HRS\hrs_public_2014\rand2014\main\randhrs1992_2014v2.dta", clear
+gen id=hhid+pn
+
+forvalues i=12(-1)1 {
+rename h`i'itot itot`i'
+}
+
+reshape long itot, i(id) j(wave)
+gen core_year=wave*2+1990
+
+//Uses CPI for Medical Services from BLS website, accessed 5/4/15
+foreach v in itot {
+gen `v'_adj2012 = `v'*1.78412 if core_year==1998
+replace `v'_adj2012 = `v'*1.65519 if core_year==2000
+replace `v'_adj2012 = `v'*1.50337 if core_year==2002
+replace `v'_adj2012 = `v'*1.37027 if core_year==2004
+replace `v'_adj2012 = `v'*1.25586 if core_year==2006
+replace `v'_adj2012 = `v'*1.1439 if core_year==2008
+replace `v'_adj2012 = `v'*1.07086 if core_year==2010
+replace `v'_adj2012 = `v' if core_year==2012
+replace `v'_adj2012 = `v'*0.97808 if core_year==2014
+gen income_adj2016=`v'_adj2012*1.04535
+}
+label var income_adj2016 "Total household income (Rand HxITOT), 2016$)"
+
+
+keep id core_year income
+tempfile inc
+save `inc'
+
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+merge 1:1 id core_year using `inc', keep(match master)
+
+label define degree 0 "None" 1 "GED" 2 "High School" 3 "2yr College" 4 "4yr College" ///
+5 "Masters" 6 "Professional" 9 "Unknown, some college"
+label values degree degree
+label var degree "Highest degree obtained"
+	
+	
+local t=0
+forvalues i=7(-1)1 {
+	gen oopd_y`i'=oop_y`i'/1.0^`t'
+	gen pct_nw_remaining_y`i'=100*(networth_adj2016_baseline-oopd_y`i')/networth_adj2016_baseline
+	gen pct_fw_remaining_y`i'=100*(finwealth_adj2016_baseline-oopd_y`i')/finwealth_adj2016_baseline
+	replace pct_nw_remaining=100*(1-oopd_y`i')/1 if networth_adj2016_baseline<1
+	local t=`t'+1
+	
+}
+
+replace ind_nw_remaining=. if missing(m2d)
+replace ind_fw_remaining=. if missing(m2d)
+foreach x in nw fw {
+	forvalues i=1/7 {
+		replace pct_`x'_remaining=pct_`x'_remaining_y`i' if inrange(m2d,(`i'-1)*12,`i'*12)
+		replace ind_`x'_remaining=pct_`x'_remaining>0 & !missing(pct_`x'_remaining)
+		replace pct_`x'_remaining=0 if pct_`x'_remaining<0
+}
+}
+
+
+gen ivw_type=missing(m2d)+1
+label var ivw_type "Interview type"
+label define ivw_type 1 "Core" 2 "Exit"
+
+replace married=married_or_part_v2_exit if missing(married)
+replace medicaid=medicaid_exit if missing(married)
+replace medicaid=0 if missing(medicaid)
+replace comor_c_hrs=comor_c_hrs_exit if missing(comor_c_hrs)
+replace ind_nw_lt0=. if missing(m2d)
+replace ind_fw_lt0=. if missing(m2d)
+
+drop if m2d>84 & !ind_baseline & ivw_type==1
+local keepvars id age_at_death female married smoke_curr medicaid adl_dependent ///
+srh_pf dem_cohort networth_adj2016 finwealth_adj2016 pct_*remaining ind*remaining ///
+race comor_c_hrs nflag year ind_baseline m2d dem_cohort ind*lt0 degree income_adj2016
+
+keep id `keepvars'
+
+label var age_at "Age at death"
+label var nflag "# interview prior to death"
+label var ind_baseline "Baseline interview (closest to 7 years)"
+label var m2d "Months until death"
+label var adl_dependent "Dependent in 1+ ADLs"
+label var pct_nw_remaining "% of baseline NW remaining at core or death"
+label var ind_nw_remaining "% OOP<Baseline Net Worth"
+label var pct_fw_remaining "% of baseline FW remaining at core or death"
+label var ind_fw_remaining "% OOP<Baseline Financial Wealth at core or death"
+
+label define comor_c_hrs 0 "None" 1 "Mild: 1-3" 2 "Moderate: 4-6" 3 "Severe: 7+"
+label var comor "SR Comorbidities, Categorical"
+
+merge 1:1 id nflag using `spouse', keep(match master)
+append using `spouse'
+by id, sort: egen ind_surv_spouse=max(cond(nflag==-1,1,0))
+gsort id nflag
+by id: carryforward `keepvars', replace
+gsort id -nflag
+by id: carryforward female degree, replace
+
+
+save "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\dem_decedents_wealth_for_js_07012019", replace
+
+
+H="RAND wealth"
+/* This dataset will take the RAND wealth dataset and transform it to create one observation per person. 
+It looks at the first instance they had negative financial wealth excluding home (h_wtotf) */
+
+global work D:\HRS\Shared\raw\HRS\hrs_public_2014\rand2014\wealth\working
+global data D:\HRS\Shared\raw\HRS\hrs_public_2014\rand2014\wealth\randIWPstataSE
+clear all
+set maxvar 13000
+
+use "${data}\incwlth_p.dta" 
+
+forvalues i=12(-1)1 {
+		rename h`i'* h_*_`i'
+}
+
+
+forvalues i=1/12{
+preserve
+keep hhidpn hhid pn *_`i'
+rename *_`i' *
+gen wave=`i'
+save "${work}\incwlth_p_`i'", replace
+restore
+}
+
+use "${work}\incwlth_p_1", clear
+
+forvalues i=2/12 {
+append using "${work}\incwlth_p_`i'"
+}
+
+gen core_year=1992 if wave==1
+replace core_year=1994 if wave==2
+replace core_year=1996 if wave==3
+replace core_year=1998 if wave==4
+replace core_year=2000 if wave==5
+replace core_year=2002 if wave==6
+replace core_year=2004 if wave==7
+replace core_year=2006 if wave==8
+replace core_year=2008 if wave==9
+replace core_year=2010 if wave==10
+replace core_year=2012 if wave==11
+replace core_year=2014 if wave==12
+
+
+sort hhidpn core_year
+
+by hhidpn: egen neg_wealth=min(core_year) if h_wtotf<0 
+
+gen fail=0
+replace fail=1 if neg_wealth==core_year
+
+by hhidpn: egen fail1=max(fail)
+
+sort hhidpn core_year
+by hhidpn: replace fail=1 if _n==_N & fail1==0
+
+keep if fail==1
+
+
 
 
 H="*********************************"
@@ -18533,6 +19098,8 @@ save "`fdpath'/burden_dementia_sample_long.dta", replace
 
 
 H="changelog"
+07/26/19 - Added in RAND wealth dataset to be merged for wealth exhaustion. Mohammed 
+
 06/24/19 - Added proxy and nursing home residence to table 1 and baseline.  Evan
 
 05/31/19 - Brought back in the helper hours by type that I'd overwritten and added code in 7 year graphs of informal care to export mean hours to excel for Amy. Evan

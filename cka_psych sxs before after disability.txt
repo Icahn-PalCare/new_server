@@ -194,7 +194,35 @@ foreach n of numlist 2 3 4 5 6 7 8 {
 	gen repsecondhelp=repfirsthelp+1
 	replace repsecondhelp=. if repsecondhelp==9
 drop _merge
+
+
+*make a variable for needing help again after first episode ended
+gen datehelprecur=.
+foreach var of varlist 	dm8datehelp ds8datehelp dm7datehelp ds7datehelp  dm6datehelp ds6datehelp  dm5datehelp ds5datehelp ///
+						dm4datehelp ds4datehelp dm3datehelp ds3datehelp  dm2datehelp ds2datehelp  {
+replace datehelprecur= `var' if `var'>datefirsthelpend & `var'!=. 
+}
+format datehelprecur %td	
+
+gen recur_ind=1 if datehelprecur!=.
+gen days_start_recur=datehelprecur-datefirsthelp
+gen recur_1yr_ind=1 if days_start_recur<366
+
  save "D:\NHATS\Projects\trajectories and disability\cka_psych sxs before after disability\data\date of first disability.dta", replace
+
+
+H="make file for gap between surveys"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+sort spid wave
+by spid: gen ivw_date_past= ivw_date[_n-1]
+by spid: gen ivw_date_next= ivw_date[_n+1]
+gen svy_gap_past=ivw_date-ivw_date_past
+gen svy_gap_next=ivw_date_next-ivw_date
+keep svy_gap_past svy_gap_next spid wave
+ save "D:\NHATS\Projects\trajectories and disability\cka_psych sxs before after disability\data\gap between surveys.dta"
+
+
+H="****below this heading: analysis. okay to run more than once***"
 
 
 H="merging disability with rest of nhats and keeping interviews within a year"
@@ -206,27 +234,31 @@ drop if _merge==1
 *keeping those with an interview within 12 months of date of first help
 gen day_dif= ivw_date-datefirsthelp
 gen mnth_dif= floor((ivw_date-datefirsthelp)/30)
-drop if abs(mnth_dif)>12
+drop if abs(mnth_dif)>11
 
-
-
-H="****below this heading: analysis. okay to run more than once***"
-
+drop _merge
+merge 1:1 spid wave using "D:\NHATS\Projects\trajectories and disability\cka_psych sxs before after disability\data\gap between surveys.dta"
+keep if _merge==3
 
 H="cleaning vars"
 *cleaning variables
-recode mnth_dif (-12/-10=1)(-9/-7=2)(-6/-4=3)(-3/-1=4)(0/3=5)(4/6=6)(7/9=7)(10/12=8), gen(quart_dif)
-recode mnth_dif (-12/-11=1)(-10/-9=2)(-8/-7=3)(-6/-5=4)(-4/-3=5)(-2/-1=6)(0/1=7)(2/3=8)(4/5=9)(6/7=10)(8/9=11)(10/12=12), gen(bi_dif)
+recode mnth_dif (-12/-10=1)(-9/-7=2)(-6/-4=3)(-3/-1=4)(0/3=5)(4/6=6)(7/9=7)(10/11=8), gen(quart_dif)
+recode mnth_dif (-12/-11=1)(-10/-9=2)(-8/-7=3)(-6/-5=4)(-4/-3=5)(-2/-1=6)(0/1=7)(2/3=8)(4/5=9)(6/7=10)(8/9=11)(10/11=12), gen(bi_dif)
 
 *data for time from help start to end
-*categories for duration of disability
-recode daysdurhelp (365/max=1 "never recover")(0/180=2 "recover in first 6 months") (181/365=3 "recover in months 6-12"), gen(cat_durhelp)
-replace cat_durhelp=1 if daysdurhelp==.
+*indicator for recovering and not becoming disabled again within first month
+*recode daysdurhelp (365/max=1 "never recover")(0/180=2 "recover in first 6 months") (181/365=3 "recover in months 6-12"), gen(cat_durhelp)
+*replace cat_durhelp=1 if daysdurhelp==.
 
-gen keep_norecover=0
-replace keep=1 if cat_durhelp!=2
+
 gen keep_recover=0
-replace keep_recover=1 if cat_durhelp==2
+replace keep_recover=1 if daysdurhelp<365 & daysdurhelp!=. & recur_1yr_ind!=1
+gen keep_norecover=1
+replace keep_norecover=0 if keep_recover==1
+
+drop svy_delayed
+*make a variable for survey timing being over a month different than expected
+recode svy_gap_past (0/379=0)(379/600=1), gen(svy_delayed)
 
 H="analysis"
 *analysis
@@ -235,42 +267,24 @@ H="analysis"
 *analysis
 *1: survey adjusted rates
 tab bi_dif sr_phq2_depressed 
+graph bar sr_phq2_depressed, over(quart_dif)
+graph bar svy_delayed, over(quart_dif)
 
 svyset  varunit [pweight=anfinwgt], strat(varstrat)
 svy: mean sr_phq2_depressed, over(bi_dif)
 svy , subpop(keep_norecover): logistic sr_phq2_depressed i.quart_dif proxy
-margins quart_dif
+margins quart_dif, cformat(%4.3f)
 svy , subpop(keep_recover): logistic sr_phq2_depressed i.quart_dif  proxy
-margins quart_dif
+margins quart_dif, cformat(%4.3f)
 
+svy: mean sr_phq2_depressed, over(bi_dif)
 svy , subpop(keep_norecover): logistic sr_gad2_anxiety i.quart_dif proxy
-margins quart_dif
+margins quart_dif, cformat(%4.3f)
 svy , subpop(keep_recover): logistic sr_gad2_anxiety i.quart_dif  proxy
-margins quart_dif
+margins quart_dif, cformat(%4.3f)
 
 
 
-
-tab bi_dif
-
-tab bi_dif sr_phq2_depressed 
-tab bi_dif sr_phq2_depressed if indhelpstop==1
-tab bi_dif sr_phq2_depressed if indhelpstop==0
-
-tab bi_dif sr_gad2_anxiety 
-tab bi_dif sr_gad2_anxiety if indhelpstop==1
-tab bi_dif sr_gad2_anxiety if indhelpstop==0
-
-graph bar sr_phq2_depressed, over(bi_dif)
-
-tab bi_dif sr_gad2_anxiety, row
-graph bar sr_gad2_anxiety if indhelpstop==0, over(bi_dif)
-
-
-graph bar sr_phq2_depressed, over(bi_dif)
-
-
-graph bar sr_phq2_depressed if indhelpstop==1, over(mnth_dif)
 
 H="*****old stuff"
 
