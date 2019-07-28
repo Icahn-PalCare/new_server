@@ -952,6 +952,7 @@ replace recode_care_notwant = care_notwant6 if care_notwant5 == -1
 replace recode_care_notwant = care_notwant7 if care_notwant6 == -1 
 replace recode_care_notwant = care_notwant8 if care_notwant7 == -1 
 recode recode_care_notwant (-8 =.) (-7=.) (3=.) (-1=.)
+recode recode_care_notwant (2=0)
 
 **Generate variable recode_care_decision that is combined waves whether decision in last month made
 **without input from pt or family, 1=yes
@@ -964,7 +965,8 @@ replace recode_care_decision = care_decision6 if care_decision5 ==-1
 replace recode_care_decision = care_decision7 if care_decision6 ==-1 
 replace recode_care_decision = care_decision8 if care_decision7 ==-1 
 
-recode recode_care_decision (-8 =.) (-7=.) (-1=.) 
+recode recode_care_decision (-8 =.) (-7=.) (3=.)(-1=.) 
+recode recode_care_decision (2=0)
 
 gen recode_had_pain = had_pain2
 replace recode_had_pain = had_pain3 if had_pain2 ==-1 
@@ -1198,7 +1200,29 @@ replace excellent =1 if recode_overall_rate ==1
 
 
 H="analysis"
+use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta"
+
+
 svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
+
+*table 1: in MA at time of death vs not
+
+*table 2: association between MA and EOL outcome
+foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+		recode_care_decision di_recode_informed {
+		svy, subpop(inanal): logistic `var' ma1
+		svy, subpop(inanal): logistic `var' ma2
+
+}
+
+
+
+
+
+
+
+
+
 
 
 

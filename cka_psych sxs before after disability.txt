@@ -244,6 +244,12 @@ H="cleaning vars"
 *cleaning variables
 recode mnth_dif (-12/-10=1)(-9/-7=2)(-6/-4=3)(-3/-1=4)(0/3=5)(4/6=6)(7/9=7)(10/11=8), gen(quart_dif)
 recode mnth_dif (-12/-11=1)(-10/-9=2)(-8/-7=3)(-6/-5=4)(-4/-3=5)(-2/-1=6)(0/1=7)(2/3=8)(4/5=9)(6/7=10)(8/9=11)(10/11=12), gen(bi_dif)
+recode bi_dif (1/6=0)(7/12=1), gen (post_dis_ind)
+recode post_dis_ind(0=1)(1=0), gen (pre_dis_ind)
+
+*keep if has depression and anxiety data
+gen keep=1
+replace keep=0 if sr_phq2_depressed==.
 
 *data for time from help start to end
 *indicator for recovering and not becoming disabled again within first month
@@ -258,32 +264,85 @@ replace keep_norecover=0 if keep_recover==1
 
 drop svy_delayed
 *make a variable for survey timing being over a month different than expected
-recode svy_gap_past (0/379=0)(379/600=1), gen(svy_delayed)
+recode svy_gap_past (0/379=0)(379/600
+
+
+*adl index
+recode adl_index (0=0 "no adls")(1=1 "1 adl")(2/6=2 "2-6 adls"), gen (adl_3cat)
+
+*age
+recode age (65/75=1 "65-75")(76/85=2 "76-85")(86/max=3 "86+"), gen(age_3cat)
+
+*home setting
+gen home_setting=.
+replace home_setting=1 if livealone==0 & res_care==0
+replace home_setting=2 if livealone==1 & res_care==0
+replace home_setting=3 if res_care==1
+label define set 1 "community w others" 2 "community alone" 3 "res care setting"
+label values home_setting set
+
+
+recode race_cat (3/4=3), gen(race_3cat)
+label define rc 1 "white" 2 "black" 3 "other" 
+label values race_3cat rc
 
 H="analysis"
 *analysis
+svy: logistic sr_phq2_depressed i.quart_dif proxy
 
+*table 1
+svy, subpop(keep): tab age_3cat 
+svy, subpop(keep): tab female 
+svy, subpop(keep): tab race_3cat 
+svy, subpop(keep): tab educ_hs_ind 
+svy, subpop(keep): tab income_quart 
+svy, subpop(keep): tab home_setting 
+svy, subpop(keep): tab adl_3cat 
+svy, subpop(keep): tab sr_cancer_ever  
+svy, subpop(keep): tab sr_heart_dis_ever 
+svy, subpop(keep): tab sr_ami_ever 
+svy, subpop(keep): tab sr_stroke_ever  
+svy, subpop(keep): tab sr_lung_dis_ever  
+svy, subpop(keep): tab prob_dem  
+svy, subpop(keep): tab ind_pain 
+svy, subpop(keep): tab srh_fp 
+svy, subpop(keep): tab sr_hosp_ind 
+svy, subpop(keep): tab proxy
 
 *analysis
 *1: survey adjusted rates
-tab bi_dif sr_phq2_depressed 
-graph bar sr_phq2_depressed, over(quart_dif)
-graph bar svy_delayed, over(quart_dif)
+set  varunit [pweight=anfinwgt], strat(varstrat)
 
-svyset  varunit [pweight=anfinwgt], strat(varstrat)
-svy: mean sr_phq2_depressed, over(bi_dif)
+*Overall:
+svy: logistic sr_phq2_depressed i.quart_dif proxy
+margins quart_dif, cformat(%4.3f)
+svy: logistic sr_gad2_anxiety i.quart_dif proxy
+margins quart_dif, cformat(%4.3f)
+
+*depression- recover and not
 svy , subpop(keep_norecover): logistic sr_phq2_depressed i.quart_dif proxy
 margins quart_dif, cformat(%4.3f)
 svy , subpop(keep_recover): logistic sr_phq2_depressed i.quart_dif  proxy
 margins quart_dif, cformat(%4.3f)
 
-svy: mean sr_phq2_depressed, over(bi_dif)
+*anxiety- recover and not
 svy , subpop(keep_norecover): logistic sr_gad2_anxiety i.quart_dif proxy
 margins quart_dif, cformat(%4.3f)
 svy , subpop(keep_recover): logistic sr_gad2_anxiety i.quart_dif  proxy
 margins quart_dif, cformat(%4.3f)
 
 
+*odds of depression after disability
+svy: logistic sr_phq2_depressed keep_recover##post_dis_ind
+margins keep_recover#post_dis_ind
+
+svy, subpop(post_dis_ind): tab sr_phq2_depressed
+svy, subpop(post_dis_ind): logistic sr_phq2_depressed i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+ i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy, cformat(%4.2f)
+
+ svy, subpop(post_dis_ind): tab sr_gad2_anxiety
+ svy, subpop(post_dis_ind): logistic sr_gad2_anxiety i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+ i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy, cformat(%4.2f)
 
 
 H="*****old stuff"
