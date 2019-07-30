@@ -48,14 +48,27 @@ global outpath "D:\NHATS\Projects\exploratory\siddiqui_treatment_burden_eol\outp
 
 
 H="combine data"
+//7/30/19--ebl--get hospice and hospice days
+use "D:\NHATS\Shared\base_data\CMS_claims\Stata\hs_09_17.dta", clear
+merge m:1 bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\xwalk_2016.dta", keep(match) keepusing(spid)
+by bene_id, sort: egen first_hs=min(admit_date)
+gen los=disch_date-admit_date
+replace los=1 if los==0
+by bene_id: egen days_on_hospice=total(los)
+keep spid days first_hs
+duplicates drop
+tempfile hs
+save `hs'
+
+
 //get the module and other round 2 variables not in the main dataset
 
 use "${wave2}\NHATS_Round_2_SP_File.dta", clear
-keep spid eh2* mc2meds mc2whr* mc2howpk* *chginspln *ansitindr *anhlpwdec 
+keep spid eh2* mc2meds mc2whr* mc2howpk* *chginspln *ansitindr *anhlpwdec mo2insdyrgo
 gen ind_module=eh2advicedoc!=-1
 label var ind_module "Received treatment burden module"
 
-foreach x of varlist eh2*  mc2meds mc2whr* mc2howpk* *chginspln *ansitindr *anhlpwdec {
+foreach x of varlist eh2*  mc2meds mc2whr* mc2howpk* *chginspln *ansitindr *anhlpwdec mo* {
 	replace `x'=.a if `x'==-9
 	replace `x'=.b if `x'==-8
 	replace `x'=.c if `x'==-7
@@ -66,6 +79,7 @@ foreach x of varlist eh2*  mc2meds mc2whr* mc2howpk* *chginspln *ansitindr *anhl
 
 rename eh2* *
 rename mc2* *
+rename mo2* *
 
 tempfile wave2
 save `wave2'
@@ -81,7 +95,10 @@ save `lml'
 
 //and bring them together
 use "${nhats}\sp_round_1_7.dta", clear
-
+//7/30/19--ebl--get round 1 srh for change
+sort spid wave
+by spid: gen srh_n1=srh[_n-1]
+label var srh_n1 "SRH at previous interview"
 gsort spid -wave
 by spid: carryforward *lml, replace
 keep if wave==2 & sp_ivw==1 & lml==0
@@ -98,9 +115,10 @@ spouse_help_ind n_social_network reg_doc_seen iadl_meds_help adverse_eat adverse
 adverse_toil adverse_dres adverse_bed adverse_insd carenowan_lml respect_lml nhres ///
 doctor docclear relg relgamt pain painhlp painhlpam bre brehlp brehlpam ///
 whr* howpk* chginspln ansitindr anhlpwdec death_date meds modm lmlm haslml ///
-ivw_date proxy adl*help livealone livearrang
+ivw_date proxy adl*help livealone livearrang insdyrgo srh_n1
 
 keep `keepvars'
+merge 1:1 spid using `hs', gen(hsm) keep(match master)
 
 save "${intpath}\tburden_int.dta", replace
 
@@ -116,13 +134,29 @@ sr_gad2_anxiety prob_dem adl_index adl_independent marriedpartnered n_helpers n_
 spouse_help_ind n_social_network regdocseen iadl_meds_help adverse_eat adverse_bath ///
 adverse_toil adverse_dres adverse_bed adverse_insd carenowan_lml respect_lml nhres ///
 doctor docclear relg relgamt pain painhlp painhlpam bre brehlp brehlpam ///
-whr* howpk* chginspln ansitindr anhlpwdec meds
+whr* howpk* chginspln ansitindr anhlpwdec meds insdyrgo srh_n1
 
 sum med* whr* howpk* chginspln ansitindr anhlpwdec pain* bre* doctor docclear ///
 relg relgamt
 
 *keep if death_date-ivw_date<=365*3
 
+//change in srh
+gen srh_change=1 if srh>srh_n1 & !missing(srh) & !missing(srh_n1)
+replace srh_change=2 if srh==srh_n1 & !missing(srh)
+replace srh_change=3 if srh<srh_n1 & !missing(srh_n1)
+label define srh_change 1 "SRH declined since prior ivw" 2 "SRH same" 3 "SRH improved"
+label values srh_change srh_change
+label values srh_n1 srh
+
+
+//hospice
+gen ind_hospice=hsm==3
+label var ind_hospice "Any MC hospice"
+label var days_on_hospice "Total days on hospice"
+gen ind_hospice_pre_ivw=first_hs<=ivw_date
+label var ind_hospice_pre_ivw "Hospice initiated on or before interview date"
+drop hsm
 
 gen care_coord_cat_lml=1 if doctor==3
 replace care_coord_cat_lml=2 if doctor==2 | (doctor==1 & docclear==1)
@@ -217,7 +251,7 @@ mat rownames tab=`sampvars'
 frmttable using "${outpath}/sample_derivation.rtf", ///
 replace statmat(tab) varlabels sdec(0) title("Sample derivation")
 
-drop death_date ivw_date inscope n lmlm modm
+drop death_date ivw_date inscope n lmlm modm first_hs
 
 save "${datapath}/treatment_burden_eol_sample.dta", replace
 
