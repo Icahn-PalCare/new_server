@@ -4446,6 +4446,779 @@ keep if ffs_6m==1
 saveold "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\iah_wave1-7.dta", version(12) replace
 
 
+H="Search for IP rehab and home calls"
+libname claims "D:\NHATS\Shared\base_data\CMS_claims\SAS";
+libname cyears "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Cumulative";
+
+proc import datafile="D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\iah_wave1-7.dta" out=iv_mb2 dbms=stata replace; run; 
+
+
+/* Identifying Inpatient Rehab */
+
+data ip_check (keep = bene_id index_date index_month year wave ffs_6m);
+set iv_mb2;
+run;
+
+data inpatient;
+set claims.ip_06_17;
+run;
+
+data ip_rev;
+set cyears.inpatient_revenue_center_j_06_17;
+run;
+
+proc sql;
+create table ip_clm_rev as select a.*, b.*
+from inpatient a
+inner join ip_rev b
+on a.bene_id = b.bene_id and a.clm_id = b.clm_id;
+quit;
+
+proc freq data=inpatient; tables PTNT_DSCHRG_STUS_CD; run;
+proc freq data=ip_rev; tables REV_CNTR_UNIT_CNT; run;
+ 
+
+data ip_clm_rev;
+set ip_clm_rev;
+disch_rehab = 0;
+ip_rehab = 0;
+if PTNT_DSCHRG_STUS_CD='62' or PTNT_DSCHRG_STUS_CD='90' then disch_rehab = 1;
+if REV_CNTR_UNIT_CNT = 24 then ip_rehab = 1;
+run;
+
+
+proc freq data=ip_clm_rev; tables disch_rehab; run;
+proc freq data=ip_clm_rev; tables ip_rehab; run;
+
+
+data disch_2_iprehab;
+set ip_clm_rev;
+where disch_rehab = 1;
+run;
+
+data ip_rehab;
+set ip_clm_rev;
+where ip_rehab = 1;
+run;
+
+data test;
+set disch_2_iprehab ip_rehab;
+run;
+
+proc sort data=test nodupkey; by bene_id admit_date; run;
+
+
+proc sql;
+create table ip_restays as select a.*, b.admit_date, b.disch_date
+from ip_check a
+inner join test b
+on a.bene_id = b.bene_id and 0 < a.index_date-b.admit_date <365;
+quit;
+
+proc sort data=ip_restays out=ip_rehabstays nodupkey; by bene_id index_date; run;
+
+data ip_rehabstays; /*inpatient hospital rehab stays */
+set ip_rehabstays;
+ip_rehab = 1;
+run;
+
+/* Checking for HH/SNF within 7 days of disch_date */
+
+data homehealth;
+set claims.hh_09_17;
+run;
+
+data snf;
+set claims.snf_09_17;
+run;
+
+proc sql;
+create table hh_nhats as select a.*, b.*
+from ip_check a
+inner join homehealth b
+on a.bene_id = b.bene_id
+where 0 <= a.index_date - b.disch_date <= 365;
+quit;
+
+data hh_nhats_short (keep = bene_id index_date admit_date disch_date hh);
+set hh_nhats;
+hh = 1;
+run;
+
+proc sql;
+create table snf_nhats as select a.*, b.*
+from ip_check a
+inner join snf b
+on a.bene_id = b.bene_id
+where 0 <= a.index_date - b.disch_date <= 365;
+quit;
+
+data snf_nhats_short (keep = bene_id index_date admit_date disch_date snf);
+set snf_nhats;
+snf = 1;
+run;
+
+data rehab (rename=(admit_date = rehab_admit disch_date = rehab_disch));
+set snf_nhats_short hh_nhats_short;
+*format rehab_admit rehab_disch date10.;
+run;
+
+proc sql;
+create table ip1 as select a.admit_date, a.disch_date, b.*
+from inpatient a
+inner join rehab b
+on a.bene_id = b.bene_id
+where 0 <= b.rehab_admit-a.disch_date < 8;
+quit;
+
+data ip1;
+set ip1 ip_rehabstays;
+run;
+
+proc sort data=ip1; by bene_id index_date; run;
+proc sort data=ip1 nodupkey; by bene_id index_date; run;
+
+proc freq data=ip1; tables ip_rehab; run;
+
+proc export data=ip1 outfile="D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\iah_rehab_flag.dta" replace; run;
+
+
+/***** Identifying any Home Health Claim +/- 90 days of interview ******/
+
+data homehealth;
+set claims.hh_09_17;
+run;
+
+proc sql;
+create table nhats_hh as select a.*, b.admit_date
+from ip_check a
+inner join homehealth b
+on a.bene_id=b.bene_id and -90<=a.index_date - b.admit_date<=90;
+quit;
+
+proc sort data=nhats_hh nodupkey; by bene_id wave; run;
+
+proc export data=nhats_hh outfile="D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\homehealth_visit.dta" dbms=stata replace; run;
+
+/****** Identifying any NH claims +/- 90 days of interview *******/
+
+data snf;
+set claims.snf_09_17;
+run;
+
+proc sql;
+create table nhats_snf as select a.*, b.admit_date
+from ip_check a
+inner join snf b
+on a.bene_id=b.bene_id and -90<=a.index_date - b.admit_date <=90;
+quit;
+
+proc sort data=nhats_snf nodupkey; by bene_id wave; run;
+
+proc export data=nhats_snf outfile="D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\snf_visit.dta" dbms=stata replace; run;
+
+
+
+/********** Identifying house calls ************/
+
+/* Identifying house calls */
+
+data carrier;
+set claims.pb_09_17;
+array dx hcpcscd1--hcpcscd13;
+do over dx;
+hcpcs_cd=dx;
+output;
+end;
+run;
+
+data carrier1;
+set carrier;
+cptcodes1 = input(compress(hcpcs_cd,'ABCDEFGHIJKLMNOPQRSTUVWXYZ/',),8.);
+run;
+
+data carrier1;
+set carrier1;
+cpt1flag = 0;
+if 99341<=cptcodes1<=99350 or 99324<=cptcodes1<=99328 or 99334<=cptcodes1<=99337 then cpt1flag = 1;
+run;
+
+data carrier1;
+set carrier1;
+where cpt1flag = 1;
+run;
+
+proc sort data=carrier1 nodupkey; by bene_id clm_id; run;
+
+data carrierline (keep = bene_id clm_id LINE_PLACE_OF_SRVC_CD cptcodes);
+set cyears.bcarrier_line_j_09_17;
+cptcodes = input(compress(hcpcs_cd,'ABCDEFGHIJKLMNOPQRSTUVWXYZ/',),8.);
+run;
+
+data carrierline;
+set carrierline;
+cptflag = 0;
+posflag = 0;
+if 99341<=cptcodes<=99350 or 99324<=cptcodes<=99328 or 99334<=cptcodes<=99337 then cptflag=1;
+if LINE_PLACE_OF_SRVC_CD in:(12,13,14) then posflag=1;
+run;
+
+data linecalls;
+set carrierline;
+where cptflag = 1; * or posflag = 1;
+run;
+
+proc sql;
+create table carrier2 as select a.*, b.*
+from carrier1 a
+full outer join linecalls b
+on a.bene_id=b.bene_id and a.clm_id = b.clm_id;
+quit;
+
+data carrier2;
+set carrier2;
+if cpt1flag = 1 then cptflag = 1;
+run;
+
+data carrier2;
+set carrier2;
+where cptflag = 1;
+year = year(admit_date);
+run;
+
+proc sort data=carrier2 nodupkey; by bene_id clm_id; run;
+
+proc sql;
+create table annual as select distinct bene_id, year,
+sum(cptflag) as housecalls_count
+from carrier2
+group by bene_id, year;
+quit;
+
+proc export data=annual(rename=(year = index_year)) outfile="D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\annualcpt_count.dta" replace; run;
+
+proc sql;
+create table homecallsb4_90 as select a.*, b.cptcodes, b.admit_date
+from ip_check a
+inner join carrier2 b
+on a.bene_id=b.bene_id and -90<a.index_date-b.admit_date<=90;
+quit;
+
+proc sort data=homecallsb4_90 out=test nodupkey; by bene_id wave; run;
+
+proc sql;
+create table homecalls_90 as select distinct bene_id, wave,
+count(cptcodes) as housecalls90_count
+from homecallsb4_90
+group by bene_id, wave;
+quit;
+
+
+
+/*
+data homecalls_90;
+set homecallsb4_90_1 homecallsb4_90_2 homecallsb4_90_3 homecallsb4_90_4 homecallsb4_90_5;
+run;
+
+*/
+proc export data=homecalls_90 outfile="D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\homecalls_90.dta" replace; run;
+
+
+
+H="Merging it together"
+
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\iah_wave1-7.dta", clear
+
+/* merge IP rehab */
+cap drop _m
+merge 1:1 bene_id index_date using "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\iah_rehab_flag.dta", keepus(ip_rehab snf hh)
+replace ip_rehab=0 if ip_rehab==.
+gen ip_rehab_only = 0
+replace ip_rehab_only = 1 if ip_rehab==1 & snf==. & hh==.
+label var ip_rehab "Inpatient Rehab or SNF/HH within 7 days of IP discharge, 1 yr prior to ivw"
+label var ip_rehab_only "Inpatient rehab (no SNF/HH), 1 yr prior to ivw"
+
+/*merge nh */
+cap drop _m
+merge 1:1 bene_id index_date using "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\snf_visit.dta"
+gen nh_90 = 0
+replace nh_90 = 1 if _m==3
+label var nh_90 " NH stay +/- 90 days of ivw"
+
+gen death_90 = 0
+replace death_90 = 1 if death_date - index_date <=90
+
+/* merge housecalls flag */
+cap drop _m
+merge 1:1 bene_id wave using "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\homecalls_90.dta"
+gen hcalls = 0
+replace hcalls = 1 if (housecalls90_count>1 & housecalls90_count!=.) | (housecalls90_count==1 & nh_90==1) | (housecalls90_count==1 & death_90==1) 
+label var hcalls "2+ housecalls or 1 + NH/Death +/- 90 days of ivw"
+
+
+/* house calls count */
+cap drop _m
+merge 1:1 bene_id index_year using "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\annualcpt_count.dta"
+drop if _m==2
+
+label var housecalls_count "Ave. number of house calls in calendar year of interview"
+cap drop _m
+
+save "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\iah_wave1-7.dta", replace
+
+
+/*Income adjustment to $2017 dollars */
+gen income_adj=0
+replace income_adj= 1.09*aveincome if wave==1
+replace income_adj= 1.07*aveincome if wave==2
+replace income_adj= 1.06*aveincome if wave==3
+replace income_adj= 1.05*aveincome if wave==4
+replace income_adj= 1.04*aveincome if wave==5
+replace income_adj= 1.02*aveincome if wave==6
+replace income_adj = aveincome if wave==7
+
+xtile income_quart_adj=income_adj, nq(4) 
+sum income_adj, d
+
+replace housecalls_count = 0 if housecalls_count==.
+
+gen iah_rehab = 0
+replace iah_rehab = 1 if ip_rehab==1 |snf==1 |hh==1
+
+cap drop iah_all
+
+gen iah_all = 0
+replace iah_all = 1 if iah_adl==1 & iah_chronic==1 & iah_nonelect==1 & iah_rehab==1
+
+forvalues w = 1/4 {
+
+gen income_quart_`w' = . 
+gen income_cat_`w' = 0
+replace income_cat_`w'= 1 if income_quart_ad==`w'
+
+replace income_quart_`w' = income_adj if income_quart_adj==`w'
+sum income_quart_`w', d
+local p = 25*`w' 
+local q = r(mean)
+local r = round(`q',1)
+
+
+label var income_quart_`w' "Ave. Income in `p'th quartile (adjusted to 2017 dollars)"
+label var income_cat_`w' "% with income in the `p'th quartile"
+
+} 
+gen pos_dem = 0
+replace pos_dem = 1 if dem_3_cat==2 
+label var pos_dem "Indicator Possible Dementia"
+
+merge 1:1 bene_id wave using "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\homehealth_visit.dta", keepus(admit_date)
+
+gen mc_hh = 0
+replace mc_hh = 1 if _m==3
+label var mc_hh "Medicare HH claim +/- 90 days of ivw"
+drop _m
+
+gen ind_icu_p12m = 0
+replace ind_icu_p12m = 1 if icu_days_p12m>0 & icu_days_p12m!=.
+
+gen tot_paid_by_mc_12m=0
+foreach x in ip snf hh hs pb op dm {
+replace tot_paid_by=tot_paid_by+`x'_paid_by_mc_12m
+}
+
+
+H="housecalls setup"
+gen iah_pacute = 0
+replace iah_pacute = 1 if iah_rehab==1
+
+label var iah_pacute "IAH - Post Acute Care 12m prior"
+label var iah_all "IAH - All Criteria Met"
+
+
+/* Housecalls population */
+
+merge 1:1 bene_id wave using "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\homecalls_90.dta"
+drop if _m==2
+*drop _m
+
+gen housecalls_90 = .
+replace housecalls_90 = 1 if _m==3
+label var housecalls_90 "1+ housecalls +/- 90 days of ivw"
+bysort spid: egen anyhousecall = count(housecalls_90) 
+replace housecalls_90 = 0 if housecalls_90==.
+replace anyhousecall = 1 if anyhousecall>1 & anyhousecall!=.
+label var anyhousecall "1+ housecalls +/- 90 days of ivw"
+preserve
+keep spid anyhousecall
+duplicates drop
+
+tempfile anycall
+save `anycall'
+
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\sample_deri.dta", replace
+cap drop _m
+merge m:1 spid using "`anycall'"
+
+save "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\sample_deri.dta", replace
+
+restore, preserve 
+
+keep if hcalls==1
+
+gsort spid -wave
+by spid: gen ind2=_n==1 
+keep if ind2==1 /* keep most recent wave where they had housecalls */
+save "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\housecalls.dta", replace
+levelsof spid, local(list)
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\sample_deri.dta", replace
+cap drop _m
+merge 1:1 spid wave using "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\housecalls.dta", keepus(ind2) update replace
+label var ind2 "Housecall, most recent wave"
+cap drop _m
+save "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\sample_deri.dta", replace
+restore
+gen droplist = 0
+foreach x in `list' {
+
+replace droplist=1 if spid==`x'
+}
+
+drop if droplist==1 /* drop spid for those who have housecalls */
+gsort spid -wave
+drop if wave==7
+by spid: gen ind3=_n==1
+keep if ind3==1 /* keep most recent nonhousecalls -- limit to wave 6 for 1 year followup*/
+cap drop _m
+tempfile d
+save `d'
+preserve
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\sample_deri.dta", replace
+cap drop _m
+merge 1:1 spid wave using "`d'", keepus(ind3)
+label var ind3 "No Housecall, most recent wave"
+save "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\sample_deri.dta", replace
+restore
+
+
+append using "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\housecalls.dta"
+
+cap drop st_date
+save "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\housecalls.dta", replace 
+
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta" , replace
+
+keep if wave==1
+gen old = 1
+label var old "Original Cohort in Wave 1"
+tempfile old
+*gen st_date = index_date - 90 
+*label var st_date "Start of observation period, 90 days pre ivw"
+
+save `old'
+
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\housecalls.dta", clear
+cap drop _m
+merge 1:1 spid using "`old'", keepus(old) update replace
+drop if _m==2
+drop _m
+
+replace old = 0 if old==.
+/*
+replace st_date = ivw_date - 90 if wave==5 & st_date==.
+
+gen end_dt = ivw_date + 90
+
+gen person_time = admit_date - st_date
+replace person_time = end_dt - st_date if person_time==.
+replace person_time = person_time*0.00273
+
+egen person_yrs = total(person_time)
+*/
+
+* censoring 1 year outcomes for wave 7
+
+foreach x in ind_hosp_adm_p12m ind_ed_adm_p12m ind_icu_p12m tot_paid_by_mc_12m {
+
+replace `x' = . if wave==7
+}
+
+save "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\housecalls.dta", replace 
+
+
+H="Graphs"
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\iah_wave1-7.dta", clear
+
+global output "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+
+gen homebound_part = 0
+replace homebound_part = 1 if inrange(homebound_cat,2,3)
+label var homebound_part "Partially Homebound"
+label var homebound "Completely Homebound"
+
+gen homebound_not = 0
+replace homebound_not = 1 if homebound_cat>=4
+label var homebound_not "Indepent"
+
+gen homebound_3cat = .
+replace homebound_3cat = 1 if homebound==1
+replace homebound_3cat = 2 if homebound_part==1
+replace homebound_3cat = 3 if homebound_3cat==.
+la define hblbl 1"Complete HB"2"Partial HB"3"Independent"
+la values homebound_3cat hblbl
+
+gen anyhcall = 0
+replace anyhcall = 1 if housecalls_count>=1 & housecalls_count!=.
+
+/***** Predictive margins for prevalence *******/
+svyset spid [pw=anfinwgt], strata(varstrat)
+
+svy: logit anyhcall year##homebound_3cat
+margins year##homebound_3cat
+marginsplot, title("Any housecall in calendar year (6m FFS + CD + Weights)") ytitle("Housecalls (%)") legend(size(medsmall) order(1 "Completely Homebound" 2 "Partially Homebound" 3 "Independent" 4 "All"))
+
+graph export "$output\anyhcall_`c(current_date)'.png", replace
+
+svy: logit hcalls year##homebound_3cat
+margins year##homebound_3cat
+marginsplot, title("2+ Hcalls OR 1 + NH/Death 90 days of IVW (6m FFS + CD + Weights)") ytitle("Housecalls (%)") legend(size(medsmall) order(1 "Completely Homebound" 2 "Partially Homebound" 3 "Independent" 4 "All"))
+
+graph export "$output\hcalls_`c(current_date)'.png", replace
+
+foreach x in rcfres metro_ind iah_nonelect livealone {
+
+replace `x' = `x'*100
+}
+
+graph bar rcfres metro_ind iah_nonelect livealone, over(homebound_3cat) blabel(bar)
+
+
+H="housecalls table 4 grid"
+
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\housecalls.dta", clear 
+
+local logpath "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+local date=subinstr("$S_DATE"," ","_",.)
+
+
+replace homebound_cat = 4 if homebound_cat==.
+label var homebound "Never/Rarely leaves home"
+
+gen homebound_2 = 0 if homebound_cat!=.
+replace homebound_2 = 1 if homebound_cat==2
+label var homebound_2 "Leaves home but never by self"
+
+gen homebound_3 = 0 if homebound_cat!=.
+replace homebound_3 = 1 if homebound_cat==3
+label var homebound_3 "Leaves home but needs help/has difficulty"
+
+gen homebound_4 = 0 if homebound_cat!=.
+replace homebound_4 = 1 if homebound_cat==4
+label var homebound_4 "Not homebound"
+
+gen cp_hb = 0
+replace cp_hb = 1 if homebound_cat<4
+
+
+local cvars1 age income_quart_1 income_quart_2 income_quart_3 income_quart_4 // score_community
+local ivars1 income_cat_1 income_cat_2 income_cat_3 income_cat_4 female white  ///
+black hisp married livealone rcfres educ_hs_ind reg_doc_have reg_doc_seen ///
+medicaid metro_ind northeast midwest south west
+local ivars2 iah_adl iah_chronic iah_nonelect iah_pacute iah_all sr_ami_ever sr_stroke_ever ///
+sr_cancer_ever sr_hip_ever sr_heart_dis_ever sr_htn_ever sr_ra_ever sr_osteoprs_ever ///
+sr_diabetes_ever sr_dementia_ever prob_dem pos_dem
+local ivars3 adl_eat_diff adl_eat_help adl_bath_diff adl_bath_help adl_toil_diff ///
+adl_toil_help adl_dres_diff adl_dres_help adl_ins_help adl_ins_diff adl_bed_help ///
+adl_bed_diff ind_hosp_adm_p12m ind_ed_adm_p12m ind_icu_p12m died_12 hcalls homebound homebound_2 homebound_3 homebound_4 mc_hh
+local cvars2 tot_paid_by_mc_12m housecalls_count
+
+
+local full `cvars1' `ivars1' `ivars2' `ivars3' `cvars2'
+
+local rd: word count `full' 1
+
+mat tab1 = J(`rd',4,.)
+mat stars = J(`rd',4,0)
+
+local r = 1
+local c = 1
+
+foreach x of local cvars1 {
+
+sum `x' if hcalls==1 & cp_hb==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if hcalls==1 & cp_hb==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if hcalls==1, by(cp_hb)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if hcalls==0 & cp_hb==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if hcalls==0 & cp_hb==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if hcalls==0, by(cp_hb)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+}
+
+foreach x of local ivars1 {
+
+
+sum `x' if hcalls==1 & cp_hb==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if hcalls==1 & cp_hb==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==1, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if hcalls==0  & cp_hb==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if hcalls==0  & cp_hb==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==0, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+
+}
+
+foreach x of local ivars2 {
+
+sum `x' if hcalls==1 & cp_hb==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if hcalls==1 & cp_hb==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==1, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if hcalls==0  & cp_hb==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if hcalls==0  & cp_hb==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==0, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+
+}
+
+foreach x of local ivars3 {
+
+sum `x' if hcalls==1 & cp_hb==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if hcalls==1 & cp_hb==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==1, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if hcalls==0  & cp_hb==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if hcalls==0  & cp_hb==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==0, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+
+}
+ 
+foreach x of local cvars2 {
+
+sum `x' if hcalls==1 & cp_hb==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if hcalls==1 & cp_hb==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if hcalls==1, by(cp_hb)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if hcalls==0 & cp_hb==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if hcalls==0 & cp_hb==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if hcalls==0, by(cp_hb)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+}
+
+sum age if hcalls==1 & cp_hb==0
+mat tab1[`r',`c'] = r(N)
+
+local ++c
+
+sum age if hcalls==1 & cp_hb==1
+mat tab1[`r',`c'] = r(N)
+
+local ++c
+
+sum age if hcalls==0 & cp_hb==0
+mat tab1[`r',`c'] = r(N)
+
+local ++c
+
+sum age if hcalls==0 & cp_hb==1
+mat tab1[`r',`c'] = r(N)
+
+
+mat rownames tab1= `cvars1' `ivars1' `ivars2' `ivars3' `cvars2' N
+
+frmttable using `logpath'\table1_housecalls`date'.doc, replace statmat(tab1) ///
+varlabels title("Table 1: Housecalls Unique persons per NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
+ctitles("", "", "Housecalls", "", "No Housecalls", \"", "Complete\Partial HB", "Not HB", "Complete\Partial HB", "Not HB") sdec(2) annotate(stars) asymbol(*,**) ///
+note("These are unique people, and only survey data from their most recent NHATS interview was used. Housecalls are +/- 90 days of ivw date. *p<0.05, **p<0.01")
+
+
 H="********"
 
 
