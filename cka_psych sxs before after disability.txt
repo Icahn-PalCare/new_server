@@ -415,8 +415,12 @@ svy, subpop(pos): logistic sr_gad2_anxiety sr_gad2_anxiety_n  i.age_3cat female 
   svy, subpop(pos): reg dep_cha_sc  sr_phq2_score_n i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
  i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy mnth_dif, cformat(%4.2f)
  
+ svy, subpop(pos): reg anx_cha_sc  sr_gad2_anxiety_n i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+ i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy mnth_dif, cformat(%4.2f)
+ 
+ 
  *look at depression scores after disability, adjusting for prior disability
-  svy, subpop(pos): reg sr_phq2_score sr_phq2_score_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+  svy, subpop(pos): reg sr_phq2_score sr_phq2_depressed_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
  i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy , cformat(%4.2f)
  
  svy, subpop(pos): reg sr_gad2_score sr_gad2_score_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
