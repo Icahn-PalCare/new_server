@@ -268,16 +268,21 @@ tab countperid2
 *make variables for anxiety and depression prior to disability
 sort spid wave
 by spid: gen sr_phq2_depressed_n= sr_phq2_depressed[_n-1]
+by spid: gen sr_phq2_score_n= sr_phq2_score[_n-1]
 by spid: gen sr_gad2_anxiety_n= sr_gad2_anxiety[_n-1]
+by spid: gen sr_gad2_score_n= sr_gad2_score[_n-1]
+
 
 gen keep_nodep=1 if sr_phq2_depressed_n==0
+
+
 
 H="cleaning vars"
 *cleaning variables
 
 *months from disability
-recode mnth_dif (-12/-10=1)(-9/-7=2)(-6/-4=3)(-3/-1=4)(0/3=5)(4/6=6)(7/9=7)(10/11=8), gen(quart_dif)
-recode mnth_dif (-12/-11=1)(-10/-9=2)(-8/-7=3)(-6/-5=4)(-4/-3=5)(-2/-1=6)(0/1=7)(2/3=8)(4/5=9)(6/7=10)(8/9=11)(10/11=12), gen(bi_dif)
+recode mnth_dif (-12/-10=1)(-9/-7=2)(-6/-4=3)(-3/-1=4)(0/3=5)(4/6=6)(7/9=7)(10/12=8), gen(quart_dif)
+recode mnth_dif (-12/-11=1)(-10/-9=2)(-8/-7=3)(-6/-5=4)(-4/-3=5)(-2/-1=6)(0/1=7)(2/3=8)(4/5=9)(6/7=10)(8/9=11)(10/12=12), gen(bi_dif)
 recode bi_dif (1/6=0)(7/12=1), gen (post_dis_ind)
 recode post_dis_ind(0=1)(1=0), gen (pre_dis_ind)
 
@@ -313,10 +318,17 @@ replace home_setting=3 if res_care==1
 label define set 1 "community w others" 2 "community alone" 3 "res care setting"
 label values home_setting set
 
-
+*race
 recode race_cat (3/4=3), gen(race_3cat)
 label define rc 1 "white" 2 "black" 3 "other" 
 label values race_3cat rc
+
+recode sr_phq2_depressed_n (0=1)(1=0), gen(prior_nodepres)
+
+*depression change score
+gen dep_cha_sc= sr_phq2_score-sr_phq2_score_n if sr_phq2_score_n!=. & sr_phq2_score!=.
+gen anx_cha_sc= sr_gad2_score-sr_gad2_score_n if sr_gad2_score_n!=. & sr_gad2_score!=.
+
 
 H="analysis"
 *analysis
@@ -388,6 +400,28 @@ svy, subpop(post_dis_ind): logistic sr_phq2_depressed i.age_3cat female i.race_3
   *REDO- look at new depression after disability, adjusting for prior depression
 svy, subpop(pos): logistic sr_phq2_depressed sr_phq2_depressed_n i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
  i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy, cformat(%4.2f)
+ 
+svy, subpop(pos): logistic sr_gad2_anxiety sr_gad2_anxiety_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+ i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy, cformat(%4.2f)
+  
+ 
+ *look at change scores in depression
+ svy, subpop(pos): reg dep_cha_sc  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+ i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy mnth_dif, cformat(%4.2f)
+ svy, subpop(pos): reg anx_cha_sc  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+ i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy , cformat(%4.2f)
+ 
+ *look at change scores and adjust for prior depression score
+  svy, subpop(pos): reg dep_cha_sc  sr_phq2_score_n i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+ i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy mnth_dif, cformat(%4.2f)
+ 
+ *look at depression scores after disability, adjusting for prior disability
+  svy, subpop(pos): reg sr_phq2_score sr_phq2_score_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+ i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy , cformat(%4.2f)
+ 
+ svy, subpop(pos): reg sr_gad2_score sr_gad2_score_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+ i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy , cformat(%4.2f)
+ 
 
 H="*****old stuff"
 

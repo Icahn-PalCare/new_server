@@ -1183,7 +1183,14 @@ ctitles("" "All" "Non-Dementia" "Probable Dementia" "Unadjusted Logit OR: Post-I
 note("NHATS Interview required in same year (before start of sequence) or prior calendar year. *p<0.05, **p<0.01")
 
 outreg, clear
-svy: logit post_int age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort died_in_12m
+svy: logistic post_int age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort died_in_12m, cformat(%4.2f)
+
+*start of claire's added stuff
+recode post_int (0=1)(1=0), gen(comm_init)
+recode income_quart (1=1)(2/4=0), gen(low_inc)
+gen aveincome_k=aveincome/10000
+svy: logistic comm_init dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m , cformat(%4.2f)
+*end of claire's added stuff
 
 outreg using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\In progress\logit_weighted_`c(current_date)'", ///
 varlabels stats(e_b e_ci p) nosubstat ///
@@ -1196,6 +1203,15 @@ starlevels(10 5 1) summstat(N) landscape replace
 outreg, clear
 svy: logit any_vis_60 age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort post_int died_in_12m
 
+*start of claire's added stuff
+gen keep=1
+replace keep=0 if died_in_60==1
+replace keep=0 if ind_hosp_sq==1
+replace keep=0 if hs_in_60==1
+svy: logistic  any_vis_60 dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m comm_init , cformat(%4.2f)
+svy, subpop(keep): logistic  any_vis_60 dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m comm_init , cformat(%4.2f)
+*end of claire's added stuff
+
 outreg using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\In progress\logit_weighted_days3160_`c(current_date)'", ///
 varlabels stats(e_b e_ci p) nosubstat ///
 title("Adjusted Logistic Regression (Weighted): Outcome=Any visit in days 31-60") ///
@@ -1206,6 +1222,8 @@ starlevels(10 5 1) summstat(N) landscape replace
 
 
 H="Changelog"
+8/3- tweaked the logit models: categorized income, made outcome community-initiated referral, restricted the visit in day 31-60 model to those who weren't dead/in hospice/admitted to inpatient in first 60 days of episode. CKA
+
 7/23/2019 - Fixed missing continuous variables from tables. OKR
 
 7/18/19 - Added weighted tables and graphs, including pie chart and horizontal bar chart. OKR

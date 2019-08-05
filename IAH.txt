@@ -4764,7 +4764,7 @@ drop if _m==2
 label var housecalls_count "Ave. number of house calls in calendar year of interview"
 cap drop _m
 
-save "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\iah_wave1-7.dta", replace
+save "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\iah_wave1-7.dta", replace
 
 
 /*Income adjustment to $2017 dollars */
@@ -4818,8 +4818,9 @@ replace mc_hh = 1 if _m==3
 label var mc_hh "Medicare HH claim +/- 90 days of ivw"
 drop _m
 
-gen ind_icu_p12m = 0
-replace ind_icu_p12m = 1 if icu_days_p12m>0 & icu_days_p12m!=.
+gen ind_icu_12m = 0
+replace ind_icu_12m = 1 if icu_days_12m>0 & icu_days_12m!=.
+label var ind_icu_12m "Indicator ICU stay 12m pre ivw"
 
 gen tot_paid_by_mc_12m=0
 foreach x in ip snf hh hs pb op dm {
@@ -4885,7 +4886,7 @@ replace droplist=1 if spid==`x'
 
 drop if droplist==1 /* drop spid for those who have housecalls */
 gsort spid -wave
-drop if wave==7
+*drop if wave==7
 by spid: gen ind3=_n==1
 keep if ind3==1 /* keep most recent nonhousecalls -- limit to wave 6 for 1 year followup*/
 cap drop _m
@@ -4937,7 +4938,7 @@ egen person_yrs = total(person_time)
 
 * censoring 1 year outcomes for wave 7
 
-foreach x in ind_hosp_adm_p12m ind_ed_adm_p12m ind_icu_p12m tot_paid_by_mc_12m {
+foreach x in ind_hosp_adm_p12m ind_ed_adm_p12m tot_paid_by_mc_12m {
 
 replace `x' = . if wave==7
 }
@@ -4992,7 +4993,7 @@ replace `x' = `x'*100
 graph bar rcfres metro_ind iah_nonelect livealone, over(homebound_3cat) blabel(bar)
 
 
-H="housecalls table 4 grid"
+H="housecalls table 4 column"
 
 use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\housecalls.dta", clear 
 
@@ -5028,8 +5029,8 @@ sr_cancer_ever sr_hip_ever sr_heart_dis_ever sr_htn_ever sr_ra_ever sr_osteoprs_
 sr_diabetes_ever sr_dementia_ever prob_dem pos_dem
 local ivars3 adl_eat_diff adl_eat_help adl_bath_diff adl_bath_help adl_toil_diff ///
 adl_toil_help adl_dres_diff adl_dres_help adl_ins_help adl_ins_diff adl_bed_help ///
-adl_bed_diff ind_hosp_adm_p12m ind_ed_adm_p12m ind_icu_p12m died_12 hcalls homebound homebound_2 homebound_3 homebound_4 mc_hh
-local cvars2 tot_paid_by_mc_12m housecalls_count
+adl_bed_diff ind_hosp_adm_12m ind_ed_adm_12m ind_icu_12m died_12 hcalls homebound homebound_2 homebound_3 homebound_4 mc_hh
+local cvars2 housecalls_count
 
 
 local full `cvars1' `ivars1' `ivars2' `ivars3' `cvars2'
@@ -5044,26 +5045,26 @@ local c = 1
 
 foreach x of local cvars1 {
 
-sum `x' if hcalls==1 & cp_hb==0
+sum `x' if cp_hb==1 & hcalls==0
 mat tab1[`r',`c'] = r(mean)
 
 local ++c
-sum `x' if hcalls==1 & cp_hb==1
+sum `x' if cp_hb==1 & hcalls==1
 mat tab1[`r',`c'] = r(mean)
 
-ttest `x' if hcalls==1, by(cp_hb)
+ttest `x' if cp_hb==1, by(hcalls)
 mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
 
 local ++c
 
-sum `x' if hcalls==0 & cp_hb==0
+sum `x' if cp_hb==0 & hcalls==0
 mat tab1[`r',`c'] = r(mean)
 
 local ++c
-sum `x' if hcalls==0 & cp_hb==1
+sum `x' if cp_hb==0 & hcalls==1
 mat tab1[`r',`c'] = r(mean)
 
-ttest `x' if hcalls==0, by(cp_hb)
+ttest `x' if cp_hb==0, by(hcalls)
 mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
 
 local c = 1
@@ -5072,13 +5073,12 @@ local ++r
 
 foreach x of local ivars1 {
 
-
-sum `x' if hcalls==1 & cp_hb==0
+sum `x' if cp_hb==1 & hcalls==0
 mat tab1[`r',`c'] = r(mean)*100
 
 local ++c
 
-sum `x' if hcalls==1 & cp_hb==1
+sum `x' if cp_hb==1 & hcalls==1
 mat tab1[`r',`c'] = r(mean)*100
 
 tab `x' cp_hb if hcalls==1, chi2
@@ -5086,12 +5086,12 @@ mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local ++c
 
-sum `x' if hcalls==0  & cp_hb==0
+sum `x' if cp_hb==0  & hcalls==0
 mat tab1[`r',`c'] = r(mean)*100
 
 local ++c
 
-sum `x' if hcalls==0  & cp_hb==1
+sum `x' if cp_hb==0  & hcalls==1
 mat tab1[`r',`c'] = r(mean)*100
 
 tab `x' cp_hb if hcalls==0, chi2
@@ -5104,12 +5104,12 @@ local ++r
 
 foreach x of local ivars2 {
 
-sum `x' if hcalls==1 & cp_hb==0
+sum `x' if cp_hb==1 & hcalls==0
 mat tab1[`r',`c'] = r(mean)*100
 
 local ++c
 
-sum `x' if hcalls==1 & cp_hb==1
+sum `x' if cp_hb==1 & hcalls==1
 mat tab1[`r',`c'] = r(mean)*100
 
 tab `x' cp_hb if hcalls==1, chi2
@@ -5117,12 +5117,12 @@ mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local ++c
 
-sum `x' if hcalls==0  & cp_hb==0
+sum `x' if cp_hb==0  & hcalls==0
 mat tab1[`r',`c'] = r(mean)*100
 
 local ++c
 
-sum `x' if hcalls==0  & cp_hb==1
+sum `x' if cp_hb==0  & hcalls==1
 mat tab1[`r',`c'] = r(mean)*100
 
 tab `x' cp_hb if hcalls==0, chi2
@@ -5135,12 +5135,12 @@ local ++r
 
 foreach x of local ivars3 {
 
-sum `x' if hcalls==1 & cp_hb==0
+sum `x' if cp_hb==1 & hcalls==0
 mat tab1[`r',`c'] = r(mean)*100
 
 local ++c
 
-sum `x' if hcalls==1 & cp_hb==1
+sum `x' if cp_hb==1 & hcalls==1
 mat tab1[`r',`c'] = r(mean)*100
 
 tab `x' cp_hb if hcalls==1, chi2
@@ -5148,13 +5148,301 @@ mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local ++c
 
-sum `x' if hcalls==0  & cp_hb==0
+sum `x' if cp_hb==0  & hcalls==0
 mat tab1[`r',`c'] = r(mean)*100
 
 local ++c
 
-sum `x' if hcalls==0  & cp_hb==1
+sum `x' if cp_hb==0  & hcalls==1
 mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' hcalls if cp_hb==0, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+
+}
+ 
+foreach x of local cvars2 {
+
+sum `x' if cp_hb==1 & hcalls==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if cp_hb==1 & hcalls==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if cp_hb==1, by(hcalls)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if cp_hb==0 & hcalls==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if cp_hb==0 & hcalls==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if cp_hb==0, by(hcalls)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+}
+
+sum age if cp_hb==1 & hcalls==0
+mat tab1[`r',`c'] = r(N)
+
+local ++c
+
+sum age if cp_hb==1 & hcalls==1
+mat tab1[`r',`c'] = r(N)
+
+local ++c
+
+sum age if cp_hb==0 & hcalls==0
+mat tab1[`r',`c'] = r(N)
+
+local ++c
+
+sum age if cp_hb==0 & hcalls==1
+mat tab1[`r',`c'] = r(N)
+
+
+mat rownames tab1= `cvars1' `ivars1' `ivars2' `ivars3' `cvars2' N
+
+frmttable using `logpath'\table1_housecalls`date'.doc, replace statmat(tab1) ///
+varlabels title("Table 1: Housecalls Unique persons per NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
+ctitles("", "", "Complete/Partial HB", "", "", "Not HB", \"", "No Housecalls", "Housecalls", "No Housecalls", "Housecalls") sdec(2) annotate(stars) asymbol(*,**) landscape ///
+note("These are unique people, and only survey data from their most recent NHATS interview was used. Housecalls are +/- 90 days of ivw date. *p<0.05, **p<0.01")
+
+
+H="housecalls table 4 column -- UW censored"
+
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\housecalls.dta", clear 
+
+local logpath "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+local date=subinstr("$S_DATE"," ","_",.)
+
+replace homebound_cat = 4 if homebound_cat==.
+label var homebound "Never/Rarely leaves home"
+
+gen homebound_2 = 0 if homebound_cat!=.
+replace homebound_2 = 1 if homebound_cat==2
+label var homebound_2 "Leaves home but never by self"
+
+gen homebound_3 = 0 if homebound_cat!=.
+replace homebound_3 = 1 if homebound_cat==3
+label var homebound_3 "Leaves home but needs help/has difficulty"
+
+gen homebound_4 = 0 if homebound_cat!=.
+replace homebound_4 = 1 if homebound_cat==4
+label var homebound_4 "Not homebound"
+
+gen cp_hb = 0
+replace cp_hb = 1 if homebound_cat<4
+
+
+local cvars1 age income_quart_1 income_quart_2 income_quart_3 income_quart_4 // score_community
+local ivars1 income_cat_1 income_cat_2 income_cat_3 income_cat_4 female white  ///
+black hisp married livealone rcfres educ_hs_ind reg_doc_have reg_doc_seen ///
+medicaid metro_ind northeast midwest south west
+local ivars2 iah_adl iah_chronic iah_nonelect iah_pacute iah_all sr_ami_ever sr_stroke_ever ///
+sr_cancer_ever sr_hip_ever sr_heart_dis_ever sr_htn_ever sr_ra_ever sr_osteoprs_ever ///
+sr_diabetes_ever sr_dementia_ever prob_dem pos_dem
+local ivars3 adl_eat_diff adl_eat_help adl_bath_diff adl_bath_help adl_toil_diff ///
+adl_toil_help adl_dres_diff adl_dres_help adl_ins_help adl_ins_diff adl_bed_help ///
+adl_bed_diff ind_hosp_adm_12m ind_ed_adm_12m ind_icu_12m died_12 hcalls homebound homebound_2 homebound_3 homebound_4 mc_hh
+local cvars2 housecalls_count
+
+
+local full `cvars1' `ivars1' `ivars2' `ivars3' `cvars2'
+
+local rd: word count `full' 1
+
+mat tab1 = J(`rd',4,.)
+mat stars = J(`rd',4,0)
+
+local r = 1
+local c = 1
+
+foreach x of local cvars1 {
+
+sum `x' if cp_hb==1 & hcalls==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if cp_hb==1 & hcalls==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if cp_hb==1, by(hcalls)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if cp_hb==0 & hcalls==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if cp_hb==0 & hcalls==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if cp_hb==0, by(hcalls)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+}
+
+foreach x of local ivars1 {
+
+*
+sum `x' if cp_hb==1 & hcalls==0
+local a = r(mean)*r(N)
+
+sum `x' if cp_hb==1 & hcalls==1
+local b = r(mean)*r(N)
+*
+//
+
+sum `x' if cp_hb==1 & hcalls==0
+if `a'>=11 & `b'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `a'<11 | `b'<11 mat tab1[`r',`c'] = "NR"
+
+local ++c
+
+sum `x' if cp_hb==1 & hcalls==1
+if `a'>=11 & `b'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `a'<11 | `b'<11 mat tab1[`r',`c'] = "NR"
+
+tab `x' cp_hb if hcalls==1, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+*
+sum `x' if cp_hb==0 & hcalls==0
+local e = r(mean)*r(N)
+
+sum `x' if cp_hb==0 & hcalls==1
+local d = r(mean)*r(N)
+*
+//
+
+sum `x' if cp_hb==0  & hcalls==0
+if `e'>=11 & `d'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `e'<11 | `d'<11 mat tab1[`r',`c'] = "NR"
+
+local ++c
+
+sum `x' if cp_hb==0  & hcalls==1
+if `e'>=11 & `d'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `e'<11 | `d'<11 mat tab1[`r',`c'] = "NR"
+
+tab `x' cp_hb if hcalls==0, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+
+}
+
+foreach x of local ivars2 {
+
+*
+sum `x' if cp_hb==1 & hcalls==0
+local a = r(mean)*r(N)
+
+sum `x' if cp_hb==1 & hcalls==1
+local b = r(mean)*r(N)
+*
+//
+
+sum `x' if cp_hb==1 & hcalls==0
+if `a'>=11 & `b'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `a'<11 | `b'<11 mat tab1[`r',`c'] = "NR"
+
+local ++c
+
+sum `x' if cp_hb==1 & hcalls==1
+if `a'>=11 & `b'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `a'<11 | `b'<11 mat tab1[`r',`c'] = "NR"
+
+tab `x' cp_hb if hcalls==1, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+*
+sum `x' if cp_hb==0 & hcalls==0
+local e = r(mean)*r(N)
+
+sum `x' if cp_hb==0 & hcalls==1
+local d = r(mean)*r(N)
+*
+//
+
+sum `x' if cp_hb==0  & hcalls==0
+if `e'>=11 & `d'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `e'<11 | `d'<11 mat tab1[`r',`c'] = "NR"
+
+local ++c
+
+sum `x' if cp_hb==0  & hcalls==1
+if `e'>=11 & `d'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `e'<11 | `d'<11 mat tab1[`r',`c'] = "NR"
+
+tab `x' cp_hb if hcalls==0, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+
+}
+
+foreach x of local ivars3 {
+
+*
+sum `x' if cp_hb==1 & hcalls==0
+local a = r(mean)*r(N)
+
+sum `x' if cp_hb==1 & hcalls==1
+local b = r(mean)*r(N)
+*
+//
+
+sum `x' if cp_hb==1 & hcalls==0
+if `a'>=11 & `b'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `a'<11 | `b'<11 mat tab1[`r',`c'] = "NR"
+
+local ++c
+
+sum `x' if cp_hb==1 & hcalls==1
+if `a'>=11 & `b'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `a'<11 | `b'<11 mat tab1[`r',`c'] = "NR"
+
+tab `x' cp_hb if hcalls==1, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+*
+sum `x' if cp_hb==0 & hcalls==0
+local e = r(mean)*r(N)
+
+sum `x' if cp_hb==0 & hcalls==1
+local d = r(mean)*r(N)
+*
+//
+
+sum `x' if cp_hb==0  & hcalls==0
+if `e'>=11 & `d'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `e'<11 | `d'<11 mat tab1[`r',`c'] = "NR"
+
+local ++c
+
+sum `x' if cp_hb==0  & hcalls==1
+if `e'>=11 & `d'>=11 mat tab1[`r',`c'] = r(mean)*100
+*if `e'<11 | `d'<11 mat tab1[`r',`c'] = "NR"
 
 tab `x' cp_hb if hcalls==0, chi2
 mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
@@ -5166,48 +5454,274 @@ local ++r
  
 foreach x of local cvars2 {
 
-sum `x' if hcalls==1 & cp_hb==0
+sum `x' if cp_hb==1 & hcalls==0
 mat tab1[`r',`c'] = r(mean)
 
 local ++c
-sum `x' if hcalls==1 & cp_hb==1
+sum `x' if cp_hb==1 & hcalls==1
 mat tab1[`r',`c'] = r(mean)
 
-ttest `x' if hcalls==1, by(cp_hb)
+ttest `x' if cp_hb==1, by(hcalls)
 mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
 
 local ++c
 
-sum `x' if hcalls==0 & cp_hb==0
+sum `x' if cp_hb==0 & hcalls==0
 mat tab1[`r',`c'] = r(mean)
 
 local ++c
-sum `x' if hcalls==0 & cp_hb==1
+sum `x' if cp_hb==0 & hcalls==1
 mat tab1[`r',`c'] = r(mean)
 
-ttest `x' if hcalls==0, by(cp_hb)
+ttest `x' if cp_hb==0, by(hcalls)
 mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
 
 local c = 1
 local ++r
 }
 
-sum age if hcalls==1 & cp_hb==0
+sum age if cp_hb==1 & hcalls==0
 mat tab1[`r',`c'] = r(N)
 
 local ++c
 
-sum age if hcalls==1 & cp_hb==1
+sum age if cp_hb==1 & hcalls==1
 mat tab1[`r',`c'] = r(N)
 
 local ++c
 
-sum age if hcalls==0 & cp_hb==0
+sum age if cp_hb==0 & hcalls==0
 mat tab1[`r',`c'] = r(N)
 
 local ++c
 
-sum age if hcalls==0 & cp_hb==1
+sum age if cp_hb==0 & hcalls==1
+mat tab1[`r',`c'] = r(N)
+
+
+mat rownames tab1= `cvars1' `ivars1' `ivars2' `ivars3' `cvars2' N
+
+frmttable using `logpath'\table1_4col_censored`date'.doc, replace statmat(tab1) ///
+varlabels title("Table 1: Housecalls Unique persons per NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
+ctitles("", "", "Complete/Partial HB", "", "", "Not HB", \"", "No Housecalls", "Housecalls", "No Housecalls", "Housecalls") sdec(2) annotate(stars) asymbol(*,**) landscape ///
+note("These are unique people, and only survey data from their most recent NHATS interview was used. Housecalls are +/- 90 days of ivw date. Blank rows are censored because of NHATS/CMS cellsize restrictions. *p<0.05, **p<0.01")
+
+
+H="housecalls table 2 column"
+
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\housecalls.dta", clear 
+
+local logpath "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+local date=subinstr("$S_DATE"," ","_",.)
+
+
+replace homebound_cat = 4 if homebound_cat==.
+label var homebound "Never/Rarely leaves home"
+
+gen homebound_2 = 0 if homebound_cat!=.
+replace homebound_2 = 1 if homebound_cat==2
+label var homebound_2 "Leaves home but never by self"
+
+gen homebound_3 = 0 if homebound_cat!=.
+replace homebound_3 = 1 if homebound_cat==3
+label var homebound_3 "Leaves home but needs help/has difficulty"
+
+gen homebound_4 = 0 if homebound_cat!=.
+replace homebound_4 = 1 if homebound_cat==4
+label var homebound_4 "Not homebound"
+
+gen cp_hb = 0
+replace cp_hb = 1 if homebound_cat<4
+
+
+local cvars1 age income_quart_1 income_quart_2 income_quart_3 income_quart_4 // score_community
+local ivars1 income_cat_1 income_cat_2 income_cat_3 income_cat_4 female white  ///
+black hisp married livealone rcfres educ_hs_ind reg_doc_have reg_doc_seen ///
+medicaid metro_ind northeast midwest south west
+local ivars2 iah_adl iah_chronic iah_nonelect iah_pacute iah_all sr_ami_ever sr_stroke_ever ///
+sr_cancer_ever sr_hip_ever sr_heart_dis_ever sr_htn_ever sr_ra_ever sr_osteoprs_ever ///
+sr_diabetes_ever sr_dementia_ever prob_dem pos_dem
+local ivars3 adl_eat_diff adl_eat_help adl_bath_diff adl_bath_help adl_toil_diff ///
+adl_toil_help adl_dres_diff adl_dres_help adl_ins_help adl_ins_diff adl_bed_help ///
+adl_bed_diff ind_hosp_adm_12m ind_ed_adm_12m ind_icu_12m died_12 hcalls homebound homebound_2 homebound_3 homebound_4 mc_hh
+local cvars2 housecalls_count
+
+
+local full `cvars1' `ivars1' `ivars2' `ivars3' `cvars2'
+
+local rd: word count `full' 1
+
+mat tab1 = J(`rd',4,.)
+mat stars = J(`rd',4,0)
+
+local r = 1
+local c = 1
+
+foreach x of local cvars1 {
+
+sum `x' if cp_hb==1 & hcalls==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if cp_hb==1 & hcalls==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if cp_hb==1, by(hcalls)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if cp_hb==0 & hcalls==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if cp_hb==0 & hcalls==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if cp_hb==0, by(hcalls)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+}
+
+foreach x of local ivars1 {
+
+sum `x' if cp_hb==1 & hcalls==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if cp_hb==1 & hcalls==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==1, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if cp_hb==0  & hcalls==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if cp_hb==0  & hcalls==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==0, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+
+}
+
+foreach x of local ivars2 {
+
+sum `x' if cp_hb==1 & hcalls==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if cp_hb==1 & hcalls==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==1, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if cp_hb==0  & hcalls==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if cp_hb==0  & hcalls==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==0, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+
+}
+
+foreach x of local ivars3 {
+
+sum `x' if cp_hb==1 & hcalls==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if cp_hb==1 & hcalls==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' cp_hb if hcalls==1, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if cp_hb==0  & hcalls==0
+mat tab1[`r',`c'] = r(mean)*100
+
+local ++c
+
+sum `x' if cp_hb==0  & hcalls==1
+mat tab1[`r',`c'] = r(mean)*100
+
+tab `x' hcalls if cp_hb==0, chi2
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+
+}
+ 
+foreach x of local cvars2 {
+
+sum `x' if cp_hb==1 & hcalls==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if cp_hb==1 & hcalls==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if cp_hb==1, by(hcalls)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+sum `x' if cp_hb==0 & hcalls==0
+mat tab1[`r',`c'] = r(mean)
+
+local ++c
+sum `x' if cp_hb==0 & hcalls==1
+mat tab1[`r',`c'] = r(mean)
+
+ttest `x' if cp_hb==0, by(hcalls)
+mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
+
+local c = 1
+local ++r
+}
+
+sum age if cp_hb==1 & hcalls==0
+mat tab1[`r',`c'] = r(N)
+
+local ++c
+
+sum age if cp_hb==1 & hcalls==1
+mat tab1[`r',`c'] = r(N)
+
+local ++c
+
+sum age if cp_hb==0 & hcalls==0
+mat tab1[`r',`c'] = r(N)
+
+local ++c
+
+sum age if cp_hb==0 & hcalls==1
 mat tab1[`r',`c'] = r(N)
 
 
@@ -5215,8 +5729,228 @@ mat rownames tab1= `cvars1' `ivars1' `ivars2' `ivars3' `cvars2' N
 
 frmttable using `logpath'\table1_housecalls`date'.doc, replace statmat(tab1) ///
 varlabels title("Table 1: Housecalls Unique persons per NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
-ctitles("", "", "Housecalls", "", "No Housecalls", \"", "Complete\Partial HB", "Not HB", "Complete\Partial HB", "Not HB") sdec(2) annotate(stars) asymbol(*,**) ///
+ctitles("", "", "Complete/Partial HB", "", "", "Not HB", \"", "No Housecalls", "Housecalls", "No Housecalls", "Housecalls") sdec(2) annotate(stars) asymbol(*,**) landscape ///
 note("These are unique people, and only survey data from their most recent NHATS interview was used. Housecalls are +/- 90 days of ivw date. *p<0.05, **p<0.01")
+
+
+H="Weighted X-section"
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\iah_wave1-7.dta", clear
+
+global output "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+
+gen homebound_part = 0
+replace homebound_part = 1 if inrange(homebound_cat,2,3)
+label var homebound_part "Partially Homebound"
+label var homebound "Completely Homebound"
+
+gen homebound_not = 0
+replace homebound_not = 1 if homebound_cat>=4
+label var homebound_not "Indepent"
+
+gen homebound_3cat = .
+replace homebound_3cat = 1 if homebound==1
+replace homebound_3cat = 2 if homebound_part==1
+replace homebound_3cat = 3 if homebound_3cat==.
+la define hblbl 1"Complete HB"2"Partial HB"3"Independent"
+la values homebound_3cat hblbl
+
+gen anyhcall = 0
+replace anyhcall = 1 if housecalls_count>=1 & housecalls_count!=.
+
+svyset spid [pw=anfinwgt], strata(varstrat)
+
+gen all = 1
+
+mat tab1=J(7,6,.)
+
+local r = 1
+local c = 1
+
+forvalues i=1/7 {
+
+svy: mean hcalls if wave==`i'
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: mean anyhcall if wave==`i'
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: total all if wave==`i'
+mat tab1[`r',`c'] = (e(N_pop))
+
+local ++c
+svy: mean hcalls if wave==`i' & homebound_3cat<3
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: mean anyhcall if wave==`i' & homebound_3cat<3
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: total all if wave==`i' & homebound_3cat<3
+mat tab1[`r',`c'] = (e(N_pop))
+
+local c = 1
+local ++r
+}
+
+mat rownames tab1 = "2011" "2012" "2013" "2014" "2015" "2016" "2017"
+mat list tab1
+
+frmttable using $output\table2_pop_estimates`date'.doc, replace statmat(tab1) ///
+varlabels title("Table 2: Weighted Population Estimates NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
+ctitles("", "", "All", "", "", "Complete/Partial HB" \ "Years", "Weighted % - 2+ Hcalls (or 1+NH/Death)", "Weighted % - Any Hcall in calendar year", "Population Estimates", "Weighted % - 2+ Hcalls (or 1+NH/Death)", "Weighted % - Any Hcall in calendar year", "HB Population Estimates") sdec(2) ///
+note("Population Estimates is the total (weighted) number of 6mFFS + CD people in the NHATS year")
+
+
+replace homebound_cat = 4 if homebound_cat==.
+label var homebound "Never/Rarely leaves home"
+
+gen homebound_2 = 0 if homebound_cat!=.
+replace homebound_2 = 1 if homebound_cat==2
+label var homebound_2 "Leaves home but never by self"
+
+gen homebound_3 = 0 if homebound_cat!=.
+replace homebound_3 = 1 if homebound_cat==3
+label var homebound_3 "Leaves home but needs help/has difficulty"
+
+gen homebound_4 = 0 if homebound_cat!=.
+replace homebound_4 = 1 if homebound_cat==4
+label var homebound_4 "Not homebound"
+
+
+local r = 1
+local c = 1
+
+mat tab2=J(4,3,.)
+foreach x in homebound homebound_2 homebound_3 homebound_4 {
+
+svy: mean hcalls if `x'==1
+mat tab2[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: mean anyhcall if `x'==1
+mat tab2[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: mean housecalls_count if `x'==1
+mat tab2[`r',`c'] = (r(table)[1,1])
+
+local ++r
+local c = 1
+}
+
+mat rownames tab2 = homebound homebound_2 homebound_3 homebound_4
+
+frmttable using $output\table2_pop_estimates`date'.doc, addtable statmat(tab2) ///
+varlabels title("Table 3: Weighted NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
+ctitles("", "2+ HBMC or 1+ NH/Death (%)", "Any HBMC in calendar year (%)", "Average # of visits in calendar year") sdec(2) //
+
+
+H="Sample Derivation"
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\int_data\sample_deri.dta", clear
+local logpath "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+local date=subinstr("$S_DATE"," ","_",.)
+
+gsort spid wave
+by spid: gen first=_n==1
+
+bysort spid: egen ever_cd = max(community_dwelling)
+gen never_cd = 0
+replace never_cd = 1 if ever_cd==0
+label var never_cd "Never community dwelling"
+
+by spid:egen ever_ffs = max(ffs_6m)
+gen never_ffs = 0
+replace never_ffs = 1 if ever_ffs==0
+label var never_ffs "Never 6m ffs"
+ 
+
+label var ind2 "Most recent wave with a housecall"
+label var all "ALL NHATS respondents Waves 1-7"
+
+gen drop_notrec = 0
+replace drop_notrec = 1 if ind2==. & ind3==.
+label var drop_notrec "Dropped, no housecall & not most recent wave"
+
+local samp all
+local drops drop_nocd 
+local drop2 drop_noffs
+local drop3 drop_notrec
+local keeps ind2 ind3
+
+
+
+local rd: word count `samp' `drops' `drop2' `drop3' `keeps'
+di `rd'
+mat tab1 = J(`rd',2,.)
+
+local r=1
+
+foreach x of local samp {
+
+sum `x'
+mat tab1[`r',1] = r(N)
+mat tab1[`r',2] = 12427
+local ++r
+}
+
+foreach x of local drops {
+sum `x'
+mat tab1[`r',1] = r(sum)
+preserve 
+keep if `x'==1
+sum never_cd if first==1
+mat tab1[`r',2] = r(sum)
+restore
+local ++r
+}
+drop if drop_nocd==1 
+
+foreach x of local drop2 {
+sum `x'
+mat tab1[`r',1] = r(sum)
+preserve 
+keep if `x'==1
+duplicates drop spid, force
+sum never_ffs if first==1
+mat tab1[`r',2] = r(sum)
+restore
+local ++r
+}
+
+drop if drop_noffs==1
+
+foreach x of local drop3 {
+sum `x'
+mat tab1[`r',1] = r(sum)
+preserve 
+keep if `x'==1
+duplicates drop spid, force
+sum `x' 
+mat tab1[`r',2] = 0
+restore
+local ++r
+}
+
+
+foreach x of local keeps {
+sum `x'
+mat tab1[`r',1] = r(sum)
+mat tab1[`r',2] = r(sum)
+
+local ++r
+}
+
+mat rownames tab1 = `samp' `drops' `drop2' `drop3' `keeps'
+
+mat list tab1
+
+frmttable using `logpath'\Sample_derivation`date'.doc, replace statmat(tab1) ///
+varlabels title("Housecalls NHATS Waves 1-7") ///
+ctitles("", "All Observations", "Unique people") sdec(0) ///
+note("477 People had 1+ CPT codes +/- 90 days of interview." / "Housecalls are 2+ CPT codes +/- 90 days or ivw, or 1 CPT code & NH/Death +/- 90 days of ivw." )
 
 
 H="********"
@@ -10165,6 +10899,8 @@ proc sort data=hcc.diag_hcc nodup; by hicno; run;
 
 
 H="Changelog"
+8/1/2019 - Changed data construction to cap waves of nonhousecalls to wave 6, created 4 column table, and rebuilt the data from base on the new server. OKR.
+
 5/14/19 - Changed housecalls definition to 2+ CPT codes or CPT code + NH/Death in +/- 90 days. Omari.
 
 02/13/2019 - Added Medicare Home Health claims flag and created censored version of housecalls table. Omari. 
