@@ -222,6 +222,24 @@ save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\raw_w1_w8
 
 
 
+H="making race var file"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" 
+keep spid race_cat
+by spid, sort: gen pid=_n
+keep if pid==1
+keep spid race_cat
+rename spid bene_id
+save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\race var.dta"
+
+
+H="making sex var"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" 
+keep spid female
+by spid, sort: gen pid=_n
+keep if pid==1
+keep spid female
+save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\female var.dta"
+
 H="****RUN BELOW EVERY TIME****"
 
 
@@ -1201,7 +1219,9 @@ replace excellent =1 if recode_overall_rate ==1
 
 H="analysis"
 use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta"
-
+***need to add
+replace  recode_care_notwant=0 if recode_care_notwant==2
+replace recode_care_decision=0 if recode_care_decision==2 | recode_care_decision==3
 
 svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
 
@@ -1210,11 +1230,10 @@ svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missi
 *table 2: association between MA and EOL outcome
 foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' ma1
-		svy, subpop(inanal): logistic `var' ma2
-
+		svy, subpop(inanal): logistic `var' i.ma1 mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed  age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend
+		margins ma1
 }
-
+black hispanic
 
 
 
@@ -2735,7 +2754,7 @@ by bene_id: keep if _n==_N
 
 merge 1:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keep(match) nogen
 
-keep bene_id spid ma1 ma2 ind_hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year
+keep bene_id spid ma1 ma2 ind_hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year
 merge 1:m spid using "`nhats'", nogen
 
 label var ma1 "MA approach 1"
