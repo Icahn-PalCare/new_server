@@ -431,7 +431,7 @@ preserve
 merge 1:1 bene_id admit_date using "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\nhats_ffs.dta", keepus(cont_ffs_n_mos)
 keep if _m==1
 duplicates drop bene_id, force
-gen no_mbsf = 1
+gen no_mbsf = 1 // not unique people, need to fix
 label var no_mbsf "Dropped because not in MBSF"
 keep bene_id no_mbsf
 merge 1:1 bene_id using $int\samplederivation.dta, nogen
@@ -451,6 +451,8 @@ save `nhats'
 restore
 
 merge m:1 spid ivw_year using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", keep(master match) // matching on year prior to HH sequence
+gen insamp = 0
+replace insamp = 1 if _m==3
 preserve
 keep if _m==1
 drop _m
@@ -459,13 +461,13 @@ keep if _m==5
 keep if ivw_month<admit_month //nhats interviews that happen same year as hh episode, but months before it
 drop _m
 tempfile nhsameyr
-gen insamp = 1
+replace insamp = 1
 save `nhsameyr'
 *restore
 restore, preserve
 
 /******* Sample Derivation ********/
-keep if _m==1
+keep if _m==1 | _m==3
 append using "`nhsameyr'"
 replace insamp = 0 if insamp==.
 bysort bene_id: egen no_nhats_wave = max(insamp)
@@ -1421,6 +1423,8 @@ use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\final_data\timing_HHA.dta
 
 gen all = 1
 
+recode post_int (0=1)(1=0), gen(comm_init)
+
 keep if new_sq==1
 cap drop obs
 bysort bene_id: gen obs = _n
@@ -1443,7 +1447,7 @@ svyset sq_id [pw=anfinwgt], strata(varstrat)
 
 local ivars1 white hisp black female educ_hs_ind medicaid married metro_ind adl_independent adl_dep_2 adl_dep_3 homebound srh_fp ind_hosp_sq otherinformal_help_ind northeast midwest south west chronic_con_0 chronic_con_1 chronic_con_2 livealone died_in_12m died_in_60 snf_in_12m snf_in_60 ip_in_12m ip_in_60 hs_in_12m hs_in_60 
 local cvars1 age hhm aveincome days_last_ivw sr_numconditions1 
-local ivars2 post_int any_vis_60 len_sq_1 len_sq_2 len_sq_3 len_sq_4 num_seq_1 num_seq_2 num_seq_3
+local ivars2 comm_init any_vis_60 len_sq_1 len_sq_2 len_sq_3 len_sq_4 num_seq_1 num_seq_2 num_seq_3
 local cvars2 len_sq num_seq
 local full 1 `ivars1' 1 `cvars1' 1 `ivars2' `cvars2' 1 1
 local rd: word count `full'
@@ -1474,7 +1478,7 @@ mat stars[`r',`c'] = (e(p_Pear)<.01) + (e(p_Pear)<.05)
 
 local ++c
 
-svy: logit post_int `x'
+svy: logit comm_init `x'
 mat tab1[`r',`c']=exp(el(e(b),1,1))
 mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
 
@@ -1509,7 +1513,7 @@ mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local ++c
 
-svy: logit post_int `x'
+svy: logit comm_init `x'
 mat tab1[`r',`c']=exp(el(e(b),1,1))
 mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
 
@@ -1545,7 +1549,7 @@ mat stars[`r',`c'] = (e(p_Pear)<.01) + (e(p_Pear)<.05)
 
 local ++c
 
-cap svy: logit post_int `x'
+cap svy: logit comm_init `x'
 cap mat tab1[`r',`c']=exp(el(e(b),1,1))
 cap mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
 
@@ -1580,7 +1584,7 @@ mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local ++c
 
-svy: logit post_int `x'
+svy: logit comm_init `x'
 mat tab1[`r',`c']=exp(el(e(b),1,1))
 mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
 
@@ -1595,7 +1599,7 @@ local ++r
 }
 
 
-svy: logit post_int dem_cohort
+svy: logit comm_init dem_cohort
 mat tab1[`r',4]=exp(el(e(b),1,1))
 mat stars[`r',4]=(e(p)<.01) + (e(p)<.05)
 
@@ -1618,29 +1622,31 @@ mat rownames tab1= "Categorical Predictors (%)" `ivars1' "Continuous Predictors 
 
 frmttable using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\In progress\table1_weighted_`c(current_date)'.rtf", replace statmat(tab1) ///
 varlabels title("Table 1: Unique HH Sequences (Weighted): 12m FFS prior to admit date of first episode in sequence") ///
-ctitles("" "All" "Non-Dementia" "Probable Dementia" "Unadjusted Logit OR: Post-Instiutional = 1" "Unadjusted Logit OR: Any Visit Day 31-60 = 1") sdec(2) annotate(stars) asymbol(*,**) ///
+ctitles("" "All" "Non-Dementia" "Probable Dementia" "Unadjusted Logit OR: Comm. Initiated = 1" "Unadjusted Logit OR: Any Visit Day 31-60 = 1") sdec(2) annotate(stars) asymbol(*,**) ///
 note("NHATS Interview required in same year (before start of sequence) or prior calendar year. *p<0.05, **p<0.01")
-
+/*
 outreg, clear
-svy: logistic post_int age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort died_in_12m, cformat(%4.2f)
-
+svy: logistic comm_init age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort died_in_12m, cformat(%4.2f)
+*/
 *start of claire's added stuff
-recode post_int (0=1)(1=0), gen(comm_init)
+*recode comm_init (0=1)(1=0), gen(comm_init)
 recode income_quart (1=1)(2/4=0), gen(low_inc)
 gen aveincome_k=aveincome/10000
+
+outreg, clear
 svy: logistic comm_init dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m , cformat(%4.2f)
 *end of claire's added stuff
 
 outreg using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\In progress\logit_weighted_`c(current_date)'", ///
 varlabels stats(e_b e_ci p) nosubstat ///
-title("Adjusted Logistic Regression (Weighted): Outcome=Sequence initatiated post institution") ///
+title("Adjusted Logistic Regression (Weighted): Outcome=Sequence initatiated in Community") ///
 ctitles("" "Std. Coefficient" "95% CI" "P-value") ///
-note("Standardized Coefficients, <1 indicates less likely to be initatied post institution") ///
 starlevels(10 5 1) summstat(N) landscape replace
 
-
+/*
 outreg, clear
-svy: logit any_vis_60 age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort post_int died_in_12m
+svy: logit any_vis_60 age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort comm_init died_in_12m
+*/
 
 *start of claire's added stuff
 gen keep=1
@@ -1655,329 +1661,50 @@ outreg using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\In progress\lo
 varlabels stats(e_b e_ci p) nosubstat ///
 title("Adjusted Logistic Regression (Weighted): Outcome=Any visit in days 31-60") ///
 ctitles("" "Std. Coefficient" "95% CI" "P-value") ///
-note("Standardized Coefficients, <1 indicates less likely to be have visits in days 31-60") ///
 starlevels(10 5 1) summstat(N) landscape replace
-
-
 
 H="****** Sensitivity Analysis ********"
 
 
 H="Dataset construction - include remote dem"
-cap log close
-log using $logs\claims_files_sensitivity.txt, text replace
+use $int\samplederivation.dta, clear
+ 
+ *gen all = 1
+ local sampvars no_nhats_spid no_mbsf no_nhats_wave never_cohort no_ffs
+ label var all "ALL NHATS respondents with a HH claim 2011-2017"
+ 
+ local rd: word count all `sampvars' 1 1
+ 
+ mat tab1 = J(`rd',1,.)
+ 
 
-/* Get dates from rev center */
-use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\rev_cntr.dta", clear
-drop clm_thru_dt
-duplicates drop 
-bysort bene_id clm_id: gen obs = _n
-bysort bene_id clm_id: egen num_visits = max(obs)
-label var num_visits "Number of visits during episode"
-reshape wide rev_cntr_dt, i(bene_id clm_id) j(obs)
-tempfile dates
-save `dates'
+mat tab1 = J(`rd',1,.)
 
-/* Pull discharge dates from IP */
-use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\ip_06_17.dta" , clear
+sum all
+mat tab1[1,1]=r(N)
 
-keep bene_id admit_date disch_date 
-duplicates drop 
-gen year = year(disch_date)
-gsort bene_id year disch_date
-by bene_id year: gen obs = _n
-rename disch_date disch_date_ip
-rename admit_date admit_date_ip
-reshape wide admit_date_ip disch_date_ip, i(bene_id year) j(obs)
-tempfile ip
-save `ip'
-
-/* Pull discharge dates from SNF */
-
-use "D:\NHATS\Shared\base_data\CMS_claims\Stata\snf_09_17.dta", clear
-keep bene_id admit_date disch_date
-duplicates drop
-gen year = year(disch_date)
-gsort bene_id year disch_date
-by bene_id year: gen obs = _n
-rename disch_date disch_date_snf
-rename admit_date admit_date_snf
-reshape wide admit_date_snf disch_date_snf, i(bene_id year) j(obs)
-tempfile snf
-save `snf'
-
-/* Pull dates from hospice */
-
-use "D:\NHATS\Shared\base_data\CMS_claims\Stata\hs_09_17.dta", clear 
-keep bene_id admit_date disch_date
-duplicates drop
-gen year = year(disch_date)
-gsort bene_id year disch_date 
-by bene_id year: gen obs = _n
-rename disch_date disch_date_hs
-rename admit_date admit_date_hs
-reshape wide admit_date_hs disch_date_hs, i(bene_id year) j(obs)
-tempfile hs
-save `hs'
-
-/*** Merge HH dataset with SNF, IP and rev_cntr dates ****/
-
-use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hh_09_17.dta" , clear
-merge 1:1 bene_id clm_id using "`dates'", keep(master match) nogen 
-gen year = year(admit_date)
-merge m:1 bene_id year using "`ip'", keep(master match) nogen
-merge m:1 bene_id year using "`snf'", keep(master match) nogen
-merge m:1 bene_id year using "`hs'", keep(master match) nogen
-
-gsort bene_id admit_date
-by bene_id: gen next_admit = admit_date[_n+1]
-
-gen subsq_epi = 0
-replace subsq_epi = 1 if next_admit - disch_date <=60
-label var subsq_epi "Subsequent HH episode <=60 post discharge of prior episode"
-
-by bene_id: gen obs = _n
-replace subsq_epi = 1 if obs==1 // ensuring first obs always counts as HH sequence
-
-preserve
-keep bene_id subsq_epi obs
-reshape wide subsq_epi, i(bene_id) j(obs)
-egen hh_seq = concat(subsq_epi1-subsq_epi56)
-label var hh_seq "string of all HH episodes starting with first observed"
-tempfile hhstring
-save `hhstring'
-
-restore
-cap drop _m
-merge m:1 bene_id using "`hhstring'", keepus(hh_seq) nogen   
-
-replace hh_seq = subinstr(hh_seq,".","",. )
-
-gen sub_hh_seq = substr(hh_seq,obs,.)       
-replace sub_hh_seq = strltrim(sub_hh_seq)
-label var sub_hh_seq "string of all HH episodes, starting with current"
-
-gsort bene_id admit_date
-gen new_sq = 0
-by bene_id: replace new_sq = 1 if (subsq_epi[_n-1]==0 | subsq_epi[_n-1]==.) & (subsq_epi==1 | subsq_epi==0) 
-label var new_sq "Start of a new HH sequence"
-
-gen len_sq = strpos(sub_hh_seq,"0") if new_sq==1
-label var len_sq "Number of HH episodes in sequence"
-
-replace len_sq = 1 if len_sq==0
-
-by bene_id: gen diff = admit_date - admit_date[_n-1] if new_sq==1
-assert diff>60 // minimum value must be 61
-drop diff 
-
-/* Generate HH sequence ID to group HH episodes together */
-
-set seed 45
-gen sq_id = runiform()*10000000000 if new_sq==1
-label var sq_id "Unique ID for HH sequences"
-
-by bene_id: carryforward sq_id, replace
-
-gen hosp_mid_sq = 0
-label var hosp_mid_sq "# of hospitalization mid-sequence"
-
-gen post_int = 0
-label var post_int "Post-institution initiated"
-
-gen snf_in_60 = 0
-label var snf_in_60 "SNF admit within 60 days of sequence start date"
-
-gen snf_in_12m = 0
-label var snf_in_12m "SNF admit within 12m of sequence start date"
-
-gen ip_in_60 = 0
-gen ip_in_12m = 0
-gen hs_in_60 = 0
-gen hs_in_12m = 0
-label var ip_in_60 "IP admit within 60 days of sequence start date"
-label var ip_in_12m "IP admit within 12m of sequence start date"
-label var hs_in_60 "Hospice admit within 60 days of sequence start date"
-label var hs_in_12m "Hospice admit within 12m of sequence start date"
-
-forvalues i = 1/14 {
-
-replace post_int = 1 if (admit_date - disch_date_ip`i')<=14 & (admit_date - disch_date_ip`i')>=0 & new_sq==1
-replace hosp_mid_sq = hosp_mid_sq + 1 if (disch_date < admit_date_ip`i') &  (admit_date_ip`i'< next_admit) & subsq_epi==1
-
-replace ip_in_60 = 1 if (admit_date_ip`i' - admit_date)<=60 & (admit_date_ip`i' - admit_date)>=0 & new_sq==1
-
-replace ip_in_12m = 1 if (admit_date_ip`i' - admit_date)<=365 & (admit_date_ip`i' - admit_date)>=0 & new_sq==1
-
+local r = 2
+foreach x of local sampvars {
+sum `x'
+mat tab1[`r',1] = r(sum)
+drop if `x'==1
+local ++r
 }
 
-forvalues i = 1/17 {
+sum all
+mat tab1[`r',1] = r(N)
 
-replace post_int = 1 if (admit_date - disch_date_snf`i')<=14 & (admit_date - disch_date_snf`i')>=0 & new_sq==1
+local ++r
 
-replace snf_in_60 = 1 if (admit_date_snf`i'- admit_date)<=60 &  (admit_date_snf`i'- admit_date)>=0 & new_sq==1
-
-replace snf_in_12m = 1 if (admit_date_snf`i'- admit_date)<=365 &  (admit_date_snf`i'- admit_date)>=0 & new_sq==1
-}
-
-forvalues i = 1/50 {
-
-replace hs_in_60 = 1 if (admit_date_hs`i'- admit_date)<=60 &  (admit_date_hs`i'- admit_date)>=0 & new_sq==1
-
-replace hs_in_12m = 1 if (admit_date_hs`i'- admit_date)<=365 &  (admit_date_hs`i'- admit_date)>=0 & new_sq==1
-}
+sum dem_cohort
+mat tab1[`r',1] = r(mean)*100
 
 
-forvalues u = 10(10)60 {
-local v = `u' - 10
+mat rownames tab1 = all `sampvars' "Final Sample" "(%) with Dementia"
 
-gen numvis_`u' = 0
-label var numvis_`u' "Number of visits in the first `v' - `u' days of episode"
+frmttable using "$output\sample_derivation_`c(current_date)'.rtf", ///
+statmat(tab1) varlabels title("Sample Derivation") sdec(0) replace
 
-forvalues i=1/61 {
-
-replace numvis_`u' = numvis_`u' + 1 if (rev_cntr_dt`i' - admit_date)<`u' & (rev_cntr_dt`i' - admit_date)>=`v'
-}
-}
-
-keep bene_id admit_date disch_date num_visits year next_admit subsq_epi obs hh_seq sub_hh_seq new_sq len_sq hosp_mid_sq post_int sq_id numvis_10 numvis_20 numvis_30 numvis_40 numvis_50 numvis_60 snf_in_12m snf_in_60 ip_in_12m ip_in_60 hs_in_12m hs_in_60
-
-*rename year ivw_year 
-gen ivw_year = year - 1
-gen admit_month = month(admit_date)
-
-merge m:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keepus(spid) keep(match) nogen
-
-
-preserve
-tempfile base
-save `base'
-restore
-
-keep if new_sq==1
-merge 1:1 bene_id admit_date using "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\nhats_ffs.dta", keepus(cont_ffs_n_mos) keep(match)
-
-keep bene_id ivw_year admit_month sq_id spid year cont_ffs_n_mos
-
-preserve
-use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", clear
-gen year = ivw_year
-tempfile nhats
-save `nhats'
-restore
-
-merge m:1 spid ivw_year using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", keep(master match)
-preserve
-keep if _m==1
-drop _m
-merge m:1 spid year using "`nhats'", update replace
-keep if _m==5
-keep if ivw_month<admit_month //nhats interviews that happen same year as hh episode, but months before it
-drop _m
-tempfile nhsameyr
-save `nhsameyr'
-restore
-drop if _m==1
-append using "`nhsameyr'"
-drop _m
-merge 1:m sq_id using "`base'", keep(match) nogen // all HH sequences that had a NHATS ivw ~1 year prior
-
-gen days_last_ivw = admit_date - ivw_date if new_sq==1
-label var days_last_ivw "# of days between start of sequence and last NHATS wave"
-
-*merge m:1 spid ivw_year using "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\nhats_ffs.dta", keep(match) nogen
-
-save "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\timing_HHA.dta", replace
-
-use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta" , clear
-
-bysort spid: egen no_dem = max(prob_dem)
-
-gen never_dementia = 0 if no_dem!=.
-replace never_dementia = 1 if no_dem==0
-label var never_dementia "Never Dementia, Waves 1-7"
-
-gsort spid wave 
-by spid: gen dem_cohort = 1 if prob_dem[_n-1]==1 | prob_dem==1 | prob_dem[_n+1]==1 
-replace dem_cohort = 0 if dem_cohort!=1 & never_dementia!=.
-label var dem_cohort "Prob dementia = 1 +/- or at current interview"
-la def demlbl 0"No Dementia"1"Prob Dementia"
-la values dem_cohort demlbl
-
-keep spid wave never_dementia dem_cohort
-tempfile dem 
-save `dem'
-
-use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\timing_HHA.dta", clear
-merge m:1 spid wave using "`dem'", keepus(never_dementia dem_cohort) keep(match) nogen
-
-keep if never_dementia==1 | dem_cohort==1
-
-preserve
-duplicates drop spid, force
-tab dem_cohort, m // 1307 No dementia, 755 dementia +/- 1 year
-restore
-
-gen homebound = 0 if homebound_cat!=.
-replace homebound = 1 if homebound_cat==1
-
-gen adl_dep_2 = 0 if adl_index !=.
-replace adl_dep_2 = 1 if adl_index>0 & adl_index<=2
-label var adl_dep_2 "1-2 ADL Dependent"
-
-gen adl_dep_3 = 0 if adl_index!=.
-replace adl_dep_3 = 1 if adl_index>=3 & adl_index<=6
-label var adl_dep_3 "3+ ADL Dependent"
-
-gen len_sq_1 = 0 if len_sq!=.
-replace len_sq_1 = 1 if len_sq==1
-label var len_sq_1 "1 HH Episode in sequence"
-
-gen len_sq_2 = 0 if len_sq!=.
-replace len_sq_2 = 1 if len_sq==2
-label var len_sq_2 "2 HH Episodes in sequence"
-
-gen len_sq_3 = 0 if len_sq!=.
-replace len_sq_3 = 1 if len_sq>=3 & len_sq<=6
-label var len_sq_3 "3-6 HH Episodes in a sequence"
-
-gen len_sq_4 = 0 if len_sq!=.
-replace len_sq_4 = 1 if len_sq>6 & len_sq!=.
-label var len_sq_4 "7+ HH Episodes in a sequence"
-
-bysort sq_id: egen ind_hosp_sq = max(hosp_mid_sq)
-replace ind_hosp_sq = 1 if ind_hosp_sq>0
-label var ind_hosp_sq "Hospitalized mid-sequence"
-
-gen chronic_con_0 = 0 if sr_numconditions1!=.
-replace chronic_con_0 = 1 if sr_numconditions1==0
-label var chronic_con_0 "0 Self-Report Chronic Conditions"
-
-gen chronic_con_1 = 0 if sr_numconditions1!=.
-replace chronic_con_1 = 1 if sr_numconditions1>0 & sr_numconditions1<=3
-label var chronic_con_1 "1-3 Self-Report Chronic Conditions"
-
-gen chronic_con_2 = 0 if sr_numconditions1!=.
-replace chronic_con_2 = 1 if sr_numconditions1>3 & sr_numconditions1!=.
-label var chronic_con_2 "4+ Self-Report Chronic Conditions "
-
-gen died_in_12m = 0
-replace died_in_12m = 1 if death_date - admit_date<=365 & new_sq==1
-label var died_in_12m "Died within 12m of sequence start date"
-
-gen died_in_60 = 0
-replace died_in_60 = 1 if death_date - admit_date<=60 & new_sq==1
-label var died_in_60 "Died within 60 days of sequence start date"
-
-gen visits_30 = numvis_10 + numvis_20 + numvis_30
-gen visits_60 = numvis_40 + numvis_50 + numvis_60
-
-gen any_vis_60 = 0
-replace any_vis_60 = 1 if visits_60>0 & visits_60!=.
-label var any_vis_60 "HH visits in days 31-60 of episode"
-
-saveold $final\timing_HHA_sensitivity.dta, version(12) replace
-log close
 
 H="Changelog"
 8/3- tweaked the logit models: categorized income, made outcome community-initiated referral, restricted the visit in day 31-60 model to those who weren't dead/in hospice/admitted to inpatient in first 60 days of episode. CKA

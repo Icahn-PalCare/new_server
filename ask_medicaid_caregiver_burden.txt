@@ -60,6 +60,150 @@ label var nolookback "Were not Medicare beneficaries 12 months prior to incident
 keep bid_hrs_22 inc_maid_date inc_maid_year age lookback //nolookback
 gsort bid_hrs_22 -lookback inc_maid_date
 duplicates drop bid_hrs_22, force
+gen all = 1
+
+/**** Merge xwalk, core, helper, exit and pdem *****/
+merge 1:1 bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keepus(hhid pn) keep(match) nogen
+merge 1:m hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keep(master match)
+
+
+gen no_hrs_core = 0
+replace no_hrs_core = 1 if _m==1
+label var no_hrs_core "No HRS Core 1998-2014"
+cap drop _m
+
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", keep(master match) nogen keepus(pdem)
+append using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta"
+
+gen year = core_year
+replace year = exit_year if year==.
+
+replace year = 9999 if year==. // dealing with people missing cores/exit
+
+
+merge 1:1 hhid pn year using "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2016.dta", keep(master match) nogen
+
+
+/**** Flag availability of N1 & P1/Exit*****/
+bysort id: egen date = max(inc_maid_date)
+replace inc_maid_date = date
+drop date 
+
+gen core_in_24 = 0
+replace core_in_24 = 1 if (c_ivw_date-inc_maid_date)<=730 & (c_ivw_date-inc_maid_date)>=0
+replace core_in_24 = 1 if (e_ivw_date-inc_maid_date)<=730 & (e_ivw_date-inc_maid_date)>=0
+label var core_in_24 "1+ Core/Exit interview within 24m post incident medicaid"
+
+gen n1_in_48 = 0
+replace n1_in_48 = 1 if (inc_maid_date-c_ivw_date)<=1460 & (inc_maid_date-c_ivw_date)>=0
+label var n1_in_48 "N1 core interview within 48 months of incident medicaid" 
+
+gen age_66 = 0
+replace age_66 = 1 if age<66
+
+gen dementia = .
+replace dementia = 0 if pdem!=.
+replace dementia = 1 if pdem>=0.5 & pdem!=.
+
+gen before_maid = c_ivw_date<=inc_maid_date & inc_maid_date!=.
+
+gen date = c_ivw_date
+replace date = e_ivw_date if date==.
+
+gen post_maid = (date>inc_maid_date) & date!=. & inc_maid_date!=.
+
+cap drop id
+gen id = hhid + pn
+preserve
+keep if before_maid==1
+
+gsort id -c_ivw_date
+
+by id: gen n1_flag = 1 if _n==1 
+keep id n1_flag c_ivw_date
+keep if n1_flag==1
+tempfile dates
+save `dates'
+restore
+
+replace c_ivw_date = 99 if c_ivw_date==.
+merge m:1 id c_ivw_date using "`dates'", keepus(n1_flag) nogen
+preserve
+keep if post_maid==1
+gsort id date
+by id: gen p1_flag = 1 if _n==1
+keep id p1_flag date
+keep if p1_flag==1
+tempfile p1 
+save `p1'
+restore
+
+merge m:1 id date using "`p1'", keepus(p1_flag) nogen
+replace dementia=. if n1_flag!=1 & p1_flag!=1
+
+
+/***** Create Sample Derivation Variables *****/
+
+bysort id: egen dem_cohort = max(dementia)
+label var dem_cohort "Probable Dementia at N1/P1"
+
+by id: egen no_core_24 = max(core_in_24)
+recode no_core_24 (0=1) (1=0)
+label var no_core_24 "No core interview within 24m of incident medicaid"
+
+by id: egen age_lt_66 = max(age_66) 
+*recode age_lt_66 (1=0) (0=1)
+label var age_lt_66 "Age less than 66 at incident Medicaid"
+
+by id: egen drop_medicaid = max(medicaid)
+label var drop_medicaid "No Medicaid State Buy-in 1998-2015"
+recode drop_medicaid (1=0) (0=1)
+
+by id: egen no_n1 = max(n1_in_48)
+recode no_n1 (1=0) (0=1)
+label var no_n1 "No N1 core interview within 48 months of Incident Medicaid"
+
+by id: egen nolookback = max(lookback)
+recode nolookback (0=1) (1=0)
+label var nolookback "Were not Medicare beneficaries 12 months prior to incident Medicaid"
+
+save $int\medicaid_cg_v5.dta, replace
+
+
+H="******* 4th Iteration ************"
+
+
+H="Step 1"
+use  "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" , clear
+
+gen medicaid = 0
+replace medicaid = 1 if buyin_mo>0
+
+gsort bid_hrs_22 -medicaid +start_dt  
+by bid_hrs_22: gen inc_maid = 1 if _n==1 & medicaid==1
+label var inc_maid "Incident Medicaid"
+
+gen inc_maid_date =start_dt if inc_maid==1
+label var inc_maid_date "Date of incident medicaid"
+
+gen inc_maid_year = year(inc_maid_date)
+gen age = round((inc_maid_date - bene_dob)/365.25)
+label var age "Age at incident medicaid"
+
+gen inc_lookback = inc_maid_date - 365
+format %td inc_lookback inc_maid_date
+
+by bid_hrs_22: carryforward inc_lookback inc_maid_date age inc_maid_year, replace
+
+gen lookback = start_dt <= inc_lookback if inc_lookback!=. //12m look back to confirm incidence
+/*
+bysort bid_hrs_22: egen nolookback = max(lookback)
+recode nolookback (0=1) (1=0)
+label var nolookback "Were not Medicare beneficaries 12 months prior to incident Medicaid"
+*/
+keep bid_hrs_22 inc_maid_date inc_maid_year age lookback //nolookback
+gsort bid_hrs_22 -lookback inc_maid_date
+duplicates drop bid_hrs_22, force
 
 /**** Merge xwalk, core, helper, exit and pdem *****/
 merge 1:1 bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keepus(hhid pn) keep(match) nogen
