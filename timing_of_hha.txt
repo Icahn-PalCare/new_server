@@ -1628,14 +1628,6 @@ note("NHATS Interview required in same year (before start of sequence) or prior 
 outreg, clear
 svy: logistic comm_init age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort died_in_12m, cformat(%4.2f)
 */
-*start of claire's added stuff
-*recode comm_init (0=1)(1=0), gen(comm_init)
-recode income_quart (1=1)(2/4=0), gen(low_inc)
-gen aveincome_k=aveincome/10000
-
-outreg, clear
-svy: logistic comm_init dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m , cformat(%4.2f)
-*end of claire's added stuff
 
 outreg using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\In progress\logit_weighted_`c(current_date)'", ///
 varlabels stats(e_b e_ci p) nosubstat ///
@@ -1648,20 +1640,94 @@ outreg, clear
 svy: logit any_vis_60 age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort comm_init died_in_12m
 */
 
-*start of claire's added stuff
-gen keep=1
-replace keep=0 if died_in_60==1
-replace keep=0 if ind_hosp_sq==1
-replace keep=0 if hs_in_60==1
-svy: logistic  any_vis_60 dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m comm_init , cformat(%4.2f)
-svy, subpop(keep): logistic  any_vis_60 dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m comm_init , cformat(%4.2f)
-*end of claire's added stuff
+
 
 outreg using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\In progress\logit_weighted_days3160_`c(current_date)'", ///
 varlabels stats(e_b e_ci p) nosubstat ///
 title("Adjusted Logistic Regression (Weighted): Outcome=Any visit in days 31-60") ///
 ctitles("" "Std. Coefficient" "95% CI" "P-value") ///
 starlevels(10 5 1) summstat(N) landscape replace
+
+
+
+***********
+***********
+***********
+
+*claire's new table 1
+*first make an indicator for first observation of the person
+sort bene_id year
+by bene_id, sort: gen n1=_n
+gen keep=1 if n1==1
+svy, subpop (keep): tab dem_cohort
+
+gen adl0= 1 if adl_index==0
+replace adl0=0 if adl_index!=0 & adl_index!=.
+
+foreach var of varlist female hisp black educ_hs_ind medicaid married livealone region metro_ind adl0 adl_dep_2 adl_dep_3  homebound chronic_con_0 chronic_con_1 chronic_con_2 srh_fp died_in_12m {
+svy, subpop (keep): tab `var' dem_cohort, column
+svy, subpop (keep): tab `var' 
+}
+
+svy, subpop (keep): mean age
+svy, subpop (keep): mean age, over (dem_cohort)
+svy, subpop (keep): tab white dem_cohort, column
+svy, subpop (keep): tab ind_hosp_sq dem_cohort, column
+svy, subpop (keep): tab ind_family_helper dem_cohort, column
+svy, subpop (keep): mean num_seq, over(dem_cohort) 
+svy, subpop (keep): mean num_seq
+
+
+svy, subpop (keep): tab dem_cohort, count cellwidth(15) format (%15.2g)
+
+***********
+***********
+***********
+*claire's new table 2
+
+*make a variable for categories of visits in the last 60 days
+recode visits_60 (0/2=1 "0-2") (3/6=2 "3-6")(7/30=3 "7+"), gen(visits60_3cat)
+recode visits_60 (0/1=1 "0-1") (2/6=2 "2-6")(7/30=3 "7+"), gen(visits60_3catnew)
+recode visits_60 (0/1=1 "0-1") (2/10=2 "2-10")(11/30=3 "11+"), gen(visits60_3cat2new)
+
+
+recode visits_30 (0/2=1 "0-2") (3/6=2 "3-6")(7/30=3 "7+"), gen(visits30_3cat)
+recode visits_30 (0/1=1 "0-1") (2/6=2 "2-6")(7/30=3 "7+"), gen(visits30_3catnew)
+
+*start of claire's added stuff
+*gen a variable called keepfe to include only the episodes where someone doesn't die, go into hospice, or hospitalized 60 days after start of encounter
+gen keepfe=1
+replace keepfe=0 if died_in_60==1
+replace keepfe=0 if ind_hosp_sq==1
+replace keepfe=0 if hs_in_60==1
+svy: logistic  any_vis_60 dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m comm_init , cformat(%4.2f)
+svy, subpop(keep): logistic  any_vis_60 dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m comm_init , cformat(%4.2f)
+svy, subpop(keepfe): mlogit visits60_3cat i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+svy, subpop(keepfe): mlogit visits30_3cat i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+svy, subpop(keepfe): mlogit visits60_3catnew i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+svy, subpop(keepfe): mlogit visits30_3catnew i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+svy, subpop(keepfe): reg visits_60 i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+svy, subpop(keepfe): mlogit visits60_3cat2new i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+*new logit model
+recode comm_init (0=1)(1=0), gen(comm_init)
+recode income_quart (1=1)(2/4=0), gen(low_inc)
+gen aveincome_k=aveincome/10000
+
+outreg, clear
+svy: logistic comm_init dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m , cformat(%4.2f)
+*end of claire's added stuff
 
 H="****** Sensitivity Analysis ********"
 

@@ -170,6 +170,52 @@ label var nolookback "Were not Medicare beneficaries 12 months prior to incident
 save $int\medicaid_cg_v5.dta, replace
 
 
+H="Step 2"
+use $int\medicaid_cg_v5.dta, clear
+
+duplicates drop bid_hrs_22, force
+tempfile medaid
+save `medaid'
+
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" , clear
+duplicates drop bid_hrs_22, force
+merge 1:1 bid_hrs_22 using "`medaid'", keepus(hhid pn no_core_24 age_lt_66 drop_medicaid nolookback no_n1 inc_maid_year)
+
+drop if _m==2
+gen all = 1
+
+gen no_core_ever = 0
+replace no_core_ever = 1 if _m==1
+label var no_core_ever "No core interview 1998 - 2014"
+
+local sampvars drop_medicaid age_lt_66 nolookback no_core_ever no_core_24 no_n1
+local rd: word count all `sampvars' 1
+label var all "All HRS Medicare Beneficiaries 1998-2015"
+
+mat tab1 = J(`rd',1,.)
+
+sum all
+mat tab1[1,1]=r(N)
+
+local r = 2
+foreach x of local sampvars {
+sum `x'
+mat tab1[`r',1] = r(sum)
+drop if `x'==1
+local ++r
+}
+
+sum all
+mat tab1[`r',1] = r(N)
+
+mat rownames tab1 = all `sampvars' "Final Sample"
+
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\output\sample_derivation_`c(current_date)'.rtf", ///
+statmat(tab1) varlabels title("Sample Derivation") sdec(0) replace
+
+keep hhid pn bid_hrs_22 
+save $int\id_list.dta, replace
+
 H="******* 4th Iteration ************"
 
 
