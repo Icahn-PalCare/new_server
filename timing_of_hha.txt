@@ -1674,6 +1674,20 @@ svy, subpop (keep): mean age, over (dem_cohort)
 svy, subpop (keep): tab white dem_cohort, column
 svy, subpop (keep): tab ind_hosp_sq dem_cohort, column
 svy, subpop (keep): tab ind_family_helper dem_cohort, column
+
+*what is the avg number of sequences/person for people with dementia/nondementia
+svy, subpop (keep): mean num_seq, over(dem_cohort) 
+svy, subpop (keep): reg num_seq dem_cohort
+
+svy, subpop (keep): mean num_seq
+
+*what is the average number of episodes/sequence for the sequences attributed to dementia vs nondementia
+svy: mean len_sq, over(dem_cohort)
+svy: reg len_sq dem_cohort
+
+svy: mean len_sq
+
+*wh
 svy, subpop (keep): mean num_seq, over(dem_cohort) 
 svy, subpop (keep): mean num_seq
 

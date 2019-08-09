@@ -64,14 +64,14 @@ gen all = 1
 
 /**** Merge xwalk, core, helper, exit and pdem *****/
 merge 1:1 bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keepus(hhid pn) keep(match) nogen
-merge 1:m hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keep(master match)
+merge 1:m hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keep(match)
 
-
+/*
 gen no_hrs_core = 0
 replace no_hrs_core = 1 if _m==1
 label var no_hrs_core "No HRS Core 1998-2014"
 cap drop _m
-
+*/
 merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", keep(master match) nogen keepus(pdem)
 append using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta"
 
@@ -140,6 +140,27 @@ restore
 
 merge m:1 id date using "`p1'", keepus(p1_flag) nogen
 replace dementia=. if n1_flag!=1 & p1_flag!=1
+preserve
+
+/*pull bmi from rand file */
+use hhid pn r9bmi r8bmi r7bmi r6bmi r5bmi r4bmi r3bmi r2bmi r1bmi r11bmi r10bmi using "D:\HRS\Shared\raw\HRS\hrs_public_2014\rand2014\main\randhrs1992_2014v2.dta", clear
+
+*tostring hhidpn, generate(id)
+
+tempfile randbmi
+save `randbmi'
+restore
+
+merge m:1 hhid pn using "`randbmi'", keep(match) nogen
+drop bmi
+gen bmi = .
+
+local j = 1998
+forvalues i = 4/11 {
+replace bmi=r`i'bmi if core_year==`j'
+
+local j = `j' + 2
+}
 
 
 /***** Create Sample Derivation Variables *****/
@@ -167,11 +188,11 @@ by id: egen nolookback = max(lookback)
 recode nolookback (0=1) (1=0)
 label var nolookback "Were not Medicare beneficaries 12 months prior to incident Medicaid"
 
-save $int\medicaid_cg_v5.dta, replace
+save $int\medicaid_cg_int.dta, replace
 
 
 H="Step 2"
-use $int\medicaid_cg_v5.dta, clear
+use $int\medicaid_cg_int.dta, clear
 
 duplicates drop bid_hrs_22, force
 tempfile medaid
@@ -179,7 +200,7 @@ save `medaid'
 
 use "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" , clear
 duplicates drop bid_hrs_22, force
-merge 1:1 bid_hrs_22 using "`medaid'", keepus(hhid pn no_core_24 age_lt_66 drop_medicaid nolookback no_n1 inc_maid_year)
+merge 1:1 bid_hrs_22 using "`medaid'", keepus(hhid pn no_core_24 age_lt_66 drop_medicaid nolookback no_n1 inc_maid_year dem_cohort) //no_hrs_core)
 
 drop if _m==2
 gen all = 1
@@ -215,6 +236,273 @@ statmat(tab1) varlabels title("Sample Derivation") sdec(0) replace
 
 keep hhid pn bid_hrs_22 
 save $int\id_list.dta, replace
+
+H="Step 3"
+// pull tracker
+use "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", clear
+drop id
+gen id=hhid+pn
+
+merge 1:1 hhid pn using $int/id_list.dta, keep(match)
+
+
+keep hhid pn stateusps* zipcode*
+
+gen stateusps16 = stateusps14
+gen zipcode16 = zipcode14
+
+foreach x of varlist stateusps* {
+
+replace `x' = "" if `x'=="ZZ"
+
+}
+
+gen stateusps97=""
+gen stateusps99=""
+
+forvalues i= 1(2)15{
+gen stateusps`i'=""
+gen zipcode`i' = ""
+}
+
+forvalues i=0(2)8{
+rename stateusps0`i' stateusps`i'
+rename zipcode0`i' zipcode`i'
+}
+reshape long stateusps zipcode, i(hhid pn) j(c_ivw_year)
+
+forvalues i=0/99{
+qui replace c_ivw_year=200`i' if c_ivw_year==`i' & c_ivw_year<=9
+qui replace c_ivw_year=20`i' if c_ivw_year==`i' & inrange(c_ivw_year, 10,16)
+qui replace c_ivw_year=19`i' if c_ivw_year==`i' & c_ivw_year>=90
+}
+
+gen id= hhid+pn
+sort id c_ivw_year
+drop if id==""
+by id: carryforward stateusps, replace
+
+gsort id -c_ivw_year
+by id: carryforward stateusps, replace
+
+rename c_ivw_year year
+
+tempfile states
+save `states'
+
+use $int\medicaid_cg_int.dta, clear
+cap drop _m
+merge 1:1 hhid pn year using "`states'", keep(match)
+
+save $int\medicaid_cg_states.dta, replace
+
+H="Step 5"
+use $int\medicaid_cg_states.dta, replace
+
+keep if n1_flag==1 | p1_flag==1
+
+cap drop _m
+
+merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", keepus(living_kids_ind) keep(master match) nogen
+
+
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta", keepus(death_all) keep(master match) nogen
+
+gen overweight = .
+replace overweight = 0 if bmi<30
+replace overweight = 1 if bmi>=30 & bmi!=.
+*label var overweight 
+
+gen death_2_yr = 0
+replace death_2_yr = 1 if (death_all - inc_maid_date)>=0 & (death_all-inc_maid_date)<=730
+label var death_2_yr "Died within 2 years of incident medicaid"
+
+egen any_adl_diff = anymatch(adl_diff_dr adl_diff_wk adl_diff_bh adl_diff_e adl_diff_tx adl_diff_t), values(1)
+
+label var any_adl_diff "Difficulty with 1+ ADL"
+
+egen any_adl_help = anymatch(adl_bh adl_bh_core adl_dr adl_dr_core adl_e adl_e_core adl_t adl_t_core adl_tx adl_tx_core adl_wk adl_wk_core), values(1)
+label var any_adl_help "Received Help with 1+ ADL"
+
+gen paid_cg = 0
+replace paid_cg = 1 if hlphrs_f>0 & hlphrs_f!=.
+label var paid_cg "Paid Caregiver"
+
+gen informal_cg = 0
+replace informal_cg = hlphrs_i>0 & hlphrs_i!=.
+label var informal_cg "Informal Caregiver"
+
+replace hlphrs_i = 720 if hlphrs_i>720 & hlphrs_i!=. // capping helperhrs reported to 24hrs(max)*30days per person
+
+
+/*
+gen ivwflag = .
+replace ivwflag = 1 if n1flag==1
+replace ivwflag = 2 if p1flag==1
+replace ivwflag = 3 if p2flag==1
+
+replace hlphrs_i = 720 if hlphrs_i>720 & hlphrs_i!=. // capping helperhrs reported to 24hrs(max)*30days per person
+replace hlphrs_i = 0 if hlphrs_i==.
+
+gsort id ivwflag
+replace c_ivw_date = e_ivw_date if c_ivw_date==.
+
+by id: gen months = c_ivw_date - c_ivw_date[_n-1]
+replace months = months * 0.0329
+replace months = ceil(months)
+label var months "Months between interviews"
+
+by id: gen prev_help_hrs = 1 if hlphrs_i[_n-1]>0 & hlphrs_i[_n-1]!=.
+label var prev_help_hrs "Indicator any reported helper hours at previous interview"
+by id: gen prev_hlp_i = hlphrs_i[_n-1]
+label var prev_hlp_i "Reported helper hours at previous interview"
+gen total_hlp = hlphrs_i*4 if prev_help_hrs==.
+replace total_hlp = hlphrs_i*4 + (months-4)*((hlphrs_i + prev_hlp_i)/2) if prev_help_hrs!=.
+*/
+
+gen months_from_medicaid = date - inc_maid_date if p1_flag==1
+replace months_from_medicaid = months_from_medicaid * 0.0329
+replace months_from_medicaid = ceil(months_from_medicaid)
+replace months_from_medicaid = 1 if months_from_medicaid==0
+label var months_from_medicaid "Months between incident medicaid and core interview"
+
+
+gen state=stateusps
+merge m:1 state year using $ref\msis_ltss_by_state.dta, keep(match master) nogen
+gsort id -core_year
+carryforward state tot_* totalben age6, replace
+sort id core_year
+carryforward state tot_* totalben age6, replace
+
+gen cpi_rate = 1 if year==2016
+replace cpi_rate=1.01262 if year==2015
+replace cpi_rate=1.01382 if year==2014
+replace cpi_rate=1.03026 if year==2013
+replace cpi_rate=1.04535 if year==2012
+replace cpi_rate=1.06699 if year==2011
+replace cpi_rate=1.10067 if year==2010
+replace cpi_rate=1.11872 if year<=2009
+replace cpi_rate=1.11474 if year==2008
+replace cpi_rate=1.15754 if year==2007
+replace cpi_rate=1.19051 if year==2006
+replace cpi_rate=1.22891 if year==2005
+replace cpi_rate=1.27055 if year==2004
+replace cpi_rate=1.30439 if year==2003
+replace cpi_rate=1.33411 if year==2002
+replace cpi_rate=1.35521 if year==2001
+replace cpi_rate=1.39377 if year==2000
+replace cpi_rate=1.44062 if year==1999
+replace cpi_rate=1.47244 if year<=1998
+
+foreach x in hcbs inst_ltss ltss medicaid {
+	gen `x'_persenior=tot_`x'*cpi_rate/age65
+}
+replace medicaid_persenior=medicaid_persenior*age65/totalbe
+drop cpi_rate
+
+
+foreach x in hcbs inst_ltss ltss medicaid {
+	xtile `x'_persenior_quart=`x'_persenior, nq(4)
+}
+rename medicaid_persenior_quart medicaid_perbene_quart
+
+label var hcbs_persenior_quart "Quartile of state-level HCBS spending per senior"
+label var inst_ltss_persenior_quart "Quartile of state-level Institutional LTSS spending per senior"
+label var ltss_persenior_quart "Quartile of state-level LTSS spending per senior"
+label var medicaid_perbene_quart "Quartile of state-level total Medicaid spending per beneficiary"
+
+/*
+gen exit_ivw = 0
+replace exit_ivw = 1 if exit_year!=.
+
+replace core_year = exit_year if exit_ivw==1
+replace nhres_2yr = nhres_2yr_exit if exit_ivw==1
+replace proxy_core = proxy_exit if exit_ivw==1
+
+foreach x in adl_dr adl_wk adl_bh adl_e adl_tx adl_t {
+replace `x'_core = `x' if exit_ivw==1
+}
+
+
+keep dem_cohort hhid pn id age inc_maid_year adl_diff_bh adl_diff_dr adl_diff_e ///
+adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core adl_e_core adl_t_core adl_tx_core ///
+adl_wk_core adl_bh_core comor_in_hrs core_year ///
+married nhres nhres_2yr proxy_core srh_pf smoke_curr smoke_ever /*ltss_cat*/ ///
+networth months_from_medicaid ltss_persenior_quart n1flag p1flag p2flag total_hlp months exit_ivw
+*/
+merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", nogen keep(match) keepus(hisp_eth white black other_na_api_race degree gender)
+
+foreach x in hisp_eth white black {
+replace `x' = 0 if `x'==.
+}
+
+cap drop hseduc female
+
+replace other_na_api_race = 1 if other_na_api_race==.
+gen hseduc = 0 if degree==0
+replace hseduc = 1 if degree>0 & degree!=.
+
+gen female = 0 if gender==1
+replace female = 1 if gender==2
+
+*rename dem_cohort dementia
+drop hhid pn degree gender
+label var inc_maid_year "Incident medicaid year"
+label var dementia "Dementia probablity >= 0.5 at P1" 
+label var hseduc "HS Grad or GED"
+label var female "female"
+
+/*
+gen ivw_label = "p1" if p1flag==1
+replace ivw_label = "p2" if p2flag==1
+replace ivw_label = "n1" if n1flag==1
+*/
+bysort id: egen age_max = max(age)
+replace age = age_max
+by id: egen maid_max = max(inc_maid_year)
+replace inc_maid_year = maid_max
+
+/*
+drop n1flag p1flag p2flag age_max maid_max
+
+local all adl_diff_bh adl_diff_dr adl_diff_e adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core ///
+adl_e_core adl_t_core adl_tx_core adl_wk_core adl_bh_core comor_in_hrs core_year married nhres ///
+nhres_2yr proxy_core srh_pf smoke_curr smoke_ever /*ltss_cat*/ networth months_from_medicaid ///
+ltss_persenior_quart total_hlp months exit_ivw
+
+foreach x of local all {
+rename `x' `x'_
+local all2 `all2' `x'_
+}
+
+reshape wide `all2', i(id) j(ivw_label) string
+
+sort id 
+set seed 123
+gen rid = runiform()*10000000
+replace rid = abs(rid)
+
+gen months_from_p2 = 24 - months_from_medicaid_p1
+replace total_hlp_p2 = (total_hlp_p2/months_p2) * months_from_p2
+
+gen hlphrs_post_2yr = .
+replace hlphrs_post_2yr = total_hlp_p1 if months_from_medicaid_p1<=24
+replace hlphrs_post_2yr = hlphrs_post_2yr + total_hlp_p2 if months_from_medicaid_p1<24
+
+label var hlphrs_post_2yr "Total hours of informal care 2yrs post incident medicaid"
+label var exit_ivw_p2 "Indicator that P2 is an exit interview"
+*/
+
+save $fin\medicaid_cg_burden_id.dta, replace 
+
+/*
+drop id months_n1 months_p1 months_p2 months_from_p2 months_from_medicaid_n1 exit_ivw_n1 exit_ivw_p1
+
+save $fin\medicaid_cg_burden.dta, replace 
+*/
+
+H="Tables"
+
 
 H="******* 4th Iteration ************"
 

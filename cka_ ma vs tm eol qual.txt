@@ -1148,6 +1148,7 @@ use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", c
 sort bene_id year 
 keep if death_date!=.
 keep bene_id death_date
+
 tempfile death
 save "`death'"
 
@@ -1158,7 +1159,7 @@ sort bene_id clm_hospc_start_dt_id
 gen hospice_month= month(clm_hospc_start_dt_id)
 gen hospice_year= year(clm_hospc_start_dt_id)
 
-by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"20","40","41","42"), 0,1))
+by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"20","40","41","42"), 1,0))
 
 sort bene_id clm_hospc_start_dt_id
 
@@ -1168,6 +1169,9 @@ gen hs_12_pre=0
 by bene_id, sort: replace hs_12_pre=1 if (death_date-clm_hospc_start_dt_id<=366) & (death_date-clm_hospc_start_dt_id>=0)
 
 by bene_id, sort: egen ind_hs_12_pre=max(hs_12_pre)
+
+sort bene_id clm_hospc_start_dt_id
+
 
 by bene_id: keep if _n==1
 
@@ -1198,7 +1202,7 @@ tempfile ma1
 save "`ma1'"
 
 use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
-
+//want 1 year prior to look at, thus we add 1 and merge
 replace year=year+1
 
 local month jan feb mar apr may jun jul aug sep oct nov dec
@@ -1228,7 +1232,7 @@ gen ma2=0
 
 
 /*
-consecutive MA status--don't want
+consecutive MA status--doesn't matter
 */
 
 replace ma2=1 if death_month==1 & (jan_c==1 | jan_c_1==1 | feb_c_1==1 | mar_c_1==1 | apr_c_1==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
@@ -1264,22 +1268,27 @@ merge m:1 bene_id using "`hs'", gen(hospm) keep(master match)
 
 gen ind_hospice=hospm==3
 
+replace ma1=0 if ind_hospice==1
+replace ma2=0 if ind_hospice==1
+
 gen ma_month_bef_hs=0
 local a=1
 local month dec_c_1 jan_c feb_c mar_c apr_c may_c jun_c jul_c aug_c sep_c oct_c nov_c 
 foreach x in `month'{
-replace ma_month_bef_hs=1 if hospice_month==`a' & `x'==1
+replace ma_month_bef_hs=1 if hospice_month==`a' & `x'==1 
 local a=`a'+1
 }
 
+replace ma1=1 if ind_hospice==1  & ma_month_bef_hs==1
 
+replace ma2=1 if ind_hs_12_pre==1 &  ma_month_bef_hs==1
 
-sort bene_id year
+sort bene_id year 
 by bene_id: keep if _n==_N
 
 merge 1:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keep(match) nogen
 
-keep bene_id spid ma1 ma2 ind_hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year
+keep bene_id spid ma1 ma2 ind_hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year death_month
 merge 1:m spid using "`nhats'", nogen
 
 label var ma1 "MA approach 1"
@@ -1296,7 +1305,13 @@ use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data
 merge 1:1 spid using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\race var.dta"
 drop _merge
 merge 1:1 spid using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\female var.dta"
+drop _merge
+merge 1:1 spid using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\other nhats vars.dta"
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\claims and nhats.dta", replace
+
+H="more variable cleaning"
+*more variable cleaning
+recode deathage_cat (1/2=1 "65-74")(3/4=2 "75-84")(5/6=3 "85+"),gen(deathage_3cat)
 
 H="analysis"
 *analysis
@@ -1307,7 +1322,16 @@ svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missi
 
 *table 1: in MA at time of death vs not
 *looking at quality variables
-svy, subpop(inanal): tab ma2
+svy, subpop(inanal): tab ma1
+tab ma1, m
+
+svy, subpop(inanal): tab ma1 year, column
+svy, subpop(inanal): tab ind_hospice, column
+tab ind_hospice, m
+svy, subpop(inanal): tab ind_hospice ma1, column
+svy, subpop(inanal): tab ind_hospice year, column
+
+
 svy, subpop(inanal): tab ma2, count cellwidth(15) format (%15.2g)
 
 svy, subpop(inanal): tab deathage_3cat ma1, column
@@ -1321,11 +1345,16 @@ svy, subpop(inanal): tab dm_all ma1, column
 svy, subpop(inanal): tab lung_all ma1, column
 svy, subpop(inanal): tab cva_all ma1, column
 svy, subpop(inanal): tab cancer_all ma1, column
-svy, subpop(inanal): tab dementia_all ma1, column
-svy, subpop(inanal): tab fp_memory ma1, column
 svy, subpop(inanal): tab prob_dem ma1, column
 svy, subpop(inanal): tab ind_hospice ma1, column
 
+
+*figure 1
+foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+		recode_care_decision di_recode_informed {
+		qui svy, subpop(inanal): logistic `var' i.ma1, cformat(%4.2f)
+		margins ma1
+}
 
 mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed  age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend
 *table 2: association between MA and EOL outcome
@@ -1359,12 +1388,39 @@ foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_r
 }
 
 
+*model 3b: fully adjusted + hospice as interaction
+foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+		recode_care_decision di_recode_informed {
+		svy, subpop(inanal): logistic `var' i.ma1##ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
+		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
+}
+
+
+*interaction with hospice for excellent care
+svy, subpop(inanal): logistic excellent i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
+		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
+	margins ma1#ind_hospice
+	marginsplot	
+	
+*interaction with hospice for family not kept informed
+svy, subpop(inanal): logistic di_recode_informed i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
+		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
+	margins ma1#ind_hospice
+	marginsplot	
+	
+	
+*interaction with hospice for unmet needs for sadness and anxiety
+svy, subpop(inanal): logistic unmet_sad i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
+		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
+	margins ma1#ind_hospice
+	marginsplot	
+	
 *sensitivity analysis
 *model 3: fully adjusted
 foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
 		svy, subpop(inanal): logistic `var' i.ma2 i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all lung_all prob_dem, cformat(%4.2f)
+		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
 }
 
 
@@ -1946,6 +2002,14 @@ H="Change log"
 
 
 Updates:
+08/08/2019 MH
+------------
+Made changes to the code to fix problem with MA population. 
+
+08/07/2019 MH
+------------
+Have looked into problems around MA1 and hospice, have added into a working heading. 
+
 8/7/2019 CA
 re organized note tab, merged in race and sex variables, checking the hospice and ma variables and running prelim analysis.
 
