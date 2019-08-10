@@ -1365,6 +1365,14 @@ foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_r
 		svy, subpop(inanal): logistic `var' i.ma1, cformat(%4.2f)
 }
 
+*new model 2: fully adjusted
+foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+		recode_care_decision di_recode_informed {
+		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female child other_family other_friend year ///
+		income_quart diff_get_out_bed cancer_all mi_all lung_all prob_dem, cformat(%4.2f)
+}
+
+
 
 *model 2: minimally adjusted
 foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
@@ -1377,41 +1385,33 @@ foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_r
 foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
 		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all lung_all prob_dem, cformat(%4.2f)
+		income_quart metro_ind adl_impair cancer_all mi_all lung_all prob_dem, cformat(%4.2f)
 }
 
 *model 3b: fully adjusted + hospice
 foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
 		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
-}
-
-
-*model 3b: fully adjusted + hospice as interaction
-foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.ma1##ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
+		income_quart metro_ind adl_impair cancer_all mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
 }
 
 
 *interaction with hospice for excellent care
-svy, subpop(inanal): logistic excellent i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
+qui svy, subpop(inanal): logistic excellent i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
+		income_quart metro_ind adl_impair mi_all lung_all cancer_all prob_dem ind_hospice, cformat(%4.2f)
 	margins ma1#ind_hospice
 	marginsplot	
 	
 *interaction with hospice for family not kept informed
-svy, subpop(inanal): logistic di_recode_informed i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
+qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
+		income_quart metro_ind adl_impair mi_all cancer_all lung_all prob_dem ind_hospice, cformat(%4.2f)
 	margins ma1#ind_hospice
 	marginsplot	
 	
 	
 *interaction with hospice for unmet needs for sadness and anxiety
-svy, subpop(inanal): logistic unmet_sad i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
+qui svy, subpop(inanal): logistic unmet_sad i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
+		income_quart metro_ind adl_impair mi_all lung_all cancer_all prob_dem ind_hospice, cformat(%4.2f)
 	margins ma1#ind_hospice
 	marginsplot	
 	

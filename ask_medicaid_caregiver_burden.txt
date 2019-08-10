@@ -324,6 +324,16 @@ label var any_adl_diff "Difficulty with 1+ ADL"
 egen any_adl_help = anymatch(adl_bh adl_bh_core adl_dr adl_dr_core adl_e adl_e_core adl_t adl_t_core adl_tx adl_tx_core adl_wk adl_wk_core), values(1)
 label var any_adl_help "Received Help with 1+ ADL"
 
+egen depression = anymatch(cesd1 depr_2_wks_hrs), values(1)
+
+label var depression "Depression"
+
+gen comor_4 = 0
+replace comor_4 = 1 if comor_in_hrs>=4 & comor_in_hrs!=.
+label var comor_4 "4+ Comorbidities"
+
+
+
 gen paid_cg = 0
 replace paid_cg = 1 if hlphrs_f>0 & hlphrs_f!=.
 label var paid_cg "Paid Caregiver"
@@ -333,6 +343,8 @@ replace informal_cg = hlphrs_i>0 & hlphrs_i!=.
 label var informal_cg "Informal Caregiver"
 
 replace hlphrs_i = 720 if hlphrs_i>720 & hlphrs_i!=. // capping helperhrs reported to 24hrs(max)*30days per person
+
+label var hlphrs_i "Hours of informal caregiving in last 30 days"
 
 
 /*
@@ -493,6 +505,17 @@ label var hlphrs_post_2yr "Total hours of informal care 2yrs post incident medic
 label var exit_ivw_p2 "Indicator that P2 is an exit interview"
 */
 
+
+local ivars female black white hisp_eth other_na_api_race hseduc married  dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 livealone 
+local cvars months_from_medicaid age networth hlphrs_i
+
+
+
+gsort id -n1_flag
+
+by id: carryforward living_kids_ind wgtr, replace //smoke_curr, helper hrs, overweight??
+keep if p1_flag==1
+
 save $fin\medicaid_cg_burden_id.dta, replace 
 
 /*
@@ -502,6 +525,80 @@ save $fin\medicaid_cg_burden.dta, replace
 */
 
 H="Tables"
+use $fin\medicaid_cg_burden_id.dta, clear
+
+cap drop all
+gen all = 1
+label var all "Weighted Population Estimates"
+
+local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 livealone 
+local cvars months_from_medicaid age networth hlphrs_i 
+
+
+local rd: word count 1 `ivars' 1 `cvars' 1 1
+
+mat tab1 = J(`rd',4,.)
+
+local r = 2
+*local c = 1
+
+foreach x of local ivars {
+
+forvalues c = 1/4 {
+
+sum `x' [fweight=wgtr]if ltss_persenior_quart==`c'
+
+mat tab1[`r',`c'] = r(mean)*100
+}
+local ++r
+}
+
+local ++r
+
+foreach x of local cvars {
+
+forvalues c = 1/4 {
+
+sum `x' [fweight=wgtr] if ltss_persenior_quart==`c'
+
+mat tab1[`r',`c'] = r(mean)
+}
+local ++r
+}
+
+forvalues c = 1/4 {
+
+sum ltss_persenior [fweight=wgtr] if ltss_persenior_quart==`c', d
+
+mat tab1[`r',`c'] = r(p50)
+
+}
+
+local ++r
+
+
+
+forvalues c = 1/4 {
+
+sum `x' [fweight=wgtr] if ltss_persenior_quart==`c'
+
+mat tab1[`r',`c'] = r(N)
+}
+
+
+
+
+mat rownames tab1 = "Categorial (%)" `ivars' "Continuous (mean)" `cvars' "Median LTSS per 65+" all
+
+mat list tab1 
+
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\output\Table1_`c(current_date)'.rtf", ///
+statmat(tab1) varlabels ctitles("Variables", "LTSS Quartile 1", "LTSS Quartile 2", "LTSS Quartile 3", "LTSS Quartile 4") title("Exhibit 1") sdec(2) replace
+
+
+
+
+   
 
 
 H="******* 4th Iteration ************"
