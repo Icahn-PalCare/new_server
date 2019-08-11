@@ -1,8 +1,8 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
-H="MA and disability"
-* Project examining trajectories of utilization after functional disability
-* PI: claire ankuda, buddy coder: evan bollens-lund
+H="anxiety and depression before and after disability"
+* Project examining patterns of depression and anxiety before and after disability
+* PI: claire ankuda, buddy coder: tbd
 
 
 version 16
@@ -226,43 +226,58 @@ H="****below this heading: analysis. okay to run more than once***"
 
 
 H="merging disability with rest of nhats and keeping interviews within a year"
+*two variables will define survey cohorts:
+*keep= obs with interview 12 months before or after disability
+*keepprepost= obs with pre/post measures- closest before and after within 12 months
+
+
 *merging in date of disability with rest of nhats
 use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
 merge m:1 spid using "D:\NHATS\Projects\trajectories and disability\cka_psych sxs before after disability\data\date of first disability.dta"
-drop if _merge==1
+gen keep=0 if _merge==1
 
 *keeping those with an interview within 12 months of date of first help
 gen day_dif= ivw_date-datefirsthelp
 gen mnth_dif= floor((ivw_date-datefirsthelp)/30)
 
-drop if abs(mnth_dif)>12
+replace keep=1 if abs(mnth_dif)<=12
 
 drop _merge
 merge 1:1 spid wave using "D:\NHATS\Projects\trajectories and disability\cka_psych sxs before after disability\data\gap between surveys.dta"
-keep if _merge==3
+
 
 sort spid wave
 by spid, sort: gen count=_n
-egen countperid=max(count), by(spid)
-drop if countperid==1
+egen countperid=max(count) if keep==1, by(spid)
+
+
+gen keepprepost=keep
+
+replace keepprepost=0 if countperid==1
 
 *Limit sample with population with 2 observations, one the closest prior to disability (within 12 months) the other closest after disability (within 12 months)
 recode mnth_dif(-12/-1=1)(0/12=0), gen(neg)
 recode mnth_dif(-12/-1=0)(0/12=1), gen(pos)
-egen numneg=total(neg==1), by(spid)
-egen numpos=total(pos==1), by(spid)
-egen minneg=min(mnth_dif), by(spid)
-egen maxpos=max(mnth_dif), by(spid)
-drop if numneg==2 & mnth_dif==minneg
-drop if numpos==2 & mnth_dif==maxpos
+egen numneg=total(neg==1) if keepprepost==1, by(spid)
+egen numpos=total(pos==1) if keepprepost==1, by(spid)
+egen minneg=min(mnth_dif) if keepprepost==1, by(spid)
+egen maxpos=max(mnth_dif) if keepprepost==1, by(spid)
+replace keepprepost=0 if numneg==2 & mnth_dif==minneg
+replace keepprepost=0 if numpos==2 & mnth_dif==maxpos
 
-drop if numpos==0
-drop if numneg==0
-drop if numneg==2 & count==1 & countperid==3
-drop if numpos==2 & count==3 & countperid==3
-by spid, sort: gen count2=_n
-egen countperid2=max(count2), by(spid)
-tab countperid2
+replace keepprepost=0 if numpos==0
+replace keepprepost=0 if numneg==0
+replace keepprepost=0 if numneg==2 & count==1 & countperid==3
+replace keepprepost=0 if numpos==2 & count==3 & countperid==3
+by spid, sort: gen count2=_n if keepprepost==1
+egen countperid2=max(count2) if keepprepost==1, by(spid)
+tab countperid2 if keepprepost ==1
+
+/*testing-- shows this does work-- sample is 5,782/2 individuals
+drop if keepprepost!=1
+by spid, sort: gen count3=_n 
+egen countperid3=max(count3), by(spid)
+tab countperid3 */
 
 *total population is 5,782 observations
 *make variables for anxiety and depression prior to disability
@@ -287,9 +302,7 @@ recode bi_dif (1/6=0)(7/12=1), gen (post_dis_ind)
 recode post_dis_ind(0=1)(1=0), gen (pre_dis_ind)
 
 
-*keep if has depression and anxiety data
-gen keep=1
-replace keep=0 if sr_phq2_depressed==.
+
 
 *data for time from help start to end
 *indicator for recovering and not becoming disabled again within first month
@@ -297,12 +310,17 @@ replace keep=0 if sr_phq2_depressed==.
 *replace cat_durhelp=1 if daysdurhelp==.
 
 
-gen keep_recover=0
-replace keep_recover=1 if daysdurhelp<365 & daysdurhelp!=. & recur_1yr_ind!=1
-gen keep_norecover=1
-replace keep_norecover=0 if keep_recover==1
+gen recover=0
+replace recover=1 if daysdurhelp<365 & daysdurhelp!=. & recur_1yr_ind!=1
+replace recover=. if keep!=1
+gen norecover=1
+replace norecover=0 if recover==1
+replace norecover=. if keep!=1
 
-
+gen keep_recover=keep
+replace keep_recover=0 if recover==0
+gen keep_norecover=keep 
+replace keep_norecover=0 if recover==1
 
 *adl index
 recode adl_index (0=0 "no adls")(1=1 "1 adl")(2/6=2 "2-6 adls"), gen (adl_3cat)
@@ -330,9 +348,45 @@ gen dep_cha_sc= sr_phq2_score-sr_phq2_score_n if sr_phq2_score_n!=. & sr_phq2_sc
 gen anx_cha_sc= sr_gad2_score-sr_gad2_score_n if sr_gad2_score_n!=. & sr_gad2_score!=.
 
 
+*make values missing if not in sample
+replace quart_dif=. if keep!=1
+
+*make a variable to keep only if depression or anxiety arent missing
+replace keep=0 if sr_phq2_score==. & sr_gad2_score==.
+
+
 H="analysis"
 *analysis
-svy: logistic sr_phq2_depressed i.quart_dif proxy
+
+set  varunit [pweight=anfinwgt], strat(varstrat)
+
+*figure 1
+*depression score
+svy, subpop(keep): reg sr_phq2_score i.quart_dif proxy
+margins quart_dif
+marginsplot
+
+svy, subpop(keep_recover): reg sr_phq2_score i.quart_dif proxy
+margins quart_dif
+marginsplot
+
+svy, subpop(keep_norecover): reg sr_phq2_score i.quart_dif proxy
+margins quart_dif
+marginsplot
+
+*anxiety score
+svy, subpop(keep): reg sr_gad2_score i.quart_dif proxy
+margins quart_dif
+marginsplot
+
+svy, subpop(keep_recover): reg sr_gad2_score i.quart_dif proxy
+margins quart_dif
+marginsplot
+
+svy, subpop(keep_norecover): reg sr_gad2_score i.quart_dif proxy
+margins quart_dif
+marginsplot
+
 
 *table 1
 svy, subpop(keep): tab age_3cat 
@@ -355,7 +409,6 @@ svy, subpop(keep): tab proxy
 
 *analysis
 *1: survey adjusted rates
-set  varunit [pweight=anfinwgt], strat(varstrat)
 
 *Overall:
 svy: logistic sr_phq2_depressed i.quart_dif proxy
