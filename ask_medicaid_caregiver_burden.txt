@@ -3984,6 +3984,8 @@ reshape wide `all', i(id) j(post)
 
 
 H="Changelog"
+8/09/19 - Recreated Dataset using new critieria (require only N1 & P1), and generated a weighted population table. Omari
+
 7/23/19 - Recreated Dataset using new criteria (require N1, P1 & P2) and prospective approach to calculating costs. OKR
 
 7/11/2019 - Added Sample Derivation. Omari
