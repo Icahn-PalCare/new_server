@@ -332,8 +332,6 @@ gen comor_4 = 0
 replace comor_4 = 1 if comor_in_hrs>=4 & comor_in_hrs!=.
 label var comor_4 "4+ Comorbidities"
 
-
-
 gen paid_cg = 0
 replace paid_cg = 1 if hlphrs_f>0 & hlphrs_f!=.
 label var paid_cg "Paid Caregiver"
@@ -506,8 +504,8 @@ label var exit_ivw_p2 "Indicator that P2 is an exit interview"
 */
 
 
-local ivars female black white hisp_eth other_na_api_race hseduc married  dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 livealone 
-local cvars months_from_medicaid age networth hlphrs_i
+local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 livealone 
+local cvars months_from_medicaid age networth hlphrs_i 
 
 
 
@@ -516,7 +514,15 @@ gsort id -n1_flag
 by id: carryforward living_kids_ind wgtr, replace //smoke_curr, helper hrs, overweight??
 keep if p1_flag==1
 
+set seed 12
+gen rid = runiform()*10000000
+replace rid = abs(rid)
+
 save $fin\medicaid_cg_burden_id.dta, replace 
+
+keep `ivars' `cvars' rid ltss_persenior_quart wgtr
+
+save $fin\medicaid_cg_burden_id.dta, replace
 
 /*
 drop id months_n1 months_p1 months_p2 months_from_p2 months_from_medicaid_n1 exit_ivw_n1 exit_ivw_p1
