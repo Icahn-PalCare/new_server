@@ -170,7 +170,7 @@ label var dem_cohort "Probable Dementia at N1/P1"
 
 by id: egen no_core_24 = max(core_in_24)
 recode no_core_24 (0=1) (1=0)
-label var no_core_24 "No core interview within 24m of incident medicaid"
+label var no_core_24 "No core/exit interview within 24m post incident medicaid"
 
 by id: egen age_lt_66 = max(age_66) 
 *recode age_lt_66 (1=0) (0=1)
@@ -182,7 +182,7 @@ recode drop_medicaid (1=0) (0=1)
 
 by id: egen no_n1 = max(n1_in_48)
 recode no_n1 (1=0) (0=1)
-label var no_n1 "No N1 core interview within 48 months of Incident Medicaid"
+label var no_n1 "No N1 core interview within 48 months prior to Incident Medicaid"
 
 by id: egen nolookback = max(lookback)
 recode nolookback (0=1) (1=0)
@@ -210,7 +210,7 @@ replace no_core_ever = 1 if _m==1
 label var no_core_ever "No core interview 1998 - 2014"
 
 local sampvars drop_medicaid age_lt_66 nolookback no_core_ever no_core_24 no_n1
-local rd: word count all `sampvars' 1
+local rd: word count all `sampvars' 1 1
 label var all "All HRS Medicare Beneficiaries 1998-2015"
 
 mat tab1 = J(`rd',1,.)
@@ -229,7 +229,13 @@ local ++r
 sum all
 mat tab1[`r',1] = r(N)
 
-mat rownames tab1 = all `sampvars' "Final Sample"
+local ++r
+
+sum dem_cohort 
+mat tab1[`r',1] = r(sum)
+
+
+mat rownames tab1 = all `sampvars' "Final Sample" "Final Sample with Dementia"
 
 frmttable using "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\output\sample_derivation_`c(current_date)'.rtf", ///
 statmat(tab1) varlabels title("Sample Derivation") sdec(0) replace
@@ -295,6 +301,114 @@ cap drop _m
 merge 1:1 hhid pn year using "`states'", keep(match)
 
 save $int\medicaid_cg_states.dta, replace
+
+H="Step 4"
+local importfolder "J:\Geriatrics\PCare\HRS Projects\Data & Project-based (reference docs, etc)\Student Projects\Datasets\George"
+local ltssfolder "J:\Geriatrics\PCare\HRS Projects\Data & Project-based (reference docs, etc)\Student Projects\Datasets\George\LTSS Expenditures\LTSS Expenditures"
+
+cd "`importfolder'"
+
+//import all excel files (there are both .xls and .xlsx files here) with MSIS pops for years 2000-2012
+local filelist1 : dir . files  "*.xls"
+local filelist2 : dir . files "*.xlsx"
+
+local year=0
+foreach f of local filelist1 {
+	import excel "`f'", cellrange(A5) firstrow case(lower) clear
+	gen year=2000+`year'
+	rename *totalbeneficiaries totalbeneficiaries
+	keep state year total age65
+	tempfile msis`year'
+	save `msis`year''
+	local year=`year'+1
+}
+
+
+
+foreach f of local filelist2 {
+	import excel "`f'", cellrange(A5) firstrow case(lower) clear
+	gen year=2000+`year'
+	rename *totalbeneficiaries totalbeneficiaries
+	keep state year total age65
+	tempfile msis`year'
+	save `msis`year''
+	local year=`year'+1
+}
+
+
+di `year'
+
+clear all
+forvalues year=0/12 {
+	append using `msis`year''
+}
+
+//keep national, because it may be useful for missing states (12 in 2012 are empty, and ME in 2010 is)
+replace state="Total" if state=="TOTAL"
+drop if inlist(substr(state,1,3),"CMS","*Br")
+drop if missing(state)
+
+//save to merge with ltss data later
+tempfile msis
+save `msis'
+
+//must drop the total because it won't match with a LTSS file
+drop if inlist(substr(state,1,3),"Tot")
+
+//pull 
+levelsof state, local(levels)
+
+
+tokenize 81 85 86 90 91 95 96 00 01 05 06 10 11 14
+
+foreach l of local levels {
+	forvalues year=1(2)14 {
+	import excel "`ltssfolder'\LTSS_Historic_Exp_`l'.xlsx", sheet("`l' ``year''-``=`year'+1'' Expenditures") cellrange(A2) ///
+	firstrow case(lower) clear allstring
+	keep servicetype fy*
+	keep if inlist(servicetype,"Total LTSS", "Total Institutional LTSS", "Total HCBS", "Total Medicaid (all services)")
+	gen state="`l'"
+	reshape long fy, i(servicetype) 
+	destring fy, replace
+	levelsof _j, local(lev2)
+	foreach lev of local lev2 {
+		egen tot_hcbs`lev'=max(cond(_j==`lev' & servicetype=="Total HCBS"),fy,.)
+		egen tot_inst_ltss`lev'=max(cond(_j==`lev' & servicetype=="Total Institutional LTSS"),fy,.) 
+		egen tot_ltss`lev'=max(cond(_j==`lev' & servicetype=="Total LTSS"),fy,.)
+		egen tot_medicaid`lev'=max(cond(_j==`lev' & servicetype=="Total Medicaid (all services)"),fy,.)  
+}
+	keep state tot*
+	duplicates drop
+	reshape long tot_hcbs tot_inst_ltss tot_ltss tot_medicaid, i(state) j(year)
+	tempfile t`year'
+	save `t`year''
+}
+	clear all
+	forvalues year=1(2)14 {
+	append using `t`year''
+}
+	tempfile `l'
+	save ``l''
+}
+
+clear all
+foreach l of local levels {
+	append using ``l''
+}
+
+keep if inrange(year,2000,2012)
+
+merge 1:1 state year using `msis', gen(msisltssm)
+
+label var tot_ltss "Total LTSS"
+label var tot_inst_ltss "Total Institutional LTSS"
+label var tot_hcbs "Total HCBS"
+label var tot_medicaid "Total Medicaid (all services)"
+label var totalb "Total Beneficiaries"
+label var age "Beneficiaries 65+"
+
+save "msis_ltss_by_state.dta", replace
+
 
 H="Step 5"
 use $int\medicaid_cg_states.dta, replace
