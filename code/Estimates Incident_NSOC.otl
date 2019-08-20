@@ -1,0 +1,29 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Project Overview"
+/* 
+Project Name: Cancer in the Context of Aging:
+Health Characteristics, function and caregiving needs prior to a new cancer 
+diagnosis in a national sample of older adults
+
+Date Started:
+
+Primary Investigator: Katherine Ornstein
+
+Created By: Naomi Alpert
+
+Primary Analyst: Naomi Alpert
+Secondary Analyst: N/A
+
+Datasets Used: NHATS-Medicare
+
+Simple Outline: Examine health status, functional limitations, and caregiving needs in older adults prior to an incident cancer diagnosis of breast, colorectal, lung, prostate
+
+*/
+
+/*Libnames*/
+libname nhats "D:\NHATS\Shared\base_data\NHATS cleaned";
+libname medicare "D:\NHATS\Shared\base_data\CMS_claims\SAS";
+libname inter "D:\NHATS\Projects\cancer and aging\KO_health and limitations_pre cancer\data\Intermediate";
+libname final "D:\NHATS\Projects\cancer and aging\KO_health and limitations_pre cancer\data\Final";
+libname xwalk "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks";
