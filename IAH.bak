@@ -5317,7 +5317,7 @@ sum `x' if cp_hb==1 & hcalls==1
 if `a'>=11 & `b'>=11 mat tab1[`r',`c'] = r(mean)*100
 *if `a'<11 | `b'<11 mat tab1[`r',`c'] = "NR"
 
-tab `x' hcalls if cp_hb==1, chi2
+tab `x' cp_hb if hcalls==1, chi2
 mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local ++c
@@ -5340,7 +5340,7 @@ sum `x' if cp_hb==0  & hcalls==1
 if `e'>=11 & `d'>=11 mat tab1[`r',`c'] = r(mean)*100
 *if `e'<11 | `d'<11 mat tab1[`r',`c'] = "NR"
 
-tab `x' hcalls if cp_hb==0, chi2
+tab `x' cp_hb if hcalls==0, chi2
 mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local c = 1
@@ -5369,7 +5369,7 @@ sum `x' if cp_hb==1 & hcalls==1
 if `a'>=11 & `b'>=11 mat tab1[`r',`c'] = r(mean)*100
 *if `a'<11 | `b'<11 mat tab1[`r',`c'] = "NR"
 
-tab `x' hcalls if cp_hb==1, chi2
+tab `x' cp_hb if hcalls==1, chi2
 mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local ++c
@@ -5392,7 +5392,7 @@ sum `x' if cp_hb==0  & hcalls==1
 if `e'>=11 & `d'>=11 mat tab1[`r',`c'] = r(mean)*100
 *if `e'<11 | `d'<11 mat tab1[`r',`c'] = "NR"
 
-tab `x' hcalls if cp_hb==0, chi2
+tab `x' cp_hb if hcalls==0, chi2
 mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local c = 1
@@ -5421,7 +5421,7 @@ sum `x' if cp_hb==1 & hcalls==1
 if `a'>=11 & `b'>=11 mat tab1[`r',`c'] = r(mean)*100
 *if `a'<11 | `b'<11 mat tab1[`r',`c'] = "NR"
 
-tab `x' hcalls if cp_hb==1, chi2
+tab `x' cp_hb if hcalls==1, chi2
 mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local ++c
@@ -5444,7 +5444,7 @@ sum `x' if cp_hb==0  & hcalls==1
 if `e'>=11 & `d'>=11 mat tab1[`r',`c'] = r(mean)*100
 *if `e'<11 | `d'<11 mat tab1[`r',`c'] = "NR"
 
-tab `x' hcalls if cp_hb==0, chi2
+tab `x' cp_hb if hcalls==0, chi2
 mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
 local c = 1

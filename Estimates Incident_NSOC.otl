@@ -782,3 +782,293 @@ if a=0 then sample=0;run;
 
 proc freq data=enroll; tables sample; run; /*10704 excluded so far, 1723 potential in sample*/
 
+data inter.Enroll_IVW_Cancer_Dx; set enroll; run;
+
+H="Identify Pre and Post Interviews"
+/*** Identify Interviews pre and post cancer**/
+proc contents data=enroll; run;
+
+proc freq data=enroll; tables cancerdx sample replenishment; run;
+proc print data=enroll (where=(cancerdx=1) obs=20); var dxt0 replenishment DOB_dt; run;
+
+data CancerID; set enroll; 
+if cancerdx=1 then age_dx=(dxt0-dob_dt)/365.2422;
+if cancerdx=1 then yrdx=year(dxt0);
+keep spid cancerdx dxt0 sample replenishment dob_dt age_dx yrdx;
+run;
+
+proc print data=CancerID (where=(cancerdx=1 and replenishment=0) obs=20); var dxt0 DOB_dt age_dx yrdx; run;
+proc freq data=CancerID; tables cancerdx yrdx; run;
+
+
+proc sort data=CancerID; by spid; run;
+proc sort data=nhats1_8; by spid; run;
+
+/*Merge back with overall nhats to identify pre and post surveys*/
+data nhats; merge CancerID nhats1_8; by spid; run;
+	data test; set nhats; keep spid replenishment sample; run;
+		proc sort data=test nodup out=test; by spid; run;
+			proc freq data=test; tables sample replenishment; run;
+
+
+data nhats1; set nhats;
+if ivw_date<dxt0 and dxt0^=. and ivw_date^=. then pre_DX=1; 
+if ivw_date>dxt0 and dxt0^=. and ivw_date^=. then post_DX=1; 
+
+if pre_DX=. and post_DX=. then do;
+if yrdx=2011 and (wave in (2,3,4,5,6,7,8)) then post_Dx=1;
+
+if yrdx=2012 and (wave=1) then pre_DX=1;
+if yrdx=2012 and (wave in (3,4,5,6,7,8)) then post_DX=1;
+
+if yrdx=2013 and (wave in (1,2)) then pre_DX=1;
+if yrdx=2013 and (wave in (4,5,6,7,8)) then post_DX=1;
+
+if yrdx=2014 and (wave in (1,2,3)) then pre_DX=1;
+if yrdx=2014 and (wave in (5,6,7,8)) then post_Dx=1;
+
+if yrdx=2015 and (wave in (1,2,3,4)) then pre_DX=1;
+if yrdx=2015 and (wave in (6,7,8)) then post_DX=1;
+
+if yrdx=2016 and (wave in (1,2,3,4,5)) then pre_DX=1;
+if yrdx=2016 and (wave in (7,8)) then post_DX=1;
+
+if yrdx=2017 and (wave in (1,2,3,4,5,6)) then pre_DX=1;
+if yrdx=2017 and (wave=8) then post_Dx=1;
+end;
+
+if post_DX=1 then pre_DX=0; if pre_DX=1 then post_DX=0;
+
+run;
+
+data test; set nhats1; keep spid sample; run;
+	proc sort data=test nodup out=test; by spid; run;
+		proc freq data=test; tables sample; run;
+
+proc print data=nhats1(where=(sample^=0 and replenishment=1) obs=20); var spid yrdx dxt0 ivw_date wave pre_Dx post_Dx; run;
+proc print data=nhats1(where=(wave=8)obs=100); var spid sample replenishment ivw_date;run;
+proc freq data=nhats1(where=(ivw_date=.)); tables wave; run;
+proc print data=nhats1(where=(wave=8)); var ivw_date; run; /*all of wave 8 are missing interview dates*/
+
+proc freq data=nhats1(where=(cancerdx=1)); table pre_DX post_DX; run;
+proc print data=nhats1(where=(cancerdx=1 and pre_DX=.)); var dxt0 ivw_date wave replenishment sample; run;
+
+/*Exclude those who have insufficient information to determine pre/post interviews*/
+data test; set nhats1 (where=(cancerdx=1 and pre_DX=. and post_DX=.)); 
+keep spid; 
+run;
+
+proc sort data=test nodup out=test; by spid; run;
+
+data nhats2; merge nhats1 test(in=a); by spid; 
+if a=1 then sample=0;
+run;
+
+	data test; set nhats2; keep spid sample;
+		proc sort data=test nodup out=test; by spid; run;
+			proc freq data=test; tables sample; run; /*10725 excluded so far,1702 potential in sample*/
+
+
+/*Identify pre and post interviews*/
+proc sort data=nhats2; by spid  wave; run;
+
+proc print data=nhats2 (where=(sample^=0) obs=20); var spid yrdx dxt0 ivw_date wave pre_dx post_dx; run;
+
+data test; set nhats2(where=(sample^=0 and pre_DX=1)); by spid; keep spid n1_int_wave ivw_date dxt0 wave;
+if last.spid then n1_int_wave=wave;
+if last.spid; 
+format n1_int date9.;
+run;
+
+proc print data=test; var spid dxt0 ivw_date n1_int_wave wave; run;
+
+data test1; set nhats2 (where=(sample^=0 and post_Dx=1)); by spid; keep spid p1_int_wave ivw_date dxt0 wave;
+if first.spid then p1_int_wave=wave;
+if first.spid;
+format p1_int date9.;
+run;
+
+proc print data=test1; var spid dxt0 ivw_date p1_int_wave wave; run;
+proc print data=nhats2(where=(spid=10000017)); var spid ivw_date wave dxt0 Pre_DX post_DX; run;
+
+data pre_post_ivw; merge test test1; by spid; 
+keep spid p1_int_wave n1_int_wave dxt0; 
+run;
+
+proc print data=pre_post_ivw; run;
+
+data nhats2; merge nhats2 pre_post_ivw; by spid;
+run;
+
+proc print data=nhats2(where=(n1_int_wave=wave)obs=20); var sample n1_int_wave dxt0 cancerdx; run;
+data test; set nhats2 (where=(n1_int_wave=wave)); run;
+	proc freq data=test; tables sample; run;
+
+proc freq data=nhats2(where=(n1_int_wave=wave)); tables sample Pre_DX post_DX; run;
+proc freq data=nhats2(where=(p1_int_wave=wave)); tables sample Pre_DX post_DX; run;
+
+
+/**List of cancer ids*/
+data test; set nhats2 (where=(sample^=0)); keep spid sample; run;
+	proc sort data=test nodup out=test; by spid; run; /*1702*/
+
+data inter.cancerID; set test; run;
+
+H="Self Reported Cancer before Claims Cancer"
+/**Exclude those who self reported a cancer at or before pre-cancer interview*/
+proc sort data=nhats2; by spid; run;
+
+data test; set nhats2 (where=(sample^=0 and wave=n1_int_wave)); run;
+proc freq data=test; tables wave; run;
+
+/*Wave 2*/
+proc freq data=test (where=(wave=2)); tables sr_cancer_new; run; /*0 people with wave 2 as pre cancer, who reported cancer in wave 2*/
+
+data w2id; set test(where=(wave=2 and sr_cancer_new=1)); keep  spid; run; /*0*/
+
+/*Wave 3*/
+data w3id; set test(where=(wave=3)); keep spid; run;
+proc sort data=w3id; by spid; run;
+data wave3; merge w3id (in=a) nhats2; by spid; if a; run;
+
+data temp; set wave3; keep spid; run;
+	proc sort data=temp nodup out=temp; by spid; run; /*189 people with wave 3 as pre cancer*/
+
+
+proc freq data=wave3 (where=(wave=2)); tables sr_cancer_new; run;/*3 people who report cancer in wave 2*/
+proc freq data=wave3 (where=(wave=3)); tables sr_cancer_new; run; /*0 people who report cancer in wave 3*/
+
+data temp1; set wave3 (where=(wave=2 and sr_cancer_new=1)); keep  spid; run;
+data temp2; set wave3 (where=(wave=3 and sr_cancer_new=1)); keep  spid; run;
+
+data w3id; set temp1 temp2; run;
+proc sort data=w3id nodup out=w3id; by spid; run; /*3 reporting cancer before wave 3*/
+
+/*Wave 4*/
+data w4id; set test(where=(wave=4)); keep  spid; run;
+data wave4; merge w4id (in=a) nhats2; by spid; if a; run;
+
+data temp; set wave4; keep spid; run;
+	proc sort data=temp nodup out=temp; by spid; run;  /*83 people with wave 4 as pre cancer*/
+
+proc freq data=wave4(where=(wave=2)); tables sr_cancer_new; run;/*0 people with cancer in wave 2*/
+
+proc freq data=wave4 (where=(wave=3)); tables sr_cancer_new; run; /*0 people with cancer in  wave 3*/
+
+proc freq data=wave4 (where=(wave=4)); tables sr_cancer_new; run; /*0 people with cancer in  wave 4*/
+
+data temp1; set wave4 (where=(wave=2 and sr_cancer_new=1)); keep  spid; run;
+data temp2; set wave4 (where=(wave=3 and sr_cancer_new=1)); keep spid; run;
+data temp3; set wave4 (where=(wave=4 and sr_cancer_new=1)); keep  spid; run;
+
+proc print data=temp1; run; proc print data=temp2; run; proc print data=temp3; run;
+
+data w4id; set temp1 temp2 temp3; run;
+
+proc sort data=w4id nodup out=w4id; by spid; run;/*0 people reporting cancer before wave 4*/
+
+/*Wave 5*/
+data w5id; set test(where=(wave=5)); keep  spid; run; /*304 with wave 5 as pre cancer*/
+data wave5; merge w5id (in=a) nhats2; by spid; if a; run;
+
+data temp; set wave5; keep spid; run;
+	proc sort data=temp nodup out=temp; by spid; run; 
+
+proc freq data=wave5 (where=(wave=2)); tables sr_cancer_new; run;/*0*/
+
+proc freq data=wave5 (where=(wave=3)); tables sr_cancer_new; run; /*0*/
+
+proc freq data=wave5 (where=(wave=4)); tables sr_cancer_new; run; /*0*/
+
+proc freq data=wave5 (where=(wave=5)); tables sr_cancer_new; run; /*1 reporting cancer in wave 5*/
+
+data temp1; set wave5 (where=(wave=2 and sr_cancer_new=1)); keep  spid; run;
+data temp2; set wave5 (where=(wave=3 and sr_cancer_new=1)); keep spid; run;
+data temp3; set wave5 (where=(wave=4 and sr_cancer_new=1)); keep  spid; run;
+data temp4; set wave5(where=(wave=5 and sr_cancer_new=1)); keep  spid; run;
+
+data w5id; set temp1 temp2 temp3 temp4; run;
+proc sort data=w5id nodup out=w5id; by spid; run;/*1 observations*/
+
+
+/*Wave 6*/
+data w6id; set test(where=(wave=6)); keep  spid; run; /*168 with wave 6 as pre cancer*/
+data wave6; merge w6id (in=a) nhats2; by spid; if a; run;
+
+data temp; set wave6; keep  spid; run;
+	proc sort data=temp nodup out=temp; by spid; run;
+
+
+proc freq data=wave6 (where=(wave=2)); tables sr_cancer_new; run; /*0*/
+proc freq data=wave6 (where=(wave=3)); tables sr_cancer_new; run; /*1*/
+proc freq data=wave6 (where=(wave=4)); tables sr_cancer_new; run; /*0*/
+proc freq data=wave6 (where=(wave=5)); tables sr_cancer_new; run; /*0*/
+proc freq data=wave6 (where=(wave=6)); tables sr_cancer_new; run; /*1*/
+
+
+data temp1; set wave6 (where=(wave=2 and sr_cancer_new=1)); keep  spid; run;
+data temp2; set wave6 (where=(wave=3 and sr_cancer_new=1)); keep  spid; run;
+data temp3; set wave6 (where=(wave=4 and sr_cancer_new=1)); keep  spid; run;
+data temp4; set wave6(where=(wave=5 and sr_cancer_new=1)); keep  spid; run;
+data temp5; set wave6(where=(wave=6 and sr_cancer_new=1)); keep  spid; run;
+
+
+data w6id; set temp1 temp2 temp3 temp4 temp5; run;
+proc sort data=w6id nodup out=w6id; by spid; run;/*2 people with cancer before wave 6*/
+
+/*Wave 7*/
+data w7id; set test(where=(wave=7)); keep  spid; run; /*52 with wave 7 as pre cancer*/
+data wave7; merge w7id (in=a) nhats2; by spid; if a; run;
+
+data temp; set wave7; keep  spid; run;
+	proc sort data=temp nodup out=temp; by spid; run;
+
+
+proc freq data=wave7 (where=(wave=2)); tables sr_cancer_new; run; /*0*/
+proc freq data=wave7 (where=(wave=3)); tables sr_cancer_new; run; /*1*/
+proc freq data=wave7 (where=(wave=4)); tables sr_cancer_new; run; /*0*/
+proc freq data=wave7 (where=(wave=5)); tables sr_cancer_new; run; /*1*/
+proc freq data=wave7 (where=(wave=6)); tables sr_cancer_new; run; /*0*/
+proc freq data=wave7 (where=(wave=7)); tables sr_cancer_new; run; /*0*/
+
+data temp1; set wave7 (where=(wave=2 and sr_cancer_new=1)); keep  spid; run;
+data temp2; set wave7 (where=(wave=3 and sr_cancer_new=1)); keep  spid; run;
+data temp3; set wave7 (where=(wave=4 and sr_cancer_new=1)); keep  spid; run;
+data temp4; set wave7(where=(wave=5 and sr_cancer_new=1)); keep  spid; run;
+data temp5; set wave7(where=(wave=6 and sr_cancer_new=1)); keep  spid; run;
+data temp6; set wave7(where=(wave=7 and sr_cancer_new=1)); keep  spid; run;
+
+data w7id; set temp1 temp2 temp3 temp4 temp5 temp6; run;
+proc sort data=w7id nodup out=w7id; by spid; run;/*1 people with cancer before wave 7*/
+
+
+
+data ids; set w2id w3id w4id w5id w6id w7id; run; /*7 total*/
+
+proc print data=ids; run;
+proc sort data=ids; by spid; run;
+
+data nhats2; merge nhats2 ids(in=a); by spid; 
+if a=1 then sample=0;
+run;
+
+data test; set nhats2; keep spid sample; run;
+	proc sort data=test nodup out=test; by spid; run;
+	proc freq data=test; tables sample; run;
+data nhats3; set nhats2; 
+if sample=. then sample=1;
+run;
+
+
+data test; set nhats3; keep spid sample replenishment; run;
+	proc sort data=test nodup out=test; by spid; run;
+		proc freq data=test; tables sample*replenishment; run;
+
+
+/*Save nhats dataset with sample of incident cancers*/
+data inter.IncidentCancerSample; set nhats3; run;
+
+H="Check Dementia Status at Pre Cancer"
+
+
+H="check NSOC"
