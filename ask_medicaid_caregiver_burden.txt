@@ -411,11 +411,42 @@ save "msis_ltss_by_state.dta", replace
 
 
 H="Step 5"
+// Pull weights directly from tracker
+use "D:\HRS\Shared\raw\HRS\hrs_tracking_2016\TRK2016TR_R.dta", clear
+
+rename *, l
+
+keep hhid pn fwgtr gwgtr hwgtr jwgtr kwgtr lwgtr mwgtr nwgtr owgtr gwgtrnh hwgtrnh jwgtrnh kwgtrnh lwgtrnh mwgtrnh nwgtrnh // no nursing home weight for 1998
+
+tempfile weights
+save `weights'
+
 use $int\medicaid_cg_states.dta, replace
 
 keep if n1_flag==1 | p1_flag==1
 
 cap drop _m
+
+merge m:1 hhid pn using "`weights'" , keep(match) nogen
+
+gen regwt = .
+replace regwt=fwgtr if year==1998 // no nursing home weight for 1998
+replace regwt=gwgtr if year==2000
+replace regwt=hwgtr if year==2002
+replace regwt=jwgtr if year==2004
+replace regwt=kwgtr if year==2006
+replace regwt=lwgtr if year==2008
+replace regwt=mwgtr if year==2010
+replace regwt=nwgtr if year==2012
+
+replace regwt=gwgtrnh if year==2000 & nhres==1
+replace regwt=hwgtrnh if year==2002 & nhres==1
+replace regwt=jwgtrnh if year==2004 & nhres==1
+replace regwt=kwgtrnh if year==2006 & nhres==1
+replace regwt=lwgtrnh if year==2008 & nhres==1
+replace regwt=mwgtrnh if year==2010 & nhres==1
+replace regwt=nwgtrnh if year==2012 & nhres==1
+
 
 merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", keepus(living_kids_ind) keep(master match) nogen
 
@@ -458,31 +489,6 @@ replace hlphrs_i = 720 if hlphrs_i>720 & hlphrs_i!=. // capping helperhrs report
 
 label var hlphrs_i "Hours of informal caregiving in last 30 days"
 
-
-/*
-gen ivwflag = .
-replace ivwflag = 1 if n1flag==1
-replace ivwflag = 2 if p1flag==1
-replace ivwflag = 3 if p2flag==1
-
-replace hlphrs_i = 720 if hlphrs_i>720 & hlphrs_i!=. // capping helperhrs reported to 24hrs(max)*30days per person
-replace hlphrs_i = 0 if hlphrs_i==.
-
-gsort id ivwflag
-replace c_ivw_date = e_ivw_date if c_ivw_date==.
-
-by id: gen months = c_ivw_date - c_ivw_date[_n-1]
-replace months = months * 0.0329
-replace months = ceil(months)
-label var months "Months between interviews"
-
-by id: gen prev_help_hrs = 1 if hlphrs_i[_n-1]>0 & hlphrs_i[_n-1]!=.
-label var prev_help_hrs "Indicator any reported helper hours at previous interview"
-by id: gen prev_hlp_i = hlphrs_i[_n-1]
-label var prev_hlp_i "Reported helper hours at previous interview"
-gen total_hlp = hlphrs_i*4 if prev_help_hrs==.
-replace total_hlp = hlphrs_i*4 + (months-4)*((hlphrs_i + prev_hlp_i)/2) if prev_help_hrs!=.
-*/
 
 gen months_from_medicaid = date - inc_maid_date if p1_flag==1
 replace months_from_medicaid = months_from_medicaid * 0.0329
@@ -535,25 +541,6 @@ label var inst_ltss_persenior_quart "Quartile of state-level Institutional LTSS 
 label var ltss_persenior_quart "Quartile of state-level LTSS spending per senior"
 label var medicaid_perbene_quart "Quartile of state-level total Medicaid spending per beneficiary"
 
-/*
-gen exit_ivw = 0
-replace exit_ivw = 1 if exit_year!=.
-
-replace core_year = exit_year if exit_ivw==1
-replace nhres_2yr = nhres_2yr_exit if exit_ivw==1
-replace proxy_core = proxy_exit if exit_ivw==1
-
-foreach x in adl_dr adl_wk adl_bh adl_e adl_tx adl_t {
-replace `x'_core = `x' if exit_ivw==1
-}
-
-
-keep dem_cohort hhid pn id age inc_maid_year adl_diff_bh adl_diff_dr adl_diff_e ///
-adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core adl_e_core adl_t_core adl_tx_core ///
-adl_wk_core adl_bh_core comor_in_hrs core_year ///
-married nhres nhres_2yr proxy_core srh_pf smoke_curr smoke_ever /*ltss_cat*/ ///
-networth months_from_medicaid ltss_persenior_quart n1flag p1flag p2flag total_hlp months exit_ivw
-*/
 merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", nogen keep(match) keepus(hisp_eth white black other_na_api_race degree gender)
 
 foreach x in hisp_eth white black {
@@ -576,56 +563,20 @@ label var dementia "Dementia probablity >= 0.5 at P1"
 label var hseduc "HS Grad or GED"
 label var female "female"
 
-/*
-gen ivw_label = "p1" if p1flag==1
-replace ivw_label = "p2" if p2flag==1
-replace ivw_label = "n1" if n1flag==1
-*/
 bysort id: egen age_max = max(age)
 replace age = age_max
 by id: egen maid_max = max(inc_maid_year)
 replace inc_maid_year = maid_max
 
-/*
-drop n1flag p1flag p2flag age_max maid_max
-
-local all adl_diff_bh adl_diff_dr adl_diff_e adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core ///
-adl_e_core adl_t_core adl_tx_core adl_wk_core adl_bh_core comor_in_hrs core_year married nhres ///
-nhres_2yr proxy_core srh_pf smoke_curr smoke_ever /*ltss_cat*/ networth months_from_medicaid ///
-ltss_persenior_quart total_hlp months exit_ivw
-
-foreach x of local all {
-rename `x' `x'_
-local all2 `all2' `x'_
-}
-
-reshape wide `all2', i(id) j(ivw_label) string
-
-sort id 
-set seed 123
-gen rid = runiform()*10000000
-replace rid = abs(rid)
-
-gen months_from_p2 = 24 - months_from_medicaid_p1
-replace total_hlp_p2 = (total_hlp_p2/months_p2) * months_from_p2
-
-gen hlphrs_post_2yr = .
-replace hlphrs_post_2yr = total_hlp_p1 if months_from_medicaid_p1<=24
-replace hlphrs_post_2yr = hlphrs_post_2yr + total_hlp_p2 if months_from_medicaid_p1<24
-
-label var hlphrs_post_2yr "Total hours of informal care 2yrs post incident medicaid"
-label var exit_ivw_p2 "Indicator that P2 is an exit interview"
-*/
-
+egen any_nh = anymatch(nhres nhres_2yr nhres_2yr_exit), values(1)
+label var any_nh "Any Nursing home stay in the past 2 years" 
 
 local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 livealone 
-local cvars months_from_medicaid age networth hlphrs_i 
-
-
+local cvars months_from_medicaid age networth hlphrs_i nhres any_nh
 
 gsort id -n1_flag
 
-by id: carryforward living_kids_ind wgtr, replace //smoke_curr, helper hrs, overweight??
+by id: carryforward living_kids_ind wgtr regwt, replace //smoke_curr, helper hrs, overweight??
 keep if p1_flag==1
 
 set seed 12
@@ -634,9 +585,9 @@ replace rid = abs(rid)
 
 save $fin\medicaid_cg_burden_id.dta, replace 
 
-keep `ivars' `cvars' rid ltss_persenior_quart wgtr
+keep `ivars' `cvars' rid ltss_persenior_quart wgtr regwt
 
-save $fin\medicaid_cg_burden_id.dta, replace
+save $fin\medicaid_cg_burden.dta, replace
 
 /*
 drop id months_n1 months_p1 months_p2 months_from_p2 months_from_medicaid_n1 exit_ivw_n1 exit_ivw_p1
@@ -651,7 +602,7 @@ cap drop all
 gen all = 1
 label var all "Weighted Population Estimates"
 
-local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 livealone 
+local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 livealone any_nh
 local cvars months_from_medicaid age networth hlphrs_i 
 
 
@@ -666,7 +617,7 @@ foreach x of local ivars {
 
 forvalues c = 1/4 {
 
-sum `x' [fweight=wgtr]if ltss_persenior_quart==`c'
+sum `x' [fweight=regwt]if ltss_persenior_quart==`c'
 
 mat tab1[`r',`c'] = r(mean)*100
 }
@@ -679,7 +630,7 @@ foreach x of local cvars {
 
 forvalues c = 1/4 {
 
-sum `x' [fweight=wgtr] if ltss_persenior_quart==`c'
+sum `x' [fweight=regwt] if ltss_persenior_quart==`c'
 
 mat tab1[`r',`c'] = r(mean)
 }
@@ -688,7 +639,7 @@ local ++r
 
 forvalues c = 1/4 {
 
-sum ltss_persenior [fweight=wgtr] if ltss_persenior_quart==`c', d
+sum ltss_persenior [fweight=regwt] if ltss_persenior_quart==`c', d
 
 mat tab1[`r',`c'] = r(p50)
 
@@ -700,7 +651,7 @@ local ++r
 
 forvalues c = 1/4 {
 
-sum `x' [fweight=wgtr] if ltss_persenior_quart==`c'
+sum `x' [fweight=regwt] if ltss_persenior_quart==`c'
 
 mat tab1[`r',`c'] = r(N)
 }
@@ -714,12 +665,6 @@ mat list tab1
 
 frmttable using "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\output\Table1_`c(current_date)'.rtf", ///
 statmat(tab1) varlabels ctitles("Variables", "LTSS Quartile 1", "LTSS Quartile 2", "LTSS Quartile 3", "LTSS Quartile 4") title("Exhibit 1") sdec(2) replace
-
-
-
-
-   
-
 
 H="******* 4th Iteration ************"
 
@@ -4104,6 +4049,8 @@ reshape wide `all', i(id) j(post)
 
 
 H="Changelog"
+8/22/19 - Added NH resdients to table and replace survey weights with nh weights for people in nursing home. OKR
+
 8/09/19 - Recreated Dataset using new critieria (require only N1 & P1), and generated a weighted population table. Omari
 
 7/23/19 - Recreated Dataset using new criteria (require N1, P1 & P2) and prospective approach to calculating costs. OKR

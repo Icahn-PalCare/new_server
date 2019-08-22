@@ -1069,6 +1069,29 @@ data test; set nhats3; keep spid sample replenishment; run;
 data inter.IncidentCancerSample; set nhats3; run;
 
 H="Check Dementia Status at Pre Cancer"
+/**Check dementia status before incident cancer*/
+data test; set nhats3 (where=(wave=n1_int_wave and sample=1)); run;
+data test1; set nhats3 (where=(wave=p1_int_wave and sample=1)); run;
 
+proc contents data=test; run;
+
+proc freq data=test; tables dem_2_cat dem_3_cat/missing; run;
+
+proc freq data=test1; tables dem_2_cat dem_3_cat/missing; run;
+
+data test_pre; set test; keep spid dem_2_cat;
+rename dem_2_cat=dem_pre;
+run;
+
+data test_post; set test1; keep spid dem_2_cat;
+rename dem_2_cat=dem_post;
+run;
+
+proc sort data=test_pre; by spid; run;
+proc sort data=test_post; by spid; run;
+
+data test; merge test_pre (in=a) test_post (in=b); by spid; if a; if b; run;
+
+proc freq data=test; tables dem_pre*dem_post/agree; run;
 
 H="check NSOC"
