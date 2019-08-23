@@ -3825,6 +3825,8 @@ gen adl_ins_help = .
 gen adl_ins_diff=.
 gen adl_ins_not_done=.
 
+
+
 replace adl_ins_help=1 if insdhlp==1 
 replace adl_ins_help=0 if insdhlp==2 
 replace adl_ins_help=0 if insdhlp==-1 & sp_ivw==1 
@@ -3849,6 +3851,35 @@ notes adl_ins_diff: How much difficulty getting around inside.
 notes adl_ins_not_done: dinsdsfdf
 notes adl_ins_not_done: Move inside by self
 notes adl_ins_not_done:  E:\nhats\nhats\code\NHATS data setup\NHATS_Setup, step-7 header
+
+//8/23/19--ad outside help & difficulty (don't include it in the indices)
+gen adl_out_help = .
+gen adl_out_diff=.
+gen adl_out_not_done=.
+replace adl_out_help=1 if outhlp==1 
+replace adl_out_help=0 if outhlp==2 
+replace adl_out_help=0 if outhlp==-1 & sp_ivw==1 
+replace adl_out_help=-7 if outhlp==-7 
+replace adl_out_help=-8 if outhlp==-8 
+replace adl_out_diff=0 if outdif==1 
+replace adl_out_diff=1 if outdif>1 
+replace adl_out_diff=0 if outdif==-1 & sp_ivw==1 
+replace adl_out_diff=-7 if outdif==-7 
+replace adl_out_diff=-8 if outdif==-8 
+replace adl_out_not_done=inlist(doutsfdf,1,8) 
+
+
+*replace adl_ins_dif=1 if adl_ins_help==1
+label var adl_out_help "Received help getting around outide"
+notes adl_out_help : outhlp
+notes adl_out_help : Anyone help you go outside
+notes adl_out_help : E:\nhats\nhats\code\NHATS data setup\NHATS_Setup, step-7 header
+
+notes adl_out_diff: outdif
+notes adl_out_diff: How much difficulty going outside by self
+notes adl_out_not_done: doutsfdf
+notes adl_out_not_done: Go outside by self
+notes adl_out_not_done:  E:\nhats\nhats\code\NHATS data setup\NHATS_Setup, step-7 header
 
 
 gen adl_bed_help = .
@@ -4569,8 +4600,8 @@ gen ind_kids=n_children>=1 if !missing(n_children)
 rename (mo`wave'* sc`wave'* ha`wave'* mc`wave'*) (* * * *)
 rename (eatslfdif toiloft bathoft) (eatdif toilslf bathslf)
 
-foreach x in eat toil insd bed dres bath {
-	gen `x'_jenny=inlist(`x'slf,3,4) | inlist(`x'dif,3,4) | `x'wout==1
+foreach x in eat toil insd bed dres bath out {
+	gen `x'_jenny=inlist(`x'slf,3,4) | inlist(`x'dif,3,4) | `x'wout==1 |`x'hlp==1
 }
 egen adlcount=rowtotal(eat_j toil_j insd_j bed_j dres_j bath_j)
 
@@ -4578,16 +4609,17 @@ egen adlcount=rowtotal(eat_j toil_j insd_j bed_j dres_j bath_j)
 gen medswout=0
 foreach x in laun meds shop meal bank {
 	drop `x'
-	gen `x'_jenny=inlist(d`x'reas,1,3) | inlist(`x'dif,3,4) | `x'wout==1
+	gen `x'_jenny=inlist(d`x'reas,1,3) | inlist(`x'dif,3,4) | `x'wout==1 
 }
 drop medswout
 egen iadlcount=rowtotal(laun_j meds_j shop_j meal_j bank_j)
-label var eat_j "Some/lot difficulty eating by self, or rarely/never, or had to go w/o"
-label var toil_j "Some/lot difficulty toileting by self, or rarely/never, or had to go w/o"
-label var insd_j "Some/lot difficulty moving inside by self, or rarely/never, or had to go w/o"
-label var bed_j "Some/lot difficulty getting out of bed by self, or rarely/never, or had to go w/o"
-label var dres_j "Some/lot difficulty dressing by self, or rarely/never, or had to go w/o"
-label var bath_j "Some/lot difficulty bathing by self, or rarely/never, or had to go w/o"
+label var eat_j "Some/lot difficulty eating by self, or help, or rarely/never, or had to go w/o"
+label var toil_j "Some/lot difficulty toileting by self, or help, or rarely/never, or had to go w/o"
+label var insd_j "Some/lot difficulty moving inside by self, or help, or rarely/never, or had to go w/o"
+label var out_j "Some/lot difficulty going outside by self, or help, or rarely/never, or had to go w/o"
+label var bed_j "Some/lot difficulty getting out of bed by self, or help, or rarely/never, or had to go w/o"
+label var dres_j "Some/lot difficulty dressing by self, or help, or rarely/never, or had to go w/o"
+label var bath_j "Some/lot difficulty bathing by self, or help, or rarely/never, or had to go w/o"
 label var laun_j "Some/lot of difficulty with laundry by self, or not by self b/c health, or had to go w/o"
 label var meds_j "Some/lot of difficulty with meds by self, or not by self b/c health, or had to go w/o"
 label var shop_j "Some/lot of difficulty with shopping by self, or not by self b/c health, or had to go w/o"
@@ -4715,7 +4747,7 @@ save `hours`wave''
 foreach x in hours paid kids {
 	di "`x'"
 	use ``x'1', clear
-	forvalues i=2/6 {
+	forvalues i=2/$w {
 		di "`i'"
 		append using ``x'`i''
 }
@@ -4741,11 +4773,11 @@ notes livesalone_ind: dhshldnum
 notes livesalone_ind: total number in household. 
 notes ind_kids: dnumchild n_children
 notes ind_kids: Indicator have children
-foreach x in eat toil insd bed dres bath {
+foreach x in eat toil insd bed dres bath out {
 notes `x'_jenny: `x'slf (3,4) `x'dif (3,4) `x'wout (1)
 notes `x'_jenny: ADL if did not do or rarely do, needed help, go without doing. 
 notes `x'_jenny: Located in NHATS Setup, under Part 7.
-notes `x'_jenny: Updated: 04/11/19-MH
+notes `x'_jenny: Updated: 08/23/19-EBL, 04/11/19-MH
 }
 notes adlcount: eat_jenny toil_jenny insd_jenny bed_jenny dres_jenny bath_jenny
 notes adlcount: count of Jenny's ADL measures
@@ -5377,7 +5409,7 @@ iadl_shop_not_done iadl_meal_help iadl_meal_diff iadl_meal_not_done iadl_bank_he
  shop_jenny meal_jenny bank_jenny iadlcount_jenny device_mobility spouse_help_ind tot_spousehrs daughter_help_ind tot_daughterhrs son_help_ind tot_sonhrs otherfamily_help_ind ///
  tot_otherfamilyhrs paid_help_ind tot_paidhrs otherinformal_help_ind tot_otherinformalhrs any_paid_by_sp any_paid_by_gov any_paid_by_ins any_paid_by_unk any_paid_by_oth ///
  any_paid_by_gov_cat_1 any_paid_by_gov_cat_2 any_paid_by_gov_cat_3 any_paid_by_gov_cat_oth any_paid_by_gov_cat_unknown any_paid_by_medicare any_paid_by_medicaid any_paid_by_state ///
- ind_gt20hrs_wk_inf ind_gt20hrs_wk_paid anfinwgt an2011wgt death_* died_12 died_24 *_lml qoc_lml_e
+ ind_gt20hrs_wk_inf ind_gt20hrs_wk_paid anfinwgt an2011wgt death_* died_12 died_24 *_lml qoc_lml_e adl_out* out_jenny
  
 
 saveold "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_${w}", replace version(12)
@@ -6918,6 +6950,11 @@ H="Changelog"
 
 
 Updates:
+
+
+08/23/2019 EBL
+----------
+Updated impairments for Jenny's projects, and included going outside for ADLs (not part of the indices).
 
 07/02/2019 MH
 ----------

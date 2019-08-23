@@ -42,9 +42,23 @@ global outpath "D:\NHATS\Projects\caregiving\jr_dem_paid_cgs_and_unmet_needs\out
 H="Sample derivation"
 //Sample derivation
 
-use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", clear
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" if wave<8, clear
 
+//per request, include as impaired if any help
 
+drop *adlcount_jenny
+rename adl_ins_help adl_insd_help
+foreach x in eat toil insd bed dres bath out {
+	replace adl_`x'_help=0 if missing(adl_`x'_help)
+	replace `x'_jenny=1 if adl_`x'_help==1
+}
+
+foreach x in laun meds shop meal bank {
+	replace iadl_`x'_help=0 if missing(iadl_`x'_help)
+	replace `x'_jenny=1 if iadl_`x'_help==1
+}
+egen adlcount_jenny=rowtotal(eat_j toil_j insd_j bed_j dres_j bath_j)
+egen iadlcount_jenny=rowtotal(laun_j meds_j shop_j meal_j bank_j)
 
 local samplevars all inrange spivw nonh nolml prob_dem //anyh
 
@@ -111,14 +125,14 @@ label var adv_mob "Adverse consequence of unmet mobility need"
 
 egen impair_sc=rowmax(eat bath toil dres)
 egen impair_hh=rowmax(laun shop meal_j bank_j)
-egen impair_mob=rowmax(insd out bed)
+egen impair_mob=rowmax(insd out_jenny bed)
 egen impair_any=rowmax(impair_*)
 label var impair_any "Any impairment"
 label var impair_sc "Self-care impairment"
 label var impair_hh "Household impairment"
 label var impair_mob "Mobility impairment"
-rename adl_ins_help adl_insd_help
 
+/*
 label define impcat 1 "No impairment or help" 2 "Impairment, no help, no adverse consequences" ///
 3 "Impairment & help, no adverse consequences" 4 "No impairment, but help, no adverse consequences" 5 "No help, adverse consequences" 6 "Help, adverse consequences"
 
@@ -130,10 +144,61 @@ foreach x in eat toil insd bed dres bath laun shop meal bank {
 	replace `x'_cat=5 if adl_`x'_help==0 & adverse_`x'==1
 	replace `x'_cat=6 if adl_`x'_help==1 & adverse_`x'==1
 	label values `x'_cat impcat
+}*/
+
+//8/23/19--updated and down to three categories
+
+label define impcat 1 "No impairment" 2 "Impairment but no help, no adverse consequences" 3 "Help with task, no adverse consequences" 4 "No help, adverse consequences" 5 "Help, adverse consequences"
+
+foreach x in eat toil insd bed dres bath laun shop meal bank out {
+	rename *adl_`x'_help adl_`x'_help
+	gen `x'_cat=`x'_jenny+1 
+	replace `x'_cat=3 if adl_`x'_help==1 & `x'_jenny==1 & adverse_`x'==0
+	replace `x'_cat=4 if adl_`x'_help==0 & adverse_`x'==1
+	replace `x'_cat=5 if adl_`x'_help==1 & adverse_`x'==1
+	label values `x'_cat impcat
 }
 
+egen sc_jenny=rowmax(eat_j toil_j insd_j bath_j)
+egen hh_jenny=rowmax(laun_j shop_j meal_j bank_j)
+egen mob_jenny=rowmax(insd_j out_j bed_j)
+
+local sc eat toil dres bath
+local hh laun shop meal bank
+local mob insd out bed
+
+foreach x in sc hh mob {
+	local help
+	gen `x'met=0
+	gen `x'insuf=0
+	gen `x'mism=0
+	foreach y of local `x' {
+		local help `help' adl_`y'_help
+		replace `x'met=1 if `y'_cat==3
+		replace `x'insuf=1 if `y'_cat==5
+		replace `x'mism=1 if `y'_cat==4
+}
+	egen `x'_help=rowmax(`help')
+	replace `x'_jenny=`x'_jenny+1
+	replace `x'_jenny=4 if adv_`x'==1
+	replace `x'_jenny=3 if `x'_help==1
+	foreach y of local `x' {
+		gen `y'_mism_cat=1 if adverse_`y'==0 & `x'_help==0
+		replace `y'_mism_cat=2 if adl_`y'_help==0 & `x'_help==1
+		replace `y'_mism_cat=3 if adl_`y'_help==1 & adverse_`y'==0
+		replace `y'_mism_cat=4 if `x'_help==0 & adverse_`y'==1
+		replace `y'_mism_cat=5 if `x'_help==1 & adl_`y'_help==0 & adverse_`y'==1
+		replace `y'_mism_cat=6 if adl_`y'_help==1 & adverse_`y'==1
+
+		label define `y'_mism_cat 1 "No help in domain or adverse consequences" 2 "Help in domain but not with task, no consequences" 3 "Help with task, no consequences" 4 "No help in domain, consequences" 5 "Help within domain but not task, consequences" 6 "Matched help, adverse consequences"
+		label values `y'_mism_cat `y'_mism_cat
+}
+}
+
+
 	
-	
+replace livearrang=0 if rcfres==1 & livearrang==1
+label define livearrang 0 "Alone, residential care facility" 1 "Alone, independent", modify	
 save "${intpath}\dem_wave_1_5_w_help_sample.dta", replace
 
 H="table 1"
@@ -155,8 +220,8 @@ local cvars3
 local ivars3 
 local catvars3 income_quart 
 local cvars4 
-local ivars4 prob_dem sr_phq2_depressed 
-local catvars4 hb
+local ivars4 prob_dem sr_phq2_depressed metro_ind
+local catvars4 region hb
 local cvars5 n_helpers
 local ivars5
 local catvars5 help_cat
@@ -164,7 +229,7 @@ local cvars6 tot_hrswk_help_i tot_hrswk_paid_i  tot_paidhrs
 local ivars6 ind_gt20hrs_wk_paid
 local catvars6
 local cvars7 adlcount_jenny iadlcount_jenny
-local ivars7 adv_any adv_sc adv_hh adv_mob
+local ivars7 adv_any adv_sc adverse_eat adverse_bath adverse_toil adverse_dres adv_hh adverse_laun adverse_shop adverse_meal adverse_bank adv_mob adverse_insd adverse_out adverse_bed
 local catvars7 wave
 
 forvalues i=1/7 {
@@ -245,23 +310,52 @@ note("Among community-dwelling SPs in 2011 & 2015 with probable dementia")
 
 H="looking at impairment, help, and unmet need"
 
-use "${intpath}\dem_wave_1_5_w_help_sample.dta", clear
+use "${intpath}\dem_wave_1_5_w_help_sample.dta" if !ind_no_helpers, clear
 label var eat_cat "Eating"
 label var toil_cat "Toileting"
 label var insd_cat "Getting around inside" 
+label var out_cat "Going outside" 
 label var bed_cat "Transferring"
 label var dres_cat "Dressing" 
 label var bath_cat "Bathing" 
 label var laun_cat "Laundry"
 label var shop_cat "Shopping"
 label var meal_cat "Meals"
+label var bank_cat "Banking"
 
 local g
-foreach x in eat toil insd bed dres bath laun shop meal {
+foreach x in eat bath toil dres laun shop meal bank insd out bed {
+sum `x'_cat if `x'_cat!=1
+local n=r(N)
 local lab : var label `x'_cat
-graph hbar [pw=anfinw], over(`x'_cat, label(labsize(small))) name(`x', replace) ytitle("`lab'", size(medium)) blabel(bar, format(%4.1f))
-local g `g' `x'
+graph hbar [pw=anfinw] if `x'_cat!=1, over(`x'_cat, label(labsize(small))) name(`x', replace) ytitle("`lab' (n=`n')", size(medium)) blabel(bar, format(%4.1f))
+local g `g' `x' 
+
+
+
+if inlist("`x'","eat","bath", "toil", "dres") {
+graph hbar [pw=anfinw] if `x'_cat!=1 , over(`x'_mism_cat, label(labsize(small))) name(`x'sc, replace) ytitle("`lab' (n=`n')", size(medium)) blabel(bar, format(%4.1f))
+	local gsc `gsc' `x'sc
+}
+
+else if inlist("`x'","laun","shop","meal","bank") {
+graph hbar [pw=anfinw] if `x'_cat!=1 , over(`x'_mism_cat, label(labsize(small))) name(`x'hh, replace) ytitle("`lab' (n=`n')", size(medium)) blabel(bar, format(%4.1f))
+	local ghh `ghh' `x'hh
+}
+else if inlist("`x'","insd","out","bed") {
+	graph hbar [pw=anfinw] if `x'_cat!=1 , over(`x'_mism_cat, label(labsize(small))) name(`x'mob, replace) ytitle("`lab' (n=`n')", size(medium)) blabel(bar, format(%4.1f))
+	local gmob `gmob' `x'mob
+}
 }
 
 graph combine `g',  ycommon xcommon rows(3) ysize(8) xsize(15) saving("${outpath}\impairment_categories", replace)
 graph export "${outpath}\impairment_categories.pdf", replace
+
+local title Impairment Categories: Self Care
+foreach x in sc hh mob {
+	if "`x'"=="hh" local title Impairment Categories: Household
+	else if "`x'"=="mob" local title Impairment Categories: Mobility
+	graph combine `g`x'',  ycommon xcommon rows(1) ysize(4) xsize(16) saving("${outpath}\impairment_categories_`x'", replace) title("`title'") note("Restricted to those with impairment in specific activity and any help in the domain")
+	graph export "${outpath}\impairment_categories_`x'.pdf", replace
+}
+
