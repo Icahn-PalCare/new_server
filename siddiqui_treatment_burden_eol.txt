@@ -256,6 +256,207 @@ drop death_date ivw_date inscope n lmlm modm first_hs
 save "${datapath}/treatment_burden_eol_sample.dta", replace
 
 
+H="final data cleaning (adapted from Alina's do-file)"
+*FINAL CODING OF TREATMENT BURDEN & VARIABLES
+
+cd "C:\Users\alina\Documents\Stata\Treatment Burden Files"
+use treatment_burden_eol_sample_3, clear
+merge 1:1 spid using rawvars_for_alina.dta, keepusing(mc2medstrk mc2regdoclyr mc2dmedssfdf) nogen
+
+*step 1: make new dichotomized variables for each called [varname]_bi
+*only "inapplicable" response being replaced is medtoomch if meddelay "never" happens
+replace medtoomch=1 if medtoomch==.d & meddelay==1
+foreach var of varlist meddif medfamdif meddelay medtoomch {
+recode `var' (1/2=0)(3/4=1)(.b=.)(.c=.)(.d=.), gen(`var'_bi)
+}
+
+*step 2: drop spid's with 3+ missing values 
+drop if spid==10007247
+drop if spid==10000396
+drop if spid==10009082
+drop if spid==10003524
+drop if spid==10009173
+drop if spid==10007580
+drop if spid==10003175
+drop if spid==10002101
+
+*step 3: make variable that combines meddif and medfamdif called medsalot
+gen medsalot=1 if meddif_bi==1 | medfamdif_bi==1
+replace medsalot=. if meddif_bi==. & medfamdif_bi==.
+replace medsalot=1 if meddif_bi==0 & medfamdif_bi!=1
+replace  medsalot=1 if meddif_bi!=1 & medfamdif_bi==0
+replace medsalot=0 if meddif_bi==0 & medfamdif_bi==.
+replace  medsalot=0 if meddif_bi==. & medfamdif_bi==0
+replace medsalot=0 if meddif_bi==0 & medfamdif_bi==0
+
+*step 4a: make total TB dichotomous variable
+gen tb_dichot2=0
+foreach var of varlist medsalot meddelay_bi medtoomch_bi {
+replace tb_dichot2=1 if `var'==1
+}
+replace tb_dichot2=. if medsalot==. & meddelay==. & medtoomch==. 
+*step 4b: determine the prevalence of total TB and TB for each item
+tab medsalot
+tab meddelay_bi
+tab medtoomch_bi
+tab tb_dichot2
+
+*step 5a: divide m2d into 6 groups (6 months in each group)
+*step 5b: determine the prevalence of total TB and TB for each item with these 6-month intervals
+xtile TBmonths=m2d, nq(6)
+tab medsalot TBmonths, col chi2
+tab meddelay_bi TBmonths, col chi2
+tab TBmonths
+tab tb_dichot2 TBmonths, col chi2
+
+*step 6: MAKE A VARIABLE FOR MULTIPLE CONDITIONS based on literature definition of MCC - heart attack, heart disease, arthritis, diabetes, lung disease, dementia, cancer
+egen MCC_tag=tag (spid) if sr_ami_ever==1 | sr_heart_dis_ever==1 | sr_ra_ever==1 | sr_diabetes_ever==1 | sr_lung_dis_ever==1 | sr_dementia_ever==1 | sr_cancer_ever==1
+browse sr_ami_ever sr_heart_dis_ever sr_ra_ever sr_diabetes_ever sr_lung_dis_ever sr_dementia_ever sr_cancer_ever sr_stroke_ever MCC_tag spid
+sort MCC_tag
+tab MCC_tag
+*drop subjects without these conditions
+drop if MCC_tag==0
+*create summary score of conditions
+egen MCC_sum = rowtotal (sr_ami_ever sr_heart_dis_ever sr_ra_ever sr_diabetes_ever sr_lung_dis_ever sr_dementia_ever sr_cancer_ever)
+browse sr_ami_ever sr_heart_dis_ever sr_ra_ever sr_diabetes_ever sr_lung_dis_ever sr_dementia_ever sr_cancer_ever sr_stroke_ever MCC_sum MCC_tag
+sort MCC_sum
+tab MCC_sum
+tab MCC_sum if MCC_sum>=2
+
+*step 7: LIMIT OUR SAMPLE TO JUST THE MCC COHORT
+*since MCC is defined as 2+ of these conditions, drop subjects that have only 1 of the conditions
+drop if MCC_sum<2
+tab tb_dichot
+
+*step 8: find percentages of people with each of the 3 items (meddif and medfamdif combined) in MCC cohort
+tab medsalot
+tab meddelay_bi 
+tab medtoomch_bi 
+
+*step 9: make categories for appropriate variables
+*age: categorized age variable with categories ages 65-74, 75-84, and 85+
+gen age_cat=0 if age>=65 & age<=74
+replace age_cat=1 if age>=75 & age<=84
+replace age_cat=2 if age>=85 & age!=.
+*ADL categories
+gen adl_cat=0 if adl_index==0 & adl_index!=.
+replace adl_cat=1 if adl_index==1 | adl_index==2
+replace adl_cat=2 if adl_index>=3 & adl_index!=.
+label define adl_cat 0 "0 ADLs" 1 "1-2 ADLs" 2 "3+ ADLs"
+label values adl_cat adl_cat
+*comorbidity categories 
+gen MCC_cat=0 if sr_numconditions1==0 & sr_numconditions1!=.
+replace MCC_cat=1 if sr_numconditions1>=1 & sr_numconditions1<=3
+replace MCC_cat=2 if sr_numconditions1>=4 & sr_numconditions1<=6
+replace MCC_cat=3 if sr_numconditions1>=7 & sr_numconditions1!=.
+label define MCC_cat 0 "0" 1 "1-3" 2 "4-6" 3 "7 or more" 
+label values MCC_cat MCC_cat
+*make variable for keeping track of meds from  mc2medstrk variable: keeptrackmeds=0 if you don't recieve help with meds (keep track of meds by self OR didn't take meds OR didn't have meds prescribed); keeptrackmeds=1 if someone helped keep track, someone always kept track, or it varied
+gen keeptrackmeds=0 if  mc2medstrk==0 | mc2medstrk==5
+replace keeptrackmeds=0 if  mc2medstrk !=2 | mc2medstrk !=1 | mc2medstrk !=3 | mc2medstrk !=4 | mc2medstrk!=5
+replace keeptrackmeds=0 if mc2medstrk==1
+replace keeptrackmeds=1 if mc2medstrk==2 | mc2medstrk==3 | mc2medstrk==4
+label define keeptrackmeds 0 "no help received/needed" 1 "help received"
+label values keeptrackmeds keeptrackmeds
+*variable for receiving assitance at doctor's office: 0 for those who did not receive assitance, or DK, or did not go to doctor in past year / DK if went to doctor in past year; 1 for those who went to doctors and received assistance
+gen docappthelp=1 if ansitindr==1
+replace docappthelp=0 if docappthelp==.
+label define docappthelp 0 "no help received/needed" 1 "help received"
+label values docappthelp docappthelp
+*made dummy variables for race
+tab race, gen(racecat)
+*also categorize race as white vs nonwhite
+gen white=0 if racecat1==1
+replace white=1 if racecat1 ==0
+tab white
+*made binary variable for paid help
+gen paid_help=0 if n_paid_helpers==0
+replace paid_help=1 if n_paid_helpers>0 & n_paid_helpers!=.
+*made continuous variable for days in hospice that considered having no hospice as having 0 days in hospice
+gen hospicedays = days_on_hospice
+replace hospicedays=0 if hospicedays==.
+*also make a year-long count of months to death for logistic regression in which 3 years is the reference group
+xtile m2d_years=m2d, nq(3)
+egen TByears = rowtotal(m2d_years)
+tab TByears
+gen TByears_cat=0 if TByears==3
+replace TByears_cat=1 if TByears==2
+replace TByears_cat =2 if TByears==1
+tab TByears_cat
+replace TByears=2 if m2d==24
+replace TByears_cat=1 if TByears==2
+tab TByears_cat
+label define TByears_cat  0 "3 yrs before death" 1 "2 yrs before death" 2 "1 yr before death"
+label values TByears_cat TByears_cat
+
+*step 10: did analysis for tb_dichot2 with chi2 and t-tests
+tab tb_dichot2
+tab age_cat tb_dichot2, col chi2
+tab female tb_dichot2, col chi2
+tab race_cat tb_dichot2, col chi2
+tab educ_hs_ind tb_dichot2, col chi2
+hist aveincome
+ranksum aveincome , by (tb_dichot2 )
+sum aveincome  if tb_dichot2 ==0, detail
+sum aveincome  if tb_dichot2 ==1, detail
+tab srh_fp tb_dichot2, col chi2
+tab sr_hosp_ind tb_dichot2, col chi2
+ttest sr_numconditions1 , by (tb_dichot2 )
+tab sr_ami_ever tb_dichot2, col chi2
+tab sr_stroke_ever tb_dichot2, col chi2
+tab sr_cancer_ever tb_dichot2, col chi2
+tab sr_hip_ever tb_dichot2, col chi2
+tab sr_heart_dis_ever tb_dichot2, col chi2
+tab sr_htn_ever tb_dichot2, col chi2
+tab sr_ra_ever tb_dichot2, col chi2
+tab sr_osteoprs_ever  tb_dichot2, col chi2
+tab sr_diabetes_ever  tb_dichot2, col chi2
+tab sr_lung_dis_ever  tb_dichot2, col chi2
+tab sr_dementia_ever  tb_dichot2, col chi2
+tab sr_phq2_depressed  tb_dichot2, col chi2
+tab sr_gad2_anxiety  tb_dichot2, col chi2
+tab prob_dem  tb_dichot2, col chi2
+tab adl_cat tb_dichot2, col chi2
+tab adl_independent  tb_dichot2, col chi2
+tab adl_bath_help  tb_dichot2, col chi2
+tab adl_toil_help  tb_dichot2, col chi2
+tab adl_dres_help  tb_dichot2, col chi2
+tab adl_eat_help  tb_dichot2, col chi2
+tab adl_ins_help tb_dichot2, col chi2
+tab adl_bed_help  tb_dichot2, col chi2
+tab meds  tb_dichot2, col chi2
+tab whrgtmed1  tb_dichot2, col chi2
+tab howpkupm1  tb_dichot2, col chi2
+tab marriedpartnered  tb_dichot2, col chi2
+ttest n_helpers , by (tb_dichot2)
+tab paid_help tb_dichot2, col chi2
+tab advicedoc tb_dichot2, col chi2
+tab advicefam tb_dichot2, col chi2
+tab advicefam tb_dichot2, col chi2
+tab medmgmt tb_dichot2 , col chi2
+tab keeptrackmeds tb_dichot2, col chi2
+tab docappthelp tb_dichot2, col chi2
+tab livearrang tb_dichot2, col chi2
+tab livealone tb_dichot2, col chi2
+tab insdyrgo tb_dichot2 , col chi2
+tab ind_hospice tb_dichot2 , col chi2
+tab srh_change tb_dichot2 , col chi2
+tab ind_hospice tb_dichot2 , col chi2
+ranksum hospicedays, by (tb_dichot2)
+sum hospicedays  if tb_dichot2 ==0, detail
+sum hospicedays  if tb_dichot2 ==1, detail
+
+*step 11: do logistic regression 
+logistic tb_dichot2 female i.age_cat  i.white i.TByears_cat
+logistic tb_dichot2 i.age_cat female i.white i.TByears_cat  sr_phq2_depressed sr_gad2_anxiety  marriedpartnered
+
+
+H="tables"
+
+
+H="models"
+
+
 H="codebook"
 capture log close
 clear all
@@ -502,3 +703,201 @@ log close
 exit
 
 
+
+
+H="********************"
+
+
+H="Alina's do-file from 8/22/19"
+*FINAL CODING OF TREATMENT BURDEN & VARIABLES
+
+cd "C:\Users\alina\Documents\Stata\Treatment Burden Files"
+use treatment_burden_eol_sample_3, clear
+merge 1:1 spid using rawvars_for_alina.dta, keepusing(mc2medstrk mc2regdoclyr mc2dmedssfdf) nogen
+
+*step 1: make new dichotomized variables for each called [varname]_bi
+*only "inapplicable" response being replaced is medtoomch if meddelay "never" happens
+replace medtoomch=1 if medtoomch==.d & meddelay==1
+foreach var of varlist meddif medfamdif meddelay medtoomch {
+recode `var' (1/2=0)(3/4=1)(.b=.)(.c=.)(.d=.), gen(`var'_bi)
+}
+
+*step 2: drop spid's with 3+ missing values 
+drop if spid==10007247
+drop if spid==10000396
+drop if spid==10009082
+drop if spid==10003524
+drop if spid==10009173
+drop if spid==10007580
+drop if spid==10003175
+drop if spid==10002101
+
+*step 3: make variable that combines meddif and medfamdif called medsalot
+gen medsalot=1 if meddif_bi==1 | medfamdif_bi==1
+replace medsalot=. if meddif_bi==. & medfamdif_bi==.
+replace medsalot=1 if meddif_bi==0 & medfamdif_bi!=1
+replace  medsalot=1 if meddif_bi!=1 & medfamdif_bi==0
+replace medsalot=0 if meddif_bi==0 & medfamdif_bi==.
+replace  medsalot=0 if meddif_bi==. & medfamdif_bi==0
+replace medsalot=0 if meddif_bi==0 & medfamdif_bi==0
+
+*step 4a: make total TB dichotomous variable
+gen tb_dichot2=0
+foreach var of varlist medsalot meddelay_bi medtoomch_bi {
+replace tb_dichot2=1 if `var'==1
+}
+replace tb_dichot2=. if medsalot==. & meddelay==. & medtoomch==. 
+*step 4b: determine the prevalence of total TB and TB for each item
+tab medsalot
+tab meddelay_bi
+tab medtoomch_bi
+tab tb_dichot2
+
+*step 5a: divide m2d into 6 groups (6 months in each group)
+*step 5b: determine the prevalence of total TB and TB for each item with these 6-month intervals
+xtile TBmonths=m2d, nq(6)
+tab medsalot TBmonths, col chi2
+tab meddelay_bi TBmonths, col chi2
+tab TBmonths
+tab tb_dichot2 TBmonths, col chi2
+
+*step 6: MAKE A VARIABLE FOR MULTIPLE CONDITIONS based on literature definition of MCC - heart attack, heart disease, arthritis, diabetes, lung disease, dementia, cancer
+egen MCC_tag=tag (spid) if sr_ami_ever==1 | sr_heart_dis_ever==1 | sr_ra_ever==1 | sr_diabetes_ever==1 | sr_lung_dis_ever==1 | sr_dementia_ever==1 | sr_cancer_ever==1
+browse sr_ami_ever sr_heart_dis_ever sr_ra_ever sr_diabetes_ever sr_lung_dis_ever sr_dementia_ever sr_cancer_ever sr_stroke_ever MCC_tag spid
+sort MCC_tag
+tab MCC_tag
+*drop subjects without these conditions
+drop if MCC_tag==0
+*create summary score of conditions
+egen MCC_sum = rowtotal (sr_ami_ever sr_heart_dis_ever sr_ra_ever sr_diabetes_ever sr_lung_dis_ever sr_dementia_ever sr_cancer_ever)
+browse sr_ami_ever sr_heart_dis_ever sr_ra_ever sr_diabetes_ever sr_lung_dis_ever sr_dementia_ever sr_cancer_ever sr_stroke_ever MCC_sum MCC_tag
+sort MCC_sum
+tab MCC_sum
+tab MCC_sum if MCC_sum>=2
+
+*step 7: LIMIT OUR SAMPLE TO JUST THE MCC COHORT
+*since MCC is defined as 2+ of these conditions, drop subjects that have only 1 of the conditions
+drop if MCC_sum<2
+tab tb_dichot
+
+*step 8: find percentages of people with each of the 3 items (meddif and medfamdif combined) in MCC cohort
+tab medsalot
+tab meddelay_bi 
+tab medtoomch_bi 
+
+*step 9: make categories for appropriate variables
+*age: categorized age variable with categories ages 65-74, 75-84, and 85+
+gen age_cat=0 if age>=65 & age<=74
+replace age_cat=1 if age>=75 & age<=84
+replace age_cat=2 if age>=85 & age!=.
+*ADL categories
+gen adl_cat=0 if adl_index==0 & adl_index!=.
+replace adl_cat=1 if adl_index==1 | adl_index==2
+replace adl_cat=2 if adl_index>=3 & adl_index!=.
+label define adl_cat 0 "0 ADLs" 1 "1-2 ADLs" 2 "3+ ADLs"
+label values adl_cat adl_cat
+*comorbidity categories 
+gen MCC_cat=0 if sr_numconditions1==0 & sr_numconditions1!=.
+replace MCC_cat=1 if sr_numconditions1>=1 & sr_numconditions1<=3
+replace MCC_cat=2 if sr_numconditions1>=4 & sr_numconditions1<=6
+replace MCC_cat=3 if sr_numconditions1>=7 & sr_numconditions1!=.
+label define MCC_cat 0 "0" 1 "1-3" 2 "4-6" 3 "7 or more" 
+label values MCC_cat MCC_cat
+*make variable for keeping track of meds from  mc2medstrk variable: keeptrackmeds=0 if you don't recieve help with meds (keep track of meds by self OR didn't take meds OR didn't have meds prescribed); keeptrackmeds=1 if someone helped keep track, someone always kept track, or it varied
+gen keeptrackmeds=0 if  mc2medstrk==0 | mc2medstrk==5
+replace keeptrackmeds=0 if  mc2medstrk !=2 | mc2medstrk !=1 | mc2medstrk !=3 | mc2medstrk !=4 | mc2medstrk!=5
+replace keeptrackmeds=0 if mc2medstrk==1
+replace keeptrackmeds=1 if mc2medstrk==2 | mc2medstrk==3 | mc2medstrk==4
+label define keeptrackmeds 0 "no help received/needed" 1 "help received"
+label values keeptrackmeds keeptrackmeds
+*variable for receiving assitance at doctor's office: 0 for those who did not receive assitance, or DK, or did not go to doctor in past year / DK if went to doctor in past year; 1 for those who went to doctors and received assistance
+gen docappthelp=1 if ansitindr==1
+replace docappthelp=0 if docappthelp==.
+label define docappthelp 0 "no help received/needed" 1 "help received"
+label values docappthelp docappthelp
+*made dummy variables for race
+tab race, gen(racecat)
+*also categorize race as white vs nonwhite
+gen white=0 if racecat1==1
+replace white=1 if racecat1 ==0
+tab white
+*made binary variable for paid help
+gen paid_help=0 if n_paid_helpers==0
+replace paid_help=1 if n_paid_helpers>0 & n_paid_helpers!=.
+*made continuous variable for days in hospice that considered having no hospice as having 0 days in hospice
+gen hospicedays = days_on_hospice
+replace hospicedays=0 if hospicedays==.
+*also make a year-long count of months to death for logistic regression in which 3 years is the reference group
+xtile m2d_years=m2d, nq(3)
+egen TByears = rowtotal(m2d_years)
+tab TByears
+gen TByears_cat=0 if TByears==3
+replace TByears_cat=1 if TByears==2
+replace TByears_cat =2 if TByears==1
+tab TByears_cat
+replace TByears=2 if m2d==24
+replace TByears_cat=1 if TByears==2
+tab TByears_cat
+label define TByears_cat  0 "3 yrs before death" 1 "2 yrs before death" 2 "1 yr before death"
+label values TByears_cat TByears_cat
+
+*step 10: did analysis for tb_dichot2 with chi2 and t-tests
+tab tb_dichot2
+tab age_cat tb_dichot2, col chi2
+tab female tb_dichot2, col chi2
+tab race_cat tb_dichot2, col chi2
+tab educ_hs_ind tb_dichot2, col chi2
+hist aveincome
+ranksum aveincome , by (tb_dichot2 )
+sum aveincome  if tb_dichot2 ==0, detail
+sum aveincome  if tb_dichot2 ==1, detail
+tab srh_fp tb_dichot2, col chi2
+tab sr_hosp_ind tb_dichot2, col chi2
+ttest sr_numconditions1 , by (tb_dichot2 )
+tab sr_ami_ever tb_dichot2, col chi2
+tab sr_stroke_ever tb_dichot2, col chi2
+tab sr_cancer_ever tb_dichot2, col chi2
+tab sr_hip_ever tb_dichot2, col chi2
+tab sr_heart_dis_ever tb_dichot2, col chi2
+tab sr_htn_ever tb_dichot2, col chi2
+tab sr_ra_ever tb_dichot2, col chi2
+tab sr_osteoprs_ever  tb_dichot2, col chi2
+tab sr_diabetes_ever  tb_dichot2, col chi2
+tab sr_lung_dis_ever  tb_dichot2, col chi2
+tab sr_dementia_ever  tb_dichot2, col chi2
+tab sr_phq2_depressed  tb_dichot2, col chi2
+tab sr_gad2_anxiety  tb_dichot2, col chi2
+tab prob_dem  tb_dichot2, col chi2
+tab adl_cat tb_dichot2, col chi2
+tab adl_independent  tb_dichot2, col chi2
+tab adl_bath_help  tb_dichot2, col chi2
+tab adl_toil_help  tb_dichot2, col chi2
+tab adl_dres_help  tb_dichot2, col chi2
+tab adl_eat_help  tb_dichot2, col chi2
+tab adl_ins_help tb_dichot2, col chi2
+tab adl_bed_help  tb_dichot2, col chi2
+tab meds  tb_dichot2, col chi2
+tab whrgtmed1  tb_dichot2, col chi2
+tab howpkupm1  tb_dichot2, col chi2
+tab marriedpartnered  tb_dichot2, col chi2
+ttest n_helpers , by (tb_dichot2)
+tab paid_help tb_dichot2, col chi2
+tab advicedoc tb_dichot2, col chi2
+tab advicefam tb_dichot2, col chi2
+tab advicefam tb_dichot2, col chi2
+tab medmgmt tb_dichot2 , col chi2
+tab keeptrackmeds tb_dichot2, col chi2
+tab docappthelp tb_dichot2, col chi2
+tab livearrang tb_dichot2, col chi2
+tab livealone tb_dichot2, col chi2
+tab insdyrgo tb_dichot2 , col chi2
+tab ind_hospice tb_dichot2 , col chi2
+tab srh_change tb_dichot2 , col chi2
+tab ind_hospice tb_dichot2 , col chi2
+ranksum hospicedays, by (tb_dichot2)
+sum hospicedays  if tb_dichot2 ==0, detail
+sum hospicedays  if tb_dichot2 ==1, detail
+
+*step 11: do logistic regression 
+logistic tb_dichot2 female i.age_cat  i.white i.TByears_cat
+logistic tb_dichot2 i.age_cat female i.white i.TByears_cat  sr_phq2_depressed sr_gad2_anxiety  marriedpartnered

@@ -1111,13 +1111,44 @@ replace site_of_death_hospice = 8 if site_of_death_w2w8 ==5 & hosp_last_month ==
 gen excellent = 0 if recode_overall_rate !=. 
 replace excellent =1 if recode_overall_rate ==1 
 
+*variable on transitions of care
+
+gen los_last_place = -1
+replace los_last_place = pd2staydays if r2dresid==6 
+replace los_last_place = pd3staydays if r3dresid==6
+replace los_last_place = pd4staydays if r4dresid==6
+replace los_last_place = pd5staydays if r5dresid==6
+replace los_last_place = pd6staydays if r6dresid==6
+replace los_last_place = pd7staydays if r7dresid==6
+replace los_last_place = pd8staydays if r8dresid==6
+
+
+replace los_last_place = -2 if pd2stayunit >=2 & pd2stayunit <=4
+replace los_last_place = -2 if pd3stayunit >=2 & pd3stayunit <=4
+replace los_last_place = -2 if pd4stayunit >=2 & pd4stayunit <=4
+replace los_last_place = -2 if pd5stayunit >=2 & pd5stayunit <=4
+replace los_last_place = -2 if pd6stayunit >=2 & pd6stayunit <=4
+replace los_last_place = -2 if pd7stayunit >=2 & pd7stayunit <=4
+replace los_last_place = -2 if pd8stayunit >=2 & pd8stayunit <=4
+
+
+gen late_transition = 0 if r2dresid ==6| r3dresid ==6| r4dresid ==6| r5dresid ==6| r6dresid ==6 | r7dresid ==6 | r8dresid ==6 
+replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd4placepre >0 &  pd4placepre <=91) 
+replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd3placepre >0 &  pd3placepre <=91) 
+replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd2placepre >0 &  pd2placepre <=91) 
+replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd5placepre >0 &  pd5placepre <=91) 
+replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd6placepre >0 &  pd6placepre <=91) 
+replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd7placepre >0 &  pd7placepre <=91) 
+replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd8placepre >0 &  pd8placepre <=91) 
+
+
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\nhats only.dta", replace
 
 
 H="build data set step 2: add claims data"
 *step 2: this merges in the claims- hospice/ma data to the nhats only data, creating a working dataset
 
-use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\nhats only.dta"
+use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\nhats only.dta", clear
 tempfile nhats
 save "`nhats'"
 
@@ -1163,17 +1194,19 @@ by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"
 
 sort bene_id clm_hospc_start_dt_id
 
-merge m:1 bene_id using "`death'", keep(master match) nogen
+merge m:1 bene_id using "`death'", keep(match) nogen
 
+sort bene_id clm_hospc_start_dt_id
 gen hs_12_pre=0
 by bene_id, sort: replace hs_12_pre=1 if (death_date-clm_hospc_start_dt_id<=366) & (death_date-clm_hospc_start_dt_id>=0)
 
-by bene_id, sort: egen ind_hs_12_pre=max(hs_12_pre)
+//by bene_id, sort: egen ind_hs_12_pre=max(hs_12_pre)
 
 sort bene_id clm_hospc_start_dt_id
 
 
-by bene_id: keep if _n==1
+bys bene_id hs_12_pre: keep if _n==1 
+bys bene_id: keep if _n==_N
 
 tempfile hs
 save "`hs'"
@@ -1197,6 +1230,9 @@ replace ma1=1 if death_month==`a' & `x'_c==1
 local a=`a'+1
 di `a'
 }
+
+
+
 sort bene_id
 tempfile ma1 
 save "`ma1'"
@@ -1216,7 +1252,6 @@ destring `x'_c_1, replace
 local a=`a'+1
 }
 
-
 keep *_c_1 year bene_id
 
 tempfile ma2 
@@ -1224,6 +1259,8 @@ save "`ma2'"
 
 
 use "`ma1'", clear
+
+keep if death_date!=.
 
 merge 1:1 bene_id year using "`ma2'", keep(match) nogen
 
@@ -1281,19 +1318,19 @@ local a=`a'+1
 
 replace ma1=1 if ind_hospice==1  & ma_month_bef_hs==1
 
-replace ma2=1 if ind_hs_12_pre==1 &  ma_month_bef_hs==1
+replace ma2=1 if hs_12_pre==1 &  ma_month_bef_hs==1
 
 sort bene_id year 
 by bene_id: keep if _n==_N
 
 merge 1:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keep(match) nogen
 
-keep bene_id spid ma1 ma2 ind_hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year death_month
+keep bene_id spid ma1 ma2 hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year death_month
 merge 1:m spid using "`nhats'", nogen
 
 label var ma1 "MA approach 1"
 label var ma2 "MA approach 2 (12 month)"
-label var ind_hs_12_pre "Hospice claim 12-months pre death"
+label var hs_12_pre "Hospice claim 12-months pre death"
 label var ind_died_on_hospice "Died in Hospice"
 label var ma_month_bef_hs "Had MA month before Hospice"
 
