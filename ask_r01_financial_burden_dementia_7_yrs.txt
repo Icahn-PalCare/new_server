@@ -15330,6 +15330,83 @@ title(Cost and Hours by Year from Death) sdec(2) note("Each column is a year fro
 H="********************************"
 
 
+H="Burdensome transitions "
+libname hrs 'D:\HRS\Shared\base_data\hrs_cleaned';
+libname medicare 'D:\HRS\Shared\base_data\hrs_cms\SAS';
+
+proc contents data= hrs.death_date_2015 short; run;
+
+* proc sql doesn't allow for SAS data step hyphens, so reading in hospice file into data step;
+data hospice;
+keep bid_hrs_22 admit_date disch_date stus_cd hospice_st_date rvcntr01-rvcntr45;
+set medicare.hs_1998_2015;
+hospice_st_date = input(hspcstrt, yymmdd8.);
+format hospice_st_date date9.;
+run;
+
+proc freq data=hospice; tables hospice_st_date / missprint; run; * created missing values due to inaccurate (000000) values in raw data
+
+*Pull death date from hrs death date file, and join on all claims files using disch_date to catch instiutional stays that began prior to 90 days but ended in 90 day window;
+proc sql;
+CREATE TABLE transitions_90 AS SELECT a.bid_hrs_22, a.death_all, (CASE WHEN transitions.admit_date_hh IS NOT NULL THEN 1 ELSE 0 END) as hh_claim, 
+(CASE WHEN 0<=a.death_all-transitions.disch_date_hs<=90 THEN 1 ELSE 0 END) as hs_claim, (CASE WHEN transitions.admit_date_ip IS NOT NULL THEN 1 ELSE 0 END) as ip_claim,
+(CASE WHEN transitions.admit_date_snf IS NOT NULL THEN 1 ELSE 0 END) as snf_claim, (CASE WHEN transitions.admit_date_op IS NOT NULL THEN 1 ELSE 0 END) as op_claim, 
+(CASE WHEN a.death_all-transitions.hospice_st_date>=183 OR 0<=a.death_all-transitions.hospice_st_date<3 THEN 1 ELSE 0 END) as suboptimal_hospice,
+transitions.*
+FROM hrs.death_date_2015 a
+LEFT JOIN (SELECT death.bid_hrs_22, hh.admit_date as admit_date_hh, hs.admit_date as admit_date_hs,ip.admit_date as admit_date_ip, 
+snf.admit_date as admit_date_snf, op.admit_date as admit_date_op,
+/* discharge dates */
+ip.disch_date as disch_date_ip, snf.disch_date as disch_date_snf, hs.disch_date as disch_date_hs, hh.disch_date as disch_date_hh, op.disch_date AS disch_date_op,
+/* discharge disposition */
+ip.stus_cd as stus_cd_ip, op.stus_cd as stus_cd_op, hh.stus_cd as stus_cd_hh, hs.stus_cd as stus_cd_hh, snf.stus_cd as stus_cd_snf, hs.*
+FROM hrs.death_date_2015 death
+LEFT JOIN medicare.hh_1998_2015 hh
+ON death.bid_hrs_22 = hh.bid_hrs_22 AND 0<=death.death_all - hh.disch_date<=90
+LEFT JOIN work.hospice hs
+ON death.bid_hrs_22 = hs.bid_hrs_22 AND 0<=death.death_all - hs.disch_date<=365 /* to identify suboptimal hospice use >6 months */
+LEFT JOIN medicare.ip_1998_2015 ip
+ON death.bid_hrs_22 = ip.bid_hrs_22 AND 0<=death.death_all - ip.disch_date<=90
+LEFT JOIN medicare.sn_1998_2015 snf
+ON death.bid_hrs_22 = snf.bid_hrs_22 AND 0<=death.death_all - snf.disch_date<=90
+LEFT JOIN medicare.op_1998_2015 op
+ON death.bid_hrs_22 = op.bid_hrs_22 AND 0<=death.death_all - op.disch_date<=90) as transitions
+ON a.bid_hrs_22 = transitions.bid_hrs_22
+WHERE a.bid_hrs_22 IS NOT NULL;
+quit;
+
+proc contents data=transitions_90 short; run;
+
+data test (keep = bid_hrs_22 death_all hospice_st_date) ;
+set transitions_90;
+where suboptimal_hospice = 1;
+run;
+
+
+
+
+
+
+/*
+* Generate col max for ANY transitions in last 90 days;  
+proc sql;
+CREATE TABLE any_transitions as SELECT b.* 
+FROM transitions_90 a
+INNER JOIN (SELECT bid_hrs_22, MAX(hh_claim) as any_hh_clam, MAX(hs_claim) as any_hs_claim, MAX(ip_claim) as any_ip_claim, MAX(snf_claim) as any_snf_claim , MAX(op_claim) as any_op_claim
+FROM transitions_90
+GROUP BY bid_hrs_22) b
+ON a.bid_hrs_22 = b.bid_hrs_22;
+quit;
+
+* drop duplicates;
+proc sort data=any_transitions nodup; by bid_hrs_22; run;
+*/
+
+ 
+
+H="*********************"
+
+
 H="Sample derivation"
 clear all
 capture log close
