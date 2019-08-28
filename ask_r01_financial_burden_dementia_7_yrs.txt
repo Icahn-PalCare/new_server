@@ -15346,18 +15346,33 @@ run;
 
 proc freq data=hospice; tables hospice_st_date / missprint; run; * created missing values due to inaccurate (000000) values in raw data
 
+
+* check hcpcs code;
+data hosp_check;
+keep bid_hrs_22 admit_date disch_date hcpscd01-hcpscd45 qcode;
+set medicare.hs_1998_2015;
+qcode = 0;
+array hcpcs hcpscd01-hcpscd45;
+do over hcpcs;
+if strip(hcpcs) in:("Q5001", "Q5002", "Q5003", "Q5004", "Q5005", "Q5006", "Q5007", "Q5008", "Q5009", "Q5010") then qcode = 1;
+end;
+run;
+
+proc freq data=hosp_check; tables qcode / missprint; run;
+
 *Pull death date from hrs death date file, and join on all claims files using disch_date to catch instiutional stays that began prior to 90 days but ended in 90 day window;
 proc sql;
 CREATE TABLE transitions_90 AS SELECT a.bid_hrs_22, a.death_all, (CASE WHEN transitions.admit_date_hh IS NOT NULL THEN 1 ELSE 0 END) as hh_claim, 
 (CASE WHEN 0<=a.death_all-transitions.disch_date_hs<=90 THEN 1 ELSE 0 END) as hs_claim, (CASE WHEN transitions.admit_date_ip IS NOT NULL THEN 1 ELSE 0 END) as ip_claim,
-(CASE WHEN transitions.admit_date_snf IS NOT NULL THEN 1 ELSE 0 END) as snf_claim, (CASE WHEN transitions.admit_date_op IS NOT NULL THEN 1 ELSE 0 END) as op_claim, 
+(CASE WHEN transitions.admit_date_snf IS NOT NULL THEN 1 ELSE 0 END) as snf_claim, (CASE WHEN transitions.admit_date_op IS NOT NULL THEN 1 ELSE 0 END) as op_claim,
+(CASE WHEN transitions.admit_date_pb IS NOT NULL THEN 1 ELSE 0 END) as pb_claim, 
 (CASE WHEN a.death_all-transitions.hospice_st_date>=183 OR 0<=a.death_all-transitions.hospice_st_date<3 THEN 1 ELSE 0 END) as suboptimal_hospice,
 transitions.*
 FROM hrs.death_date_2015 a
 LEFT JOIN (SELECT death.bid_hrs_22, hh.admit_date as admit_date_hh, hs.admit_date as admit_date_hs,ip.admit_date as admit_date_ip, 
-snf.admit_date as admit_date_snf, op.admit_date as admit_date_op,
+snf.admit_date as admit_date_snf, op.admit_date as admit_date_op, pb.admit_date as admit_date_pb,
 /* discharge dates */
-ip.disch_date as disch_date_ip, snf.disch_date as disch_date_snf, hs.disch_date as disch_date_hs, hh.disch_date as disch_date_hh, op.disch_date AS disch_date_op,
+ip.disch_date as disch_date_ip, snf.disch_date as disch_date_snf, hs.disch_date as disch_date_hs, hh.disch_date as disch_date_hh, op.disch_date AS disch_date_op, pb.disch_date as disch_date_pb,
 /* discharge disposition */
 ip.stus_cd as stus_cd_ip, op.stus_cd as stus_cd_op, hh.stus_cd as stus_cd_hh, hs.stus_cd as stus_cd_hh, snf.stus_cd as stus_cd_snf, hs.*
 FROM hrs.death_date_2015 death
@@ -15370,39 +15385,65 @@ ON death.bid_hrs_22 = ip.bid_hrs_22 AND 0<=death.death_all - ip.disch_date<=90
 LEFT JOIN medicare.sn_1998_2015 snf
 ON death.bid_hrs_22 = snf.bid_hrs_22 AND 0<=death.death_all - snf.disch_date<=90
 LEFT JOIN medicare.op_1998_2015 op
-ON death.bid_hrs_22 = op.bid_hrs_22 AND 0<=death.death_all - op.disch_date<=90) as transitions
+ON death.bid_hrs_22 = op.bid_hrs_22 AND 0<=death.death_all - op.disch_date<=90
+LEFT JOIN medicare.pb_1998_2015 pb
+ON death.bid_hrs_22 = pb.bid_hrs_22 AND 0<=death.death_all - pb.disch_date<=90) as transitions
 ON a.bid_hrs_22 = transitions.bid_hrs_22
 WHERE a.bid_hrs_22 IS NOT NULL;
 quit;
 
 proc contents data=transitions_90 short; run;
 
-data test (keep = bid_hrs_22 death_all hospice_st_date) ;
+data test (keep = bid_hrs_22 death_all hospice_st_date) ; * check suboptimal hospice usage;
 set transitions_90;
 where suboptimal_hospice = 1;
 run;
 
-
-
-
-
-
-/*
-* Generate col max for ANY transitions in last 90 days;  
 proc sql;
-CREATE TABLE any_transitions as SELECT b.* 
-FROM transitions_90 a
-INNER JOIN (SELECT bid_hrs_22, MAX(hh_claim) as any_hh_clam, MAX(hs_claim) as any_hs_claim, MAX(ip_claim) as any_ip_claim, MAX(snf_claim) as any_snf_claim , MAX(op_claim) as any_op_claim
-FROM transitions_90
-GROUP BY bid_hrs_22) b
-ON a.bid_hrs_22 = b.bid_hrs_22;
+DROP TABLE test;
 quit;
 
-* drop duplicates;
-proc sort data=any_transitions nodup; by bid_hrs_22; run;
+/* Build a Residential History File backwards starting with location of death. Order for determining location of death 
+1) discharge disposition = 20 (no discharge status in carrier)
+2) discharge_date = death_date & discharge disposition != 20
+3) HRS Exit Report of death
 */
 
+/* discharge disposition */
+data transitions_90b (rename=(death_all = death_date));
+set transitions_90;
+disch_dead = 0;
+array stus stus_cd:;
+do over stus;
+if strip(stus) = "20" then disch_dead = 1;
+end;
+run;
  
+proc sql;
+CREATE TABLE transitions_90 AS SELECT a.*, b.disch_as_dead
+FROM transitions_90b a
+INNER JOIN (SELECT bid_hrs_22, MAX(disch_dead) AS disch_as_dead FROM transitions_90b GROUP BY bid_hrs_22) b
+on a.bid_hrs_22 = b.bid_hrs_22;
+quit;
+
+/* Next, check for discharge dates = death_date and not discharged as dead */
+
+data transitions_90;
+set transitions_90;
+disch_death_date = 0;
+array disch_dates disch_date:;
+do over disch_dates;
+if (disch_dates = death_date AND disch_as_dead =0) then disch_death_date = 1;
+end;
+label disch_as_dead = "Discharged as expired";
+label disch_death_date = "Discharge date same as death date, but not discharged as expired";
+run;
+
+* check discharge status for same day death+discharge;
+proc freq data=transitions_90; tables stus_cd:; where disch_death_date = 1; run;
+
+
+
 
 H="*********************"
 
@@ -19113,6 +19154,8 @@ save "`fdpath'/burden_dementia_sample_long.dta", replace
 
 
 H="changelog"
+8/28/19 - Began working on code for burdensome transitions. OKR.
+
 06/24/19 - Added proxy and nursing home residence to table 1 and baseline.  Evan
 
 05/31/19 - Brought back in the helper hours by type that I'd overwritten and added code in 7 year graphs of informal care to export mean hours to excel for Amy. Evan
