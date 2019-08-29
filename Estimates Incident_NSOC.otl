@@ -1095,3 +1095,81 @@ data test; merge test_pre (in=a) test_post (in=b); by spid; if a; if b; run;
 proc freq data=test; tables dem_pre*dem_post/agree; run;
 
 H="check NSOC"
+/**Look at how many people have NSOC in each year*/
+
+/**Pull in NHATS Data with formats*/
+proc import out=nhats1_8 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+dbms=dta replace;
+run;
+
+data nhats3; set inter.IncidentCancerSample; run;
+
+data test; set nhats3; keep spid sample yrdx replenishment; run;
+	proc sort data=test nodup out=test; by spid; run;
+		proc freq data=test(where=(sample=1)); tables replenishment*yrdx; run;
+
+
+data test; set nhats3(where=(wave=n1_int_wave and sample=1)); run;
+
+proc freq data=test; tables yrdx*n1_int_wave; run;
+
+/*Create list of sample ids, diagnosis date, pre cancer interview wave
+year of diagnosis*/
+
+data ids; set nhats3(where=(wave=n1_int_wave and sample=1)); 
+keep spid wave n1_int_wave dxt0 yrdx;
+run;
+
+
+/*READ IN NSOC 2011*/
+proc import out=nsoc2011 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1.dta"
+dbms=dta replace;
+run;
+
+proc print data=nsoc2011(obs=20); run;
+proc contents data=nsoc2011; run;
+
+proc sort data=ids; by spid; run;
+
+data nsoc_id11; set nsoc2011; keep spid; run;
+	proc sort data=nsoc_id11 out=nsoc_id15; by spid; run;
+
+
+data nsoc_cancer11; merge ids(in=a) nsoc_id11 (in=b); if a; if b; by spid; run; /*273*/
+
+proc freq data=nsoc_cancer11; tables yrdx*wave; run;
+
+/*READ IN NSOC 2015*/
+proc import out=nsoc2015 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_5.dta"
+dbms=dta replace;
+run;
+
+proc contents data=nsoc2015; run;
+
+proc sort data=ids; by spid; run;
+
+data nsoc_id15; set nsoc2015; keep spid; run;
+	proc sort data=nsoc_id15 out=nsoc_id15; by spid; run;
+
+
+data nsoc_cancer15; merge ids(in=a) nsoc_id15 (in=b); if a; if b; by spid; run; /*309*/
+
+proc freq data=nsoc_cancer15; tables yrdx*wave; run;
+
+/*READ IN NSOC 2017*/
+proc import out=nsoc2017 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_7.dta"
+dbms=dta replace;
+run;
+
+proc contents data=nsoc2017; run;
+
+proc sort data=ids; by spid; run;
+
+data nsoc_id17; set nsoc2017; keep spid; run;
+	proc sort data=nsoc_id17 out=nsoc_id17; by spid; run;
+
+
+data nsoc_cancer17; merge ids(in=a) nsoc_id17 (in=b); if a; if b; by spid; run; /*423*/
+
+proc freq data=nsoc_cancer17; tables yrdx*wave; run;
+

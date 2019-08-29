@@ -15336,6 +15336,7 @@ libname medicare 'D:\HRS\Shared\base_data\hrs_cms\SAS';
 
 proc contents data= hrs.death_date_2015 short; run;
 
+
 * proc sql doesn't allow for SAS data step hyphens, so reading in hospice file into data step;
 data hospice;
 keep bid_hrs_22 admit_date disch_date stus_cd hospice_st_date rvcntr01-rvcntr45;
@@ -15344,6 +15345,15 @@ hospice_st_date = input(hspcstrt, yymmdd8.);
 format hospice_st_date date9.;
 run;
 
+/*
+proc options option=config; run;
+proc options group=languagecontrol; run;
+
+%let dsn=medicare.hs_1998_2015;
+%let dsid=%sysfunc(open(&dsn,i));
+%put &dsn ENCODING is: %sysfunc(attrc(&dsid,encoding));
+%let rc=%sysfunc(close(&dsid));
+*/
 proc freq data=hospice; tables hospice_st_date / missprint; run; * created missing values due to inaccurate (000000) values in raw data
 
 
@@ -15400,12 +15410,12 @@ where suboptimal_hospice = 1;
 run;
 
 proc sql;
-DROP TABLE test;
+DROP TABLE test, hosp_check;
 quit;
 
 /* Build a Residential History File backwards starting with location of death. Order for determining location of death 
 1) discharge disposition = 20 (no discharge status in carrier)
-2) discharge_date = death_date & discharge disposition != 20
+2) discharge_date on instiutional claim = death_date & discharge disposition != 20
 3) HRS Exit Report of death
 */
 
@@ -15413,12 +15423,24 @@ quit;
 data transitions_90b (rename=(death_all = death_date));
 set transitions_90;
 disch_dead = 0;
+length location_of_death $3.;
+location_of_death = "";
 array stus stus_cd:;
 do over stus;
 if strip(stus) = "20" then disch_dead = 1;
+if strip(stus) = "20" then location_of_death = substr(vname(stus),9,3);
 end;
 run;
- 
+
+* quick eyeball test;
+data test;
+set transitions_90b;
+where disch_dead = 1;
+run;
+
+proc freq data=test; tables location_of_death / missprint; run; 
+proc delete data=test; run;
+
 proc sql;
 CREATE TABLE transitions_90 AS SELECT a.*, b.disch_as_dead
 FROM transitions_90b a
@@ -15427,7 +15449,6 @@ on a.bid_hrs_22 = b.bid_hrs_22;
 quit;
 
 /* Next, check for discharge dates = death_date and not discharged as dead */
-
 data transitions_90;
 set transitions_90;
 disch_death_date = 0;
@@ -15442,8 +15463,70 @@ run;
 * check discharge status for same day death+discharge;
 proc freq data=transitions_90; tables stus_cd:; where disch_death_date = 1; run;
 
+/*rows are not unique, so not all dates will be in the same row. create unique dataset with all dates in same row */
+
+data test;
+keep bid_hrs_22 death_date disch_date_ip--disch_date_pb;
+set transitions_90;
+array disch_dates disch_date:;
+do over disch_dates;
+if disch_dates ne death_date then disch_dates = .;
+end;
+where disch_death_date = 1;
+format disch_date_ip--disch_date_pb date9.;
+run;
+
+proc sql;
+CREATE TABLE death_disch_unique as SELECT bid_hrs_22, death_date, MAX(disch_date_ip) as ip, MAX(disch_date_snf) as snf, MAX(disch_date_hs) as hs,
+MAX(disch_date_hh) as hh, MAX(disch_date_op) as op, MAX(disch_date_pb) as pb
+FROM test
+GROUP BY bid_hrs_22, death_date;
+quit;
+
+* count transitions on date of death (exclude carrier) ;
+
+data test;
+set death_disch_unique;
+trans_at_death = 0;
+array dates ip--op;
+do over dates;
+if dates ne . then trans_at_death = trans_at_death + 1;
+end;
+run;
+
+/* check for multiple discharge dates on the same day as death, to see transitions between sites of care on the last day of life;
+data transitions_90;
+set transitions_90;
+trans_at_death = 0;
+array dates disch_date_:;
+do over dates;
+if (dates = death_date AND disch_as_dead =0) then trans_at_death  = trans_at_death  + 1;
+end;
+label trans_at_death = "Number of site transitions on date of death";
+run; 
+
+*eyeball check;
+data test;
+keep bid_hrs_22 death_date disch_date_ip--disch_date_pb
+set transitions_90;
+by bid_hrs_22;
+if first.bid_hrs_22;
+where trans_at_death>0;
+format disch_date_ip--disch_date_pb date9.;
+run;
 
 
+*/
+
+/* Pull HRS Exit for location of death */
+* 1 "Hospital" 2 "Nursing Home" 3 "Home" 4 "Hospice" 5 "Assisted Living/Retirement Home" 6 "Other/Don't Know"; 
+
+proc sql;
+CREATE TABLE hrs_exit AS SELECT a.hhid, a.pn, a.location, b.bid_hrs_22
+FROM hrs.exit_02_to_16_dt a
+INNER JOIN medicare.xref2015medicare b
+ON a.hhid=b.hhid AND a.pn=b.pn;
+quit;
 
 H="*********************"
 
@@ -19154,6 +19237,8 @@ save "`fdpath'/burden_dementia_sample_long.dta", replace
 
 
 H="changelog"
+8/29/19 - More updates to the code for burdensome transitions. OKR.
+
 8/28/19 - Began working on code for burdensome transitions. OKR.
 
 06/24/19 - Added proxy and nursing home residence to table 1 and baseline.  Evan
