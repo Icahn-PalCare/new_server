@@ -83,7 +83,6 @@ replace year = 9999 if year==. // dealing with people missing cores/exit
 
 merge 1:1 hhid pn year using "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2016.dta", keep(master match) nogen
 
-
 /**** Flag availability of N1 & P1/Exit*****/
 bysort id: egen date = max(inc_maid_date)
 replace inc_maid_date = date
@@ -162,6 +161,14 @@ replace bmi=r`i'bmi if core_year==`j'
 local j = `j' + 2
 }
 
+merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", keepus(living_kids_ind) keep(master match) nogen
+
+gen overweight = .
+replace overweight = 0 if bmi<30
+replace overweight = 1 if bmi>=30 & bmi!=.
+
+sort id year
+by id: carryforward srh_pf networth smoke_curr overweight living_kids_ind, replace
 
 /***** Create Sample Derivation Variables *****/
 
@@ -189,7 +196,6 @@ recode nolookback (0=1) (1=0)
 label var nolookback "Were not Medicare beneficaries 12 months prior to incident Medicaid"
 
 save $int\medicaid_cg_int.dta, replace
-
 
 H="Step 2"
 use $int\medicaid_cg_int.dta, clear
@@ -453,11 +459,6 @@ merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean
 
 merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta", keepus(death_all) keep(master match) nogen
 
-gen overweight = .
-replace overweight = 0 if bmi<30
-replace overweight = 1 if bmi>=30 & bmi!=.
-*label var overweight 
-
 gen death_2_yr = 0
 replace death_2_yr = 1 if (death_all - inc_maid_date)>=0 & (death_all-inc_maid_date)<=730
 label var death_2_yr "Died within 2 years of incident medicaid"
@@ -488,7 +489,7 @@ label var informal_cg "Informal Caregiver"
 replace hlphrs_i = 720 if hlphrs_i>720 & hlphrs_i!=. // capping helperhrs reported to 24hrs(max)*30days per person
 
 label var hlphrs_i "Hours of informal caregiving in last 30 days"
-replace hlphrs_i = 0 if hlphrs_i==.
+replace hlphrs_i = . if hlphrs_i==0 // not counting zero hours in average hours
 
 
 gen months_from_medicaid = date - inc_maid_date if p1_flag==1
@@ -568,20 +569,30 @@ bysort id: egen age_max = max(age)
 replace age = age_max
 by id: egen maid_max = max(inc_maid_year)
 replace inc_maid_year = maid_max
-
+/*
 egen any_nh = anymatch(nhres nhres_2yr nhres_2yr_exit), values(1)
 label var any_nh "Any Nursing home stay in the past 2 years" 
+
+
 
 replace livealone = 1 if hhm==0 & nhres!=1 & livealone==.
 replace livealone = 0 if hhm>0 & hhm!=. & livealone==.
 replace livealone  = 0 if nhres==1
+*/
+
+cap drop livealone
+gen livealone = 0
+replace livealone = 1 if hhm==0 & nhres==0
+label var livealone "Live Alone In Community"
+
+gen live_in_comm = 0
+replace live_in_comm = 1 if hhm>0  & nhres==0
+label var live_in_comm "Live In Community with Others"
 
 
-local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 livealone 
-local cvars months_from_medicaid age networth hlphrs_i nhres any_nh
+local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
+local cvars months_from_medicaid age networth hlphrs_i 
 local full `ivars' `cvars'
-
-
 
 
 gsort id -n1_flag
@@ -620,7 +631,7 @@ cap drop all
 gen all = 1
 label var all "Weighted Population Estimates"
 
-local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 livealone any_nh
+local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
 local cvars months_from_medicaid age networth hlphrs_i 
 
 
@@ -4067,6 +4078,8 @@ reshape wide `all', i(id) j(post)
 
 
 H="Changelog"
+8/30/19 - Separated NH, Live in Comm (alone vs with others) into mutually exclusive categories. Also carried forward N1 values for people misssing a P1 Core. OKR
+
 8/23/19 - Fixed informal care hours (changed missing hours to zero) and fixed livesalone for non-exit interviews (only exit dataset has a livealone variable). OKR
 
 8/22/19 - Added NH resdients to table and replace survey weights with nh weights for people in nursing home. OKR
