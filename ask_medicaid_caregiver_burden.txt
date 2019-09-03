@@ -589,8 +589,12 @@ gen live_in_comm = 0
 replace live_in_comm = 1 if hhm>0  & nhres==0
 label var live_in_comm "Live In Community with Others"
 
+gen nh_minority = 0
+replace nh_minority = 1 if black==1 | other_na_api_race==1
+label var nh_minority "Non-Hispanic Minority Race"
 
-local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
+
+local ivars female nh_minority white hisp_eth hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
 local cvars months_from_medicaid age networth hlphrs_i 
 local full `ivars' `cvars'
 
