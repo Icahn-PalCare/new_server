@@ -526,22 +526,6 @@ replace cpi_rate=1.39377 if year==2000
 replace cpi_rate=1.44062 if year==1999
 replace cpi_rate=1.47244 if year<=1998
 
-foreach x in hcbs inst_ltss ltss medicaid {
-	gen `x'_persenior=tot_`x'*cpi_rate/age65
-}
-replace medicaid_persenior=medicaid_persenior*age65/totalbe
-drop cpi_rate
-
-
-foreach x in hcbs inst_ltss ltss medicaid {
-	xtile `x'_persenior_quart=`x'_persenior, nq(4)
-}
-rename medicaid_persenior_quart medicaid_perbene_quart
-
-label var hcbs_persenior_quart "Quartile of state-level HCBS spending per senior"
-label var inst_ltss_persenior_quart "Quartile of state-level Institutional LTSS spending per senior"
-label var ltss_persenior_quart "Quartile of state-level LTSS spending per senior"
-label var medicaid_perbene_quart "Quartile of state-level total Medicaid spending per beneficiary"
 
 merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", nogen keep(match) keepus(hisp_eth white black other_na_api_race degree gender)
 
@@ -594,7 +578,7 @@ replace nh_minority = 1 if black==1 | other_na_api_race==1
 label var nh_minority "Non-Hispanic Minority Race"
 
 
-local ivars female nh_minority white hisp_eth hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
+local ivars female black hisp_eth hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
 local cvars months_from_medicaid age networth hlphrs_i 
 local full `ivars' `cvars'
 
@@ -603,6 +587,25 @@ gsort id -n1_flag
 
 by id: carryforward living_kids_ind wgtr regwt, replace //smoke_curr, helper hrs, overweight??
 keep if p1_flag==1
+
+
+
+foreach x in hcbs inst_ltss ltss medicaid {
+	gen `x'_persenior=tot_`x'*cpi_rate/age65
+}
+replace medicaid_persenior=medicaid_persenior*age65/totalbe
+drop cpi_rate
+
+
+foreach x in hcbs inst_ltss ltss medicaid {
+	xtile `x'_persenior_quart=`x'_persenior, nq(4)
+}
+rename medicaid_persenior_quart medicaid_perbene_quart
+
+label var hcbs_persenior_quart "Quartile of state-level HCBS spending per senior"
+label var inst_ltss_persenior_quart "Quartile of state-level Institutional LTSS spending per senior"
+label var ltss_persenior_quart "Quartile of state-level LTSS spending per senior"
+label var medicaid_perbene_quart "Quartile of state-level total Medicaid spending per beneficiary"
 
 set seed 12
 gen rid = runiform()*10000000
@@ -613,7 +616,7 @@ save $fin\medicaid_cg_burden_id.dta, replace
 foreach x of local full {
 
 gen miss_`x' = missing(`x')
-sum miss_`x'
+qui sum miss_`x'
 di r(sum)
 
 }
@@ -635,7 +638,7 @@ cap drop all
 gen all = 1
 label var all "Weighted Population Estimates"
 
-local ivars female black white hisp_eth other_na_api_race hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
+local ivars female black hisp_eth hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
 local cvars months_from_medicaid age networth hlphrs_i 
 
 
@@ -692,7 +695,7 @@ mat tab1[`r',`c'] = r(N)
 
 
 
-mat rownames tab1 = "Categorial (%)" `ivars' "Continuous (mean)" `cvars' "Median LTSS per 65+" all
+mat rownames tab1 = "Categorical (%)" `ivars' "Continuous (mean)" `cvars' "Median LTSS per 65+" all
 
 mat list tab1 
 
