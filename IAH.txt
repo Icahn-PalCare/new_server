@@ -4993,6 +4993,18 @@ replace `x' = `x'*100
 graph bar rcfres metro_ind iah_nonelect livealone, over(homebound_3cat) blabel(bar)
 
 
+H="housecalls table 1"
+/* Table 1 */
+
+replace homebound_cat = 4 if homebound_cat==.
+
+sum housecalls_count if hcalls==1 // all respondents
+sum housecalls_count if hcalls==1 & homebound_cat<4 // any homebound
+sum housecalls_count if hcalls==1 & homebound_cat==1 // never rarely leaves home
+sum housecalls_count if hcalls==1 & homebound_cat==2 // 
+sum housecalls_count if hcalls==1 & homebound_cat==3 
+sum housecalls_count if hcalls==1 & homebound_cat==4 & housecalls_count<45 // independent, drop outlier
+
 H="housecalls table 4 column"
 
 use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\housecalls.dta", clear 
@@ -10899,7 +10911,9 @@ proc sort data=hcc.diag_hcc nodup; by hicno; run;
 
 
 H="Changelog"
-8/21/ 2019 - Changed housecalls 4 col UW table to correct significance tests for ivars. OKR.
+9/06/2019 - Added x-tabs for Table 1. OKR
+
+8/21/2019 - Changed housecalls 4 col UW table to correct significance tests for ivars. OKR.
 
 8/1/2019 - Changed data construction to cap waves of nonhousecalls to wave 6, created 4 column table, and rebuilt the data from base on the new server. OKR.
 

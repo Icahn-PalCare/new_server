@@ -1700,43 +1700,58 @@ H="****** Sensitivity Analysis ********"
 
 
 H="Dataset construction - include remote dem"
-use $int\samplederivation.dta, clear
- 
- *gen all = 1
- local sampvars no_nhats_spid no_mbsf no_nhats_wave never_cohort no_ffs
- label var all "ALL NHATS respondents with a HH claim 2011-2017"
- 
- local rd: word count all `sampvars' 1 1
- 
- mat tab1 = J(`rd',1,.)
- 
+/* SAS */
 
-mat tab1 = J(`rd',1,.)
+libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS'; 
 
-sum all
-mat tab1[1,1]=r(N)
+proc sql;
+CREATE TABLE last_claim AS SELECT tables.BENE_ID, MAX(tables.disch_date) as last_claim
+FROM (SELECT BENE_ID, disch_date FROM medi.dm_09_17
+UNION SELECT BENE_ID, disch_date FROM medi.hh_09_17
+UNION SELECT BENE_ID, disch_date FROM medi.hs_09_17
+UNION SELECT BENE_ID, disch_date FROM medi.ip_06_17
+UNION SELECT BENE_ID, disch_date FROM medi.op_09_17
+UNION SELECT BENE_ID, disch_date FROM medi.pb_09_17
+UNION SELECT BENE_ID, disch_date FROM medi.snf_09_17)
+tables
+GROUP BY 1;
+quit;
 
-local r = 2
-foreach x of local sampvars {
-sum `x'
-mat tab1[`r',1] = r(sum)
-drop if `x'==1
-local ++r
-}
+data last_claim;
+set last_claim;
+format last_claim date9.;
+run;
 
-sum all
-mat tab1[`r',1] = r(N)
+proc export data=last_claim outfile="D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\last_claim.dta" dbms=stata replace; run;
 
-local ++r
+/* Stata */
 
-sum dem_cohort
-mat tab1[`r',1] = r(mean)*100
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", clear 
+replace ivw_day = 1 if ivw_day<1
+gen date_cat = mdy(ivw_month, ivw_day, ivw_year)
+preserve
+keep if wave==1
+gen old_cohort = 1
+tempfile old
+gen st_date = ivw_date
+format date_cat %td
+replace st_date = date_cat if st_date==.
+save `old'
 
+restore
+merge m:1 spid using "`old'", keepus(old_cohort st_date) nogen
+replace old_cohort = 0 if old_cohort==.
+replace st_date = ivw_date if st_date==. & wave==5
+replace st_date = date_cat if st_date==. & wave==5
+gen end_date = death_date
 
-mat rownames tab1 = all `sampvars' "Final Sample" "(%) with Dementia"
+collapse (max) old_cohort st_date end_date, by(spid)
+label var old_cohort "Original Cohort in Wave 1"
+label var st_date "Start of observation period"
+label var end_date "Last Observed Date, including death"
 
-frmttable using "$output\sample_derivation_`c(current_date)'.rtf", ///
-statmat(tab1) varlabels title("Sample Derivation") sdec(0) replace
+merge 1:1 spid using "D:\NHATS\Shared\base_data\CMS_claims\Stata\xwalk_2016.dta", keepus(bene_id) nogen
+merge 1:1 bene_id using "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\last_claim.dta", keep(master match) keepus(last_claim) nogen
 
 
 H="***old stuff below this***"
