@@ -215,7 +215,7 @@ cap log close
 log using $logs\claims_files.txt, text replace
 
 /* Get dates from rev center */
-use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\rev_cntr.dta", clear
+use "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\rev_cntr.dta", clear
 drop clm_thru_dt
 duplicates drop 
 bysort bene_id clm_id: gen obs = _n
@@ -428,7 +428,7 @@ keep if new_sq==1
 
 /********** Sample Derivation ******/
 preserve
-merge 1:1 bene_id admit_date using "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\nhats_ffs.dta", keepus(cont_ffs_n_mos)
+merge 1:1 bene_id admit_date using "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\nhats_ffs.dta", keepus(cont_ffs_n_mos)
 keep if _m==1
 duplicates drop bene_id, force
 gen no_mbsf = 1 // not unique people, need to fix
@@ -439,7 +439,7 @@ save $int\samplederivation.dta, replace
 restore
 /**************************************/
 
-merge 1:1 bene_id admit_date using "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\nhats_ffs.dta", keepus(cont_ffs_n_mos) keep(match)
+merge 1:1 bene_id admit_date using "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\nhats_ffs.dta", keepus(cont_ffs_n_mos) keep(match)
 
 keep bene_id ivw_year admit_month sq_id spid year cont_ffs_n_mos
 
@@ -492,9 +492,9 @@ label var days_last_ivw "# of days between start of sequence and last NHATS wave
 
 codebook bene_id // 2,263 NHATS with FFS 12m prior and NHATS ivw same year/prior
 
-*merge m:1 spid ivw_year using "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\nhats_ffs.dta", keep(match) nogen
+*merge m:1 spid ivw_year using "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\nhats_ffs.dta", keep(match) nogen
 
-save "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\timing_HHA.dta", replace
+save "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\timing_HHA.dta", replace
 
 use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta" , clear
 
@@ -520,7 +520,7 @@ keep spid wave never_dementia dem_cohort never_cohort
 tempfile dem 
 save `dem'
 
-use "D:\NHATS\Projects\exploratory\cka_timing_HHA\data\int_data\timing_HHA.dta", clear
+use "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\timing_HHA.dta", clear
 merge m:1 spid wave using "`dem'", keepus(never_dementia dem_cohort never_cohort) keep(match) nogen
 
 /****** Sample Derivation *******/
@@ -1696,16 +1696,14 @@ note("NHATS Interview required in same year (before start of sequence) or prior 
 /*
 outreg, clear
 
-H="****** Sensitivity Analysis ********"
-
-
-H="Dataset construction - include remote dem"
+H="Rates of HH utilization and observation time"
 /* SAS */
 
 libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS'; 
 
 proc sql;
-CREATE TABLE last_claim AS SELECT tables.BENE_ID, MAX(tables.disch_date) as last_claim
+CREATE TABLE last_claim AS SELECT tab1.BENE_ID, tab1.last_claim, tab2.any_hh_claim
+FROM (SELECT tables.BENE_ID, MAX(tables.disch_date) as last_claim
 FROM (SELECT BENE_ID, disch_date FROM medi.dm_09_17
 UNION SELECT BENE_ID, disch_date FROM medi.hh_09_17
 UNION SELECT BENE_ID, disch_date FROM medi.hs_09_17
@@ -1714,7 +1712,10 @@ UNION SELECT BENE_ID, disch_date FROM medi.op_09_17
 UNION SELECT BENE_ID, disch_date FROM medi.pb_09_17
 UNION SELECT BENE_ID, disch_date FROM medi.snf_09_17)
 tables
-GROUP BY 1;
+GROUP BY tables.BENE_ID) tab1
+LEFT JOIN (SELECT DISTINCT BENE_ID, 1 as any_hh_claim
+FROM medi.hh_09_17) tab2
+ON tab1.BENE_ID = tab2.BENE_ID;
 quit;
 
 data last_claim;
@@ -1726,12 +1727,23 @@ proc export data=last_claim outfile="D:\NHATS\Projects\home health policy\cka_ti
 
 /* Stata */
 
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta" , clear
+bysort spid: egen no_dem = max(prob_dem)
+
+gen never_dementia = 0 if no_dem!=.
+replace never_dementia = 1 if no_dem==0
+label var never_dementia "Never Dementia, Waves 1-7"
+keep spid never_dementia
+duplicates drop
+tempfile dem 
+save `dem'
+
 use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", clear 
 replace ivw_day = 1 if ivw_day<1
-gen date_cat = mdy(ivw_month, ivw_day, ivw_year)
+gen date_cat = mdy(ivw_month, ivw_day, ivw_year) if lml_ivw_yes==0 // create ivw date for people missing ivw date...
 preserve
 keep if wave==1
-gen old_cohort = 1
+gen old_cohort = 1 // capture original cohort
 tempfile old
 gen st_date = ivw_date
 format date_cat %td
@@ -1741,18 +1753,48 @@ save `old'
 restore
 merge m:1 spid using "`old'", keepus(old_cohort st_date) nogen
 replace old_cohort = 0 if old_cohort==.
+replace ivw_date = . if lml_ivw_yes==1 // replace lml ivw with missing date
 replace st_date = ivw_date if st_date==. & wave==5
 replace st_date = date_cat if st_date==. & wave==5
 gen end_date = death_date
 
-collapse (max) old_cohort st_date end_date, by(spid)
+
+collapse (max) old_cohort st_date end_date ivw_date, by(spid)
 label var old_cohort "Original Cohort in Wave 1"
 label var st_date "Start of observation period"
-label var end_date "Last Observed Date, including death"
+label var end_date "Last Observed Date: Death, Last Claim, Last Ivw Alive"
+label var ivw_date "Last NHATS Interview"
 
 merge 1:1 spid using "D:\NHATS\Shared\base_data\CMS_claims\Stata\xwalk_2016.dta", keepus(bene_id) nogen
-merge 1:1 bene_id using "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\last_claim.dta", keep(master match) keepus(last_claim) nogen
+merge 1:1 bene_id using "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\last_claim.dta", keep(master match) keepus(last_claim any_hh_claim) nogen
+merge 1:1 spid using "`dem'", nogen 
 
+replace end_date = last_claim if end_date==.
+replace end_date = ivw_date if end_date==.
+
+format end_date %td
+gen num_days_observed = end_date - st_date
+
+replace any_hh_claim = 0 if any_hh_claim==.
+
+* HH utilization among dementia
+tab any_hh_claim if never_dementia==0 // 50.17%
+* HH utilization among non-dementia
+tab any_hh_claim if never_dementia==1 // 25.26%
+
+save "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\last_obs.dta", replace
+
+use "$final\timing_HHA.dta", clear
+
+merge m:1 spid using "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\int_data\last_obs.dta", keepus(num_days_observed) keep(match)
+
+* do for unique people rather than sequences
+bysort spid: keep if _n==1
+
+* Average number of days dementia beneficiaries are observed
+sum num_days_observed if never_dementia==0, d // mean = 1504.9, median = 1528
+* Average number of days non-dementia beneficiaries are observed
+sum num_days_observed if never_dementia==1, d // mean = 1659.1, median = 1959
 
 H="***old stuff below this***"
 
@@ -1977,6 +2019,8 @@ starlevels(10 5 1) summstat(N) landscape replace
 
 
 H="Changelog"
+9/10/19 - Calculated rates of HH utilization and observation time. OKR
+
 8/3- tweaked the logit models: categorized income, made outcome community-initiated referral, restricted the visit in day 31-60 model to those who weren't dead/in hospice/admitted to inpatient in first 60 days of episode. CKA
 
 7/23/2019 - Fixed missing continuous variables from tables. OKR
