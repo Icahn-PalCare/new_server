@@ -500,11 +500,37 @@ label var months_from_medicaid "Months between incident medicaid and core interv
 
 
 gen state=stateusps
-merge m:1 state year using $ref\msis_ltss_by_state.dta, keep(match master) nogen
+merge m:1 state year using $ref\msis_ltss_by_state.dta, keep(match master) // nogen
 gsort id -core_year
 carryforward state tot_* totalben age6, replace
 sort id core_year
 carryforward state tot_* totalben age6, replace
+
+preserve
+
+
+//merging with the Genworth/Metlife hourly home health aide cost. 
+import excel "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\ref_docs\Cost Care Survey (Genworth-Metlife)\HHA_hourly_genworth.xlsx", sheet("Sheet1") firstrow clear
+
+rename A year
+rename B state
+rename HomeHealthAideServicesHourly state_hha
+rename MedianHourlyRate hr_rate
+drop if year==.
+tempfile genworth
+save `genworth'
+
+import excel "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\ref_docs\Cost Care Survey (Genworth-Metlife)\HHA_hourly_genworth.xlsx", sheet("Sheet5") firstrow clear
+
+rename MedianDailyRateNursingHomeD nh_rate
+rename *, l
+drop if year==.
+tempfile nhrate
+save `nhrate'
+
+restore
+merge m:1 state year using "`genworth'", keep(match master) keepus(hr_rate) nogen
+merge m:1 state year using "`nhrate'", keep(master match) keepus(nh_rate) nogen
 
 gen cpi_rate = 1 if year==2016
 replace cpi_rate=1.01262 if year==2015
@@ -526,6 +552,8 @@ replace cpi_rate=1.39377 if year==2000
 replace cpi_rate=1.44062 if year==1999
 replace cpi_rate=1.47244 if year<=1998
 
+replace hr_rate = hr_rate*cpi_rate
+replace nh_rate = nh_rate*cpi_rate
 
 merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", nogen keep(match) keepus(hisp_eth white black other_na_api_race degree gender)
 
@@ -577,18 +605,20 @@ gen nh_minority = 0
 replace nh_minority = 1 if black==1 | other_na_api_race==1
 label var nh_minority "Non-Hispanic Minority Race"
 
+replace networth = networth*cpi_rate
+label var networth "Total Networth including second home*"
 
-local ivars female black hisp_eth hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
-local cvars months_from_medicaid age networth hlphrs_i 
+
+destring hr_rate, replace
+
+local ivars female nh_minority white hisp_eth hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
+local cvars months_from_medicaid age networth hlphrs_i hr_rate nh_rate
 local full `ivars' `cvars'
-
 
 gsort id -n1_flag
 
 by id: carryforward living_kids_ind wgtr regwt, replace //smoke_curr, helper hrs, overweight??
 keep if p1_flag==1
-
-
 
 foreach x in hcbs inst_ltss ltss medicaid {
 	gen `x'_persenior=tot_`x'*cpi_rate/age65
@@ -616,7 +646,7 @@ save $fin\medicaid_cg_burden_id.dta, replace
 foreach x of local full {
 
 gen miss_`x' = missing(`x')
-qui sum miss_`x'
+sum miss_`x'
 di r(sum)
 
 }
