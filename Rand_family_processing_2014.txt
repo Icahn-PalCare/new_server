@@ -140,6 +140,17 @@ cd `work'
 
 use family_k_all, clear
 
+//9/12/19--generate living kid
+gen lv=!inlist(k_stat,4,7)
+by hhidpn core_year, sort: egen ind_living_kid=max(lv)
+label var ind_living_kid "Any living children"
+preserve
+keep hhidpn core_year ind_living_kid
+duplicates drop
+drop if missing(hhidpn)
+tempfile tk
+save `tk'
+restore
 gen inccat=1 if k_inca<10000 |k_incbh<10000
 replace inccat=2 if inrange(k_inca,10000,35000) | inrange(k_incbh,10000,35000)
 replace inccat=3 if inrange(k_inca,35000.01,70000) |  inrange(k_incbh,35000.01,70000)
@@ -245,8 +256,8 @@ label var hasownkid "Has Living Biological child"
 label var hasstepkid "Has Living Step-Child"
 label var hasanykid "Has Living Child (incl. Biological, Step, in-law)"
 
-keep hhidpn *kid* ksp_hlphrs core_year step_son_count step_dau_count
-drop k_*  kidid kp_* has*kid
+keep hhidpn *kid* ksp_hlphrs core_year step_son_count step_dau_count has*kid
+drop k_*  kidid kp_* 
 
 local adultvars num_resd_adult_kids resd_kid_adult_ind kid_adult_nearby_ind ///
 amt_transf_from_kid_adult transf_from_kid_adult_ind help_adls_kid_adult ///
@@ -393,13 +404,15 @@ label var moved_out "No longer lives with child; moved out"
 
 //8/23/17--add in the variables for adult kids
 merge 1:1 hhidpn core_year using `t1'
+merge 1:1 hhidpn core_year using `tk', nogen
+
 
 foreach x of local adultvars {
 	replace `x'=0 if _m==1
 }
 gen id=hhid+pn
 *drop _m rlink hhid pn
-
+drop if missing(id)
 save "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", replace
 
 

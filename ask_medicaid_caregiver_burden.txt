@@ -552,6 +552,8 @@ replace cpi_rate=1.39377 if year==2000
 replace cpi_rate=1.44062 if year==1999
 replace cpi_rate=1.47244 if year<=1998
 
+destring hr_rate, replace
+destring nh_rate, replace
 replace hr_rate = hr_rate*cpi_rate
 replace nh_rate = nh_rate*cpi_rate
 
@@ -607,9 +609,6 @@ label var nh_minority "Non-Hispanic Minority Race"
 
 replace networth = networth*cpi_rate
 label var networth "Total Networth including second home*"
-
-
-destring hr_rate, replace
 
 local ivars female nh_minority white hisp_eth hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
 local cvars months_from_medicaid age networth hlphrs_i hr_rate nh_rate
@@ -672,7 +671,7 @@ local ivars female black hisp_eth hseduc married srh_pf dem_cohort dm_hrs depres
 local cvars months_from_medicaid age networth hlphrs_i 
 
 
-local rd: word count 1 `ivars' 1 `cvars' 1 1
+local rd: word count 1 `ivars' 1 `cvars' 1 1 1 1 1 1
 
 mat tab1 = J(`rd',4,.)
 
@@ -709,9 +708,31 @@ sum ltss_persenior [fweight=regwt] if ltss_persenior_quart==`c', d
 
 mat tab1[`r',`c'] = r(p50)
 
-}
+local ++r
+sum hr_rate [fweight=regwt] if ltss_persenior_quart==`c', d
+mat tab1[`r',`c'] = r(p50)
 
 local ++r
+mat tab1[`r',`c'] = r(max)
+
+local r = `r' - 2
+}
+
+local r = `r' + 3
+
+
+forvalues c = 1/4 {
+
+sum nh_rate [fweight=regwt] if ltss_persenior_quart==`c', d
+mat tab1[`r',`c'] = r(p50)
+
+local ++r
+mat tab1[`r',`c'] = r(max)
+
+local --r
+}
+
+local r = `r' + 2
 
 
 
@@ -724,13 +745,12 @@ mat tab1[`r',`c'] = r(N)
 
 
 
-
-mat rownames tab1 = "Categorical (%)" `ivars' "Continuous (mean)" `cvars' "Median LTSS per 65+" all
+mat rownames tab1 = "Categorical (%)" `ivars' "Continuous (mean)" `cvars' "Median LTSS per 65+*" "Median Hourly Rate for HH Aide*" "Maximum Hourly Rate for HH Aide*" "Median Daily NH Rate*" "Maximum Daily NH Rate*" all
 
 mat list tab1 
 
 frmttable using "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\output\Table1_`c(current_date)'.rtf", ///
-statmat(tab1) varlabels ctitles("Variables", "LTSS Quartile 1", "LTSS Quartile 2", "LTSS Quartile 3", "LTSS Quartile 4") title("Exhibit 1") sdec(2) replace
+statmat(tab1) varlabels ctitles("Variables", "LTSS Quartile 1", "LTSS Quartile 2", "LTSS Quartile 3", "LTSS Quartile 4") title("Exhibit 1") sdec(2) note("*Indicates reported value was inflation adjusted to 2016 dollars") replace
 
 H="******* 4th Iteration ************"
 
