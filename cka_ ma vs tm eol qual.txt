@@ -1350,6 +1350,23 @@ H="more variable cleaning"
 *more variable cleaning
 recode deathage_cat (1/2=1 "65-74")(3/4=2 "75-84")(5/6=3 "85+"),gen(deathage_3cat)
 
+*live discharge
+gen livedischarge=0 if ind_hospice==1
+replace livedischarge=1 if ind_hospice==1 & ind_died_on_hospice==0
+
+*place of death
+gen placedeath=.
+foreach var of varlist pd8placepre pd7placepre pd6placepre pd5placepre pd4placepre pd3placepre pd2placepre {
+replace placedeath=1 if `var'==1
+replace placedeath=2 if `var'==2
+replace placedeath=3 if `var'==3
+replace placedeath=4 if `var'==4 | `var'==5 | `var'==91
+}
+label define pd2 1 "1 home" 2 "2 hospital" 3 "3 nursing home" 4 "4 other"
+label values  placedeath pd2
+tab placedeath 
+
+
 H="analysis"
 *analysis
 use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta"
@@ -1360,7 +1377,7 @@ svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missi
 *table 1: in MA at time of death vs not
 *looking at quality variables
 svy, subpop(inanal): tab ma1
-tab ma1, m
+tab ma1 if inanal==1, m
 
 svy, subpop(inanal): tab ma1 year, column
 svy, subpop(inanal): tab ind_hospice, column
@@ -1383,19 +1400,26 @@ svy, subpop(inanal): tab lung_all ma1, column
 svy, subpop(inanal): tab cva_all ma1, column
 svy, subpop(inanal): tab cancer_all ma1, column
 svy, subpop(inanal): tab prob_dem ma1, column
-svy, subpop(inanal): tab ind_hospice ma1, column
 
 
 *figure 1
+
+/*
+i don't actually know how to do this right.
+svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
+tabout excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant ma1 if inanal==1 using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\output\fig2.htm", ///
+c(row ci) f(1 1) clab(Row_% 95% CI) svy stats (chi2) ///
+npos(lab) percent ///
+rep ///
+style(tex) bt font(bold) cl1(2-6)
+*/
 foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
-		qui svy, subpop(inanal): logistic `var' i.ma1, cformat(%4.2f)
+		qui svy, subpop(inanal): logistic `var' i.ma1,  cformat(%4.2f)
 		margins ma1
 }
 
-mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed  age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend
 *table 2: association between MA and EOL outcome
-
 *model 1: unadjusted
 foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
@@ -1405,34 +1429,11 @@ foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_r
 *new model 2: fully adjusted
 foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female child other_family other_friend year ///
-		income_quart diff_get_out_bed cancer_all mi_all lung_all prob_dem, cformat(%4.2f)
+		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female child  spouse  ///
+		 year diff_get_out_bed, cformat(%4.2f)
 }
 
-
-
-*model 2: minimally adjusted
-foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female i.race_cat child other_family other_friend year, cformat(%4.2f)
-}
-
-
-*model 3: fully adjusted
-foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair cancer_all mi_all lung_all prob_dem, cformat(%4.2f)
-}
-
-*model 3b: fully adjusted + hospice
-foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair cancer_all mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
-}
-
-
+*FIGURE 2
 *interaction with hospice for excellent care
 qui svy, subpop(inanal): logistic excellent i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
 		income_quart metro_ind adl_impair mi_all lung_all cancer_all prob_dem ind_hospice, cformat(%4.2f)
@@ -1453,37 +1454,40 @@ qui svy, subpop(inanal): logistic unmet_sad i.ma1##i.ind_hospice i.deathage_3cat
 	marginsplot	
 	
 *sensitivity analysis
-*model 3: fully adjusted
+*new model 2: fully adjusted
 foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.ma2 i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all lung_all prob_dem ind_hospice, cformat(%4.2f)
+		svy, subpop(inanal): logistic `var' i.ma2 i.deathage_3cat female child  spouse  ///
+		 year diff_get_out_bed, cformat(%4.2f)
 }
 
 
-
 foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.ma1 i.race_cat mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed  age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend
+		svy, subpop(inanal): logistic `var' i.placedeath , cformat(%4.2f)
 }
 
-*odds of each outcome_ fully adjusted
-svy, subpop(inanal): logistic ind_died_on_hospice i.ma1
 
-replace ma1=1 if ind_died_on_hospice==1 & year==hospice_year & ma_month_bef_hs==1
-tab year hospice_year if ind_died_on_hospice==1
-gen look=1 if ind_died_on_hospice==1 & year==2017 & hospice_year==2016
+*looking at eol care characteristics and ma
+foreach var of varlist ind_hospice livedischarge late_transition placedeath {
+		svy, subpop(inanal): tab `var' ma1, column
+}
 
-logistic di_recode_informed i.race_cat
+*QUALITY AND SITE OF DEATH: adjusted rates and associations by site of death for each quality measure
+foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+		recode_care_decision di_recode_informed {
+		svy, subpop(inanal): logistic `var' i.placedeath i.deathage_3cat female child  spouse  ///
+		 year diff_get_out_bed, cformat(%4.2f)
+		 margins placedeath
+}
 
+*is quality in ma/tm different by site of death?
+foreach var of varlist excellent unmet_sad  di_recode_informed {
+		svy, subpop(inanal): logistic `var' i.placedeath##i.ma1 
+		 margins placedeath#ma1
+		 
+}
 
-
-
-
-
-
-
-xi: logit excellent mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend hosp_last_month  if inanal==1, or 
 
 
 *** running for Rashmi ******************
