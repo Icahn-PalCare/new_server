@@ -157,7 +157,11 @@ foreach x in eat toil insd bed dres bath laun shop meal bank out {
 	replace `x'_cat=4 if adl_`x'_help==0 & adverse_`x'==1
 	replace `x'_cat=5 if adl_`x'_help==1 & adverse_`x'==1
 	label values `x'_cat impcat
+	gen `x'_mismatch=inlist(`x'_cat,2,4) if `x'_cat>1
+	label var `x'_mismatch "Impairment in `x' but no help"
 }
+
+label var toil_mismatch "Impairment in toileting but no help"
 
 egen sc_jenny=rowmax(eat_j toil_j insd_j bath_j)
 egen hh_jenny=rowmax(laun_j shop_j meal_j bank_j)
@@ -359,3 +363,13 @@ foreach x in sc hh mob {
 	graph export "${outpath}\impairment_categories_`x'.pdf", replace
 }
 
+
+
+H="***************************"
+
+
+H="table looking at toileting mismatch"
+
+
+H="changelog"
+9/16/19-Belatedly created change log. Evan.
