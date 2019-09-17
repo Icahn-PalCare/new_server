@@ -1200,7 +1200,7 @@ graph hbar vis_0_2 vis_3_6 vis_7 [pw=anfinwgt], over(dem_cohort) blabel(bar) tit
 graph export "$output\hbar_3160_weighted_`c(current_date)'.png", replace
 
 H="Table 1 + Logits (weighted)"
-use $final\timing_HHA.dta, clear
+use "$final\timing_HHA.dta", clear
 
 gen all = 1
 
@@ -1401,7 +1401,7 @@ mat tab1[`r',3] = (e(N_pop))
 
 mat rownames tab1= "Categorical Predictors (%)" `ivars1' "Continuous Predictors (Average)" `cvars1' "HH Specific Predictors" `ivars2' `cvars2' dem_cohort "Sample Size"
 
-frmttable using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\In progress\table1_weighted_`c(current_date)'.rtf", replace statmat(tab1) ///
+frmttable using "D:\NHATS\Projects\home health policy\cka_timing_HHA\output\In progress\table1_weighted_`c(current_date)'.rtf", replace statmat(tab1) ///
 varlabels title("Table 1: Unique HH Sequences (Weighted): 12m FFS prior to admit date of first episode in sequence") ///
 ctitles("" "All" "Non-Dementia" "Probable Dementia" "Unadjusted Logit OR: Comm. Initiated = 1" "Unadjusted Logit OR: Any Visit Day 31-60 = 1") sdec(2) annotate(stars) asymbol(*,**) ///
 note("NHATS Interview required in same year (before start of sequence) or prior calendar year. *p<0.05, **p<0.01")
@@ -1410,7 +1410,7 @@ outreg, clear
 svy: logistic comm_init age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort died_in_12m, cformat(%4.2f)
 */
 
-outreg using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\In progress\logit_weighted_`c(current_date)'", ///
+outreg using "D:\NHATS\Projects\home health policy\cka_timing_HHA\output\In progress\logit_weighted_`c(current_date)'", ///
 varlabels stats(e_b e_ci p) nosubstat ///
 title("Adjusted Logistic Regression (Weighted): Outcome=Sequence initatiated in Community") ///
 ctitles("" "Std. Coefficient" "95% CI" "P-value") ///
@@ -1423,7 +1423,7 @@ svy: logit any_vis_60 age hisp black female educ_hs_ind medicaid married metro_i
 
 
 
-outreg using "D:\NHATS\Projects\exploratory\cka_timing_HHA\output\In progress\logit_weighted_days3160_`c(current_date)'", ///
+outreg using "D:\NHATS\Projects\home health policy\cka_timing_HHA\output\In progress\logit_weighted_days3160_`c(current_date)'", ///
 varlabels stats(e_b e_ci p) nosubstat ///
 title("Adjusted Logistic Regression (Weighted): Outcome=Any visit in days 31-60") ///
 ctitles("" "Std. Coefficient" "95% CI" "P-value") ///

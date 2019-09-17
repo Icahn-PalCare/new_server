@@ -99,8 +99,9 @@ ctitles("" "Interviews don't meet" "Interviews do meet" "Unique SPs") replace
 
 
 //clean/add variables
-
-label var tot_paidhrs "Hours per week of paid help, conditional on any"
+gen ind_gt20hrs_tot=tot_hrswk_help_i>=20
+label var ind_gt20hrs_tot "Total hrs/week of help >=20"
+label var tot_paidhrs "Total help: >20hrs wk"
 rename homebound_cat hb
 rename race_cat race
 gen help_cat=ind_no_helpers
@@ -312,6 +313,113 @@ note("Among community-dwelling SPs in 2011 & 2015 with probable dementia")
 
 
 
+H="chars looking at adverse consequences"
+//table 1
+
+use "${intpath}\dem_wave_1_5_w_help_sample.dta", clear
+foreach x of varlist tot_*_i {
+replace `x'=0 if n_helpers==0 
+}
+replace ind_gt20hrs_wk_paid=0 if n_helpers==0
+
+local cvars1 age
+local ivars1 female 
+local catvars1 race /*education*/ livearrang
+local cvars2
+local ivars2 married educ_hs_ind medicaid medigap tricare
+local catvars2
+local cvars3 
+local ivars3 
+local catvars3 income_quart 
+local cvars4 
+local ivars4 prob_dem sr_phq2_depressed metro_ind
+local catvars4 region hb
+local cvars5 n_helpers
+local ivars5
+local catvars5 help_cat
+local cvars6 tot_hrswk_help_i tot_hrswk_paid_i  tot_paidhrs
+local ivars6 ind_gt20hrs_wk_paid
+local catvars6
+local cvars7 adlcount_jenny iadlcount_jenny
+local ivars7 adv_any adv_sc adverse_eat adverse_bath adverse_toil adverse_dres adv_hh adverse_laun adverse_shop adverse_meal adverse_bank adv_mob adverse_insd adverse_out adverse_bed
+local catvars7 wave
+
+forvalues i=1/7 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+forvalues i=1/7 {
+local rows `rows' `cvars`i'' `ivars`i'' `catvars`i'' `cativars`i''
+}
+
+local rn : word count `rows' 1
+local r=1
+local c=1
+
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',4,0)
+
+local n=_N
+forvalues i=1/7 {
+	foreach x of local cvars`i' {
+		sum `x' [aw=anfinw], d
+		mat tab[`r',`c']=r(mean)
+		mat tab [`r',`c'+1]=r(sd)
+		mat tab[`r',`c'+2]=r(p50)
+		mat tab[`r',`c'+3]=`n'-r(N)
+		local r=`r'+1
+		local rownames `rownames' `x'
+		
+}
+	foreach x of local ivars`i' {
+		sum `x' [aw=anfinw] 
+		if r(N)*r(mean)>=11 mat tab[`r',`c']=r(mean)*100
+		if r(N)*r(mean)>=11 mat tab[`r',`c'+3]=`n'-r(N)
+		local r=`r'+1
+		local rownames `rownames' `x'
+}
+	foreach x of local catvars`i' {
+		local rownames `rownames' `x'
+		local r=`r'+1
+		sum `x' [aw=anfinw]
+		mat tab[`r',`c'+3]=`n'-r(N)
+		foreach z of local `x' {
+			sum `z' [aw=anfinw] 
+			if r(N)*r(mean)>=11 mat tab[`r',`c']=r(mean)*100
+			local r=`r'+1
+			local rownames `rownames' `z'
+}
+}
+}
+mat tab[`r',`c']=`n'
+	
+
+mat rownames tab=`rownames' N
+
+frmttable using "${outpath}\table_1_`c(current_date)'.rtf", ///
+statmat(tab) title("Characteristics of Sample") ///
+ctitles("" "Mean/%" "SD" "Median" "N Missing") varlabels ///
+sdec(2,1,1,0) annotate(stars) asymbol(*,**) replace ///
+note("Among community-dwelling SPs in 2011 & 2015 with probable dementia")
+
+
+
+
 H="looking at impairment, help, and unmet need"
 
 use "${intpath}\dem_wave_1_5_w_help_sample.dta" if !ind_no_helpers, clear
@@ -369,6 +477,99 @@ H="***************************"
 
 
 H="table looking at toileting mismatch"
+//tables looking at toileting mismatch
+
+use "${intpath}\dem_wave_1_5_w_help_sample.dta", clear
+keep if toil_jenny==1 & !ind_no_helpers
+
+foreach x of varlist tot_*_i {
+replace `x'=0 if n_helpers==0 
+}
+replace ind_gt20hrs_wk_paid=0 if n_helpers==0
+
+gen only1=n_helpers==1
+label var only1 "Only one helper
+gen gt3=n_helpers>=3
+label var gt3 "3+ helpers"
+local cvars1
+local ivars1 ind_gt20hrs_tot only1 gt3 ind_gt20hrs_wk_inf ind_paid_helper ind_gt20hrs_wk_paid married livealone rcfres toil_mismatch medicaid aveincome
+local catvars1 income_quart
+
+
+forvalues i=1/7 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+forvalues i=1/7 {
+local rows `rows' `cvars`i'' `ivars`i'' `catvars`i'' `cativars`i''
+}
+
+local rn : word count `rows' 1
+local r=1
+local c=1
+
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',4,0)
+
+local n=_N
+forvalues i=1/7 {
+	foreach x of local cvars`i' {
+		sum `x' [aw=anfinw], d
+		mat tab[`r',`c']=r(mean)
+		mat tab [`r',`c'+1]=r(sd)
+		mat tab[`r',`c'+2]=r(p50)
+		mat tab[`r',`c'+3]=`n'-r(N)
+		local r=`r'+1
+		local rownames `rownames' `x'
+		
+}
+	foreach x of local ivars`i' {
+		sum `x' [aw=anfinw] 
+		if r(N)*r(mean)>=11 mat tab[`r',`c']=r(mean)*100
+		if r(N)*r(mean)>=11 mat tab[`r',`c'+3]=`n'-r(N)
+		local r=`r'+1
+		local rownames `rownames' `x'
+}
+	foreach x of local catvars`i' {
+		local rownames `rownames' `x'
+		local r=`r'+1
+		sum `x' [aw=anfinw]
+		mat tab[`r',`c'+3]=`n'-r(N)
+		foreach z of local `x' {
+			sum `z' [aw=anfinw] 
+			if r(N)*r(mean)>=11 mat tab[`r',`c']=r(mean)*100
+			local r=`r'+1
+			local rownames `rownames' `z'
+}
+}
+}
+mat tab[`r',`c']=`n'
+	
+
+mat rownames tab=`rownames' N
+
+frmttable using "${outpath}\table_1_`c(current_date)'.rtf", ///
+statmat(tab) title("Characteristics of Sample") ///
+ctitles("" "Mean/%" "SD" "Median" "N Missing") varlabels ///
+sdec(2,1,1,0) annotate(stars) asymbol(*,**) replace ///
+note("Among community-dwelling SPs in 2011 & 2015 with probable dementia")
+
+
 
 
 H="changelog"

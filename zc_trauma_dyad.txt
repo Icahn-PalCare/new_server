@@ -115,7 +115,7 @@ tempfile aha
 save `aha'
 
 //just pull ivw dates to match to the dx, only for rounds 1,5,7 to match to NSOC later
-use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", clear
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", clear
 keep if sp_ivw==1 & lml==0
 keep spid ivw_date wave
 merge m:1 spid using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", ///
@@ -325,7 +325,7 @@ save `trauma'
 
 foreach period in pre post {
 if "`period'"=="pre" {
-forvalues i=1/7 {
+forvalues i=1/8 {
 	use `nhats' if wave==`i', clear
 	merge 1:m bene_id using `trauma', keep(match) nogen
 	drop if admit_date>=ivw_date | (admit_date<ivw_date_n1 & !missing(ivw_date_n1)) | ///
@@ -339,7 +339,7 @@ forvalues i=1/7 {
 }
 
 else {
-forvalues i=1/7 {
+forvalues i=1/8 {
 	use `nhats' if wave==`i', clear
 	merge 1:m bene_id using `trauma', keep(match) nogen
 	drop if admit_date<ivw_date | admit_date-ivw_date>365 | admit_date>ivw_date_p1
@@ -352,7 +352,7 @@ forvalues i=1/7 {
 }
 
 clear
-forvalues i=1/7 {
+forvalues i=1/8 {
 	append using `traum`i''
 }
 
