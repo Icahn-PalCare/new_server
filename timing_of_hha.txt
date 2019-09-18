@@ -1447,7 +1447,6 @@ replace adl0=0 if adl_index!=0 & adl_index!=.
 
 foreach var of varlist female hisp black educ_hs_ind medicaid married livealone region metro_ind adl0 adl_dep_2 adl_dep_3  homebound chronic_con_0 chronic_con_1 chronic_con_2 srh_fp died_in_12m {
 svy, subpop (keep): tab `var' dem_cohort, column
-svy, subpop (keep): tab `var' 
 }
 
 svy, subpop (keep): mean age

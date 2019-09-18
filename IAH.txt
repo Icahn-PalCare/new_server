@@ -5070,7 +5070,7 @@ label var homebound_3 "Leaves home but needs help/has difficulty"
 
 gen homebound_4 = 0 if homebound_cat!=.
 replace homebound_4 = 1 if homebound_cat==4
-label var homebound_4 "Not homebound"
+label var homebound_4 "Not homebound"2
 
 gen cp_hb = 0
 replace cp_hb = 1 if homebound_cat<4
@@ -5607,185 +5607,112 @@ local full `cvars1' `ivars1' `ivars2' `ivars3' `cvars2'
 
 local rd: word count `full' 1
 
-mat tab1 = J(`rd',4,.)
-mat stars = J(`rd',4,0)
+mat tab1 = J(`rd',2,.)
+mat stars = J(`rd',2,0)
 
 local r = 1
 local c = 1
 
 foreach x of local cvars1 {
 
-sum `x' if cp_hb==1 & hcalls==0
+sum `x' if hcalls==0
 mat tab1[`r',`c'] = r(mean)
 
 local ++c
-sum `x' if cp_hb==1 & hcalls==1
+sum `x' if hcalls==1
 mat tab1[`r',`c'] = r(mean)
 
-ttest `x' if cp_hb==1, by(hcalls)
+ttest `x', by(hcalls)
 mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
 
-local ++c
-
-sum `x' if cp_hb==0 & hcalls==0
-mat tab1[`r',`c'] = r(mean)
-
-local ++c
-sum `x' if cp_hb==0 & hcalls==1
-mat tab1[`r',`c'] = r(mean)
-
-ttest `x' if cp_hb==0, by(hcalls)
-mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
-
-local c = 1
+local --c
 local ++r
 }
 
 foreach x of local ivars1 {
 
-sum `x' if cp_hb==1 & hcalls==0
+sum `x' if hcalls==0
 mat tab1[`r',`c'] = r(mean)*100
 
 local ++c
 
-sum `x' if cp_hb==1 & hcalls==1
+sum `x' if hcalls==1
 mat tab1[`r',`c'] = r(mean)*100
 
-tab `x' cp_hb if hcalls==1, chi2
+tab `x' hcalls, chi2
 mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
-local ++c
-
-sum `x' if cp_hb==0  & hcalls==0
-mat tab1[`r',`c'] = r(mean)*100
-
-local ++c
-
-sum `x' if cp_hb==0  & hcalls==1
-mat tab1[`r',`c'] = r(mean)*100
-
-tab `x' cp_hb if hcalls==0, chi2
-mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
-
-local c = 1
+local --c
 local ++r
 
 }
 
 foreach x of local ivars2 {
 
-sum `x' if cp_hb==1 & hcalls==0
+sum `x' if hcalls==0
 mat tab1[`r',`c'] = r(mean)*100
 
 local ++c
 
-sum `x' if cp_hb==1 & hcalls==1
+sum `x' if hcalls==1
 mat tab1[`r',`c'] = r(mean)*100
 
-tab `x' cp_hb if hcalls==1, chi2
+tab `x' hcalls, chi2
 mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
-local ++c
-
-sum `x' if cp_hb==0  & hcalls==0
-mat tab1[`r',`c'] = r(mean)*100
-
-local ++c
-
-sum `x' if cp_hb==0  & hcalls==1
-mat tab1[`r',`c'] = r(mean)*100
-
-tab `x' cp_hb if hcalls==0, chi2
-mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
-
-local c = 1
+local --c
 local ++r
 
 }
 
 foreach x of local ivars3 {
 
-sum `x' if cp_hb==1 & hcalls==0
+sum `x' if hcalls==0
 mat tab1[`r',`c'] = r(mean)*100
 
 local ++c
 
-sum `x' if cp_hb==1 & hcalls==1
+sum `x' if hcalls==1
 mat tab1[`r',`c'] = r(mean)*100
 
-tab `x' cp_hb if hcalls==1, chi2
+tab `x' hcalls, chi2
 mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
 
-local ++c
-
-sum `x' if cp_hb==0  & hcalls==0
-mat tab1[`r',`c'] = r(mean)*100
-
-local ++c
-
-sum `x' if cp_hb==0  & hcalls==1
-mat tab1[`r',`c'] = r(mean)*100
-
-tab `x' hcalls if cp_hb==0, chi2
-mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
-
-local c = 1
+local --c
 local ++r
 
 }
  
 foreach x of local cvars2 {
 
-sum `x' if cp_hb==1 & hcalls==0
+sum `x' if hcalls==0
 mat tab1[`r',`c'] = r(mean)
 
 local ++c
-sum `x' if cp_hb==1 & hcalls==1
+sum `x' if hcalls==1
 mat tab1[`r',`c'] = r(mean)
 
-ttest `x' if cp_hb==1, by(hcalls)
+ttest `x', by(hcalls)
 mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
 
-local ++c
-
-sum `x' if cp_hb==0 & hcalls==0
-mat tab1[`r',`c'] = r(mean)
-
-local ++c
-sum `x' if cp_hb==0 & hcalls==1
-mat tab1[`r',`c'] = r(mean)
-
-ttest `x' if cp_hb==0, by(hcalls)
-mat stars[`r',`c']= (r(p)<.01) + (r(p)<.05)
-
-local c = 1
+local --c
 local ++r
 }
 
-sum age if cp_hb==1 & hcalls==0
+sum age if hcalls==0
 mat tab1[`r',`c'] = r(N)
 
 local ++c
 
-sum age if cp_hb==1 & hcalls==1
-mat tab1[`r',`c'] = r(N)
-
-local ++c
-
-sum age if cp_hb==0 & hcalls==0
-mat tab1[`r',`c'] = r(N)
-
-local ++c
-
-sum age if cp_hb==0 & hcalls==1
+sum age if hcalls==1
 mat tab1[`r',`c'] = r(N)
 
 
 mat rownames tab1= `cvars1' `ivars1' `ivars2' `ivars3' `cvars2' N
 
-frmttable using `logpath'\table1_housecalls`date'.doc, replace statmat(tab1) ///
+frmttable using `logpath'\table1_2_col_housecalls`date'.doc, replace statmat(tab1) ///
 varlabels title("Table 1: Housecalls Unique persons per NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
-ctitles("", "", "Complete/Partial HB", "", "", "Not HB", \"", "No Housecalls", "Housecalls", "No Housecalls", "Housecalls") sdec(2) annotate(stars) asymbol(*,**) landscape ///
+ctitles("", "No Housecalls", "Housecalls") sdec(2) annotate(stars) asymbol(*,**) landscape ///
 note("These are unique people, and only survey data from their most recent NHATS interview was used. Housecalls are +/- 90 days of ivw date. *p<0.05, **p<0.01")
 
 
@@ -6013,6 +5940,8 @@ H="***************************"
 
 
 H="Changelog"
+9/18/2019 - Updated 2 column table. OKR
+
 9/17/2019 - Cleaned up code to improve readability. OKR
 
 9/06/2019 - Added x-tabs for Table 1. OKR

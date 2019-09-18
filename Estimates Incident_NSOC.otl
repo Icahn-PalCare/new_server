@@ -1120,7 +1120,6 @@ data ids; set nhats3(where=(wave=n1_int_wave and sample=1));
 keep spid wave n1_int_wave dxt0 yrdx;
 run;
 
-
 /*READ IN NSOC 2011*/
 proc import out=nsoc2011 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1.dta"
 dbms=dta replace;
@@ -1132,10 +1131,10 @@ proc contents data=nsoc2011; run;
 proc sort data=ids; by spid; run;
 
 data nsoc_id11; set nsoc2011; keep spid; run;
-	proc sort data=nsoc_id11 out=nsoc_id15; by spid; run;
+	proc sort data=nsoc_id11 nodup out=nsoc_id11; by spid; run;
 
 
-data nsoc_cancer11; merge ids(in=a) nsoc_id11 (in=b); if a; if b; by spid; run; /*273*/
+data nsoc_cancer11; merge ids(in=a) nsoc_id11 (in=b); if a; if b; by spid; run; /*188*/
 
 proc freq data=nsoc_cancer11; tables yrdx*wave; run;
 
@@ -1149,10 +1148,10 @@ proc contents data=nsoc2015; run;
 proc sort data=ids; by spid; run;
 
 data nsoc_id15; set nsoc2015; keep spid; run;
-	proc sort data=nsoc_id15 out=nsoc_id15; by spid; run;
+	proc sort data=nsoc_id15 nodup out=nsoc_id15; by spid; run;
 
 
-data nsoc_cancer15; merge ids(in=a) nsoc_id15 (in=b); if a; if b; by spid; run; /*309*/
+data nsoc_cancer15; merge ids(in=a) nsoc_id15 (in=b); if a; if b; by spid; run; /*201*/
 
 proc freq data=nsoc_cancer15; tables yrdx*wave; run;
 
@@ -1166,10 +1165,157 @@ proc contents data=nsoc2017; run;
 proc sort data=ids; by spid; run;
 
 data nsoc_id17; set nsoc2017; keep spid; run;
-	proc sort data=nsoc_id17 out=nsoc_id17; by spid; run;
+	proc sort data=nsoc_id17 nodup out=nsoc_id17; by spid; run;
 
 
-data nsoc_cancer17; merge ids(in=a) nsoc_id17 (in=b); if a; if b; by spid; run; /*423*/
+data nsoc_cancer17; merge ids(in=a) nsoc_id17 (in=b); if a; if b; by spid; run; /*262*/
 
 proc freq data=nsoc_cancer17; tables yrdx*wave; run;
 
+H="Pre and Post Cancer NSOC samples"
+/**Sample sizes for cancers with pre and post NSOC interviews*/
+data ids; set nhats3(where=(wave=n1_int_wave and sample=1)); 
+keep spid wave n1_int_wave dxt0 yrdx;
+run;
+
+proc freq data=ids; tables wave yrdx; run;
+
+/*READ IN NSOC 2011*/
+proc import out=nsoc2011 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1.dta"
+dbms=dta replace;
+run;
+
+proc print data=nsoc2011(obs=20); run;
+proc contents data=nsoc2011; run;
+
+proc sort data=ids; by spid; run;
+
+data nsoc_11; set nsoc2011; keep spid opid cg_ivw_date; run;
+	proc sort data=nsoc_11 out=nsoc_11; by spid opid; run;
+
+proc print data=nsoc_11 (obs=20); run;
+
+data test; set nsoc_11; keep spid; run;
+	proc sort data=test nodup out=test; by spid; run;
+
+proc print data=nsoc_11(obs=20); run;
+
+data nsoc_cancerdx11; merge nsoc_11(in=a) ids(in=b); if a; if b; by spid; run; /*273*/
+proc print data=nsoc_cancerdx11; run;
+data test; set nsoc_cancerdx11; keep spid; run;
+	proc sort data=test nodup out=test; by spid; run;
+
+data nsoc_cancerdx11; set nsoc_cancerdx11;
+if dxt0>cg_ivw_date then pre_cancer_NSOC=1; else pre_cancer_NSOC=0;
+if dxt0<cg_ivw_date then post_cancer_NSOC=1; else post_cancer_NSOC=0;
+run;
+
+proc freq data=nsoc_cancerdx11; tables pre_cancer_NSOC*post_cancer_NSOC; run;
+
+data pre; set nsoc_cancerdx11 (where=(pre_cancer_NSOC=1)); keep spid pre_cancer_NSOC; run;
+proc print data=pre; run;
+proc sort data=pre nodup out=pre; by spid; run; /*184 with at least 1 pre interview in 2011*/
+
+data post; set nsoc_cancerdx11(where=(post_cancer_NSOC=1)); keep spid post_cancer_NSOC; run;
+proc print data=post; run;
+proc sort data=post nodup out=post; by spid; run; /*8 with at least 1 post interview (2011)*/
+
+data Pre_Post_11; merge ids (in=a) pre (in=b) post (in=c); by spid; if a;
+if pre_cancer_NSOC=. then pre_cancer_NSOC=0;
+if post_cancer_NSOC=. then post_cancer_NSOC=0;
+run;
+proc print data=pre_post_11 (obs=20); run;
+
+data test; set pre_post_11; keep spid; run;	
+proc sort data=test nodup out=test; by spid; run;
+
+proc freq data=pre_post_11; tables yrdx*(pre_cancer_NSOC post_cancer_NSOC); run;
+
+/*READ IN NSOC 2015*/
+proc import out=nsoc2015 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_5.dta"
+dbms=dta replace;
+run;
+
+proc sort data=ids; by spid; run;
+
+data nsoc_15; set nsoc2015; keep spid opid cg_ivw_date; run;
+	proc sort data=nsoc_15 out=nsoc_15; by spid opid; run;
+
+data nsoc_cancerdx15; merge nsoc_15(in=a) ids(in=b); if a; if b; by spid; run; /*309*/
+
+data nsoc_cancerdx15; set nsoc_cancerdx15;
+if dxt0>cg_ivw_date then pre_cancer_NSOC=1; else pre_cancer_NSOC=0;
+if dxt0<cg_ivw_date then post_cancer_NSOC=1; else post_cancer_NSOC=0;
+run;
+
+proc freq data=nsoc_cancerdx15; tables pre_cancer_NSOC*post_cancer_NSOC; run;
+
+data pre; set nsoc_cancerdx15 (where=(pre_cancer_NSOC=1)); keep spid pre_cancer_NSOC; run;
+proc print data=pre; run;
+proc sort data=pre nodup out=pre; by spid; run; /*74 with at least 1 pre interview in 2015*/
+
+data post; set nsoc_cancerdx15(where=(post_cancer_NSOC=1)); keep spid post_cancer_NSOC; run;
+proc print data=post; run;
+proc sort data=post nodup out=post; by spid; run; /*127 with at least 1 post interview (2015)*/
+
+data Pre_Post_15; merge ids (in=a) pre (in=b) post (in=c); by spid; if a;
+if pre_cancer_NSOC=. then pre_cancer_NSOC=0;
+if post_cancer_NSOC=. then post_cancer_NSOC=0;
+run;
+proc print data=pre_post_15 (obs=20); run;
+
+data test; set pre_post_15; keep spid; run;	
+proc sort data=test nodup out=test; by spid; run;
+
+proc freq data=pre_post_15; tables yrdx*(pre_cancer_NSOC post_cancer_NSOC); run;
+
+/*READ IN NSOC 2017*/
+proc import out=nsoc2017 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_7.dta"
+dbms=dta replace;
+run;
+
+proc sort data=ids; by spid; run;
+
+data nsoc_17; set nsoc2017; keep spid opid cg_ivw_date; run;
+	proc sort data=nsoc_17 out=nsoc_17; by spid opid; run;
+
+data nsoc_cancerdx17; merge nsoc_17(in=a) ids(in=b); if a; if b; by spid; run; /*423*/
+
+data nsoc_cancerdx17; set nsoc_cancerdx17;
+if dxt0>cg_ivw_date then pre_cancer_NSOC=1; else pre_cancer_NSOC=0;
+if dxt0<cg_ivw_date then post_cancer_NSOC=1; else post_cancer_NSOC=0;
+run;
+
+proc freq data=nsoc_cancerdx17; tables pre_cancer_NSOC*post_cancer_NSOC; run;
+
+data pre; set nsoc_cancerdx17 (where=(pre_cancer_NSOC=1)); keep spid pre_cancer_NSOC; run;
+proc print data=pre; run;
+proc sort data=pre nodup out=pre; by spid; run; /*14 with at least 1 pre interview in 2017*/
+
+data post; set nsoc_cancerdx17(where=(post_cancer_NSOC=1)); keep spid post_cancer_NSOC; run;
+proc print data=post; run;
+proc sort data=post nodup out=post; by spid; run; /*249 with at least 1 post interview (2015)*/
+
+data Pre_Post_17; merge ids (in=a) pre (in=b) post (in=c); by spid; if a;
+if pre_cancer_NSOC=. then pre_cancer_NSOC=0;
+if post_cancer_NSOC=. then post_cancer_NSOC=0;
+run;
+proc print data=pre_post_17 (obs=20); run;
+
+data test; set pre_post_17; keep spid; run;	
+proc sort data=test nodup out=test; by spid; run;
+
+proc freq data=pre_post_17; tables yrdx*(pre_cancer_NSOC post_cancer_NSOC); run;
+
+/*Combine all years to find number of cancer patients with a pre or post cancer NSOC interview*/
+data pre_post; set pre_post_11 pre_post_15 pre_post_17; run;
+proc sort data=pre_post; by spid; run;
+proc print data=pre_post (obs=20); run;
+
+data pre; set pre_post(where=(pre_cancer_NSOC=1)); keep spid yrdx; run;
+proc sort data=pre nodup out=pre; by spid; run;
+proc freq data=pre; tables yrdx; run;
+
+data post; set pre_post(where=(post_cancer_NSOC=1)); keep spid yrdx; run;
+proc sort data=post nodup out=post; by spid; run;
+proc freq data=post; tables yrdx; run;
