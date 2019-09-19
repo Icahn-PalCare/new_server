@@ -9,18 +9,18 @@ H="Project Outline"
 
 Project Name: Home Based Medicare Care (HBMC)
 
-Date Started: 
-Primary Investigator:
+Date Started: September 2017
+Primary Investigator: Ornstein
 Funding Source:
 
-Created by:
+Created by: OKR
 
-Primary Analyst:
-Secondary Analyst:
+Primary Analyst: OKR
+Secondary Analyst: EBL
 
-Datasets Used:
+Datasets Used: NHATS Waves 1-7, Medicare
 
-Simple Outline:
+Simple Outline: Uses CPT codes from Carrier to determine utilization of home based care
 
 
 */
@@ -5720,6 +5720,7 @@ H="Weighted X-section"
 use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\iah_wave1-7.dta", clear
 
 global output "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+local date=subinstr("$S_DATE"," ","_",.)
 
 gen homebound_part = 0
 replace homebound_part = 1 if inrange(homebound_cat,2,3)
@@ -5738,7 +5739,7 @@ la define hblbl 1"Complete HB"2"Partial HB"3"Independent"
 la values homebound_3cat hblbl
 
 gen anyhcall = 0
-replace anyhcall = 1 if housecalls_count>=1 & housecalls_count!=.
+replace anyhcall = 1 if housecalls_count>=2 & housecalls_count!=.
 
 svyset spid [pw=anfinwgt], strata(varstrat)
 
@@ -5782,53 +5783,56 @@ mat rownames tab1 = "2011" "2012" "2013" "2014" "2015" "2016" "2017"
 mat list tab1
 
 frmttable using $output\table2_pop_estimates`date'.doc, replace statmat(tab1) ///
-varlabels title("Table 2: Weighted Population Estimates NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
-ctitles("", "", "All", "", "", "Complete/Partial HB" \ "Years", "Weighted % - 2+ Hcalls (or 1+NH/Death)", "Weighted % - Any Hcall in calendar year", "Population Estimates", "Weighted % - 2+ Hcalls (or 1+NH/Death)", "Weighted % - Any Hcall in calendar year", "HB Population Estimates") sdec(2) ///
+varlabels title("Table 1: Weighted Population Estimates NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
+ctitles("", "", "All", "", "", "Complete/Partial HB" \ "Years", "Weighted % - 2+ Hcalls (or 1+NH/Death)", "Weighted % - 2+ Hcall in calendar year", "Total CD+FFS Population Estimates", "Weighted % - 2+ Hcalls (or 1+NH/Death)", "Weighted % - 2+ Hcall in calendar year", "Total CD+FFS+HB Population Estimates") sdec(2) ///
 note("Population Estimates is the total (weighted) number of 6mFFS + CD people in the NHATS year")
 
+////////
 
-replace homebound_cat = 4 if homebound_cat==.
-label var homebound "Never/Rarely leaves home"
-
-gen homebound_2 = 0 if homebound_cat!=.
-replace homebound_2 = 1 if homebound_cat==2
-label var homebound_2 "Leaves home but never by self"
-
-gen homebound_3 = 0 if homebound_cat!=.
-replace homebound_3 = 1 if homebound_cat==3
-label var homebound_3 "Leaves home but needs help/has difficulty"
-
-gen homebound_4 = 0 if homebound_cat!=.
-replace homebound_4 = 1 if homebound_cat==4
-label var homebound_4 "Not homebound"
-
+mat tab2=J(7,8,.)
 
 local r = 1
 local c = 1
 
-mat tab2=J(4,3,.)
-foreach x in homebound homebound_2 homebound_3 homebound_4 {
+forvalues i=1/7 {
 
-svy: mean hcalls if `x'==1
+svy: mean anyhcall if wave==`i'
 mat tab2[`r',`c'] = (r(table)[1,1]*100)
 
 local ++c
-svy: mean anyhcall if `x'==1
+mat tab2[`r',`c'] = (r(table)[1,1]*e(N_pop)) // population estimate
+
+local ++c
+mat tab2[`r',`c'] = (r(table)[5,1]*e(N_pop)) // lower bound
+
+local ++c
+mat tab2[`r',`c'] = (r(table)[6,1]*e(N_pop)) // upper bound
+
+local ++c
+svy: mean anyhcall if wave==`i' & homebound_3cat<3
 mat tab2[`r',`c'] = (r(table)[1,1]*100)
 
 local ++c
-svy: mean housecalls_count if `x'==1
-mat tab2[`r',`c'] = (r(table)[1,1])
+mat tab2[`r',`c'] = (r(table)[1,1]*e(N_pop)) // population estimate
 
-local ++r
+local ++c
+mat tab2[`r',`c'] = (r(table)[5,1]*e(N_pop)) // lower bound
+
+local ++c
+mat tab2[`r',`c'] = (r(table)[6,1]*e(N_pop)) // upper bound
+
 local c = 1
+local ++r
 }
 
-mat rownames tab2 = homebound homebound_2 homebound_3 homebound_4
+mat rownames tab2 = "2011" "2012" "2013" "2014" "2015" "2016" "2017"
+mat list tab2
 
 frmttable using $output\table2_pop_estimates`date'.doc, addtable statmat(tab2) ///
-varlabels title("Table 3: Weighted NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
-ctitles("", "2+ HBMC or 1+ NH/Death (%)", "Any HBMC in calendar year (%)", "Average # of visits in calendar year") sdec(2) //
+varlabels title("Table 2: Weighted Population Estimates NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
+ctitles("", "", "All", "", "", "Complete/Partial HB" \ "Years", "Weighted % - 2+ Hcalls in calendar year", "2+ Hcalls Population Estimate", "95% Lower Bound", "95% Upper Bound", "Weighted % - 2+ Hcalls in calendar year", "2+ Hcalls + HB Population Estimate", "95% Lower Bound", "95% Upper Bound") sdec(2) ///
+note("Population Estimates is the total (weighted) number of 6mFFS + CD people in the NHATS year")
+
 
 
 H="Sample Derivation"
