@@ -47,6 +47,99 @@ end;
 %mend;
 */
 
+
+%macro m (year=);
+
+data md&year. (keep=bene_id year dual_stus_cd_01-dual_stus_cd_12);
+set medi_raw.mbsf_d_cmpnts_&year.;
+year=&year. +2000;
+run;
+%mend;
+
+%m (year=06);
+%m (year=07);
+%m (year=08);
+%m (year=09);
+%m (year=10);
+%m (year=11);
+%m (year=12);
+/*%m (year=13);
+*%m (year=14);
+
+
+data md141;
+set md14;
+run;
+data md131;
+set md13;
+run;
+*/
+%macro m (year=);
+
+data md&year. (keep=bene_id year dual_stus_cd_01-dual_stus_cd_12);
+set medi_raw.mbsf_d_&year.;
+year=&year. +2000;
+run;
+
+data mb&year.;
+set medi_raw.mbsf_ab_&year. /*medi_raw.mbsf_ab_summary_&year.*/;
+run;
+
+%mend;
+
+%m (year=13);
+%m (year=14);
+%m (year=15);
+/*
+data md13;
+set md13 md131;
+run;
+
+data md14;
+set md14 md141;
+run;
+*/
+%macro m2 (year=);
+data mb&year.;
+set medi_raw.mbsf_ab_summary_&year.;
+run;
+%mend;
+
+
+%m2 (year=06);
+%m2 (year=07);
+%m2 (year=08);
+%m2 (year=09);
+%m2 (year=10);
+%m2 (year=11);
+%m2 (year=12);
+
+%macro m2 (year=);
+data m;
+set mb&year.;
+year=&year.+2000;
+run;
+
+proc sql;
+create table mbsf_abcd_summary_&year. as select * from
+m a
+left join md&year. b
+on a.bene_id=b.bene_id;
+quit;
+%mend;
+
+
+%m2 (year=06);
+%m2 (year=07);
+%m2 (year=08);
+%m2 (year=09);
+%m2 (year=10);
+%m2 (year=11);
+%m2 (year=12);
+%m2 (year=13);
+%m2 (year=14);
+%m2 (year=15);
+
 %macro mbsf_rename (year=);
 data mbsf_&year.;
 set medi_raw.mbsf_abcd_summary_&year. (rename=(HMO_IND_01=BENE_HMO_IND_01 HMO_IND_02=BENE_HMO_IND_02  
@@ -61,10 +154,18 @@ run;
 %mbsf_rename (year=16);
 %mbsf_rename (year=17);
 
+/*
 data mbsf_ab_summary_06_17;
 set medi_raw.mbsf_ab_summary_06 medi_raw.mbsf_ab_summary_07 medi_raw.mbsf_ab_summary_08 medi_raw.mbsf_ab_summary_09 
 medi_raw.mbsf_ab_summary_10 medi_raw.mbsf_ab_summary_11 medi_raw.mbsf_ab_summary_12 medi_raw.mbsf_ab_13 medi_raw.mbsf_ab_14
 medi_raw.mbsf_ab_15 mbsf_16 mbsf_17;
+run;
+*/
+
+data mbsf_ab_summary_06_17;
+set mbsf_abcd_summary_06 mbsf_abcd_summary_07 mbsf_abcd_summary_08 mbsf_abcd_summary_09 
+mbsf_abcd_summary_10 mbsf_abcd_summary_11 mbsf_abcd_summary_12 mbsf_abcd_summary_13 mbsf_abcd_summary_14
+mbsf_abcd_summary_15 mbsf_16 mbsf_17;
 run;
 
 /************************************************************************
@@ -514,6 +615,9 @@ run;
 %export (claim=mbsf_06_17);
 
 
+H="MDS"
+
+
 H="Changelog"
 
 
@@ -521,6 +625,12 @@ H="Changelog"
 
 
 Updates:
+
+
+09/20/2019 EBL
+----------
+Added dual info from years 2006-2015 to MBSF
+
 
 05/31/2019 MH
 ----------

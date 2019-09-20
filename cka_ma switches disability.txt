@@ -690,7 +690,112 @@ count if date_switch==. & keepMA==1 & switch_any==1
 
 save "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\ma_switch_int.dta", replace
 
+H="add Medicaid and SNF status at time of switch"
+use "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\ma_switch_int.dta" if !missing(index_date) & !missing(bene_id) , clear
+
+keep spid bene_id index_date date_switch* wave 
+gen ds=date_switch
+replace ds=date_switch_ffs if missing(ds)
+gen year=year(ds)
+drop if missing(ds)
+gen ma=!missing(date_switch) if !missing(ds)
+
+tempfile index
+save `index'
+
+merge 1:1 bene_id year using "D:\NHATS\Shared\base_data\CMS_claims\Stata\mbsf_06_17.dta", keep(match) nogen
+
+gen ms=month(ds)
+
+rename dual_stus_cd_0* dual_stus_cd_*
+
+gen ind_mcaid_at_switch=0
+forvalues i=1/12 {
+	replace ind_mcaid_at_switch=1 if ms==`i' & inrange(real(dual_stus_cd_`i'),1,8)
+}
+
+label var ind_mcaid "Medicaid at time of switch (either direction)"
+
+keep spid bene_id index_date ind_mcaid
+tempfile medicaid
+save `medicaid'
+
+use `index', clear
+merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\snf_09_17.dta", keep(match master) nogen
+
+by spid, sort: egen ind_snf_at_switch=max(cond(inrange(ds,admit_date,disch_date) & !missing(admit_date)),1,0)
+label var ind_snf "In SNF at time of switch (either direction)"
+
+by spid, sort: egen ind2_snf_at_switch=max(cond(inrange(ds,admit_date-30,disch_date+30) & !missing(admit_date)),1,0)
+label var ind2_snf "In SNF at time of switch (+/- 30 days)"
+
+keep spid bene_id ind* wave
+
+duplicates drop
+tempfile snf
+save `snf'
+
+use `index', clear
+merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\mds_3_10_17.dta", keep(match master) nogen
+
+sort bene_id a1600_entry_dt trgt_dt
+by spid, sort: egen ind_nh_at_switch=max(cond(inrange(ds,a1600_en,trgt_dt) /*& trgt_dt-a1600_en>100*/ & !missing(trgt_dt)),1,0)
+label var ind_nh "NH stay at switch (from the MDS)"
+
+keep spid bene_id ind_nh
+duplicates drop
+tempfile mds
+save `mds'
+
+
+forvalues i=13/16 {
+import sas using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Extracted\inpatient_revenue_center_`i'.sas7bdat", case(lower) clear
+tempfile rev`i'
+save `rev`i''
+}
+import sas using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Extracted\inpatient_revenue_center_k_17.sas7bdat", case(lower) clear
+forvalues i=13/16 {
+append using `rev`i''
+}
+
+gen rehab=real(rev_cntr)==1
+keep bene_id clm_id rehab
+sort bene_id clm_id rehab
+by bene_id clm_id: keep if _n==_N
+tempfile rehab
+save `rehab'
+
+use `index', clear
+merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\ip_06_17.dta", keep(match master) nogen
+codebook prvdr_num
+merge 1:1 bene_id clm_id using `rehab', keep(match master) nogen
+codebook prvdr_num
+gen inrange=inrange(ds,admit_date,disch_date) & !missing(admit_date)
+by spid, sort: egen ind_rehab_at_switch=max(cond(rehab==1 & inrange==1),1,0)
+label var ind_rehab_at_switch "Inpatient rehab at switch"
+gen ls=!inlist(substr(prvdr_num,3,1),"0","M","R","S","T")
+by spid, sort: egen ind_ls_at_switch=max(cond(inrange==1 & ls==1),1,0)
+label var ind_ls_at "Long stay hospital at switch"
+keep spid bene_id ind_rehab ind_ls
+duplicates drop
+
+
+
+
+
+
+merge 1:1 spid using `medicaid', nogen
+merge 1:1 spid using `snf', nogen
+merge 1:1 spid using `mds', nogen
+
+merge 1:1 spid index_date wave using "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\ma_switch_int.dta", nogen
+
+save "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\ma_switch_final.dta", replace
+
+
 H="all tables and figures"
+use "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\ma_switch_final.dta", clear
+
 *TABLES AND FIGURES
 
 svyset  varunit [pweight=anfinwgt], strat(varstrat)
@@ -808,7 +913,9 @@ svy, subpop(keepMA): logistic 	switch_any				year
 
 svy, subpop(keepMA): tab 		oe_madp 				switch_any, column 
 svy, subpop(keepMA): tab 		oe 						switch_any, column 
-
+svy, subpop(keepMA): tab 		ind_mcaid_at_switch 	switch_any, column
+svy, subpop(keepMA): tab 		ind_snf_at_switch		switch_any, column
+svy, subpop(keepMA): tab 		ind2_snf_at_switch		switch_any, column
 
 *started in TM
 svy, subpop(keepFFS): tab 		female 					switch_any, column 
@@ -876,6 +983,24 @@ svy, subpop(keepFFS): tab 		year 				switch_any, column
 svy, subpop(keepFFS): logistic 	switch_any				year
 
 svy, subpop(keepFFS): tab 		oe_ffs				switch_any, column
+svy, subpop(keepFFS): tab 		ind_mcaid_at_switch switch_any, column
+svy, subpop(keepFFS): tab 		ind_snf_at_switch	switch_any, column
+svy, subpop(keepFFS): tab 		ind2_snf_at_switch	switch_any, column
+
+
+//ebl-9/20/19-crosstabs for the bottom of table 2
+
+gen ind_oe=oe
+replace ind_oe=oe_ffs if missing(oe)
+egen ind_anynh_at_switch=rowmax(ind_snf_at_switch ind_nh_at_switch)
+label var ind_anynh "SNF or LT NH at switch"
+
+svy, subpop(if keep==1 & switch_any==1): tab 		ind_oe				firsthmo, column
+svy, subpop(if keep==1 & switch_any==1): tab 		ind_mcaid_at_switch firsthmo, column
+svy, subpop(if keep==1 & switch_any==1): tab 		ind_snf_at_switch	firsthmo, column
+svy, subpop(if keep==1 & switch_any==1): tab 		ind2_snf_at_switch	firsthmo, column
+svy, subpop(if keep==1 & switch_any==1): tab 		ind_nh_at_switch	firsthmo, column
+
 
 *FIGURE 2
 *rates of pre, white pop

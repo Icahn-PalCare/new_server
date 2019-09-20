@@ -1200,11 +1200,22 @@ graph hbar vis_0_2 vis_3_6 vis_7 [pw=anfinwgt], over(dem_cohort) blabel(bar) tit
 graph export "$output\hbar_3160_weighted_`c(current_date)'.png", replace
 
 H="Table 1 + Logits (weighted)"
-use "$final\timing_HHA.dta", clear
+use "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\final_data\timing_HHA.dta", clear
 
 gen all = 1
 
 recode post_int (0=1)(1=0), gen(comm_init)
+
+
+gen unpaid_cg = 0
+replace unpaid_cg = 1 if ind_family_helper==1 | otherfamily_help_ind==1 | otherinformal_help_ind==1
+label var unpaid_cg "Has an unpaid caregiver"
+
+recode income_quart (1=1)(2/4=0), gen(low_inc)
+label var low_inc "Lowest income quartile"
+
+svyset sq_id [pw=anfinwgt], strata(varstrat)
+preserve
 
 keep if new_sq==1
 cap drop obs
@@ -1224,9 +1235,350 @@ gen num_seq_3 = 0
 replace num_seq_3 = 1 if num_seq>3
 label var num_seq_3 "Percentage of people with 4+ Sequences"
 
+
+cap drop obs
+sort bene_id admit_date
+by bene_id: keep if _n==1
+
+local ivars1 white hisp black female educ_hs_ind medicaid married metro_ind adl_independent adl_dep_2 adl_dep_3 homebound srh_fp ind_hosp_sq northeast midwest south west chronic_con_0 chronic_con_1 chronic_con_2 livealone died_in_12m unpaid_cg low_inc
+local cvars1 age hhm aveincome days_last_ivw sr_numconditions1 
+local ivars2 comm_init any_vis_60 len_sq_1 len_sq_2 len_sq_3 len_sq_4 num_seq_1 num_seq_2 num_seq_3
+local cvars2 len_sq num_seq
+local full 1 `ivars1' 1 `cvars1' 1 `ivars2' `cvars2' 1 1
+local rd: word count `full'
+
+mat tab1=J(`rd',5,.)
+mat stars=J(`rd',5,0)
+
+local r = 2
+local c = 1
+
+foreach x of local ivars1 {
+
+svy: mean `x'
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+
+svy: mean `x' if dem_cohort==0
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: mean `x' if dem_cohort==1
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+
+svy: tab `x' dem_cohort
+mat stars[`r',`c'] = (e(p_Pear)<.01) + (e(p_Pear)<.05)
+
+local ++c
+
+svy: logit comm_init `x'
+mat tab1[`r',`c']=exp(el(e(b),1,1))
+mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
+
+local ++c
+
+svy: logit any_vis_60 `x'
+mat tab1[`r',`c']=exp(el(e(b),1,1))
+mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
+
+local c =1
+local ++r
+}
+
+local ++r
+foreach x of local cvars1 {
+
+svy: mean `x'
+mat tab1[`r',`c'] = r(table)[1,1]
+
+local ++c
+
+svy: mean `x' if dem_cohort==0
+mat tab1[`r',`c'] = r(table)[1,1]
+
+local ++c
+svy: mean `x' if dem_cohort==1
+mat tab1[`r',`c'] = r(table)[1,1]
+
+svy: mean `x', over(dem_cohort)
+test c.`x'@0.dem_cohort= c.`x'@1.dem_cohort
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+svy: logit comm_init `x'
+mat tab1[`r',`c']=exp(el(e(b),1,1))
+mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
+
+local ++c
+
+svy: logit any_vis_60 `x'
+mat tab1[`r',`c']=exp(el(e(b),1,1))
+mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
+
+local c =1
+local ++r
+}
+
+local ++r
+foreach x of local ivars2 {
+
+
+svy: mean `x'
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+
+svy: mean `x' if dem_cohort==0
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: mean `x' if dem_cohort==1
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+
+svy: tab `x' dem_cohort
+mat stars[`r',`c'] = (e(p_Pear)<.01) + (e(p_Pear)<.05)
+
+local ++c
+
+cap svy: logit comm_init `x'
+cap mat tab1[`r',`c']=exp(el(e(b),1,1))
+cap mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
+
+local ++c
+
+cap svy: logit any_vis_60 `x'
+cap mat tab1[`r',`c']=exp(el(e(b),1,1))
+cap mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
+
+local c =1
+local ++r
+}
+
+foreach x of local cvars2 {
+
+
+svy: mean `x'
+mat tab1[`r',`c'] = r(table)[1,1]
+
+local ++c
+
+svy: mean `x' if dem_cohort==0
+mat tab1[`r',`c'] = r(table)[1,1]
+
+local ++c
+svy: mean `x' if dem_cohort==1
+mat tab1[`r',`c'] = r(table)[1,1]
+
+svy: mean `x', over(dem_cohort)
+test c.`x'@0.dem_cohort= c.`x'@1.dem_cohort
+mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
+
+local ++c
+
+svy: logit comm_init `x'
+mat tab1[`r',`c']=exp(el(e(b),1,1))
+mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
+
+local ++c
+
+svy: logit any_vis_60 `x'
+mat tab1[`r',`c']=exp(el(e(b),1,1))
+mat stars[`r',`c']=(e(p)<.01) + (e(p)<.05)
+
+local c =1
+local ++r
+}
+
+
+svy: logit comm_init dem_cohort
+mat tab1[`r',4]=exp(el(e(b),1,1))
+mat stars[`r',4]=(e(p)<.01) + (e(p)<.05)
+
+svy: logit any_vis_60 dem_cohort
+mat tab1[`r',5]=exp(el(e(b),1,1))
+mat stars[`r',5]=(e(p)<.01) + (e(p)<.05)
+
+local ++r
+
+svy: total all
+mat tab1[`r',1] = (e(N_pop))
+
+svy: total all if dem_cohort==0
+mat tab1[`r',2] = (e(N_pop))
+
+svy: total all if dem_cohort==1
+mat tab1[`r',3] = (e(N_pop))
+
+mat rownames tab1= "Categorical Predictors (%)" `ivars1' "Continuous Predictors (Average)" `cvars1' "HH Specific Predictors" `ivars2' `cvars2' dem_cohort "Sample Size"
+
+frmttable using "D:\NHATS\Projects\home health policy\cka_timing_HHA\output\In progress\table1_weighted_`c(current_date)'.rtf", replace statmat(tab1) ///
+varlabels title("Table 1: Unique Persons (1st Sequence, Weighted): 12m FFS prior to admit date of first episode in sequence") ///
+ctitles("" "All" "Non-Dementia" "Probable Dementia" "Unadjusted Logit OR: Comm. Initiated = 1" "Unadjusted Logit OR: Any Visit Day 31-60 = 1") sdec(2) annotate(stars) asymbol(*,**) ///
+note("NHATS Interview required in same year (before start of sequence) or prior calendar year. *p<0.05, **p<0.01")
+
+restore
+
+local full comm_init dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married northeast midwest south west metro_ind adl_dep_2 adl_dep_3 chronic_con_1 chronic_con_2 srh_fp died_in_12m other_race
+
+foreach x of local full {
+
+gen miss_`x' = missing(`x')
+qui sum miss_`x'
+di "`x'"
+di r(sum)
+
+}
+
+
+
+outreg, clear
+svy: logistic comm_init dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married midwest south west metro_ind adl_dep_2 adl_dep_3 chronic_con_1 chronic_con_2 srh_fp died_in_12m other_race, cformat(%4.2f)
+
+outreg using "D:\NHATS\Projects\home health policy\cka_timing_HHA\output\In progress\logit_weighted_`c(current_date)'", ///
+varlabels stats(e_b e_ci p) nosubstat ///
+title("Adjusted Logistic Regression (Weighted): Outcome=Sequence initatiated in Community") ///
+ctitles("" "Std. Coefficient" "95% CI" "P-value") ///
+starlevels(10 5 1) summstat(N) landscape replace
+
+/*
+
+
+
+***********
+***********
+***********
+
+*claire's new table 1
+*first make an indicator for first observation of the person
+sort bene_id year
+by bene_id, sort: gen n1=_n
+gen keep=1 if n1==1
+svy, subpop (keep): tab dem_cohort
+
+gen adl0= 1 if adl_index==0
+replace adl0=0 if adl_index!=0 & adl_index!=.
+
+foreach var of varlist female hisp black educ_hs_ind medicaid married livealone region metro_ind adl0 adl_dep_2 adl_dep_3 homebound chronic_con_0 chronic_con_1 chronic_con_2 srh_fp died_in_12m {
+svy, subpop (keep): tab `var' dem_cohort, column
+}
+
+svy, subpop (keep): mean age
+svy, subpop (keep): mean age, over (dem_cohort)
+svy, subpop (keep): tab white dem_cohort, column
+svy, subpop (keep): tab ind_hosp_sq dem_cohort, column
+svy, subpop (keep): tab ind_family_helper dem_cohort, column
+
+*what is the avg number of sequences/person for people with dementia/nondementia
+svy, subpop (keep): mean num_seq, over(dem_cohort) 
+svy, subpop (keep): reg num_seq dem_cohort
+
+svy, subpop (keep): mean num_seq
+
+*what is the average number of episodes/sequence for the sequences attributed to dementia vs nondementia
+svy: mean len_sq, over(dem_cohort)
+svy: reg len_sq dem_cohort
+
+svy: mean len_sq
+
+*wh
+svy, subpop (keep): mean num_seq, over(dem_cohort) 
+svy, subpop (keep): mean num_seq
+
+
+svy, subpop (keep): tab dem_cohort, count cellwidth(15) format (%15.2g)
+
+***********
+***********
+***********
+*claire's new table 2
+
+*make a variable for categories of visits in the last 60 days
+recode visits_60 (0/2=1 "0-2") (3/6=2 "3-6")(7/30=3 "7+"), gen(visits60_3cat)
+recode visits_60 (0/1=1 "0-1") (2/6=2 "2-6")(7/30=3 "7+"), gen(visits60_3catnew)
+recode visits_60 (0/1=1 "0-1") (2/10=2 "2-10")(11/30=3 "11+"), gen(visits60_3cat2new)
+
+
+recode visits_30 (0/2=1 "0-2") (3/6=2 "3-6")(7/30=3 "7+"), gen(visits30_3cat)
+recode visits_30 (0/1=1 "0-1") (2/6=2 "2-6")(7/30=3 "7+"), gen(visits30_3catnew)
+
+*start of claire's added stuff
+*gen a variable called keepfe to include only the episodes where someone doesn't die, go into hospice, or hospitalized 60 days after start of encounter
+gen keepfe=1
+replace keepfe=0 if died_in_60==1
+replace keepfe=0 if ind_hosp_sq==1
+replace keepfe=0 if hs_in_60==1
+svy: logistic  any_vis_60 dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m comm_init , cformat(%4.2f)
+svy, subpop(keep): logistic  any_vis_60 dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m comm_init , cformat(%4.2f)
+svy, subpop(keepfe): mlogit visits60_3cat i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+svy, subpop(keepfe): mlogit visits30_3cat i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+svy, subpop(keepfe): mlogit visits60_3catnew i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+svy, subpop(keepfe): mlogit visits30_3catnew i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+svy, subpop(keepfe): reg visits_60 i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+svy, subpop(keepfe): mlogit visits60_3cat2new i.dem_cohort##i.comm_init
+margins dem_cohort#comm_init
+
+*new logit model
+recode comm_init (0=1)(1=0), gen(comm_init)
+recode income_quart (1=1)(2/4=0), gen(low_inc)
+gen aveincome_k=aveincome/10000
+
+outreg, clear
+svy: logistic comm_init dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m , cformat(%4.2f)
+*end of claire's added stuff
+
+H="claire attempt at new table 1"
+use "D:\NHATS\Projects\home health policy\cka_timing_HHA\data\final_data\timing_HHA.dta", clear
+
+gen all = 1
+
+recode post_int (0=1)(1=0), gen(comm_init)
+
+*keep if new_sq==1
+cap drop obs
+bysort bene_id: gen obs = _n
+by bene_id: egen num_seq = max(obs)
+label var num_seq "Av. # of sequences per person"
+
+gen num_seq_1 = 0
+replace num_seq_1 = 1 if num_seq==1
+label var num_seq_1 "Percentage of people with 1 sequence"
+
+gen num_seq_2 = 0
+replace num_seq_2 = 1 if num_seq>=2 & num_seq<=3
+label var num_seq_2 "Percentage of people with 2-3 sequences"
+
+gen num_seq_3 = 0
+replace num_seq_3 = 1 if num_seq>3
+label var num_seq_3 "Percentage of people with 4+ Sequences"
+
+gen unpaid_cg = 0
+replace unpaid_cg = 1 if ind_family_helper==1 | otherfamily_help_ind==1 | otherinformal_help_ind==1
+label var unpaid_cg "Has an unpaid caregiver"
+
+recode income_quart (1=1)(2/4=0), gen(low_inc)
+label var low_inc "Lowest income quartile"
+
 svyset sq_id [pw=anfinwgt], strata(varstrat)
 
-local ivars1 white hisp black female educ_hs_ind medicaid married metro_ind adl_independent adl_dep_2 adl_dep_3 homebound srh_fp ind_hosp_sq otherinformal_help_ind northeast midwest south west chronic_con_0 chronic_con_1 chronic_con_2 livealone died_in_12m died_in_60 snf_in_12m snf_in_60 ip_in_12m ip_in_60 hs_in_12m hs_in_60 
+cap drop obs
+sort bene_id admit_date
+by bene_id: keep if _n==1
+
+local ivars1 white hisp black female educ_hs_ind medicaid married metro_ind adl_independent adl_dep_2 adl_dep_3 homebound srh_fp ind_hosp_sq northeast midwest south west chronic_con_0 chronic_con_1 chronic_con_2 livealone died_in_12m died_in_60 snf_in_12m snf_in_60 ip_in_12m ip_in_60 hs_in_12m hs_in_60 unpaid_cg low_inc
 local cvars1 age hhm aveincome days_last_ivw sr_numconditions1 
 local ivars2 comm_init any_vis_60 len_sq_1 len_sq_2 len_sq_3 len_sq_4 num_seq_1 num_seq_2 num_seq_3
 local cvars2 len_sq num_seq
@@ -1405,6 +1757,7 @@ frmttable using "D:\NHATS\Projects\home health policy\cka_timing_HHA\output\In p
 varlabels title("Table 1: Unique HH Sequences (Weighted): 12m FFS prior to admit date of first episode in sequence") ///
 ctitles("" "All" "Non-Dementia" "Probable Dementia" "Unadjusted Logit OR: Comm. Initiated = 1" "Unadjusted Logit OR: Any Visit Day 31-60 = 1") sdec(2) annotate(stars) asymbol(*,**) ///
 note("NHATS Interview required in same year (before start of sequence) or prior calendar year. *p<0.05, **p<0.01")
+
 /*
 outreg, clear
 svy: logistic comm_init age hisp black female educ_hs_ind medicaid married metro_ind adl_dep_2 adl_dep_3 midwest south west livealone aveincome chronic_con_1 chronic_con_2 srh_fp dem_cohort died_in_12m, cformat(%4.2f)
@@ -1445,7 +1798,7 @@ svy, subpop (keep): tab dem_cohort
 gen adl0= 1 if adl_index==0
 replace adl0=0 if adl_index!=0 & adl_index!=.
 
-foreach var of varlist female hisp black educ_hs_ind medicaid married livealone region metro_ind adl0 adl_dep_2 adl_dep_3  homebound chronic_con_0 chronic_con_1 chronic_con_2 srh_fp died_in_12m {
+foreach var of varlist female hisp black educ_hs_ind medicaid married livealone region metro_ind adl0 adl_dep_2 adl_dep_3 homebound chronic_con_0 chronic_con_1 chronic_con_2 srh_fp died_in_12m {
 svy, subpop (keep): tab `var' dem_cohort, column
 }
 
@@ -1522,178 +1875,6 @@ gen aveincome_k=aveincome/10000
 outreg, clear
 svy: logistic comm_init dem_cohort age female black hisp educ_hs_ind low_inc medicaid livealone married i.region metro_ind adl_dep_2 adl_dep_3    chronic_con_1 chronic_con_2 srh_fp died_in_12m , cformat(%4.2f)
 *end of claire's added stuff
-
-H="claire attempt at new table 1"
-use "$final\timing_HHA.dta", clear
-
-
-*****VARIABLE CLEANING FOR TABLES AND FIGURES****
-gen all = 1
-
-cap drop obs
-bysort bene_id: gen obs = _n
-by bene_id: egen num_seq = max(obs)
-label var num_seq "Av. # of sequences per person"
-
-recode post_int (0=1)(1=0), gen(comm_init)
-
-*make a keep variable for the first observation of an individual
-sort bene_id year
-by bene_id, sort: gen n1=_n
-gen keep=1 if n1==1
-
-*make a variable for no adls (all other dummys are defined)
-
-gen adl0= 1 if adl_index==0
-replace adl0=0 if adl_index!=0 & adl_index!=.
-
-*make dummy vars for quartile of income
-tab income_quart, gen(inc_quart_dum)
-
-*************************************************
-
-****new table 1***
-svyset sq_id [pw=anfinwgt], strata(varstrat)
-svy, subpop (keep): tab dem_cohort
-
-
-local ivars1 female white black hisp educ_hs_ind inc_quart_dum1 inc_quart_dum2 inc_quart_dum3 inc_quart_dum4 medicaid married livealone northeast midwest south west metro_ind adl_independent adl_dep_2 adl_dep_3 homebound srh_fp ind_hosp_sq otherinformal_help_ind chronic_con_0 chronic_con_1 chronic_con_2  died_in_12m 
-local cvars1 age  days_last_ivw  
-local ivars2 comm_init
-local cvars2 len_sq num_seq
-local full 1 `ivars1' 1 `cvars1' 1 `ivars2' `cvars2' 1 1
-local rd: word count `full'
-
-mat tab1=J(`rd',3,.)
-mat stars=J(`rd',3,0)
-
-local r = 2
-local c = 1
-
-foreach x of local ivars1 {
-
-svy, subpop(keep): mean `x'
-mat tab1[`r',`c'] = (r(table)[1,1]*100)
-
-local ++c
-
-svy, subpop(keep): mean `x' if dem_cohort==0
-mat tab1[`r',`c'] = (r(table)[1,1]*100)
-
-local ++c
-svy, subpop(keep): mean `x' if dem_cohort==1
-mat tab1[`r',`c'] = (r(table)[1,1]*100)
-
-
-svy, subpop(keep): tab `x' dem_cohort
-mat stars[`r',`c'] = (e(p_Pear)<.01) + (e(p_Pear)<.05)
-
-local c =1
-local ++r
-}
-
-local ++r
-foreach y of local cvars1 {
-
-svy, subpop(keep): mean `y'
-mat tab1[`r',`c'] = r(table)[1,1]
-
-local ++c
-
-svy, subpop(keep): mean `y' if dem_cohort==0
-mat tab1[`r',`c'] = r(table)[1,1]
-
-local ++c
-svy, subpop(keep): mean `y' if dem_cohort==1
-mat tab1[`r',`c'] = r(table)[1,1]
-
-svy, subpop(keep): mean `y', over(dem_cohort)
-test c.`y'@0.dem_cohort= c.`y'@1.dem_cohort
-mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
-
-
-
-local c =1
-local ++r
-}
-
-local ++r
-foreach z of local ivars2 {
-
-
-svy, subpop(keep): mean `z'
-mat tab1[`r',`c'] = (r(table)[1,1]*100)
-
-local ++c
-
-svy, subpop(keep): mean `z' if dem_cohort==0
-mat tab1[`r',`c'] = (r(table)[1,1]*100)
-
-local ++c
-svy, subpop(keep): mean `z' if dem_cohort==1
-mat tab1[`r',`c'] = (r(table)[1,1]*100)
-
-
-svy, subpop(keep): tab `z' dem_cohort
-mat stars[`r',`c'] = (e(p_Pear)<.01) + (e(p_Pear)<.05)
-
-
-local c =1
-local ++r
-}
-
-foreach xx of local cvars2 {
-
-
-svy, subpop(keep): mean `xx'
-mat tab1[`r',`c'] = r(table)[1,1]
-
-local ++c
-
-svy, subpop(keep): mean `xx' if dem_cohort==0
-mat tab1[`r',`c'] = r(table)[1,1]
-
-local ++c
-svy, subpop(keep): mean `xx' if dem_cohort==1
-mat tab1[`r',`c'] = r(table)[1,1]
-
-svy, subpop(keep): mean `xx', over(dem_cohort)
-test c.`xx'@0.dem_cohort= c.`xx'@1.dem_cohort
-mat stars[`r',`c'] = (r(p)<.01) + (r(p)<.05)
-
-local c =1
-local ++r
-}
-
-/*
-svy: logit comm_init dem_cohort
-mat tab1[`r',4]=exp(el(e(b),1,1))
-mat stars[`r',4]=(e(p)<.01) + (e(p)<.05)
-
-svy: logit any_vis_60 dem_cohort
-mat tab1[`r',5]=exp(el(e(b),1,1))
-mat stars[`r',5]=(e(p)<.01) + (e(p)<.05)
-*/
-local ++r
-
-svy, subpop(keep): total all
-mat tab1[`r',1] = (e(N_pop))
-
-svy, subpop(keep): total all if dem_cohort==0
-mat tab1[`r',2] = (e(N_pop))
-
-svy, subpop(keep): total all if dem_cohort==1
-mat tab1[`r',3] = (e(N_pop))
-
-mat rownames tab1= "Categorical Predictors (%)" `ivars1' "Continuous Predictors (Average)" `cvars1' "HH Specific Predictors" `ivars2' `cvars2' "Sample Size"
-
-frmttable using "$output\table1_weighted_`c(current_date)'.rtf", replace statmat(tab1) ///
-varlabels title("Table 1: Unique HH Sequences (Weighted): 12m FFS prior to admit date of first episode in sequence") ///
-ctitles("" "All" "Non-Dementia" "Probable Dementia") sdec(2) annotate(stars) asymbol(*,**) ///
-note("NHATS Interview required in same year (before start of sequence) or prior calendar year. *p<0.05, **p<0.01")
-
-/*
-outreg, clear
 
 H="Rates of HH utilization and observation time"
 /* SAS */
@@ -2018,6 +2199,8 @@ starlevels(10 5 1) summstat(N) landscape replace
 
 
 H="Changelog"
+9/20/19 - Worked on adapting Claire's code to reproduce tables for the manuscript. OKR.
+
 9/10/19 - Calculated rates of HH utilization and observation time. OKR
 
 8/3- tweaked the logit models: categorized income, made outcome community-initiated referral, restricted the visit in day 31-60 model to those who weren't dead/in hospice/admitted to inpatient in first 60 days of episode. CKA
