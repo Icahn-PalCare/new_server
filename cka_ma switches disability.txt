@@ -628,6 +628,17 @@ replace q0ind=5 if q8ind==5
 	tab adl3cat, generate (adlcatdum)
 	tab homebound_3cat, generate (homebound_3catdum)
 
+	*prior functional variables
+	sort spid wave
+	bysort spid: gen adl3cat_prior=adl3cat[_n-1] 
+	
+	sort spid wave
+	bysort spid: gen ind_no_helpers_prior=ind_no_helpers[_n-1] 
+	
+	sort spid wave
+	bysort spid: gen homebound_3cat_prior=homebound_3cat[_n-1]
+
+	
 	
 	*CODING VARIABLES FOR INCIDENCE AND PERSONTIME OF SWITCHES
 	*NUMBER OF SWITCHES FOR MA AND FFS before and after disability
@@ -825,6 +836,13 @@ svy, subpop(keep):tab not_hs_educ firsthmo, column
 svy, subpop(keep):tab inc_low_qrt_prior firsthmo, column
 svy, subpop(keep):tab medicaid_prior firsthmo, column
 svy, subpop(keep):tab dem_2_cat_prior firsthmo, column
+svy, subpop(keep):tab nhres_prior firsthmo, column
+svy, subpop(keep):tab adl3cat_prior firsthmo, column
+svy, subpop(keep):tab ind_no_helpers_prior firsthmo, column
+svy, subpop(keep):tab homebound_3cat_prior firsthmo, column
+
+
+
 svy, subpop(keep):tab sr_phq2_depressed_prior firsthmo, column
 svy, subpop(keep):tab sr_gad2_anxiety_prior firsthmo, column
 svy, subpop(keep):tab srh_fp_prior firsthmo, column
