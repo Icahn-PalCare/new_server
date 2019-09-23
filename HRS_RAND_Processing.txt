@@ -1,0 +1,108 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="First Heading"
+/* 
+********************HEADING******************** 
+
+Project Name: HRS RAND Processing
+
+Date Started: 9/23/2019
+
+Primary Investigator:
+Funding Source:
+
+Created by: 
+
+Primary Analyst:
+Secondary Analyst:
+
+Datasets Used: RAND HRS
+
+Simple Outline: Cleaning the RAND HRS dataset.
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+
+//Intermediate Data Path
+global intpath "D:\HRS\Shared\base_data\hrs_cleaned\working\"
+
+// Final Data Path
+gloabl datapath "D:\HRS\Shared\base_data\hrs_cleaned\"
+
+//Log files path
+gloabl logpath "D:\HRS\Shared\base_data\hrs_cleaned\logs"
+
+
+
+
+
+H="Generic template"
+/*
+
+Created by: 
+Date Created:
+
+Updated by:
+Date Updated:
+
+Description: What is going on in this section of the code? 
+i.e. defining variables, labeling variables. Creating new quartiles for income based off of something....
+
+
+
+**************************************************
+*/
+local date = subinstr("$S_DATE"," ","_",.) 
+local name @INSERTNAME_`date'
+di "`name'"
+
+capture log close 
+clear all
+
+set more off
+version 12
+set linesize 80
+
+
+cd `datapath'
+log using `name'.smcl, text replace
+
+
+.
+.
+.
+.
+.
+.
+.
+.
+
+
+
+
+log close
+translate `name'.smcl `name'.pdf
+exit
+
+
+
+H="Change log"
+
+
+********************Change Log******************** 
+
+
+
+Updates:
+
+
+
+09/23/2019 MH
+------------
+Began adding in file paths and filling out code template. 
+
+
+*/

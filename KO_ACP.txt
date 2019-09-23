@@ -970,14 +970,14 @@ Created by: Mohammed
 Date Created: 01/25/2019
 
 Updated by: MH
-Date Updated: 05/31/2019
+Date Updated: 09/13/2019
 
 Description: Data cleaning section.
 
 **************************************************
 */
 
-use "${clean_nhats}/sp_round_1_7.dta" if wave==2, clear
+use "${clean_nhats}/sp_round_1_8.dta" if wave==8 & age>=65, clear
 
 gen soc_iso=1 if n_social_network!=.
 replace soc_iso=0 if n_social_network==0
@@ -1016,6 +1016,14 @@ gen comor=.
 replace comor=0 if sr_numconditions1==0
 replace comor=1 if !missing(sr_numconditions1) & sr_numconditions1>1 
 
+gen no_kids=.
+replace no_kids=0 if ind_kids==1
+replace no_kids=1 if ind_kids==0
+
+gen no_marr=.
+replace no_marr=0 if married==1
+replace no_marr=1 if married==0
+
 label var male "Male"
 label var ownhome0 "No Own Home"
 label var srh_fp0 "Self reported health==Good+"
@@ -1037,7 +1045,8 @@ label var education4 ">=College Degree"
 label var lninc "ln(income)"
 label var non_white "Non-White"
 lab var comor "Any Comorbidites"
-
+lab var no_kids "No Children"
+lab var no_marr "Not Married"
 
 gen ab=.
 replace ab=0 if informal==1
@@ -1083,7 +1092,7 @@ Created by: Mohammed
 Date Created: 04/22/2019
 
 Updated by: MH
-Date Updated: 05/31/2019
+Date Updated: 08/26/2019
 
 Description: Data cleaning section.
 
@@ -1160,30 +1169,39 @@ save `a'
 
 use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta" if core_year==2012, replace 
 
-merge 1:1 hhid pn core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", nogen keepusing(living_kids_ind) keep(matched)
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", keepusing(has* living_kids_ind) keep(matched) nogen
 
 merge 1:1 hhid pn using "`a'", keepusing(no_acp acp formal_acp informal_acp) nogen keep(matched)
 
-merge 1:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta" , nogen force keep(matched)
+merge 1:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta" ,  force keep(matched) nogen
 
-merge 1:1 hhid pn using "${final}/H12LB_R.dta", nogen force keep(matched)
+merge 1:1 hhid pn using "${final}/H12LB_R.dta", force keep(matched) nogen
 
 //merge m:1 hhid nsubhh using "E:\data\hrs_public_2012\core\household.dta", keepusing(nh004)
 
 merge 1:1 hhid pn using "${final}/incwlth_p.dta", keepusing(h12wohous) nogen keep(matched)
 
-rename hhid HHID 
-rename pn PN
+rename hhid, u 
+rename pn, u
 merge 1:1 HHID PN using "D:\HRS\Shared\raw\HRS\hrs_tracking_2016\TRK2016TR_R.dta", keepusing(NLIVARR) keep(matched) nogen
 
 rename NLIVARR, l
 rename HHID,l
 rename PN,l
 
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", keepusing(hhid pn core_year pdem) keep(master matched) nogen
+gen prob_dem=.
+replace prob_dem=0 if pdem<.5 & !missing(pdem)
+replace prob_dem=1 if pdem>=.5 & !missing(pdem)
+
+
+
 format %td birth_date
 
 gen age= c_ivw_date-birth_date
 replace age=floor(age/365.25)
+
+keep if age>=65
 
 gen male=0 if !missing(female)
 replace male=1 if female==0
@@ -1249,6 +1267,9 @@ gen dem0=.
 replace dem0=0 if dem==1
 replace dem0=1 if dem==0
 
+gen prob_dem1=prob_dem
+replace prob_dem1=dem if prob_dem1==.
+
 replace nlb020g=1 if nlb020g==2
 replace nlb020g=0 if nlb020g==3
 
@@ -1281,6 +1302,17 @@ replace hispoth=1 if inlist(race_cat,3,4)
 gen comor=.
 replace comor=0 if comor_c_hrs==0
 replace comor=1 if inlist(comor_c_hrs,1,2,3)
+
+//no children
+gen no_child=.
+replace no_child=0 if hasownkid==1 | hasstepkid==1
+replace no_child=1 if (hasownkid==0 | hasownkid==.) & (hasstepkid==0 | hasstepkid==.)
+
+//not married
+gen no_marr=.
+replace no_marr=0 if married==1
+replace no_marr=1 if married==0
+
 
 
 lab var educ1 "<HS"
@@ -1318,10 +1350,13 @@ lab var dem_hrs "SR Dementia"
 lab var nlb020g "People you can turn to"
 lab var talk "People you can talk to"
 lab var noone_talk "No one to talk to"
-lab var non_white "Non-White"
+lab var non_white "Non-White, Minority"
 lab var lnassets "ln(income)"
 label var adl_imp "ADL Impairment"
 lab var comor "Any Comorbidites"
+lab var no_child "No Children"
+lab var no_marr "Not Married"
+lab var prob_dem1 "Probable Dementia"
 //lab var hisp_oth "Hispanic, Other"
 
 gen ab=.
@@ -2467,7 +2502,7 @@ Created by: Mohammed
 Date Created: 03/25/2019
 
 Updated by: MH
-Date Updated: 07/24/2019
+Date Updated: 09/13/2019
 
 Description: Multinomial Logit model with base being no ACP. 3 different model 
 specifications created. Social variable changed.
@@ -2638,6 +2673,150 @@ title("HRS Multinomial Logistic Model") merge eq_merge replace starlevels(10 5 1
 capture log close
 
 
+H="NHATS social 2 models"
+/*
+
+Created by: Mohammed 
+Date Created: 03/25/2019
+
+Updated by: MH
+Date Updated: 09/13/2019
+
+Description: Multinomial Logit model with base being no ACP. 2 different model 
+specifications created. Social variable changed.
+
+
+**************************************************
+*/
+
+local date = subinstr("$S_DATE"," ","_",.) 
+local name NHATS_ACP_logit2_`date'
+di "`name'"
+
+capture log close
+
+log using "${logs}/`name'.smcl", text replace
+
+
+/*
+Using Wave 2 NHATS data b/c that is where ACP questions are asked.
+Using a Multinomail Logisitic Regression with the base being Formal ACP. 
+3 different specifications. 
+
+*/
+
+use "${final}/nhats_acp.dta", clear
+
+local social live_alone no_kids no_marr noone_talk
+
+foreach x in `social'{
+tab `x', m
+}
+
+mlogit cat `social', rrr b(2) 
+
+///getting sample sizes for each group
+forvalues x=0/3{
+sum `vars' if cat==`x' & cat!=. & live_alone!=. & no_kids!=. & no_marr!=. & noone_talk!=. 
+local `x'=`r(N)'
+}
+
+outreg using "${output}/mlogit_nhats_2model", varlabels stats(e_b e_ci p) ctitles("" "Two-Pronged (N=`3')" "Discussions(N=`1') " "No ACP (N=`0')" \ "" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" \"" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)") ///
+title("NHATS Multinomial Logistic Model") /*note("Base is Formal received" \ "0-No ACP(`0') vs Base(`2')" \ ///
+"1-Informal(`1') vs Base(`2')" \ "3-Two-Pronged(`3') vs Base(`2')")*/ starlevels(10 5 1) replace  eq_merge
+
+
+local demo age female education4 lninc non_white ownhome 
+local health srh_fp comor adl_impair prob_dem sr_hosp_ind sr_phq2_depressed
+foreach x in `demo' `health'{
+tab `x', m
+}
+
+mlogit cat `social' `demo' `health', rrr b(2) 
+
+///getting sample sizes for each group
+forvalues x=0/3{
+sum `vars' if cat==`x' & cat!=. & live_alone!=. & no_kids!=. & no_marr!=. & noone_talk!=. & age!=. & female!=. & education4!=. & lninc!=. & non_white!=. & ownhome!=. & srh_fp!=. & comor!=. & adl_impair!=. & prob_dem!=. & sr_hosp_ind!=. & sr_phq2_depressed!=.
+local `x'=`r(N)'
+}
+
+outreg using "${output}/mlogit_nhats_2model", varlabels stats(e_b e_ci p) ctitles("" "Two-Pronged (N=`3')" "Discussions(N=`1') " "No ACP (N=`0')" \ "" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" \"" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)") ///
+title("NHATS Multinomial Logistic Model") /*note("Base is Formal received" \ "0-No ACP(`0') vs Base(`2')" \ ///
+"1-Informal(`1') vs Base(`2')" \ "3-Two-Pronged(`3') vs Base(`2')")*/ starlevels(10 5 1) replace merge eq_merge
+
+capture log close
+
+H="HRS social 2 models"
+/*
+
+Created by: Mohammed 
+Date Created: 04/22/2019
+
+Updated by: MH
+Date Updated: 08/22/2019
+
+Description: Multinomial Logit model with base being no ACP. 3 different model 
+specifications created. Social varaible changed.
+
+
+
+**************************************************
+*/
+
+local date = subinstr("$S_DATE"," ","_",.) 
+local name HRS_ACP_logit3_`date'
+di "`name'"
+
+capture log close 
+
+
+
+log using "${logs}/`name'.smcl", text replace
+
+
+/*
+HRS ACP section 3 different model sepcification. 
+*/
+
+use "${final}\hrs_acp.dta", replace
+
+local social live_alone no_child no_marr noone_talk
+
+foreach x in `social'{
+tab `x', m
+}
+
+mlogit cat `social', b(2) rr
+
+///getting sample sizes for each group
+forvalues x=0/3{
+sum `vars' if cat==`x' & cat!=. & live_alone!=. & no_child!=. & no_marr!=. & noone_talk!=.
+local `x'=`r(N)'
+}
+
+outreg using "${output}\mlogit_hrs_2model", varlabels stats(e_b e_ci p) ctitles("" "Two-Pronged (N=`3')" "Discussions(N=`1') " "No ACP (N=`0')" \ "" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" \"" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)") ///
+title("HRS Multinomial Logistic Model") replace eq_merge starlevels(10 5 1)
+
+
+local demo age female educ4 lnassets non_white h12wohous
+
+local health srh_pf comor adl_imp prob_dem1 hosp_last_2yr cesd_tot_ge3_n
+
+mlogit cat `social' `demo' `health', b(2) rr
+
+///getting sample sizes for each group
+forvalues x=0/3{
+sum `vars' if cat==`x' & live_alone!=. & live_alone!=. & no_child!=. & no_marr!=. & noone_talk!=. & age!=. & female!=. & educ4!=. & lnassets!=. & non_white!=. & h12wohous!=. & srh_pf!=. & comor!=. & adl_imp!=. & prob_dem1!=. & hosp_last_2yr!=. & cesd_tot_ge3_n!=. 
+local `x'=`r(N)'
+}
+
+outreg using "${output}\mlogit_hrs_2model", varlabels stats(e_b e_ci p) ctitles("" "Two-Pronged (N=`3')" "Discussions(N=`1') " "No ACP (N=`0')" \ "" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" "VS. Formal Only (N=`2')" \"" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)" "Relative Risk Ratio (CI)") ///
+title("HRS Multinomial Logistic Model") merge eq_merge replace starlevels(10 5 1)
+
+
+capture log close
+
+
 H="Changelog"
 
 
@@ -2646,6 +2825,21 @@ H="Changelog"
 
 
 Updates:
+09/13/2019 MH
+------------
+Restrict to use Wave 8 NHATS only instead of Wave 2. 
+
+08/26/2019 MH
+------------
+Age 65+ restrition made. 
+
+08/22/2019 MH
+------------
+Changed how dementia was defined in HRS. 
+
+08/21/2019 MH
+------------
+Created new tables as per email on 8/21 to have socail vars be 1 if live alon, no children, not married, no one in network. 2 model specification. 
 
 07/24/2019 MH
 ------------

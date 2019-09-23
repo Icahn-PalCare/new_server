@@ -1326,7 +1326,7 @@ by bene_id: keep if _n==_N
 merge 1:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keep(match) nogen
 
 keep bene_id spid ma1 ma2 hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year death_month
-merge 1:m spid using "`nhats'", nogen
+merge 1:m spid using "`nhats'", nogen keep(match)
 
 label var ma1 "MA approach 1"
 label var ma2 "MA approach 2 (12 month)"
@@ -1860,7 +1860,7 @@ svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_informed late
 H="*********MH added MA section********"
 
 
-H="Part2-- MA added in"
+H="xxxxxxxxPart2-- MA added in"
 tempfile nhats
 save "`nhats'"
 
@@ -2043,6 +2043,10 @@ H="Change log"
 
 
 Updates:
+09/16/2019 MH
+------------
+Small change to keep only those people in NHATS who match with MA definition. 
+
 08/08/2019 MH
 ------------
 Made changes to the code to fix problem with MA population. 

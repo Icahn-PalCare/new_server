@@ -1206,7 +1206,6 @@ gen all = 1
 
 recode post_int (0=1)(1=0), gen(comm_init)
 
-
 gen unpaid_cg = 0
 replace unpaid_cg = 1 if ind_family_helper==1 | otherfamily_help_ind==1 | otherinformal_help_ind==1
 label var unpaid_cg "Has an unpaid caregiver"
@@ -1215,13 +1214,16 @@ recode income_quart (1=1)(2/4=0), gen(low_inc)
 label var low_inc "Lowest income quartile"
 
 svyset sq_id [pw=anfinwgt], strata(varstrat)
-preserve
 
+
+
+preserve
 keep if new_sq==1
 cap drop obs
 bysort bene_id: gen obs = _n
 by bene_id: egen num_seq = max(obs)
 label var num_seq "Av. # of sequences per person"
+
 
 gen num_seq_1 = 0
 replace num_seq_1 = 1 if num_seq==1
@@ -1417,7 +1419,7 @@ mat rownames tab1= "Categorical Predictors (%)" `ivars1' "Continuous Predictors 
 
 frmttable using "D:\NHATS\Projects\home health policy\cka_timing_HHA\output\In progress\table1_weighted_`c(current_date)'.rtf", replace statmat(tab1) ///
 varlabels title("Table 1: Unique Persons (1st Sequence, Weighted): 12m FFS prior to admit date of first episode in sequence") ///
-ctitles("" "All" "Non-Dementia" "Probable Dementia" "Unadjusted Logit OR: Comm. Initiated = 1" "Unadjusted Logit OR: Any Visit Day 31-60 = 1") sdec(2) annotate(stars) asymbol(*,**) ///
+ctitles("" "All" "Non-Dementia" "Probable Dementia" "Unadjusted Logit OR: Comm. Initiated = 1" "Unadjusted Logit OR: Any Visit Day 31-60 = 1") sdec(1) annotate(stars) asymbol(*,**) ///
 note("NHATS Interview required in same year (before start of sequence) or prior calendar year. *p<0.05, **p<0.01")
 
 restore
@@ -1443,6 +1445,35 @@ varlabels stats(e_b e_ci p) nosubstat ///
 title("Adjusted Logistic Regression (Weighted): Outcome=Sequence initatiated in Community") ///
 ctitles("" "Std. Coefficient" "95% CI" "P-value") ///
 starlevels(10 5 1) summstat(N) landscape replace
+
+
+** av. number of sequences/person
+preserve
+keep if new_sq==1 // only keep episodes that start a sequence
+cap drop obs
+bysort bene_id: gen obs = _n
+by bene_id: egen num_seq = max(obs) // count number of sequences per person
+by bene_id: egen av_len_sq = mean(len_sq) // average sequence length by person
+sort bene_id year
+by bene_id, sort: gen n1=_n
+gen keep=1 if n1==1 // only keep unique people
+svy, subpop (keep): mean num_seq
+svy, subpop (keep): mean num_seq, over(dem_cohort)
+test c.num_seq@0.dem_cohort= c.num_seq@1.dem_cohort // ttest
+
+** av. number of episodes/sequence
+svy, subpop (keep): mean av_len_sq
+svy, subpop (keep): mean av_len_sq, over(dem_cohort) // av sequence length of av sequence length by person
+test c.av_len_sq@0.dem_cohort= c.av_len_sq@1.dem_cohort // ttest
+
+restore
+
+
+
+
+
+
+
 
 /*
 
@@ -2199,6 +2230,7 @@ starlevels(10 5 1) summstat(N) landscape replace
 
 
 H="Changelog"
+
 9/20/19 - Worked on adapting Claire's code to reproduce tables for the manuscript. OKR.
 
 9/10/19 - Calculated rates of HH utilization and observation time. OKR
