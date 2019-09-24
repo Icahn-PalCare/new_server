@@ -10901,7 +10901,6 @@ proc sort data=hcc.diag_hcc nodup; by hicno; run;
 
 
 H="Changelog"
-dd
 8/1/2019 - Changed data construction to cap waves of nonhousecalls to wave 6, created 4 column table, and rebuilt the data from base on the new server. OKR.
 
 5/14/19 - Changed housecalls definition to 2+ CPT codes or CPT code + NH/Death in +/- 90 days. Omari.
