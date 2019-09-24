@@ -13,7 +13,7 @@ Funding Source:
 
 Created by: 
 
-Primary Analyst:
+Primary Analyst: MH
 Secondary Analyst:
 
 Datasets Used: RAND HRS
@@ -27,36 +27,35 @@ Simple Outline: Cleaning the RAND HRS dataset.
 // Global Macros use $ symbol to be called. 
 
 //Intermediate Data Path
-global intpath "D:\HRS\Shared\base_data\hrs_cleaned\working\"
+global work "D:\HRS\Shared\base_data\hrs_cleaned\working\"
 
 // Final Data Path
-gloabl datapath "D:\HRS\Shared\base_data\hrs_cleaned\"
+global datapath "D:\HRS\Shared\base_data\hrs_cleaned\"
 
 //Log files path
-gloabl logpath "D:\HRS\Shared\base_data\hrs_cleaned\logs"
+global logpath "D:\HRS\Shared\base_data\hrs_cleaned\logs\"
 
+//RAND datapath
+global randpath "D:\HRS\Shared\raw\HRS..."
 
-
-
+cd "${work}"
 
 H="Generic template"
 /*
 
-Created by: 
-Date Created:
+Created by: MH
+Date Created: 09/24/2019
 
-Updated by:
-Date Updated:
+Updated by: MH
+Date Updated: 09/24/2019
 
-Description: What is going on in this section of the code? 
-i.e. defining variables, labeling variables. Creating new quartiles for income based off of something....
-
+Description: HRS RAND file pull in and begin cleaning data
 
 
 **************************************************
 */
 local date = subinstr("$S_DATE"," ","_",.) 
-local name @INSERTNAME_`date'
+local name 1-HRS_RAND_`date'
 di "`name'"
 
 capture log close 
@@ -65,20 +64,17 @@ clear all
 set more off
 version 12
 set linesize 80
+set maxvar 10000
 
 
-cd `datapath'
-log using `name'.smcl, text replace
+log using "${logs}/`name'.smcl", text replace
 
+cd "${work}"
 
-.
-.
-.
-.
-.
-.
-.
-.
+***************************************************
+
+use 
+
 
 
 
