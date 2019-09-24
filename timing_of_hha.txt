@@ -1457,12 +1457,17 @@ by bene_id: egen av_len_sq = mean(len_sq) // average sequence length by person
 sort bene_id year
 by bene_id, sort: gen n1=_n
 gen keep=1 if n1==1 // only keep unique people
+
+***SEQUENCES/PERSON FOR TABLE
 svy, subpop (keep): mean num_seq
+estat sd
 svy, subpop (keep): mean num_seq, over(dem_cohort)
+estat sd
 test c.num_seq@0.dem_cohort= c.num_seq@1.dem_cohort // ttest
 
 ** av. number of episodes/sequence
-svy, subpop (keep): mean av_len_sq
+svy, subpop(keep): mean av_len_sq
+
 svy, subpop (keep): mean av_len_sq, over(dem_cohort) // av sequence length of av sequence length by person
 test c.av_len_sq@0.dem_cohort= c.av_len_sq@1.dem_cohort // ttest
 
