@@ -1,8 +1,7 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Project Outline"
-/* 
-********************HEADING******************** 
+/* ********************HEADING********************/
 
 Project Name: How variations in state Medicaid affect caregiver burden
 
