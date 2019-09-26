@@ -751,6 +751,108 @@ mat list tab1
 frmttable using "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\output\Table1_`c(current_date)'.rtf", ///
 statmat(tab1) varlabels ctitles("Variables", "LTSS Quartile 1", "LTSS Quartile 2", "LTSS Quartile 3", "LTSS Quartile 4") title("Exhibit 1") sdec(2) note("*Indicates reported value was inflation adjusted to 2016 dollars") replace
 
+H="Regression Check"
+use $fin\medicaid_cg_burden_id.dta, clear
+
+cap drop all
+gen all = 1
+label var all "Weighted Population Estimates"
+
+local ivars female black hisp_eth hseduc married srh_pf dem_cohort dm_hrs depression heart_hrs lung_hrs stroke_hrs smoke_curr living_kids_ind death_2_yr any_adl_diff any_adl_help paid_cg informal_cg overweight comor_4 nhres livealone live_in_comm
+local cvars months_from_medicaid age networth hlphrs_i 
+
+
+local rd: word count 1 `ivars' 1 `cvars' 1
+
+mat tab1 = J(`rd',12,.)
+
+
+forvalues i=1/4 {
+
+gen ltss_q`i' = 0
+replace ltss_q`i' = 1 if ltss_persenior_quart==`i'
+}
+
+local r = 2
+*local c = 1
+
+foreach x of local ivars {
+
+logit `x' ltss_q1 [fweight=regwt]
+estimates store `x'_q1
+
+mat tab1[`r',1] = r(table)[1,1] // beta
+mat tab1[`r',2] = r(table)[5,1] // lower CI
+mat tab1[`r',3] = r(table)[6,1] // upper CI
+
+logit `x' ltss_q2 [fweight=regwt]
+estimates store `x'_q2
+
+mat tab1[`r',4] = r(table)[1,1] // beta
+mat tab1[`r',5] = r(table)[5,1] // lower CI
+mat tab1[`r',6] = r(table)[6,1] // upper CI
+
+logit `x' ltss_q3 [fweight=regwt]
+estimates store `x'_q3
+
+mat tab1[`r',7] = r(table)[1,1] // beta
+mat tab1[`r',8] = r(table)[5,1] // lower CI
+mat tab1[`r',9] = r(table)[6,1] // upper CI
+
+logit `x' ltss_q4 [fweight=regwt]
+estimates store `x'_q4
+
+mat tab1[`r',10] = r(table)[1,1] // beta
+mat tab1[`r',11] = r(table)[5,1] // lower CI
+mat tab1[`r',12] = r(table)[6,1] // upper CI
+
+local ++r
+}
+
+local ++r
+
+foreach x of local cvars {
+
+regress `x' ltss_q1 [fweight=regwt]
+estimates store `x'_q1
+
+mat tab1[`r',1] = r(table)[1,1] // beta
+mat tab1[`r',2] = r(table)[5,1] // lower CI
+mat tab1[`r',3] = r(table)[6,1] // upper CI
+
+regress `x' ltss_q2 [fweight=regwt]
+estimates store `x'_q2
+
+mat tab1[`r',4] = r(table)[1,1] // beta
+mat tab1[`r',5] = r(table)[5,1] // lower CI
+mat tab1[`r',6] = r(table)[6,1] // upper CI
+
+regress `x' ltss_q3 [fweight=regwt]
+estimates store `x'_q3
+
+mat tab1[`r',7] = r(table)[1,1] // beta
+mat tab1[`r',8] = r(table)[5,1] // lower CI
+mat tab1[`r',9] = r(table)[6,1] // upper CI
+
+regress `x' ltss_q4 [fweight=regwt]
+estimates store `x'_q4
+
+mat tab1[`r',10] = r(table)[1,1] // beta
+mat tab1[`r',11] = r(table)[5,1] // lower CI
+mat tab1[`r',12] = r(table)[6,1] // upper CI
+
+local ++r
+}
+
+
+
+mat rownames tab1 = "Categorical (%)" `ivars' "Continuous (mean)" `cvars' all
+
+mat list tab1 
+
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_medicaid_caregiver_burden\output\Regression_`c(current_date)'.rtf", ///
+statmat(tab1) varlabels ctitles("Variables", "Q1 Beta", "Q1 Lower CI", "Q1 Upper CI", "Q2 Beta", "Q2 Lower CI", "Q2 Upper CI", "Q3 Beta", "Q3 Lower CI", "Q3 Upper CI", "Q4 Beta", "Q4 Lower CI", "Q4 Upper CI") title("Bivariate Regressions") sdec(4) replace
+
 H="******* 4th Iteration ************"
 
 
@@ -2838,6 +2940,8 @@ You can write a loop to visualize some of variables
 
 
 H="Changelog"
+9/26/19 - Created table of bivariate regression to compare quartiles. OKR
+
 8/30/19 - Separated NH, Live in Comm (alone vs with others) into mutually exclusive categories. Also carried forward N1 values for people misssing a P1 Core. OKR
 
 8/23/19 - Fixed informal care hours (changed missing hours to zero) and fixed livesalone for non-exit interviews (only exit dataset has a livealone variable). OKR
