@@ -47,7 +47,7 @@ Created by: MH
 Date Created: 09/24/2019
 
 Updated by: MH
-Date Updated: 09/24/2019
+Date Updated: 09/30/2019
 
 Description: HRS RAND file pull in and begin cleaning data
 
@@ -74,21 +74,26 @@ cd "${work}"
 ***************************************************
 
 use "${randpath${year}}randhrs1992_${year}v1.dta", clear
+rename ra* *_ra
 
 forvalues w=$w(-1)1{
 di "`w'"
 rename (r`w'* s`w'* h`w'*) (*_r_`w' *_s_`w' *_h_`w')
 //rename (*_r *_s) (*_1 *_2)
 }
+rename hhidpn_ra id
 
+local a 1992
 forvalues w=1/$w{
 preserve
-keep hhidpn  *_`w'
+keep hhidpn *_`w' *_ra
 rename (*_`w') (*)
 gen wave=`w'
+gen core_year=`a'
 tempfile wave_`w'
 save "`wave_`w''"
 restore
+local a=`a'+2
 }
 
 use "`wave_1'", clear
@@ -97,11 +102,11 @@ forvalues w=2/$w{
 append using "`wave_`w''"
 }
 
-rename hhidpn_s hhidpn_sp
+rename (hhidpn_s) (hhidpn_sp)
 
 foreach x in r s h{
 preserve
-keep hhidpn hhidpn_sp wave *_`x'
+keep hhidpn hhidpn_sp wave core_year *_`x' *_ra
 //the below rename is done because these are household vars that have the same name as respondent and spouse vars. Must make sure to not overwrite vars in the merge below, since the vars can measure two seperate things. 
 capture rename (sswrer_h sswrnr_h sswrxa_h oopmd_h oopmdf_h ifssi_h iirawy1_h iiraw_h ifiraw_h nhmliv_h)  (sswrer_hh sswrnr_hh sswrxa_hh oopmd_hh oopmdf_hh ifssi_hh iirawy1_hh iiraw_hh ifiraw_hh nhmliv_hh)
 
@@ -115,11 +120,43 @@ restore
 }
 
 use "`r'", clear
-append using "`s'"
+//append using "`s'" ; don't need s since they come in r. 
 merge m:1 hhidpn wave using "`h'", nogen
+
+rename *_ra *
 
 drop if proxy==. | proxy==.u
 
+//Begin data cleaning
+
+label proxy "Proxy Interview"
+label define proxy 0 "Not Proxy" 1 "Proxy"
+label values proxy proxy
+
+//gender
+gen female=. 
+replace female=0 if gender==1
+replace female=1 if gender==2
+label define female 0 "Male" 1 "Female", modify
+label values female female
+
+note female: gender
+note female: HRS processing
+note female: 9/30/2019 MH
+
+// education
+replace educ=2 if educ==3
+replace educ=3 if educ==4
+replace educ=4 if educ==5
+label educ "Education"
+label define educ 0 "< High School" 1 "GED" 2 "GED/HS Graduate" 3 "Some College" 4 "College and above"
+
+//
+
+
+
+
+/*
 gen core_year=1992 if wave==1
 
 local a 1994
@@ -128,10 +165,11 @@ replace core_year=`a' if wave==`w'
 di "`a'"
 local a=`a'+2
 }
+*/
 
-replace spouse="1" if spouse=="s"
-replace spouse="0" if spouse=="r"
-destring spouse, replace
+
+
+
 
 /*
 rename hhidpn hhidpn_o
@@ -228,6 +266,10 @@ H="Change log"
 
 
 Updates:
+09/30/2019 MH
+------------
+
+Began cleaning and renaming to make consistent variables. 
 
 09/26/2019 MH
 ------------
