@@ -2576,7 +2576,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 09/18/2019
+Date Updated: 10/03/2019
 
 Description: This section uses the SP and OP data files and imputes
 hours of help provided to SP per methods in NHATS Technical Paper #7
@@ -2631,7 +2631,7 @@ save `resttrack'
 //Does not need to change, unless get new metro file. 
 
 //7/13/17--add in metro/nonmetro var
-use "D:\NHATS\Shared\raw\NHATS\NHATS Public\NHATS_Round_1_6_MetNonmet_STATA\NHATS_Round_1_6_MetNonmet.dta", clear
+use "D:\NHATS\Shared\raw\NHATS\NHATS Public\NHATS_Round_1_8_MetNonmet_STATA\NHATS_Round_1_8_MetNonmet.dta", clear
 forvalues w=1/6 {
 gen metro_ind`w'=r`w'd==1 if inrange(r`w'd,1,2)
 }
@@ -7146,6 +7146,10 @@ H="Changelog"
 
 
 Updates:
+
+10/03/2019 MH
+----------
+Updated to Wave 8 final version. Metro non-metro file updated. 
 
 09/18/2019 MH
 ----------
