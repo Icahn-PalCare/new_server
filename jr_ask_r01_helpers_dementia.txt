@@ -15386,7 +15386,7 @@ use "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\final_d
 
 cd "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress"
 merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", gen(famm) keep(match master)
-
+by id, sort: egen nhres_n1=max(cond(nflag==1 & nhres==1),1,0)
 gen kidcat=kid_adult_ind+1
 replace kidcat=3 if kid_adult_nearby==1
 replace kidcat=4 if living_kids_ind==1 & kid_adult_ind==0
@@ -15412,7 +15412,7 @@ merge 1:1 id using `core', keep(match master) nogen
 
 
 keep id tot_paid_by_mc_y* tot_paid_maid_y* oop_y* hlp_*y* dem_cohort ///
-imputed_nh_costs_b_y* reschil_d_n1 married_or_part helpcat
+imputed_nh_costs_b_y* reschil_d_n1 married_or_part helpcat nhres_n1
 
 rename tot_paid_by_mc_y* mc*
 rename tot_paid_maid_y* mcaid*
@@ -15433,7 +15433,7 @@ foreach x in mc mcaid oop hlp_i hlp_s hlp_ns hlp_k hlp_oth nh {
 }
 }
 
-keep id mc* mcaid* oop* hlp* cum* dem_cohort nh* reschil_d_n1 married_or_part helpcat
+keep id mc* mcaid* oop* hlp* cum* dem_cohort nh* reschil_d_n1 married_or_part helpcat nhres_n1
 
 rename *hlp_i* *hlp*
 
@@ -15572,6 +15572,10 @@ label var `y'hlp_k "`y' Help from kids"
 label var `y'hlp_ns "`y' Non-spouse help"
 label var `y'hlp_oth "`y' Non-spouse, non-kid help"
 }
+keep *hlp* year dem_cohort helpcat
+export excel using ///
+"D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\graphs_data_helper_hours`c(current_date)'.xls", ///
+firstrow(varlabels) sheet(3_categories, replace) 
 
 restore
 preserve
@@ -15613,6 +15617,50 @@ keep *hlp* year dem_cohort married_or
 export excel using ///
 "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\graphs_data_helper_hours`c(current_date)'.xls", ///
 firstrow(varlabels) sheet(marital, replace) 
+
+
+
+restore
+preserve
+
+collapse (mean) mc mcaid oop hlp* all cummc cummcaid cumoop cumhlp* cumall ///
+nh cumnh (semean) `se', by(dem_cohort year_before_death nhres_n1)
+
+rename (mc mcaid oop hlp* all) (annumc annumcaid annuoop annuhlp* annuall)
+	
+
+	twoway (connected `x'hlp_s year if dem_cohort==0 & nhres_n1==1) (connected `x'hlp_k year if dem_cohort==0 & nhres_n1==1) ///
+	(connected `x'hlp_oth year if dem_cohort==0 & nhres_n1==1), ///
+	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers")) ///
+	xlabel(1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1")  ///
+	name(`x'_no_dem, replace) title("No Dementia")
+
+	twoway (connected `x'hlp_s year if dem_cohort==1 & nhres_n1==1) ///
+	(connected `x'hlp_k year if dem_cohort==1 & nhres_n1==1) ///
+	(connected `x'hlp_oth year if dem_cohort==1 & nhres_n1==1), ///
+	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers"))  ///
+	xlabel(1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1")  ///
+	name(`x'_dem, replace) title("Dementia")
+
+	graph combine `x'_no_dem `x'_dem, ycommon
+	graph save hlp_hours_by_type_nhres.gph, replace
+	graph export `x'_hlp_hours_by_type_nhres.pdf, replace	
+
+
+drop *se_* *hlp_f*
+
+foreach y in annu cum {
+
+label var `y'hlp "`y' Help from all informal sources"
+label var `y'hlp_s "`y' Help from spouse"
+label var `y'hlp_k "`y' Help from kids"
+label var `y'hlp_ns "`y' Non-spouse help"
+label var `y'hlp_oth "`y' Non-spouse, non-kid help"
+}
+keep *hlp* year dem_cohort nhres_n1
+export excel using ///
+"D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\graphs_data_helper_hours`c(current_date)'.xls", ///
+firstrow(varlabels) sheet(nursing_home, replace) 
 restore
 }
 
@@ -16389,6 +16437,8 @@ save "`fdpath'/burden_dementia_sample_long.dta", replace
 
 
 H="changelog"
+10/4/19-Updated the "7 year graphs of informal care to include the NH residents and to export the data to excel.
+
 08/22/19 - Cleaned up some of the excess headers that were holovers from the original paper.  Updated sample to include all Medicare decedents 72+. Added table 1 and graphs by marital and child status (married, unmarried with kids, unmarried no kids) and graph of paid caregiving and nursing home status.
 
 08/07/19 - Created new graphs for Jenny based on different specifications. Mohammed 

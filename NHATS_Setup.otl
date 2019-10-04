@@ -2429,9 +2429,10 @@ tab num_primary_cg wave, missing
 //assign relationship to primary helper
 //if same number of hours for two different helpers, then assign to spouse first
 gen prim_helper_cat=1 if primary_cg==1 & spouse==1
-replace prim_helper_cat=2 if primary_cg==1 & otherrel==1 & prim_helper_cat==.
-replace prim_helper_cat=3 if prim_helper_cat==.
-la def helpcat 1"Spouse" 2"Other relative" 3"Other, not relative"
+replace prim_helper_cat=2 if primary_cg==1 & (son==1 | daughter==1)
+replace prim_helper_cat=3 if primary_cg==1 & otherrel==1 & prim_helper_cat==.
+replace prim_helper_cat=4 if prim_helper_cat==.
+la def helpcat 1"Spouse" 2 "Child" 3 "Other relative" 4 "Other, not relative"
 la val prim_helper_cat helpcat
 tab prim_helper_cat wave, missing
 
@@ -7146,6 +7147,10 @@ H="Changelog"
 
 
 Updates:
+
+10/04/2019 EBL
+----------
+Updated prim_helper_cat to flag child as primary helper.
 
 10/03/2019 MH
 ----------

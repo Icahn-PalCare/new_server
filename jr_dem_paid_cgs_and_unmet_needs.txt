@@ -474,6 +474,165 @@ foreach x in sc hh mob {
 
 
 H="comparing toileting based on 9/30 email"
+//tables looking at toileting mismatch
+
+use "${intpath}\dem_wave_1_5_w_help_sample.dta", clear
+
+gen lva=livearr+1
+replace lva=lva-1 if lva>1
+label define lva 1 "Lives alone" 2 "Lives with spouse only" 3 "Lives with spouse+" 4 "Lives with others"
+label values lva lva
+label copy helpcat prim_helper_cat
+keep if toil_jenny==1 //& !ind_no_helpers
+gen pop=1
+merge 1:1 spid wave using "${nhats}\sp_round_1_8.dta", nogen
+gen income_adj=0
+replace income_adj= (240.007/224.939)*aveincome if wave==1
+replace income_adj= (240.007/229.594)*aveincome if wave==2
+replace income_adj= (240.007/232.957)*aveincome if wave==3
+replace income_adj= (240.007/236.736)*aveincome if wave==4
+replace income_adj= (240.007/237.017)*aveincome if wave==5
+//replace income_adj= (240.007/240.007)*aveincome if wave==6
+replace income_adj=income_adj/(240.007/237.017)
+label var income_adj "Income, 2015$"
+
+egen a1=rowtotal(toil_j dres_j bath_j meds_j bank_j)
+gen severe=a1==5
+gen sev_dem=severe==1 & prob_dem==1
+label var sev_dem "Severe dementia"
+
+keep if inlist(wave,1,5)
+svyset varunit [pw=anfinw], strat(varstrat)
+
+replace pop=0 if missing(pop)
+
+foreach x of varlist tot_*_i {
+replace `x'=0 if n_helpers==0 
+}
+replace ind_gt20hrs_wk_paid=0 if n_helpers==0
+
+gen only1=n_helpers==1
+label var only1 "Only one helper
+gen gt3=n_helpers>=3
+label var gt3 "3+ helpers"
+local cvars1 age
+local ivars1 female white educ_hs_ind 
+local catvars1 income_quart
+local cvars2 income_adj
+local ivars2 medicaid married 
+local catvars2 lva
+local cvars3 n_children
+local ivars3 
+local catvars3 prim_helper_cat
+local ivars4 rcfres metro_ind
+local catvars4 region
+local ivars5 ind_no_helpers ind_paid_helper
+local cvars6 tot_hrswk_help_i tot_hrswk_paid_i n_helpers adl_toil_help sr_numconditions1 
+local ivars6 sr_phq2_depressed sev_dem sr_hosp_ind 
+local cvars7 adlcount_jenny iadlcount_jenny 
+local ivars7 died_12
+
+
+
+forvalues time=1/7 {
+
+foreach x of local catvars`time' {
+	local `x'
+	levelsof `x', local(levels)
+		foreach l of local levels {
+			di "`l'"
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		local cativars`time' `cativars`time'' ``x''
+}
+}
+
+
+local rn : word count `cvars1' `ivars1' `cativars1' `cvars2' `ivars2' `cativars2'  `cvars3' `ivars3' `cativars3'  `cvars4' `ivars4' `cativars4'  `cvars5' `ivars5' `cativars5'  `cvars6' `ivars6' `cativars6'  `cvars7' `ivars7' `cativars7' 
+di `rn'
+local r=1
+local c=1
+
+tokenize 2 1 3
+mat tab=J(`rn'+1,4,.)
+mat stars=J(`rn'+1,4,0)
+
+foreach i in "0,1" 0 1 {
+forvalues time=1/7 {
+foreach x of local cvars`time' {
+		sum `x' [aw=anfinw] if inlist(adverse_toil,`i') & pop==1
+		mat tab[`r',`c']=r(mean)
+		*mat tab[`r',`c']=r(sd)
+	svy, subpop(if pop==1): reg `x' adverse_toil 
+	test adverse_toil
+	mat tab[`r',4]=r(p)
+	mat stars[`r',4]=(r(p)<.05)+(r(p)<.01)
+
+	local r=`r'+1
+
+}
+
+
+
+foreach x of local ivars`time' {
+		sum `x' [aw=anfinw] if inlist(adverse_toil,`i') & pop==1
+		*if r(N)*r(mean)>=11 | r(mean)*r(N)==0 | r(N)==r(N)*r(mean) mat tab[`r',`c']=r(mean)*r(N)
+
+		if r(N)*r(mean)>=11 | r(mean)*r(N)==0 | r(N)==r(N)*r(mean)  mat tab[`r',`c']=r(mean)*100
+		else mat stars[`r',`c']=3
+	svy, subpop(if pop==1): tab `x' adverse_toil 
+	mat tab[`r',4]=e(p_Pear)
+	mat stars[`r',4]=(e(p_Pear)<.05)+(e(p_Pear)<.01)
+	local r=`r'+1
+}
+
+foreach y of local catvars`time' {
+	svy, subpop(if pop==1): tab `y' adverse_toil 
+	mat tab[`r',4]=e(p_Pear)
+	mat stars[`r',4]=(e(p_Pear)<.05)+(e(p_Pear)<.01)
+
+	foreach x of local `y' {
+			sum `x' [aw=anfinw] if inlist(adverse_toil,`i') & pop==1
+			*if r(N)*r(mean)>=11 | r(mean)*r(N)==0 | r(N)==r(N)*r(mean) mat tab[`r',`c']=r(mean)*r(N)
+			if r(N)*r(mean)>=11 | r(mean)*r(N)==0 | r(N)==r(N)*r(mean)  mat tab[`r',`c']=r(mean)*100
+			else mat stars[`r',`c']=3
+		local r=`r'+1
+
+}
+}
+}
+
+
+
+
+	sum adverse_toil if inlist(adverse_toil,`i') & pop==1
+	mat tab[`r',`c']=r(N)
+local r=1
+local c=`c'+1
+
+}
+
+
+
+mat rownames tab= `cvars1' `ivars1' `cativars1' `cvars2' `ivars2' `cativars2'  `cvars3' `ivars3' `cativars3'  `cvars4' `ivars4' `cativars4'  `cvars5' `ivars5' `cativars5'  `cvars6' `ivars6' `cativars6'  `cvars7' `ivars7' `cativars7'  N
+
+frmttable using "${outpath}\table_1_`c(current_date)'.rtf", ///
+statmat(tab) title("Characteristics of Sample") ///
+ctitles("" "Full sample" "No adverse consequences" "Yes adverse consequences" "P-value") varlabels ///
+sdec(2,2,3) annotate(stars) asymbol(*,**,NR) replace ///
+note("Among community-dwelling SPs in 2011 & 2015 with probable dementia and impairment in toileting")
+
+//Venn diagram.  
+
+pvenn2 toil_mismatch ind_gt20hrs_tot gt3
+
+//look at 40 hours
+gen ind_gt40hrs=tot_hrswk_help_i
+pvenn2 toil_mismatch ind_gt40hrs_tot gt3
+
 
 
 H="***************************"
@@ -615,4 +774,6 @@ H="look at mismatch in domains"
 
 
 H="changelog"
+10/4/19-Updated the table to run on adverse consequences of toileting.
+
 9/16/19-Belatedly created change log. Evan.
