@@ -72,6 +72,14 @@ medi.Xref2015medicare b
 on a.id=b.hhidpn;
 quit;
 
+data proj_int.index (rename=(hhidpn=id)) ;
+set proj_int.index;
+run;
+
+data proj_int.index (keep= bid_hrs_22 index_date index_month index_year id) ;
+set proj_int.index;
+run;
+
 
 proc export data=proj_int.index outfile="D:\HRS\Projects\exploratory\hm_smi_mental_ill\data\int_data\index_dates.dta" dbms=stata replace; run;
 
@@ -178,285 +186,106 @@ run;
 proc export data=proj_int.ffs_before outfile="D:\HRS\Projects\exploratory\hm_smi_mental_ill\data\int_data\ffs_before.dta" replace; run;
 
 H="get claims before"
-proc sort data=proj_int.index out=index2 nodupkey;
-by bid_hrs_22 id index_date;
+/*determine Spouse ffs medicare before R's death using the 
+claims denominator files
+
+Several sets of variables created, looking back 6m, 12m, 18m, 24m from R's death
+
+Also pulls in spouse date of death where available in the claims s_claims_dod*/
+
+/*sort claims denominator file*/
+
+proc sort data=medi.bqsf_1998_2015 out=dn  nodupkey;
+by bid_hrs_22 start_dt;
 run;
 
+proc sort data=proj_int.index out=index1 nodupkey;
+by bid_hrs_22 index_year;
+run;
 
+/*get dn just for interview year*/
 
-
-/**************************************************************************/
-/* ************** Claims Before Death  ******************************/
-/**************************************************************************/
-/*macro to get claims before death
-saves datasets for each claim type / time window to the spo_mc_i directory*/
-%macro claimspre(days_start=,days_bef_index=,source=,suf=);
-
-/*claims fully within x time of death date*/
-proc sql;
-create table &source._meet_1 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
+proc sql; 
+create table dn_index_quarter as select
+a.*,b.ab_mo_cnt,b.start_dt,b.end_dt,b.hmo_mo
+from index1 a inner join
+dn b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22)) 
+and b.start_dt<=a.index_date<=b.end_dt;
 quit;
 
-/*claims that start earlier than x time but span into x time before death*/
-proc sql;
-create table &source._meet_2 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
+
+data all_insurance_0 (rename=(hmo_mo=hmo0 ab_mo_cnt=ab0 buyin_mo=buyin_mo0));
+set dn_index_quarter;
+ffs0=ab_mo_cnt>=1 & hmo_mo=0;
+format index_date date9.;
+run;
+
+data all_insurance_0b;
+set all_insurance_0;
+ab_mos0=ab0;
+buyin_mos0=buyin0;
+if ffs0=1 then ffs_mos0=ab_mos0;
+if ffs0=0 then ffs_mos0=0;
+run;
+
+
+
+%macro insyrs(numyrs=);
+%let y=%eval(&numyrs.*4);
+%do i=1 %to &y.;
+
+%let l=%eval(&i.-1);
+proc sql; 
+create table dn&i. as select
+a.*,b.ab_mo_cnt,b.start_dt,b.end_dt,b.hmo_mo, b.buyin_mo
+from index2 a inner join
+dn b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22)) 
+and b.start_dt<=a.index_date-(&i.*(365.25/4))<=end_dt;
 quit;
 
-data proj_int.&source._meet_&suf.(compress=yes);
-set &source._meet_1 &source._meet_2;
+data all_insurance_&i.(rename=(hmo_mo=hmo&i. ab_mo_cnt=ab&i. buyin_mo=buyin_mo&i.)); 
+set dn&i.;
+ffs&i.=ab_mo_cnt>=1 & hmo_mo=0;
+format index_date date9.;
 run;
-%mend;
 
-/*6m before death*/
-*%claims(days_start=0,days_bef_index=183,source=hh,suf=6m); /*home health*/
-*%claims(days_start=0,days_bef_index=183,source=hs,suf=6m); /*hospice*/
-*%claims(days_start=0,days_bef_index=183,source=mp,suf=6m); /*medpar*/
-*%claims(days_start=0,days_bef_index=183,source=dm,suf=6m); /*dme*/
-*%claims(days_start=0,days_bef_index=183,source=op,suf=6m); /*outpatient*/
-*%claims(days_start=0,days_bef_index=183,source=pb,suf=6m); /*carrier*/
-/*12m before death*/
-%macro bef(time=);
-%claimspre(days_start=0,days_bef_index=365*&time.,source=hh,suf=%eval(12*&time.)m); /*home health*/
-%claimspre(days_start=0,days_bef_index=365*&time.,source=hs,suf=%eval(12*&time.)m); /*hospice*/
-%claimspre(days_start=0,days_bef_index=365*&time.,source=mp,suf=%eval(12*&time.)m); /*medpar*/
-%claimspre(days_start=0,days_bef_index=365*&time.,source=dm,suf=%eval(12*&time.)m); /*dme*/
-%claimspre(days_start=0,days_bef_index=365*&time.,source=op,suf=%eval(12*&time.)m); /*outpatient*/
-%claimspre(days_start=0,days_bef_index=365*&time.,source=pb,suf=%eval(12*&time.)m); /*carrier*/
-%mend;
-
-
-
-/**************************************************************************/
-/* ************** S Claims After R's Death   ******************************/
-/**************************************************************************/
-/*macro to get claims after death
-saves datasets for each claim type / time window to the spo_mc_i directory*/
-%macro claimspost(days_start=,days_aft_index=,source=,suf=);
-
-/*claims fully within x time of death date*/
 proc sql;
-create table &source._meet_1 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and &days_start<=a.admit_date - b.index_date<=&days_aft_index ;
+create table all_insurance_&i.2 as select * from
+all_insurance_&l.b a
+left join
+all_insurance_&i. b
+on a.bid_hrs_22=b.bid_hrs_22;
 quit;
 
-/*claims that start earlier than R's DOD but span after R's death*/
-proc sql;
-create table &source._meet_2 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and a.admit_date<b.index_date
-and &days_start<=a.disch_date - b.index_date;
-quit;
-
-data proj_int.&source._meet_&suf.(compress=yes);
-set &source._meet_1 &source._meet_2;
-format disch_date date9.;
-format admit_date date9.;
-run;
-%mend;
-
-%macro aft(time=);
-%claimspost(days_start=0,days_aft_index=365*&time.,source=hh,suf=p%eval(12*&time.)m); /*home health*/
-%claimspost(days_start=0,days_aft_index=365*&time.,source=hs,suf=p%eval(12*&time.)m); /*hospice*/
-%claimspost(days_start=0,days_aft_index=365*&time.,source=mp,suf=p%eval(12*&time.)m); /*medpar*/
-%claimspost(days_start=0,days_aft_index=365*&time.,source=dm,suf=p%eval(12*&time.)m); /*dme*/
-%claimspost(days_start=0,days_aft_index=365*&time.,source=op,suf=p%eval(12*&time.)m); /*outpatient*/
-%claimspost(days_start=0,days_aft_index=365*&time.,source=pb,suf=p%eval(12*&time.)m); /*carrier*/
-%mend;
-
-
-/**************************************************************************/
-/* ********************* S Diagnosis Lists   ******************************/
-/**************************************************************************/
-
-%macro dx_time_range(range1=, range2=, suf=);
-/*pulls just dx codes from carrier claims*/
-data pb_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
-set proj_int.pb_meet_&suf.(keep=bid_hrs_22 id PDGNS_CD DGNSCD01-DGNSCD12 index_date);
-array dx PDGNS_CD DGNSCD01-DGNSCD12;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=pb_last_&range2._dx out=pb_last_&range2._dx2 nodupkey;
-by bid_hrs_22 id index_date diag;
+data all_insurance_&i.b (drop=ab_mos&l. ffs_mos&l.);
+set all_insurance_&i.2;
+ab_mos&i.=ab_mos&l.+ab&i.;
+if ffs&i.=. then ffs&i.=0;
+if ffs&l.=0 then ffs&i.=0;
+if ffs&i.=1 then ffs_mos&i.=ab&i.+ffs_mos&l.;
+if ffs&i.=0 then ffs_mos&i.=ffs_mos&l.;
 run;
 
-/*outpatient claims*/
-data op_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
-set proj_int.op_meet_&suf.(keep=bid_hrs_22 id PDGNS_CD DGNSCD01-DGNSCD25  index_date);
-array dx PDGNS_CD DGNSCD01-DGNSCD25 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=op_last_&range2._dx out=op_last_&range2._dx2 nodupkey;
-by bid_hrs_22 id index_date diag;
-run;
-
-/*medpar claims*/
-data mp_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
-set proj_int.mp_meet_&suf.(keep=bid_hrs_22 id AD_DGNS DGNS_CD01-DGNS_CD25 index_date );
-array dx D_DGNS DGNS_CD01-DGNS_CD25 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=mp_last_&range2._dx out=mp_last_&range2._dx2 nodupkey;
-by bid_hrs_22 id index_date diag;
-run;
-
-/*dme claims*/
-data dm_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
-set proj_int.dm_meet_&suf.(keep=bid_hrs_22 id PDGNS_CD DGNSCD01-DGNSCD12 index_date);
-array dx PDGNS_CD DGNSCD01-DGNSCD12 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=dm_last_&range2._dx out=dm_last_&range2._dx2 nodupkey;
-by bid_hrs_22 id index_date diag;
-run;
-
-/*home health agency*/
-data hh_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
-set proj_int.hh_meet_&suf.(keep=bid_hrs_22 id PDGNS_CD DGNSCD01-DGNSCD25 index_date);
-array dx PDGNS_CD DGNSCD01-DGNSCD25 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=hh_last_&range2._dx out=hh_last_&range2._dx2 nodupkey;
-by bid_hrs_22 id index_date diag;
-run;
-
-/*hospice*/
-data hs_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
-set proj_int.hs_meet_&suf.(keep=bid_hrs_22 id PDGNS_CD DGNSCD01-DGNSCD25 index_date);
-array dx PDGNS_CD DGNSCD01-DGNSCD25 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=hs_last_&range2._dx out=hs_last_&range2._dx2 nodupkey;
-by bid_hrs_22 id index_date diag;
-run;
-
-/*set diag variable length = 7 chars since that's the max length from the mc claims
-Need to do this because length varies across the different mc claim types*/
-data hs_last_&range2._dx3;
-length diag $7;
-set hs_last_&range2._dx2;
-run;
-data hh_last_&range2._dx3;
-length diag $7;
-set hh_last_&range2._dx2;
-run;
-data mp_last_&range2._dx3;
-length diag $7;
-set mp_last_&range2._dx2;
-run;
-data dm_last_&range2._dx3;
-length diag $7;
-set dm_last_&range2._dx2;
-run;
-data op_last_&range2._dx3;
-length diag $7;
-set op_last_&range2._dx2;
-run;
-data pb_last_&range2._dx3;
-length diag $7;
-set pb_last_&range2._dx2;
-run;
-
-data dx_all_last_&range2.;
-set hs_last_&range2._dx3
-hh_last_&range2._dx3
-mp_last_&range2._dx3
-dm_last_&range2._dx3
-op_last_&range2._dx3
-pb_last_&range2._dx3;
-run;
-
-proc sort data=dx_all_last_&range2.(where=(diag~="")) out=proj_int.dx_&range1._&range2 nodupkey;
-by bid_hrs_22 id index_date diag;
-run;
-
-%mend;
-
-/****************************************************************/
-/*medpar claims, time periods before R's death*******************/
-/****************************************************************/
-/*macro for medpar claims, splits into costs for snf and ip claims
-for time periods before r's death*/
-%macro mp(source=,equ=,name=);
-data proj_int.&source._meet_&name.;
-set proj_int.mp_meet_&name.;
-if (trim(left(SSLSSNF)))&equ.="N";
-run;
-%mend;
-
-%macro mpsplit(time=);
-%mp(source=ip,equ=~,name=%eval(12*&i.)m);
-%mp(source=snf,equ=,name=%eval(12*&i.)m);
-%mp(source=ip,equ=~,name=p%eval(12*&i.)m);
-%mp(source=snf,equ=,name=p%eval(12*&i.)m);
-%mend;
-
-
-
-/*run macros*/
-
-%macro runall(years=);
-%do i=1 %to &years.;
-%bef(time=&i.);
-%aft(time=&i.);
-%mpsplit(time=&i.);
 %end;
+
+data all_insurance;
+set all_insurance_&y.b;
+cont_ffs_n_mos=ffs_mos&y.;
 %mend;
 
-%runall(years=7);
-
-
-/*run macro to create data files proj_int.dx_0d_n6m proj_int.dx_0d_n12m and proj_int.dx_0d_n24m */
-*%dx_time_range(range1=0d, range2=n6m, suf=6m);
-%dx_time_range(range1=0d, range2=n12m, suf=12m);
-*%dx_time_range(range1=0d, range2=n24m, suf=24m);
-
-/*run for dx lists after R's death*/
-*%dx_time_range(range1=0d, range2=p6m, suf=p6m);
-*%dx_time_range(range1=0d, range2=p12m, suf=p12m);
-*%dx_time_range(range1=0d, range2=p24m, suf=p24m);
 
 
 
-/*get spouse medicare costs by claim type and total, adjusted for inflation
-to 2012$, monthly, 24m before and after R's death
-
-begins with claims lists from "Get S MC claims lists..." section
-
-final dataset is spo_mc_i.hrs_elix_cc_pay*/
+%insyrs(numyrs=2);
 
 
+data proj_int.ffs_before;
+set all_insurance;
+run;
 
+proc export data=proj_int.ffs_before outfile="D:\HRS\Projects\exploratory\hm_smi_mental_ill\data\int_data\ffs_before.dta" replace; run;
 
 H="get annual diagnosis before"
 
@@ -2460,6 +2289,362 @@ run;
 
 
 
+
+
+H="Serious Mental Illness"
+/*
+
+Created by: MH
+Date Created: 10/15/19
+
+Updated by:
+Date Updated:
+
+
+
+
+**************************************************
+
+/****************************************************************************/
+/* Rename variables macro                                                   */
+/****************************************************************************/
+
+%macro rename(lib,dsn,pre);
+options pageno=1 nodate;
+proc contents data=&lib..&dsn;
+title "Before Renaming All Variables";
+run;
+proc sql noprint;
+select nvar into :num_vars
+from dictionary.tables
+where libname="&LIB" and
+memname="&DSN";
+select distinct(name) into :var1-
+:var%TRIM(%LEFT(&num_vars))
+from dictionary.columns
+where libname="&LIB" and
+memname="&DSN";
+quit;
+run;
+proc datasets library=&LIB;
+modify &DSN;
+rename
+%do i=1 %to &num_vars;
+&&var&i=&&var&i.._&pre 
+%end;
+;
+quit;
+run;
+options pageno=1 nodate;
+proc contents data=&lib..&dsn;
+title "After Renaming All Variables";
+run;
+%mend rename;
+
+
+
+
+/****************************************************************************/
+/* Serious Mental Illness comorbidities macro                                           */
+/****************************************************************************/
+/*Note elixhauser comorbidities diagnosis lists are modified for the 
+purposes of this project, do not copy and paste this Elixhauser code 
+for use in other projects!!*/
+
+%macro mental(range1=, range2=);
+
+data dx_mental;
+set proj_int.dx_&range1._&range2.(rename=(diag=dx_0));
+dx=trim(left(dx_0));
+
+if dx~="" then do;
+
+mental_1=0;
+mental_2=0;
+mental_3=0;
+mental_4=0;
+mental_5=0;
+mental_6=0;
+mental_7=0;
+mental_8=0;
+
+*do over dx;
+	*Schizophrenic disorder;
+	if (substr(dx,1,3)='295' or
+substr(dx,1,5)='29501' or
+substr(dx,1,5)='29502' or
+substr(dx,1,5)='29503' or
+substr(dx,1,5)='29504' or
+substr(dx,1,4)='2951' or
+substr(dx,1,5)='29511' or
+substr(dx,1,5)='29512' or
+substr(dx,1,5)='29513' or
+substr(dx,1,5)='29514' or
+substr(dx,1,4)='2952' or
+substr(dx,1,5)='29521' or
+substr(dx,1,5)='29522' or
+substr(dx,1,5)='29523' or
+substr(dx,1,5)='29524' or
+substr(dx,1,4)='2953' or
+substr(dx,1,5)='29531' or
+substr(dx,1,5)='29532' or
+substr(dx,1,5)='29533' or
+substr(dx,1,5)='29534' or
+substr(dx,1,4)='2954' or
+substr(dx,1,5)='29541' or
+substr(dx,1,5)='29542' or
+substr(dx,1,5)='29543' or
+substr(dx,1,5)='29544' or
+substr(dx,1,4)='2955' or
+substr(dx,1,5)='29551' or
+substr(dx,1,5)='29552' or
+substr(dx,1,5)='29553' or
+substr(dx,1,5)='29554' or
+substr(dx,1,4)='2956' or
+substr(dx,1,5)='29561' or
+substr(dx,1,5)='29562' or
+substr(dx,1,5)='29563' or
+substr(dx,1,5)='29564' or
+substr(dx,1,4)='2957' or
+substr(dx,1,5)='29571' or
+substr(dx,1,5)='29572' or
+substr(dx,1,5)='29573' or
+substr(dx,1,5)='29574' or
+substr(dx,1,4)='2958' or
+substr(dx,1,5)='29581' or
+substr(dx,1,5)='29582' or
+substr(dx,1,5)='29583' or
+substr(dx,1,5)='29584' or
+substr(dx,1,4)='2959' or
+substr(dx,1,5)='29591' or
+substr(dx,1,5)='29592' or
+substr(dx,1,5)='29593' or
+substr(dx,1,5)='29594') 
+		and mental_1=0 
+		then mental_1=1;
+		*Episodic Mood disorder ;
+	if (substr(dx,1,3)='296' or
+substr(dx,1,5)='29601' or
+substr(dx,1,5)='29602' or
+substr(dx,1,5)='29603' or
+substr(dx,1,5)='29604' or
+substr(dx,1,5)='29605' or
+substr(dx,1,4)='2961' or
+substr(dx,1,5)='29611' or
+substr(dx,1,5)='29612' or
+substr(dx,1,5)='29613' or
+substr(dx,1,5)='29614' or
+substr(dx,1,5)='29615' or
+substr(dx,1,4)='2964' or
+substr(dx,1,5)='29641' or
+substr(dx,1,5)='29642' or
+substr(dx,1,5)='29643' or
+substr(dx,1,5)='29644' or
+substr(dx,1,5)='29645' or
+substr(dx,1,4)='2965' or
+substr(dx,1,5)='29651' or
+substr(dx,1,5)='29652' or
+substr(dx,1,5)='29653' or
+substr(dx,1,5)='29654' or
+substr(dx,1,5)='29655' or
+substr(dx,1,4)='2966' or
+substr(dx,1,5)='29661' or
+substr(dx,1,5)='29662' or
+substr(dx,1,5)='29663' or
+substr(dx,1,5)='29664' or
+substr(dx,1,5)='29665' or
+substr(dx,1,4)='2967' or
+substr(dx,1,4)='2968' or
+substr(dx,1,5)='29681' or
+substr(dx,1,5)='29689') 
+		and mental_2=0 
+		then mental_2=1;
+
+		*Delusional disorder;
+	if (substr(dx,1,3)='297' or
+substr(dx,1,4)='2971' or
+substr(dx,1,4)='2972' or
+substr(dx,1,4)='2973' or
+substr(dx,1,4)='2978' or
+substr(dx,1,4)='2979')
+			and mental_3=0 
+		then mental_3=1;
+
+		*Other non-organic Psychoses;
+	if (substr(dx,1,3)='298' or
+substr(dx,1,4)='2981' or
+substr(dx,1,4)='2982' or
+substr(dx,1,4)='2983' or
+substr(dx,1,4)='2984' or
+substr(dx,1,4)='2988' or
+substr(dx,1,4)='2989')
+			and mental_4=0 
+		then mental_4=1;
+
+		* ANXIETY, DISSOCIATIVE AND SOMATOFORM DISORDERS ;
+	if (substr(dx,1,3)='300' or
+substr(dx,1,5)='30001' or
+substr(dx,1,5)='30002' or
+substr(dx,1,5)='30009' or
+substr(dx,1,5)='30021' or
+substr(dx,1,5)='30022' or
+substr(dx,1,4)='3003')
+			and mental_5=0 
+		then mental_5=1;
+
+		*ANXIETY, DISSOCIATIVE AND SOMATOFORM DISORDERS*;
+	if (substr(dx,1,4)='3004')
+			and mental_6=0 
+		then mental_6=1;
+		*DEPRESSIVE DISORDER, NOT OTHERWISE SPECIFIED ;
+	if (substr(dx,1,3)='311')
+			and mental_7=0 
+		then mental_7=1;
+		*EPISODIC MOOD DISORDERS;
+	if (substr(dx,1,4)='2962' or
+substr(dx,1,5)='29621' or
+substr(dx,1,5)='29622' or
+substr(dx,1,5)='29623' or
+substr(dx,1,5)='29624' or
+substr(dx,1,5)='29625' or
+substr(dx,1,4)='2963' or
+substr(dx,1,5)='29631' or
+substr(dx,1,5)='29632' or
+substr(dx,1,5)='29633' or
+substr(dx,1,5)='29634' or
+substr(dx,1,5)='29635')
+			and mental_8=0 
+		then mental_8=1;
+	end;
+
+run;
+
+/*get count of each comorbidity for each id-core year combination*/
+proc sql;
+create table men_test1 as
+select distinct bid_hrs_22, index_date,
+sum(mental_1) as men_1,
+sum(mental_2) as men_2,
+sum(mental_3) as men_3,
+sum(mental_4) as men_4,
+sum(mental_5) as men_5,
+sum(mental_6) as men_6,
+sum(mental_7) as men_7,
+sum(mental_8) as men_8
+from dx_mental
+group by bid_hrs_22, index_date;
+quit;
+
+/*convert counts of diagnoses for each comorbidity to indicator variables*/ 
+data mental_1(keep=bid_hrs_22 index_date mental_1-mental_34 mental_all);
+set men_test1;
+array list_com men_1-men_8;
+array list_com_bin ment_1-ment_8 ;
+
+do over list_com;
+  list_com_bin=0;
+
+  if list_com>0 then do;
+    list_com_bin=1;
+   end;
+
+end;
+/*note this comorb_all count does not include CAD or ALS or Renal disease*/
+ment_all=ment_1+ment_2+ment_3+ment_4+ment_5+ment_6+ment_7+ment_8;
+ment_sev=ment_1+ment_2+ment_3+ment_4;
+run;
+
+/*merge in to list of core ivw dates for those with ffs mc, age=65+ */
+proc sort data=mental_1 nodupkey;
+by bid_hrs_22 index_date;
+run;
+
+data mental_&range1._&range2;
+set mental_1 ;
+
+label ment_1 ="SCHIZOPHRENIC DISORDERS";
+label ment_2 ="EPISODIC MOOD DISORDERS";
+label ment_3 ="DELUSIONAL DISORDERS";
+label ment_4 ="OTHER NON-ORGANIC PSYCHOSES";
+label ment_5 ="ANXIETY, DISSOCIATIVE AND SOMATOFORM DISORDERS";
+label ment_6 ="ANXIETY, DISSOCIATIVE AND SOMATOFORM DISORDERS";
+label ment_7 ="DEPRESSIVE DISORDER, NOT OTHERWISE SPECIFIED";
+label ment_8 ="EPISODIC MOOD DISORDERS";
+label ment_all ="Count of Elix comorbidities";
+label ment_sev ="Count of Elix comorbidities";
+run;
+
+data test;
+set mental_&range1._&range2;
+run;
+
+%rename(WORK,TEST,&range1._&range2);
+
+data mental_&range1._&range2.(rename =(bid_hrs_22_&range1._&range2=bid_hrs_22
+index_date_&range1._&range2=index_date));
+set test;
+keep bid_hrs_22_&range1._&range2 ment: index_date:;
+run;
+
+
+%mend;
+
+
+
+
+
+
+
+
+/*I do not understand why this doesn't work
+%macro runelix(years=);
+%do i=1 %to &years.;
+%let l=%eval(&i.-1);
+
+%elixhauser(range1=%eval(&l.*12)m, range2=%eval(&i.*12)m);
+
+%end;
+%mend;
+
+%runelix(years=7);
+
+*/
+
+%mental(range1=0m, range2=12m);
+%mental(range1=12m, range2=24m);
+%mental(range1=24m, range2=36m);
+%mental(range1=36m, range2=48m);
+%mental(range1=48m, range2=60m);
+%mental(range1=60m, range2=72m);
+%mental(range1=72m, range2=84m);
+
+
+
+proc sql; 
+create table proj_int.mental as select * from
+proj_int.index a
+left join 
+mental_0m_12m b
+on a.bid_hrs_22=b.bid_hrs_22 and a.index_date=b.index_date
+left join 
+mental_12m_24m c
+on a.bid_hrs_22=c.bid_hrs_22 and a.index_date=c.index_date
+left join 
+mental_24m_36m d
+on a.bid_hrs_22=d.bid_hrs_22 and a.index_date=d.index_date
+left join 
+mental_36m_48m e
+on a.bid_hrs_22=e.bid_hrs_22 and a.index_date=e.index_date
+left join 
+mental_48m_60m f
+on a.bid_hrs_22=f.bid_hrs_22 and a.index_date=f.index_date
+left join 
+mental_60m_72m g
+on a.bid_hrs_22=g.bid_hrs_22 and a.index_date=g.index_date
+left join 
+mental_72m_84m h
+on a.bid_hrs_22=h.bid_hrs_22 and a.index_date=h.index_date;
+quit;
 
 
 H="Change log"
