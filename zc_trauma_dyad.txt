@@ -10156,6 +10156,8 @@ H="Changelog"
 
 Updates:
 
+10/7/19--MH--converted codes to icd9 in the "get index" tab. 
+
 10/3/19--EBL--added a table 1 just looking at the pre/post group.
 
 9/19/19--EBL--matched traumas with both the N1 and P1 interviews and combined, amended table 1 to pull from the new sample, added the pre/post characteristics table.

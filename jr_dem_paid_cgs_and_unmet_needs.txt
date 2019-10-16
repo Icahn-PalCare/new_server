@@ -474,7 +474,7 @@ foreach x in sc hh mob {
 
 
 H="comparing toileting based on 9/30 email"
-//tables looking at toileting mismatch
+ //tables looking at toileting mismatch
 
 use "${intpath}\dem_wave_1_5_w_help_sample.dta", clear
 
