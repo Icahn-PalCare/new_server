@@ -1,0 +1,34 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Project Outline"
+/* 
+********************HEADING******************** 
+
+Project Name: JAMA figure for Sean
+
+Outline:  
+Per Amy's instructions on 10/16/19, Sean would like to look at a cross-sectional graph of Medicare recipients by age and illness.
+
+Because this is a very quick project, we'll use the NHATS ICD-9/10 final data but include the updated CCW codes as well.
+
+
+Date Started: 10/17/19
+
+Primary Investigator: Sean Morrison
+Funding Source: 
+
+Created by: EBL
+
+Primary Analyst: EBL
+Secondary Analyst: 
+
+Datasets Used: nhats, nhats-linked Medicare claims only for full death info
+
+
+
+
+
+H="pull index from ICD-9/10 data"
+
+
+H="get chronic conditions using correct CCW algorithm"

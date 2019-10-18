@@ -6710,7 +6710,7 @@ on a.bid_hrs_22=h.bid_hrs_22 and a.index_date=h.index_date;
 quit;
 
 
-H="smi pre util"
+H="smi pre util --oxygen"
 /*These additional variables are just added to the dataset with the
 elixhauser and cc's 1 year preceeding the interview, can add them
 later when required to get the 2 year look-back dataset*/
@@ -6720,7 +6720,7 @@ later when required to get the 2 year look-back dataset*/
 /****************************************************************************/
 
 
-%macro admissions(month=,days=,suffix=);
+%macro admissions(month=,days=,dayso=,suffix=);
 
 data ip_meet_&month.;
 set proj_int.mp_meet_&month.(where=(trim(left(SSLSSNF))~="N"));
@@ -6809,96 +6809,87 @@ set ip_&month._3;
 if icu_days_&suffix.>n_hospd_&suffix. then icu_days_&suffix.=n_hospd_&suffix.;
 run;
 
-%mend;
-
-%admissions(month=12m,days=365,suffix=12m);
-%admissions(month=24m,days=730,suffix=24m);
-%admissions(month=36m,days=1095,suffix=36m);
-%admissions(month=48m,days=1460,suffix=48m);
-%admissions(month=60m,days=1825,suffix=60m);
-%admissions(month=72m,days=2190,suffix=72m);
-%admissions(month=84m,days=2555,suffix=84m);
+/* macro*/
 
 
-
-data elective_1;
-set ip_12m_2;
+data elective_&month._1;
+set ip_&month._2;
 if elect_admit=1;
 run;
 
-//here////////
 
-proc sort data=ip_183_3 nodupkey;
-by bene_id index_year;
+
+proc sort data=ip_&month._3 nodupkey;
+by bid_hrs_22 index_year;
 run;
 
 
 proc sql;
-create table ip_6m as select a.*,b.icu_days_6m,b.n_icu_stays_6m,
-b.n_ip_admit_6m,b.n_hospd_6m,b.n_em_urgent_admit_6m,b.n_em_admit_6m,
-b.n_urgent_admit_6m,b.n_elect_admit_6m,b.n_ED_ip_6m
+create table ip_&month. as select a.*,b.icu_days_&month.,b.n_icu_stays_&month.,
+b.n_ip_admit_&month.,b.n_hospd_&month.,b.n_em_urgent_admit_&month.,b.n_em_admit_&month.,
+b.n_urgent_admit_&month.,b.n_elect_admit_&month.,b.n_ED_ip_&month.
 from proj_int.index a
 left join
-ip_183_3 b 
-on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year;
+ip_&month._3 b 
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22)) and a.index_year=b.index_year;
 quit;
 
-proc sort data=ip_365_3 nodupkey;
-by bene_id index_year;
+proc sort data=ip_&month._3 nodupkey;
+by bid_hrs_22 index_year;
 run;
 
 proc sql;
-create table ip1 as select a.*,b.icu_days_12m,b.n_icu_stays_12m,
-b.n_ip_admit_12m,b.n_hospd_12m,b.n_em_urgent_admit_12m,b.n_em_admit_12m,
-b.n_urgent_admit_12m,b.n_elect_admit_12m,b.n_ED_ip_12m
-from ip_6m a
+create table ip1_&month. as select a.*,b.icu_days_&month.,b.n_icu_stays_&month.,
+b.n_ip_admit_&month.,b.n_hospd_&month.,b.n_em_urgent_admit_&month.,b.n_em_admit_&month.,
+b.n_urgent_admit_&month.,b.n_elect_admit_&month.,b.n_ED_ip_&month.
+from ip_&month. a
 left join
-ip_365_3 b 
-on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year;
+ip_&month._3 b 
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22)) and a.index_year=b.index_year;
 quit;
+
+
 
 /*Dataset just contains obs with ffs mc 1yr and age 65+
 So if missing, set var to 0*/
- data ip ;
- set ip1 ;
- array list icu_days_6m n_ip_admit_6m n_hospd_6m n_em_urgent_admit_6m 
-	n_em_admit_6m n_urgent_admit_6m n_elect_admit_6m n_ED_ip_6m
-	icu_days_12m n_ip_admit_12m n_hospd_12m n_em_urgent_admit_12m
-	n_em_admit_12m n_urgent_admit_12m n_elect_admit_12m n_ED_ip_12m;
+ data ip_&month. ;
+ set ip1_&month. ;
+ array list icu_days_&month. n_ip_admit_&month. n_hospd_&month. n_em_urgent_admit_&month.
+	n_em_admit_&month. n_urgent_admit_&month. n_elect_admit_&month. n_ED_ip_&month.;
  do over list;
  if list=. then list=0;
  end;
 
- if n_ip_admit_6m=0 then ind_hosp_adm_6m=0;
- if n_ip_admit_6m>0 & n_ip_admit_6m~=. then ind_hosp_adm_6m=1;
- label ind_hosp_adm_6m="Indicator for any hospital admission 6m pre ivw";
+ if n_ip_admit_&month.=0 then ind_hosp_adm_&month.=0;
+ if n_ip_admit_&month.>0 & n_ip_admit_&month.~=. then ind_hosp_adm_&month.=1;
+ label ind_hosp_adm_&month.="Indicator for any hospital admission &month. pre ivw";
 
- if n_em_urgent_admit_6m=0 then ind_em_ur_adm_6m=0;
- if n_em_urgent_admit_6m>0 & n_em_urgent_admit_6m~=. then ind_em_ur_adm_6m=1;
- label ind_em_ur_adm_6m="Ind any urgent or emergent hospital admission 6m pre ivw";
+ if n_em_urgent_admit_&month.=0 then ind_em_ur_adm_&month.=0;
+ if n_em_urgent_admit_&month.>0 & n_em_urgent_admit_&month.~=. then ind_em_ur_adm_&month.=1;
+ label ind_em_ur_adm_&month.="Ind any urgent or emergent hospital admission &month. pre ivw";
 
- if n_em_admit_6m=0 then ind_em_adm_6m=0;
- if n_em_admit_6m>0 & n_em_admit_6m~=. then ind_em_adm_6m=1;
- label ind_em_adm_6m="Ind any emergency hospital admission 6m pre ivw";
+ if n_em_admit_&month.=0 then ind_em_adm_&month.=0;
+ if n_em_admit_&month.>0 & n_em_admit_&month.~=. then ind_em_adm_&month.=1;
+ label ind_em_adm_&month.="Ind any emergency hospital admission &month. pre ivw";
 
- if n_urgent_admit_6m=0 then ind_ur_adm_6m=0;
- if n_urgent_admit_6m>0 & n_urgent_admit_6m~=. then ind_ur_adm_6m=1;
- label ind_ur_adm_6m="Ind any urgent hospital admission 6m pre ivw";
+ if n_urgent_admit_&month.=0 then ind_ur_adm_&month.=0;
+ if n_urgent_admit_&month.>0 & n_urgent_admit_&month.~=. then ind_ur_adm_&month.=1;
+ label ind_ur_adm_&month.="Ind any urgent hospital admission &month. pre ivw";
 
- if n_elect_admit_6m =0 then ind_elect_adm_6m=0;
- if n_elect_admit_6m >0 & n_elect_admit_6m ~=. then ind_elect_adm_6m=1;
- label ind_elect_adm_6m="Ind any elective hospital admission 6m pre ivw";
+ if n_elect_admit_&month. =0 then ind_elect_adm_&month.=0;
+ if n_elect_admit_&month. >0 & n_elect_admit_&month. ~=. then ind_elect_adm_&month.=1;
+ label ind_elect_adm_&month.="Ind any elective hospital admission &month. pre ivw";
 
- if (n_ip_admit_6m - n_elect_admit_6m)=0 then ind_nonelect_adm_6m=0;
- if (n_ip_admit_6m - n_elect_admit_6m)>0 & n_elect_admit_6m~=. then ind_nonelect_adm_6m=1;
- label ind_nonelect_adm_6m="Ind any non-elective hospital admission 6m pre ivw";
+ if (n_ip_admit_&month. - n_elect_admit_&month.)=0 then ind_nonelect_adm_&month.=0;
+ if (n_ip_admit_&month. - n_elect_admit_&month.)>0 & n_elect_admit_&month.~=. then ind_nonelect_adm_&month.=1;
+ label ind_nonelect_adm_&month.="Ind any non-elective hospital admission &month. pre ivw";
 
- n_nonelect_adm_6m=(n_ip_admit_6m - n_elect_admit_6m);
- label n_nonelect_adm_6m="total n non-elective ip admit 6m pre ivw";
+ n_nonelect_adm_&month.=(n_ip_admit_&month. - n_elect_admit_&month.);
+ label n_nonelect_adm_&month.="total n non-elective ip admit &month. pre ivw";
 
- if n_ED_ip_6m=0 then ind_ED_adm_6m=0;
- if n_ED_ip_6m>0 & n_ED_ip_6m~=. then ind_ED_adm_6m=1;
- label ind_ED_adm_6m="Ind ED use with hospital admission 6m pre ivw, from charges";
+ if n_ED_ip_&month.=0 then ind_ED_adm_&month.=0;
+ if n_ED_ip_&month.>0 & n_ED_ip_&month.~=. then ind_ED_adm_&month.=1;
+ label ind_ED_adm_&month.="Ind ED use with hospital admission &month. pre ivw, from charges";
 
  if n_ip_admit_12m=0 then ind_hosp_adm_12m=0;
  if n_ip_admit_12m>0 & n_ip_admit_12m~=. then ind_hosp_adm_12m=1;
@@ -6934,16 +6925,11 @@ So if missing, set var to 0*/
 run;
 
  proc freq;
- table icu_days_6m n_ip_admit_6m n_hospd_6m ind_hosp_adm_6m n_em_urgent_admit_6m ind_em_ur_adm_6m 
-	ind_em_adm_6m ind_ur_adm_6m ind_nonelect_adm_6m n_nonelect_adm_6m n_ED_ip_6m ind_ED_adm_6m 
-	ind_em_adm_6m*ind_ED_adm_6m /missprint;
+ table icu_days_&month. n_ip_admit_&month. n_hospd_&month. ind_hosp_adm_&month. n_em_urgent_admit_&month. ind_em_ur_adm_&month. 
+	ind_em_adm_&month. ind_ur_adm_&month. ind_nonelect_adm_&month. n_nonelect_adm_&month. n_ED_ip_&month. ind_ED_adm_&month. 
+	ind_em_adm_&month.*ind_ED_adm_&month. /missprint;
  run;
 
-proc freq;
-table icu_days_12m n_ip_admit_12m n_hospd_12m ind_hosp_adm_12m n_em_urgent_admit_12m ind_em_ur_adm_12m
-	ind_em_adm_12m ind_ur_adm_12m ind_nonelect_adm_12m n_nonelect_adm_12m n_ED_ip_12m ind_ED_adm_12m 
-	ind_em_adm_12m*ind_ED_adm_12m /missprint;
-run;
 
 /****************************************************************************/
 /****************************************************************************/
@@ -6952,18 +6938,19 @@ run;
 /****************************************************************************/
 
 /*pull list of snf claims from all medpar claims 12 months pre-interview*/
-data snf_meet_365;
-set proj_int.snf_meet_365;
+data snf_meet_&month.;
+set proj_int.snf_meet_&month.;
 run;
 
-proc sort data=snf_meet_365;
-by bene_id admit_date;
+proc sort data=snf_meet_&month.;
+by bid_hrs_22 admit_date;
 run;
 
-data snf_meet_365_1a;
-set snf_meet_365;
+data snf_meet_1a_&month.;
+set snf_meet_&month.;
 format admit_date date9. disch_date date9.;
 run;
+
 
 /*3 claim windows are present:
 1. SNF stays fully within the 1 year before interview
@@ -6972,27 +6959,29 @@ run;
 4. Stays that begin before 1 year and end after interview, LOS=365!
 Get claims that meet 1 *1797*/
 proc sql;
-create table snf_meet1_pre_365 as select *
-from snf_meet_365_1a
-where (index_date - admit_date)<365 & (index_date - disch_date)>=0; 
+create table snf_meet1_pre_&month. as select *
+from snf_meet_1a_&month.
+where (index_date - admit_date)<&days. & (index_date - disch_date)>=&dayso.; 
 quit;
 
 
 /*meet time window 2 *152*/
+
 proc sql;
-create table snf_meet2_pre_365 as select *
-from snf_meet_365_1a
-where (index_date - admit_date)>=365 & (index_date - disch_date)>=0; 
+create table snf_meet2_pre_&month. as select *
+from snf_meet_1a_&month.
+where (index_date - admit_date)>=&days. & (index_date - disch_date)>=&dayso.; 
 quit;
+
 
 /*For these claims that start > 1 year before core, truncate start date so 
 only count LOS days w/i 1 year
 create indicator variable that claim start date is truncated*/
-data snf_meet2_pre_365_1;
-set snf_meet2_pre_365;
-admit_date = index_date-365;
+data snf_meet2_pre_1_&month.;
+set snf_meet2_pre_&month.;
+admit_date = index_date-&dayso.;
 snf_admit_date_mod = 1;
-label snf_admit_date_mod = "Admit date mod; at 12 mo from ivw date";
+label snf_admit_date_mod = "Admit date mod; at &month. mo from ivw date";
 run;
 
 proc freq;
@@ -7001,16 +6990,16 @@ run;
 
 /*meet time window 3 *135 */
 proc sql;
-create table snf_meet3_pre_365 as select *
-from snf_meet_365_1a
-where (index_date - admit_date)<365 & (index_date-disch_date)<0; 
+create table snf_meet3_pre_&month. as select *
+from snf_meet_1a_&month.
+where (index_date - admit_date)<&days. & (index_date-disch_date)<&dayso.; 
 quit;
 
 /*For these claims that end after core, truncate end date so 
 only count LOS days 1 year before the core
 create indicator variable that claim end date is truncated*/
-data snf_meet3_pre_365_1;
-set snf_meet3_pre_365;
+data snf_meet3_pre_1_&month.;
+set snf_meet3_pre_&month.;
 disch_date = index_date;
 snf_disch_date_mod = 1;
 label snf_disch_date_mod = "Disch date mod; at ivw date";
@@ -7022,14 +7011,14 @@ run;
 
 /*meet 4 , overlap both start and end dates n=7*/
 proc sql;
-create table snf_meet4_pre_365 as select *
-from snf_meet_365_1a
-where (index_date - admit_date)>=365 & (index_date - disch_date)<0; 
+create table snf_meet4_pre_&month. as select *
+from snf_meet_1a_&month.
+where (index_date - admit_date)>=&days. & (index_date - disch_date)<&dayso.; 
 quit;
 
 /*truncate both start and end dates so just count 1 year pre interview*/
-data snf_meet4_pre_365_1;
-set snf_meet4_pre_365;
+data snf_meet4_pre_1_&month.;
+set snf_meet4_pre_&month.;
 disch_date = index_date;
 snf_disch_date_mod = 1;
 label snf_disch_date_mod = "Disch date mod; at ivw date";
@@ -7043,8 +7032,8 @@ table snf_disch_date_mod snf_admit_date_mod;
 run;
 
 
-data snf_meet_pre_365;
-set snf_meet1_pre_365 snf_meet2_pre_365_1 snf_meet3_pre_365_1 snf_meet4_pre_365_1;
+data snf_meet_pre_&month.;
+set snf_meet1_pre_&month. snf_meet2_pre_1_&month. snf_meet3_pre_1_&month. snf_meet4_pre_1_&month.;
 run;
 
 proc freq;
@@ -7052,111 +7041,238 @@ table snf_admit_date_mod snf_disch_date_mod ;
 run;
 
 /*save final files to project int_data directory*/
-data proj_int.snf_meet_pre_365 ;
-set  snf_meet_pre_365;
+data proj_int.snf_meet_pre_&month. ;
+set  snf_meet_pre_&month.;
 run;
 
 /*************************************************************/
 /*calculate total number of days spent in SNF by BID*/
 /*************************************************************/
 
-data pre_snf_days_1;
-set proj_int.snf_meet_pre_365;
+data pre_snf_days_1_&month.;
+set proj_int.snf_meet_pre_&month.;
 calc_snf_LOS=disch_date-admit_date;
 if calc_snf_LOS=0 then calc_snf_LOS=1;
+index_year=year(index_date);
 run;
 
-proc sort data=pre_snf_days_1;
-by bene_id index_date admit_date;
+proc sort data=pre_snf_days_1_&month.;
+by bid_hrs_22 index_date admit_date;
 run;
 
 proc sql;
-create table snf_days_pre as select distinct bene_id,index_year,
+create table snf_days_pre_&month. as select distinct bid_hrs_22,index_year,
 sum(calc_snf_LOS)
-	as n_snf_days_12m
-	from pre_snf_days_1 group by bene_id,index_year;
+	as n_snf_days_&month.
+	from pre_snf_days_1_&month. group by bid_hrs_22,index_year;
 quit;
 
-
 /*merge into full ffs 1yr, age 65+ dataset*/
-proc sort data=snf_days_pre nodupkey;
-by bene_id index_year;
+proc sort data=snf_days_pre_&month. nodupkey;
+by bid_hrs_22 index_year;
 run;
 
 
-
- data snf ;
- set snf_days_pre ;
- array list n_snf_days_12m;
+ data snf&month. ;
+ set snf_days_pre_&month. ;
+ array list n_snf_days_&month.;
  do over list;
  if list=. then list=0;
  end; 
 
-if n_snf_days_12m=0 then ind_snf_use_12m=0;
- if n_snf_days_12m>0 & n_snf_days_12m~=. then ind_snf_use_12m=1;
- label ind_snf_use_12m="Indicator for any SNF stay 12m pre ivw";
- label n_snf_days_12m="SNF Days 12m pre ivw";
+if n_snf_days_&month.=0 then ind_snf_use_&month.=0;
+ if n_snf_days_&month.>0 & n_snf_days_&month.~=. then ind_snf_use_&month.=1;
+ label ind_snf_use_&month.="Indicator for any SNF stay m pre ivw";
+ label n_snf_days_&month.="SNF Days m pre ivw";
 
 run;
 
 
-proc freq data=snf; tables n_snf_days_12m / missprint; run;
+proc freq data=snf&month.; tables n_snf_days_&month. / missprint; run;
+
+
 /****************************************************************************/
 /****************************************************************************/
 /*Get indicator of ESRD codes from the denominator file the year of the interview*/
 /****************************************************************************/
 /****************************************************************************/
-proc sort data=medi.mbsf_06_17 out=dn_2000_20122  nodupkey;
-by bene_id year;
+proc sort data=medi.mp_1998_2015 out=dn_2000_20122  nodupkey;
+by bid_hrs_22 admit_date;
+run;
+
+data dn_2000_20122;
+set dn_2000_20122;
+year=year(admit_date);
 run;
 
 /*pull ESRD status variable from dn file
 for the core interview years*/
 proc sql;
 create table esrd1 as select
-a.*,b.Bene_ESRD_IND from 
+a.*,b.esrd_cd from 
 proj_int.index a left join
 dn_2000_20122 b
-on trim(left(a.bene_id))=trim(left(b.bene_id))
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
 and a.index_year=b.year;
 quit;
 
 proc freq;
-table bene_esrd_ind /missprint;
+table esrd_cd /missprint;
 run;
 
 data esrd;
 set esrd1 ;
-if bene_esrd_ind='Y' then esrd_ind_n=1;
-if bene_esrd_ind='0' then esrd_ind_n=0;
+if esrd_cd>0 then esrd_ind_n=1;
+if esrd_cd=0 then esrd_ind_n=0;
 label esrd_ind_n="ESRD indicator from claims denominator file";
-drop bene_esrd_ind;
+drop esrd_cd;
 run;
 
 proc freq;
 table esrd_ind_n /missprint;
 run;
 
+
 /****************************************************************************/
 /*Get indicator of Home 02 use 12 months pre interview from DME claims*/
 /****************************************************************************/
-data oxygen1(keep=bene_id index_year oxygen);
-set proj_int.dm_meet_365;
-oxygen=0;
-if h_o2>0 then oxygen=1;
-if oxygen=1;
+
+data oxygen_1_&month.(keep=bid_hrs_22 index_year home_oxygen);
+set proj_int.dm_meet_&month.;
+index_year=year(index_date);
+home_oxygen=0;
+label home_oxygen="Home O2 from DME claims";
+array list BETOS01:BETOS13;
+do over list;
+if list = 'D1C' then home_oxygen=1;
+end;
+run; 
+
+/* below used code for serious ill 2014 */
+
+proc sort data=oxygen_1_&month.;
+by bid_hrs_22 index_year;
 run;
 
-proc sort data=oxygen1 out=oxygen nodupkey;
-by bene_id index_year;
+proc freq;
+table index_year /missprint;
 run;
-proc contents data=medi.op_09_17; run;
-data ed_op_1;
-set proj_int.op_meet_365(keep=bene_id admit_date disch_date index_date index_year erdaycnt obs_stay);
-if erdaycnt>0 then ed_op=1;
-if erdaycnt=0 then ed_op=0;
-if obs_stay=. then obs_stay=0;
-if obs_stay>1 then obs_stay=1;
+
+proc sql;
+create table oxygen_2_&month. as
+select distinct bid_hrs_22,index_year,
+sum(home_oxygen) as home_oxygen
+from oxygen_1_&month. group by bid_hrs_22,index_year;
+quit;
+
+
+/*convert to binary variables*/
+data oxygen_3_&month.;
+set oxygen_2_&month. ;
+if home_oxygen>0 then home_oxygen=1;
+if home_oxygen<=0 then home_oxygen=0;
+run;
+
+proc freq;
+table home_oxygen;
+run;
+
+%mend;
+
+%admissions(month=12m,days=365,dayso=0,suffix=12m);
+%admissions(month=24m,days=730,dayso=365,suffix=24m);
+%admissions(month=36m,days=1095,dayso=730,suffix=36m);
+%admissions(month=48m,days=1460,dayso=1095,suffix=48m);
+%admissions(month=60m,days=1825,dayso=1460,suffix=60m);
+%admissions(month=72m,days=2190,dayso=1825,suffix=72m);
+%admissions(month=84m,days=2555,dayso=2190,suffix=84m);
+
+
+proc sql; 
+create table proj_int.oxygen as select * from
+proj_int.index a
+left join 
+oxygen_3_12m b
+on a.bid_hrs_22=b.bid_hrs_22 and a.index_year=b.index_year
+left join 
+oxygen_3_24m c
+on a.bid_hrs_22=c.bid_hrs_22 and a.index_year=c.index_year
+left join 
+oxygen_3_36m d
+on a.bid_hrs_22=d.bid_hrs_22 and a.index_year=d.index_year
+left join 
+oxygen_3_48m e
+on a.bid_hrs_22=e.bid_hrs_22 and a.index_year=e.index_year
+left join 
+oxygen_3_60m f
+on a.bid_hrs_22=f.bid_hrs_22 and a.index_year=f.index_year
+left join 
+oxygen_3_72m g
+on a.bid_hrs_22=g.bid_hrs_22 and a.index_year=g.index_year
+left join 
+oxygen_3_84m h
+on a.bid_hrs_22=h.bid_hrs_22 and a.index_year=h.index_year;
+quit;
+
+
+/*merge Oxygen use variable into the overall dataset*/
+/*
+proc sql;
+create table core_ids_1yr_criteria_3 as select
+a.*,b.home_oxygen
+from core_ids_1yr_criteria_2b a left join
+oxygen_3 b
+on trim(left(a.BID_hrs))=trim(left(b.BID_hrs_22))
+and a.core_year=b.core_year;
+quit;
+
+data core_ids_1yr_criteria_4;
+set core_ids_1yr_criteria_3;
+if home_oxygen=. then home_oxygen=0;
+label home_oxygen="Home O2 use from DME claims 1yr pre ivw";
+run;
+
+proc freq;
+table home_oxygen /missprint;
+run;
+
+/*pull in new variables to overall interview dataset*/
+/*proc sort data=core_ids_1yr_criteria_4 nodupkey;
+by bid_hrs core_year;
+run;
+
+proc sort data=sic_int.core_ids_elix_cc_1yr_2 out=core_ids_elix_cc_1yr_2;
+by bid_hrs core_year;
+run;
+
+proc sql;
+create table sic_int.core_ids_1yr_criteria_4(drop=bid_hrs2 core_year2) as select a.*,b.* from
+core_ids_elix_cc_1yr_2 a left join
+core_ids_1yr_criteria_4(rename=(bid_hrs=bid_hrs2) rename=(core_year=core_year2)
+     drop=c_ivw_year c_ivw_date age_ge_65 part_ab_12m hmo_d_12m )
+ 	 b
+on a.bid_hrs=b.bid_hrs2 and a.core_year=b.core_year2;
+quit;
+
+H="smi pre 2"
+%macro admissions(month=,days=,suffix=);
+
+data op_meet_&month.;
+set proj_int.op_meet&month.(keep=bid_hrs_22 admit_date disch_date index_date admit_year RVCNTR01-RVCNTR45);
+run;
+
+proc sort data=op_meet_&month.;
+by bid_hrs_22 admit_date;
+run;
+
+data ed_op_1_&month.;
+	set op_meet_&month.;
+	ed_op=0;
+	array list RVCNTR01-RVCNTR45;
+	do over list;
+	if list >= 450 and list < 460 and ed_op=0 then  
+	ed_op = 1;
+	end;
 run;
 
 proc freq;
@@ -7164,194 +7280,603 @@ table ed_op;
 run;
 
 proc sql;
-create table ed_op_2 as select distinct bene_id,index_year,
+create table ed_op_2_&month. as select distinct bid_hrs_22,admit_year,
 count(case when ed_op=1 then ed_op else . end)
-	as n_ed_op_visits_12m,
-sum(obs_stay) as n_obs_stay_12m,
-max(obs_stay) as obs_stay_12m
-	from ed_op_1 group by bene_id,index_year;
+	as n_ed_op_visits_12m
+	from ed_op_1_&month. group by bid_hrs_22,admit_year;
 quit;
 
-
-
-
-proc sort data=ed_op_2 nodupkey;
-by bene_id index_year;
+proc freq;
+table n_ed_op_visits_12m;
 run;
 
 
-data ed ;
-set ed_op_2;
-if n_ed_op_visits_12m=. then n_ed_op_visits_12m=0;
+
+%mend;
+
+%admissions(month=12m,days=365,suffix=12m);
+%admissions(month=24m,days=730,suffix=24m);
+%admissions(month=36m,days=1095,suffix=36m);
+%admissions(month=48m,days=1460,suffix=48m);
+%admissions(month=60m,days=1825,suffix=60m);
+%admissions(month=72m,days=2190,suffix=72m);
+%admissions(month=84m,days=2555,suffix=84m);
+
+
+
+proc sql; 
+create table proj_int.ed_op as select * from
+proj_int.index a
+left join 
+ed_op_2_12m b
+on a.bid_hrs_22=b.bid_hrs_22 and a.index_year=b.admit_year
+left join 
+ed_op_2_24m c
+on a.bid_hrs_22=c.bid_hrs_22 and a.index_year=c.admit_year
+left join 
+ed_op_2_36m d
+on a.bid_hrs_22=d.bid_hrs_22 and a.index_year=d.admit_year
+left join 
+ed_op_2_48m e
+on a.bid_hrs_22=e.bid_hrs_22 and a.index_year=e.admit_year
+left join 
+ed_op_2_60m f
+on a.bid_hrs_22=f.bid_hrs_22 and a.index_year=f.admit_year
+left join 
+ed_op_2_72m g
+on a.bid_hrs_22=g.bid_hrs_22 and a.index_year=g.admit_year
+left join 
+ed_op_2_84m h
+on a.bid_hrs_22=h.bid_hrs_22 and a.index_year=h.admit_year;
+quit;
+
+
+/*
+proc sort data=proj_int.core_ids_1yr_criteria_4 out=core_ids_1yr_criteria_4;
+by bid_hrs core_year;
+run;
+
+proc sort data=ed_op_2 nodupkey;
+by bid_hrs_21 core_year;
+run;
+
+/*merge into dataset*/
+/*proc sql;
+create table core_ids_1yr_criteria_4a as select a.*,b.n_ed_op_visits_12m
+from core_ids_1yr_criteria_4 a
+left join
+ed_op_2 b 
+on trim(left(a.bid_hrs))=trim(left(b.bid_hrs_21)) and a.core_year=b.core_year;
+quit;
+
+data sic_int.core_ids_1yr_criteria_4b;
+set core_ids_1yr_criteria_4a;
+if n_ed_op_visits_12m=. and comorb_1_0_1yr~=. then n_ed_op_visits_12m=0;
 label n_ed_op_visits_12m="Count ED OP visits, 1yr pre ivw";
 
 if n_ed_op_visits_12m=0 then ind_ed_op_12m=0;
 if n_ed_op_visits_12m>0 & n_ed_op_visits_12m~=. then ind_ed_op_12m=1;
 label ind_ed_op_12m="Indicator any ED OP visits, 1 yr pre ivw";
-
-if n_obs_stay_12m=. then n_obs_stay_12m=0;
-label n_obs_stay_12m="Number obs stays, 1 yr pre ivw";
-
-if n_obs_stay_12m=. then obs_stay_12m=0;
-label obs_stay_12m="Indicator any obs stay, 1 yr pre ivw";
 run;
 
-proc freq; tables n_ed_op_visits_12m n_obs_stay_12m /missprint; run;
-
-data hh(keep=bene_id index_year ind_hh_12m);
-set proj_int.hh_meet_365;
-ind_hh_12m=1;
+proc freq;
+table n_ed_op_visits_12m*ind_ed_op_12m;
 run;
 
-proc sort data=ip out=ip nodupkey; by bene_id index_year; run;
-proc sort data=snf out=snf nodupkey; by bene_id index_year; run;
-proc sort data=esrd out=esrd nodupkey; by bene_id index_year; run;
-proc sort data=oxygen out=oxygen nodupkey; by bene_id index_year; run;
-proc sort data=ed out=ed nodupkey; by bene_id index_year; run;
-proc sort data=hh out=hh nodupkey; by bene_id index_year; run;
 
 
-/*housecalls
+H="diag hip"
+/*recoded as a macro and use either the primary diagnosis or admitting diagnoses AD_DGNS */
 
-housecall codes (from Bruce Kinosian from CMS on 8/16/17) are 99341-99350
-and dom care codes are 99324-99328 and 99334-99337
+/*start with IP claim list, 1 year before interview*/
+%macro admissions(month=,days=,suffix=);
+%macro singledx(dxvar=,name=);
 
-POS codes are 12 13 14
+data dx_1_&name._&month.;
+set proj_int.mp_meet_&month.(where=(trim(left(SSLSSNF))~="N"));
 
-*/
+&name._dx=trim(left(&dxvar.));
 
-%macro pb_pre (days=,suf=);
+if &name._dx~="" then do;
+
+chf_&name._dx=0;
+copd_&name._dx=0;
+hip_&name._dx=0;
+
+
+/*CHF*/
+if (substr(&name._dx,1,5)='39891' or
+		substr(&name._dx,1,5)='40211' or
+		substr(&name._dx,1,5)='40291' or
+		substr(&name._dx,1,5)='40411' or
+		substr(&name._dx,1,5)='40413' or
+		substr(&name._dx,1,5)='40491' or
+		substr(&name._dx,1,5)='40493' or
+		substr(&name._dx,1,3)='428') 
+		and chf_&name._dx=0 
+		then chf_&name._dx=1;*add one binary variables here.;
+/*COPD*/
+	if (substr(dx,1,3)='490' or
+substr(dx,1,3)='491' or
+substr(dx,1,3)='492' or
+substr(dx,1,4)='4928' or
+substr(dx,1,3)='493' or
+substr(dx,1,5)='49301' or
+substr(dx,1,5)='49302' or
+substr(dx,1,4)='4931' or
+substr(dx,1,5)='49311' or
+substr(dx,1,5)='49312' or
+substr(dx,1,4)='4932' or
+substr(dx,1,5)='49321' or
+substr(dx,1,5)='49322' or
+substr(dx,1,5)='49381' or
+substr(dx,1,5)='49382' or
+substr(dx,1,4)='4939' or
+substr(dx,1,5)='49391' or
+substr(dx,1,3)='494' or
+substr(dx,1,3)='495' or
+substr(dx,1,3)='496' or
+substr(dx,1,3)='497' or
+substr(dx,1,3)='498' or
+substr(dx,1,3)='499' or
+substr(dx,1,3)='500' or
+substr(dx,1,3)='501' or
+substr(dx,1,3)='502' or
+substr(dx,1,3)='503' or
+substr(dx,1,3)='504' or
+substr(dx,1,3)='505' or
+substr(dx,1,4)='5064')
+			and copd_&name._dx=0 
+		then copd_&name._dx=1;	
+*hip fracture;
+if (substr(&name._dx,1,3)='820' ) 
+		and hip_&name._dx=0 
+		then hip_&name._dx=1;*add one binary variables here.;
+end;
+run;
 
 proc sql;
-create table pb_meet_&days.d_bef as select * from
-proj_int.index a
-left join medi.pb_09_17 b
-on a.bene_id=b.bene_id and admit_date<=index_date<=admit_date+&days;
+create table &name._dx_2_&month. as
+select distinct BID_hrs_22,admit_year,
+sum(chf_&name._dx) as chf_&name.,
+sum(copd_&name._dx) as copd_&name.,
+sum(hip_&name._dx) as hip_&name.
+from dx_1_&name._&month.
+group by bid_hrs_22,admit_year;
 quit;
 
 
-data hc;
-set pb_meet_&days.d_bef;
-array this hcpcscd1-hcpcscd13;
-code=0;
-do over this;
-if in(this,"99324","99325","99326","99327","99328","99334","99335","99336","99337", 
-	"99341","99342","99343","99344","99345","99346","99347","99348","99349","99350") and code=0 
-	then code=1;
+/*convert counts of diagnoses for each comorbidity to indicator variables*/ 
+data &name._dx_3_&month.(keep=BID_hrs_22 admit_year chf_&name._dx copd_&name._dx hip_&name._dx);
+set &name._dx_2_&month. ;
+array list_com chf_&name. copd_&name. hip_&name.;
+array list_com_bin chf_&name._dx copd_&name._dx hip_&name._dx;
+
+do over list_com;
+  list_com_bin=0;
+
+  if list_com>0 then do;
+    list_com_bin=1;
+   end;
+
 end;
-array that pos1-pos13;
-place=0;
-do over that;
-if in(that,"12","13","14") and place=0 then place=1;
-end;
-housecall=place=1 and code=1;
+
 run;
 
-proc sql; 
-create table hc_&suf as select distinct bene_id, index_date,
-sum(housecall) as n_housecalls_&suf
-from hc
-group by bene_id, index_date;
-quit;
+proc freq;
+table chf_&name._dx copd_&name._dx hip_&name._dx;
+run;
 
 %mend;
 
-/*housecalls
+/*use primary diagnosis code*/
+%singledx(dxvar=dgns_cd01,name=pri);
+/*use admitting diagnosis code*/
+%singledx(dxvar=AD_DGNS,name=adm);
 
-housecall codes (from Bruce Kinosian from CMS on 8/16/17) are 99341-99350
-and dom care codes are 99324-99328 and 99334-99337
 
-POS codes are 12 13 14
 
-*/
-
-%macro pb_post (days=,suf=);
+/*merge into the dataset that is just ffs 1 yr, 65+ age*/
+/*
+proc sql;
+create table core_ids_1yr_criteria_4c as select a.*,b.chf_pri_dx,
+b.copd_pri_dx,b.hip_pri_dx
+from sic_int.core_xwalk_ins_ffs_only a
+left join
+pri_dx_3 b 
+on trim(left(a.bid_hrs))=trim(left(b.bid_hrs_21)) and a.core_year=b.core_year;
+quit;
 
 proc sql;
-create table pb_meet_&days.d_bef as select * from
-proj_int.index a
-left join medi.pb_09_17 b
-on a.bene_id=b.bene_id and admit_date>=index_date>=admit_date-&days;
+create table core_ids_1yr_criteria_4d as select a.*,b.chf_adm_dx,
+b.copd_adm_dx,b.hip_adm_dx
+from core_ids_1yr_criteria_4c a
+left join
+adm_dx_3 b 
+on trim(left(a.bid_hrs))=trim(left(b.bid_hrs_21)) and a.core_year=b.core_year;
 quit;
 
+data core_ids_1yr_criteria_4e;
+set core_ids_1yr_criteria_4d;
 
-data hc;
-set pb_meet_&days.d_bef;
-array this hcpcscd1-hcpcscd13;
-code=0;
-do over this;
-if in(this,"99324","99325","99326","99327","99328","99334","99335","99336","99337", 
-	"99341","99342","99343","99344","99345","99346","99347","99348","99349","99350") and code=0 
-	then code=1;
+array list chf_pri_dx copd_pri_dx hip_pri_dx chf_adm_dx copd_adm_dx hip_adm_dx;
+do over list;
+	if list = .  then list=0;
 end;
-array that pos1-pos13;
-place=0;
-do over that;
-if in(that,"12","13","14") and place=0 then place=1;
-end;
-housecall=place=1 and code=1;
+label chf_pri_dx="CHF as primary dx from IP claim, 1yr pre ivw";
+label copd_pri_dx="COPD as primary dx from IP claim, 1yr pre ivw";
+label hip_pri_dx="Hip fracture as primary dx from IP claim, 1yr pre ivw";
+
+label chf_adm_dx="CHF as admitting dx from IP claim, 1yr pre ivw";
+label copd_adm_dx="COPD as admitting dx from IP claim, 1yr pre ivw";
+label hip_adm_dx="Hip fracture as admitting dx from IP claim, 1yr pre ivw";
+
 run;
 
-proc sql; 
-create table hc_&suf as select distinct bene_id, index_date,
-sum(housecall) as n_housecalls_&suf
-from hc group by bene_id, index_date;
+proc freq;
+table chf_pri_dx*chf_adm_dx copd_pri_dx*copd_adm_dx hip_pri_dx*hip_adm_dx ;
+run;
+
+/*Hip fracture criteria, method  by Covinsky
+One of the (2) criteria met:
+(1) Subject was admitted to a hospital with admitting diagnosis of “820.xx”.
+(2) There is a physician record of “HF procedure” (defined by CPT code of 27230-27248) that is supported by either: 
+a. Another physician record within 2 days OR 2
+b. Relevant surgery during hospitalization. (Relevant surgery is defined by ICD9 codes 785.5, 790.5, 791.5, 792.5). 
+(1) variable hip_adm_dx defined in macro above
+(2) HF procedure: carrier claims 	(HCPCS_YR specifies the year of CPT coding used)
+					HCPSCD01-HCPSCD13 The level 1 HCPCS code is the CPT code
+Then a)from carrier claims or 
+     b) from IP claims
+	
+
+For item (2) checked inpatient claims variables HCPSCD01-45 but none had any of the CPT codes in the list
+Next step, try running with carrier files...
+*/
+
+/********************************************************************/
+/*Physican record of HF procedure, check IP claims
+There are no observations with the HF procedure codes in the IP claims, this method isn't
+used in creating the final variable*/
+data ip_meet_&month.;
+set proj_int.ip_meet_&month.;
+run;
+
+proc contents data=ip_meet_&month.;
+run;
+
+data testhf_&month.;
+set ip_meet_&month.;
+if HCPSCD01~='';
+run;
+
+data hfproc_ip_&month.;
+set ip_meet_&month.;
+hf_proc_ind=0;
+array list HCPSCD01-HCPSCD45;
+do over list;
+if list~='' then do;
+	if (list='27230' or
+		list='27231' or
+		list='27232' or
+		list='27233' or
+		list='27234' or
+		list='27235' or
+		list='27236' or
+		list='27237' or
+		list='27238' or
+		list='27239' or
+		list='27240' or
+		list='27241' or
+		list='27242' or
+		list='27243' or
+		list='27244' or
+		list='27245' or
+		list='27246' or
+		list='27247' or
+		list='27248')
+		/*and hf_proc_ind=0*/
+		then hf_proc_ind=1;
+	end;
+end;
+
+
+run;
+
+proc freq; table hf_proc_ind;
+run;
+
+/********************************************************************/
+/*Physican record of HF procedure, check carrier claims*/
+/********************************************************************/
+
+data hfproc_carr_&month.;
+set proj_int.pb_meet_&month.;
+hf_proc_ind=0;
+array list HCPSCD01-HCPSCD13;
+do over list;
+if list~='' then do;
+	if (list='27230' or
+		list='27231' or
+		list='27232' or
+		list='27233' or
+		list='27234' or
+		list='27235' or
+		list='27236' or
+		list='27237' or
+		list='27238' or
+		list='27239' or
+		list='27240' or
+		list='27241' or
+		list='27242' or
+		list='27243' or
+		list='27244' or
+		list='27245' or
+		list='27246' or
+		list='27247' or
+		list='27248')
+		/*and hf_proc_ind=0*/
+		then hf_proc_ind=1;
+	end;
+end;
+
+
+run;
+
+proc freq; table hf_proc_ind;
+run;
+/********************************************************************/
+/*is there also a physican record within 2 days?*/
+proc sort data=hfproc_carr_&month.; by BID_HRS_22 FROM_DT THRU_DT hf_proc_ind;
+run;
+
+data hfproc_carr_2_&month.;
+set hfproc_carr_&month.;
+if eof1=0 then
+	set hfproc_carr_&month. (firstobs=2 keep=admit_date disch_date rename=(admit_date=lead1admit disch_date=lead1disch)) end=eof1;
+else do; lead1admit=.;  lead1disch=.; end;
+run;
+
+data hfproc_carr_3_&month.;
+set hfproc_carr_2_&month.;
+days_next_visit=lead1admit-disch_date;
+days_next_disch=lead1disch-disch_date;
+if hf_proc_ind=1 and days_next_visit<=2 and days_next_visit~=. & days_next_disch>0 then hf_w_visit_2d=1;
+else hf_w_visit_2d=0;
+run;
+
+data hfproc_carr_4_&month.;
+set hfproc_carr_3_&month.;
+if hf_proc_ind=1;
+run;
+
+proc freq data=hfproc_carr_3_&month.;
+table hf_proc_ind hf_w_visit_2d admit_year; run;
+
+/*if have hf CPT code from carrier, but no subsequent carrier claim,
+do they have a surgery code from the inpatient claims?*/
+data hfproc_carr_5_&month.;
+set hfproc_carr_4_&month.;
+if hf_proc_ind=1 and hf_w_visit_2d=0;
+run;
+
+
+
+
+/*for b) identify relevant surgeries from IP claims CPT codes and surgery dates*/
+
+/*This section of code for just checking For Surgeries*/
+data ip_meet_&month.;
+set proj_int.mp_meet_&month.(where=(trim(left(SSLSSNF))~="N"));
+run;
+
+proc contents data=ip_meet_&month.;
+run;
+
+data proc_long_&month.(keep=BID_hrs_22 TYPE_ADM procedure procedure_date date_imp_yes AD_DGNS DGNS_CD01-DGNS_CD25
+	 admit_date disch_date admit_year);
+set ip_meet_&month.;
+array list PRCDR_CD01-PRCDR_CD25;
+array date PRCDR_DT01-PRCDR_DT25;
+do over list;
+if list~="" then do;
+	procedure=list;
+	if date=0000000 then do;
+		procedure_date=admit_date;
+		date_imp_yes=1;
+		end;
+	if date~=0000000 then do;
+	procedure_date=datejul(date);
+	end;
+	output;
+end;
+end;
+
+format procedure_date date10.;
+format admit_date date10.;
+format disch_date date10.;
+
+run;
+
+proc freq; table date_imp_yes; run;
+
+/* Identify surgeries that meet the criteria
+Indicator variable surgery_meet = 1 if yes, include in sample 
+79 surgeries meet the criteria*/
+data surgery_meet_&month.;
+set proc_long_&month.;
+if length(compress(procedure))>3 then do;
+
+if compress(procedure)+0 in (7855, 7905, 7915, 7925) then surgery_meet=1;
+
+end;
+/*only keep observations in work.surgery_meet that meet criteria*/
+if surgery_meet then output;
+
+run;
+/*End surgery section 1*/
+
+/*who has surgery that meets criteria AND hf CPT code from carrier?*/
+proc sql;
+create table cpt_and_surg_&month. as select a.*,b.admit_date as carr_hf_admit, b.disch_date as carr_hf_disch,
+b.hf_proc_ind, b.hf_w_visit_2d from 
+surgery_meet_&month. a inner join
+hfproc_carr_5_&month. b
+on a.bid_hrs_22=b.bid_hrs_22;
 quit;
+
+data cpt_and_surg_1_&month.;
+set cpt_and_surg_&month.;
+format carr_hf_admit carr_hf_disch date9.;
+hf_w_surgery=1;
+run;
+
+/*now merge in lists to get a list of bid's that meet criteria 1 or 2*/
+data cpt_and_surg_2_&month.;
+set cpt_and_surg_1_&month.;
+keep bid_hrs_22 hf_proc_ind hf_w_surgery admit_year;
+run;
+
+proc sort data=cpt_and_surg_2_&month. nodupkey; by bid_hrs_22 admit_year ; run;
+
+data hfproc_carr_6_&month.;
+set hfproc_carr_4_&month.;
+keep bid_hrs_22 hf_proc_ind hf_w_visit_2d admit_year;
+if hf_proc_ind=1 and hf_w_visit_2d=1;
+run;
+
+proc sort data=hfproc_carr_6_&month. nodupkey; by bid_hrs_22 admit_year ; run;
+
+*merge the datasets;
+data hf_meet_&month.;
+merge hfproc_carr_6_&month. cpt_and_surg_2_&month. ;
+by bid_hrs_22 admit_year;
+run;
+
+proc sort data=hf_meet_&month. out=hf_meet2_&month. nodupkey; by bid_hrs_22 admit_year; run;
+
 
 %mend;
 
-%pb_pre(days=365,suf=n12m);
-%pb_pre(days=90,suf=n3m);
-%pb_post(days=365,suf=p12m);
-%pb_post(days=90,suf=p3m);
+%admissions(month=12m,days=365,suffix=12m);
+%admissions(month=24m,days=730,suffix=24m);
+%admissions(month=36m,days=1095,suffix=36m);
+%admissions(month=48m,days=1460,suffix=48m);
+%admissions(month=60m,days=1825,suffix=60m);
+%admissions(month=72m,days=2190,suffix=72m);
+%admissions(month=84m,days=2555,suffix=84m);
 
-proc sql;
-create table pb as select * from
+
+
+proc sql; 
+create table proj_int.smi_plus as select * from
 proj_int.index a
 left join 
-hc_n3m b
-on a.bene_id=b.bene_id and a.index_date=b.index_date
-left join
-hc_n12m c
-on a.bene_id=c.bene_id and a.index_date=c.index_date
+adm_dx_3_12m b
+on a.bid_hrs_22=b.bid_hrs_22 and a.index_year=b.admit_year
 left join 
-hc_p3m d
-on a.bene_id=d.bene_id and a.index_date=d.index_date
-left join
-hc_p12m e
-on a.bene_id=e.bene_id and a.index_date=e.index_date;
+adm_dx_3_24m c
+on a.bid_hrs_22=c.bid_hrs_22 and a.index_year=c.admit_year
+left join 
+adm_dx_3_36m d
+on a.bid_hrs_22=d.bid_hrs_22 and a.index_year=d.admit_year
+left join 
+adm_dx_3_48m e
+on a.bid_hrs_22=e.bid_hrs_22 and a.index_year=e.admit_year
+left join 
+adm_dx_3_60m f
+on a.bid_hrs_22=f.bid_hrs_22 and a.index_year=f.admit_year
+left join 
+adm_dx_3_72m g
+on a.bid_hrs_22=g.bid_hrs_22 and a.index_year=g.admit_year
+left join 
+adm_dx_3_84m h
+on a.bid_hrs_22=h.bid_hrs_22 and a.index_year=h.admit_year
+left join 
+pri_dx_3_12m i
+on a.bid_hrs_22=i.bid_hrs_22 and a.index_year=i.admit_year
+left join 
+pri_dx_3_24m j
+on a.bid_hrs_22=j.bid_hrs_22 and a.index_year=j.admit_year
+left join 
+pri_dx_3_36m k
+on a.bid_hrs_22=k.bid_hrs_22 and a.index_year=k.admit_year
+left join 
+pri_dx_3_48m l
+on a.bid_hrs_22=l.bid_hrs_22 and a.index_year=l.admit_year
+left join 
+pri_dx_3_60m m
+on a.bid_hrs_22=m.bid_hrs_22 and a.index_year=m.admit_year
+left join 
+pri_dx_3_72m n
+on a.bid_hrs_22=n.bid_hrs_22 and a.index_year=n.admit_year
+left join 
+pri_dx_3_84m o
+on a.bid_hrs_22=o.bid_hrs_22 and a.index_year=o.admit_year
+left join 
+hf_meet_12m p
+on a.bid_hrs_22=p.bid_hrs_22 and a.index_year=p.admit_year
+left join 
+hf_meet_24m q
+on a.bid_hrs_22=q.bid_hrs_22 and a.index_year=q.admit_year
+left join 
+hf_meet_36m r
+on a.bid_hrs_22=r.bid_hrs_22 and a.index_year=r.admit_year
+left join 
+hf_meet_48m s
+on a.bid_hrs_22=s.bid_hrs_22 and a.index_year=s.admit_year
+left join 
+hf_meet_60m t
+on a.bid_hrs_22=t.bid_hrs_22 and a.index_year=t.admit_year
+left join 
+hf_meet_72m u
+on a.bid_hrs_22=u.bid_hrs_22 and a.index_year=u.admit_year
+left join 
+hf_meet_84m v
+on a.bid_hrs_22=v.bid_hrs_22 and a.index_year=v.admit_year;
 quit;
 
+
+/*merge in these hip fracture variables*/
+/*
 proc sql;
-create table proj_int.utilization_pre as select * 
-from proj_int.index a 
-left join
-ip b
-on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year
-left join 
-snf c
-on trim(left(a.bene_id))=trim(left(c.bene_id)) and a.index_year=c.index_year
-left join 
-esrd d
-on trim(left(a.bene_id))=trim(left(d.bene_id)) and a.index_year=d.index_year
-left join
-oxygen e
-on trim(left(a.bene_id))=trim(left(e.bene_id)) and a.index_year=e.index_year
-left join 
-ed f
-on trim(left(a.bene_id))=trim(left(f.bene_id)) and a.index_year=f.index_year
-left join
-hh g
-on trim(left(a.bene_id))=trim(left(g.bene_id)) and a.index_year=g.index_year
-left join 
-pb h
-on trim(left(a.bene_id))=trim(left(h.bene_id)) and a.index_year=h.index_year;
+create table core_ids_1yr_criteria_4f
+as select a.*,b.hf_w_visit_2d,b.hf_w_surgery from
+core_ids_1yr_criteria_4e a left join
+hf_meet2 b
+on a.bid_hrs=b.bid_hrs_21 and a.core_year=b.core_year;
 quit;
 
-proc contents data=proj_int.utilization_pre; 
+proc freq; table hf_w_visit_2d*hf_w_surgery /missprint;
 run;
 
+data core_ids_1yr_criteria_4g;
+set core_ids_1yr_criteria_4f;
 
+array list hf_w_visit_2d hf_w_surgery ;
+do over list;
+	if list = .  then list=0;
+end;
+label hf_w_visit_2d ="HF CPT + Dr visit within 2 days, 1yr pre ivw";
+label hf_w_surgery ="HF CPT + Surgery, 1yr pre ivw";
+
+run;
+
+proc freq; table hf_w_visit_2d hf_w_surgery; run;
+
+/*Another idea is to check IP claims
+if CPT code (in fields HCPCSCD01-HCPCSCD45 in list then if PRCDRCD1-PRCDRCD25 in list = hip frature = yes*/
+
+/*merge new variables into full interview dataset*/
+/*
+proc sql;
+create table sic_int.core_ids_1yr_criteria_4g(drop=bid_hrs2 core_year2) as select a.*,b.* from
+sic_int.core_ids_1yr_criteria_4b a left join
+core_ids_1yr_criteria_4g(rename=(bid_hrs=bid_hrs2) rename=(core_year=core_year2)
+     drop=c_ivw_year c_ivw_date age_ge_65 part_ab_12m hmo_d_12m )
+ 	 b
+on a.bid_hrs=b.bid_hrs2 and a.core_year=b.core_year2;
+quit;
 
 H="SMI"
 /*
@@ -7912,18 +8437,18 @@ data smi_&range1._&range2;
 set smi_1 ;
 
 label smi_icd9_1 ="Dementia";
-label smi_icd9_2 ="EPISODIC MOOD DISORDERS";
-label smi_icd9_3 ="DELUSIONAL DISORDERS";
-label smi_icd9_4 ="OTHER NON-ORGANIC PSYCHOSES";
-label smi_icd9_5 ="ANXIETY, DISSOCIATIVE AND SOMATOFORM DISORDERS";
-label smi_icd9_6 ="ANXIETY, DISSOCIATIVE AND SOMATOFORM DISORDERS";
-label smi_icd9_7 ="DEPRESSIVE DISORDER, NOT OTHERWISE SPECIFIED";
-label smi_icd9_8 ="EPISODIC MOOD DISORDERS";
-label smi_icd9_9 ="DELUSIONAL DISORDERS";
-label smi_icd9_10 ="OTHER NON-ORGANIC PSYCHOSES";
-label smi_icd9_11 ="ANXIETY, DISSOCIATIVE AND SOMATOFORM DISORDERS";
-label smi_icd9_12 ="ANXIETY, DISSOCIATIVE AND SOMATOFORM DISORDERS";
-label smi_icd9_13 ="DEPRESSIVE DISORDER, NOT OTHERWISE SPECIFIED";
+label smi_icd9_2 ="Cancer";
+label smi_icd9_3 ="ESRD";
+label smi_icd9_4 ="CHF";
+label smi_icd9_5 ="COPD";
+label smi_icd9_6 ="Diabetes";
+label smi_icd9_7 ="ALD";
+label smi_icd9_8 ="HIV";
+label smi_icd9_9 ="ALS";
+label smi_icd9_10 ="Hip Fracture";
+label smi_icd9_11 ="Renal Disease";
+label smi_icd9_12 ="Ischemic Heart Disease";
+label smi_icd9_13 ="Peripheral vascular Disease";
 
 run;
 
@@ -8767,6 +9292,47 @@ on a.id=b.id and a.index_year=b.index_year;
 quit;
 
 proc export data=proj_int.hrs_14_dataset outfile="D:\HRS\Projects\exploratory\hm_smi_mental_ill\data\int_data\hrs_14_dataset.dta" replace; run;
+
+H="table creation"
+use "D:\HRS\Projects\exploratory\hm_smi_mental_ill\data\int_data\hrs_14_dataset.dta", clear
+gen c_ivw_date=index_date 
+
+merge 1:1 id c_ivw_date using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", force keep(match)
+
+keep if cont_ffs_n_mos>=24
+
+
+gen smi_icd9_14_0m_12m=.
+replace smi_icd9_14_0m_12m=0 if smi_icd9_6_0m_12m!=. & smi_icd9_11_0m_12m!=. & smi_icd9_12_0m_12m!=. & smi_icd9_13_0m_12m!=.
+replace smi_icd9_14_0m_12m=1 if smi_icd9_6_0m_12m==1 & (smi_icd9_11_0m_12m==1 & smi_icd9_12_0m_12m==1 & smi_icd9_13_0m_12m==1)
+
+gen smi_icd9_14_12m_24m=.
+replace smi_icd9_14_12m_24m=0 if smi_icd9_6_12m_24m!=. & smi_icd9_11_12m_24m!=. & smi_icd9_12_12m_24m!=. & smi_icd9_13_12m_24m!=.
+replace smi_icd9_14_12m_24m=1 if (smi_icd9_6_12m_24m==1 & (smi_icd9_11_12m_24m==1 & smi_icd9_12_12m_24m==1 & smi_icd9_13_12m_24m==1)) | smi_icd9_14_0m_12m==1
+
+foreach i in 1 2 3 4 5 6 7 8 9 10 14{
+egen smi_icd9_`i'_24m_1= rowtotal(smi_icd9_`i'_0m_12m smi_icd9_`i'_12m_24m)
+gen smi_icd9_`i'_24m=0 if smi_icd9_`i'_24m_1==0
+replace smi_icd9_`i'_24m=1 if smi_icd9_`i'_24m_1>=1 & !missing(smi_icd9_`i'_24m_1)
+}
+
+egen smi_cnt_n_12m=rowtotal(smi_icd9_1_0m_12m smi_icd9_2_0m_12m smi_icd9_3_0m_12m smi_icd9_4_0m_12m smi_icd9_5_0m_12m smi_icd9_6_0m_12m smi_icd9_7_0m_12m smi_icd9_8_0m_12m smi_icd9_9_0m_12m smi_icd9_10_0m_12m smi_icd9_14_0m_12m )
+
+egen smi_cnt_n_24m=rowtotal(smi_icd9_1_24m smi_icd9_2_24m smi_icd9_3_24m smi_icd9_4_24m smi_icd9_5_24m smi_icd9_6_24m smi_icd9_7_24m smi_icd9_8_24m smi_icd9_9_24m smi_icd9_10_24m smi_icd9_14_24m)
+
+forvalues i=1/8{
+egen ment_`i'_24m_1= rowtotal(ment_`i'_0m_12m ment_`i'_12m_24m)
+gen ment_`i'_24m=0 if ment_`i'_24m_1==0
+replace ment_`i'_24m=1 if ment_`i'_24m_1>=1 & !missing(ment_`i'_24m_1)
+}
+
+
+egen ment_cnt_n_24m=rowtotal(ment_1_24m ment_2_24m ment_3_24m ment_4_24m ment_5_24m ment_6_24m ment_7_24m ment_8_24m )
+
+egen ment_cnt_n_24m_sev=rowtotal(ment_1_24m ment_2_24m ment_3_24m ment_4_24m)
+
+
+local cvars
 
 H="Model Medicaid spending & NH Nights"
 set more off
