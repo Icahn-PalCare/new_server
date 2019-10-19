@@ -136,6 +136,49 @@ keep spid income_quart education  metro_ind nhres  memory  adl_index adl_impair 
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\other nhats vars.dta", replace
 
 
+H="making hrr level ma penetration variable"
+use "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_6_HRR_xref.dta" 
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_1_HRR_xref.dta" 
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_2_HRR_xref.dta" 
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_3_HRR_xref.dta" 
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_4_HRR_xref_spid destring.dta" 
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_5_HRR_xref.dta" 
+
+gen year=.
+replace year=2011 if hrrnum_2011!=.
+replace year=2012 if hrrnum_2012!=.
+replace year=2013 if hrrnum_2013!=.
+replace year=2014 if hrrnum_2014!=.
+replace year=2015 if hrrnum_2015!=.
+replace year=2016 if hrrnum_2016!=.
+
+gen hrrnum=.
+replace hrrnum=hrrnum_2011 if hrrnum_2011!=.
+replace hrrnum=hrrnum_2012 if hrrnum_2012!=.
+replace hrrnum=hrrnum_2013 if hrrnum_2013!=.
+replace hrrnum=hrrnum_2014 if hrrnum_2014!=.
+replace hrrnum=hrrnum_2015 if hrrnum_2015!=.
+replace hrrnum=hrrnum_2016 if hrrnum_2016!=.
+drop hrrnum_2016 hrrnum_2011 hrrnum_2012 hrrnum_2013 hrrnum_2015 hrrnum_2014 _merge
+
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_6_HRR_xref.dta" 
+drop _merge
+replace year=2017 if hrrnum_2016!=.
+replace hrrnum= hrrnum_2016 if hrrnum_2016!=.
+drop hrrnum_2016
+
+merge m:1 hrrnum year using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\hrrnum year avgMA.dta" 
+drop if spid==.
+drop _merge
+
+drop hrrnum 
+
+save as "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\spid year avgMA.dta"
+
 H="****RUN BELOW EVERY TIME****"
 
 
@@ -1325,7 +1368,7 @@ by bene_id: keep if _n==_N
 
 merge 1:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keep(match) nogen
 
-keep bene_id spid ma1 ma2 hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year death_month
+keep bene_id spid ma1 ma2 hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year death_month prvdr_num
 merge 1:m spid using "`nhats'", nogen keep(match)
 
 label var ma1 "MA approach 1"
@@ -1334,17 +1377,27 @@ label var hs_12_pre "Hospice claim 12-months pre death"
 label var ind_died_on_hospice "Died in Hospice"
 label var ma_month_bef_hs "Had MA month before Hospice"
 
+
+destring prvdr_num, replace
+merge m:1 prvdr_num using  "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\bene spid and hospice_one yr only.dta"
+drop if _merge==2
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\claims and nhats.dta", replace
+
 
 H="build data set step 3: merge in some more nhats vars"
 *step 3: merging in other nhats data
-use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\claims and nhats.dta"
+drop _merge
 merge 1:1 spid using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\race var.dta"
 drop _merge
 merge 1:1 spid using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\female var.dta"
 drop _merge
 merge 1:1 spid using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\other nhats vars.dta"
-save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\claims and nhats.dta", replace
+
+
+*merge in hrr-level data
+drop _merge
+sort spid year
+merge spid year using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\spid year avgMA.dta"
 
 H="more variable cleaning"
 *more variable cleaning
@@ -1365,6 +1418,22 @@ replace placedeath=4 if `var'==4 | `var'==5 | `var'==91
 label define pd2 1 "1 home" 2 "2 hospital" 3 "3 nursing home" 4 "4 other"
 label values  placedeath pd2
 tab placedeath 
+
+
+recode excellent (1=0)(0=1), gen(not_excellent)
+
+gen perc_9or10=rating_9or10/100
+
+* MA penetration
+tab inanal
+count if inanal==1 & avgMA==.
+sort spid year
+by spid: replace avgMA= avgMA[_n-1] if avgMA==.
+count if inanal==1 & avgMA==.
+sum avgMA if inanal==1, detail
+recode avgMA (0/18=1 "first quart-0 to 17%")(18/27=2 "2nd quart- 18 to 26%")(27/37=3 "3rd quart- 27 to 36%")(37/90=4 "4th quart- 37 to max"), gen(MA_quart)
+
+save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
 
 
 H="analysis"
@@ -1400,6 +1469,7 @@ svy, subpop(inanal): tab lung_all ma1, column
 svy, subpop(inanal): tab cva_all ma1, column
 svy, subpop(inanal): tab cancer_all ma1, column
 svy, subpop(inanal): tab prob_dem ma1, column
+svy, subpop(inanal): tab MA_quart ma1, column
 
 
 *figure 1
@@ -1413,7 +1483,7 @@ npos(lab) percent ///
 rep ///
 style(tex) bt font(bold) cl1(2-6)
 */
-foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
 		qui svy, subpop(inanal): logistic `var' i.ma1,  cformat(%4.2f)
 		margins ma1
@@ -1421,24 +1491,81 @@ foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_r
 
 *table 2: association between MA and EOL outcome
 *model 1: unadjusted
-foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
 		svy, subpop(inanal): logistic `var' i.ma1, cformat(%4.2f)
 }
 
 *new model 2: fully adjusted
-foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
 		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female child  spouse  ///
-		 year diff_get_out_bed, cformat(%4.2f)
+		  diff_get_out_bed year, cformat(%4.2f)
 }
+
+*new model 3: fully adjusted with alt MA def 
+foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+		recode_care_decision di_recode_informed {
+		svy, subpop(inanal): logistic `var' i.ma2 i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+}
+
 
 *FIGURE 2
 *interaction with hospice for excellent care
-qui svy, subpop(inanal): logistic excellent i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all lung_all cancer_all prob_dem ind_hospice, cformat(%4.2f)
+qui svy, subpop(inanal): logistic not_excellent i.ma1##i.ind_hospice i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
 	margins ma1#ind_hospice
 	marginsplot	
+
+	*interaction with place of death for excellent care 
+qui svy, subpop(inanal): logistic not_excellent i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins ma1#placedeath
+	marginsplot	
+	
+*interaction with hospice for informed
+	
+qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.ind_hospice i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins ma1#ind_hospice
+	marginsplot	
+
+*interaction with place of death for informed	
+qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins ma1#placedeath
+	marginsplot	
+
+*interaction with MA quart (regional) for excellent care
+	qui svy, subpop(inanal): logistic not_excellent i.ma1##i.MA_quart i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins ma1#MA_quart
+	marginsplot	
+	
+	
+*interaction with MA quart (regional) for not informed
+	qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.MA_quart i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins ma1#MA_quart
+	marginsplot	
+		
+*TABLE 3	
+*looking at eol care characteristics and ma
+
+
+foreach var of varlist ind_hospice  livedischarge late_transition placedeath {
+		svy, subpop(inanal): tab `var' ma1, column
+}
+	
+svy, subpop(inanal): mean perc_9or10, over(ma1) 	
+	svy, subpop(inanal): reg perc_9or10 i.ma1 
+	
+svy, subpop(inanal): mean comp_process_score, over(ma1) 	
+	svy, subpop(inanal): reg comp_process_score i.ma1 
+		
+	
+	
 	
 *interaction with hospice for family not kept informed
 qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
