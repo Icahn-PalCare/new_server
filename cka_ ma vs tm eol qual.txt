@@ -136,49 +136,6 @@ keep spid income_quart education  metro_ind nhres  memory  adl_index adl_impair 
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\other nhats vars.dta", replace
 
 
-H="making hrr level ma penetration variable"
-use "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_6_HRR_xref.dta" 
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_1_HRR_xref.dta" 
-drop _merge
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_2_HRR_xref.dta" 
-drop _merge
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_3_HRR_xref.dta" 
-drop _merge
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_4_HRR_xref_spid destring.dta" 
-drop _merge
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_5_HRR_xref.dta" 
-
-gen year=.
-replace year=2011 if hrrnum_2011!=.
-replace year=2012 if hrrnum_2012!=.
-replace year=2013 if hrrnum_2013!=.
-replace year=2014 if hrrnum_2014!=.
-replace year=2015 if hrrnum_2015!=.
-replace year=2016 if hrrnum_2016!=.
-
-gen hrrnum=.
-replace hrrnum=hrrnum_2011 if hrrnum_2011!=.
-replace hrrnum=hrrnum_2012 if hrrnum_2012!=.
-replace hrrnum=hrrnum_2013 if hrrnum_2013!=.
-replace hrrnum=hrrnum_2014 if hrrnum_2014!=.
-replace hrrnum=hrrnum_2015 if hrrnum_2015!=.
-replace hrrnum=hrrnum_2016 if hrrnum_2016!=.
-drop hrrnum_2016 hrrnum_2011 hrrnum_2012 hrrnum_2013 hrrnum_2015 hrrnum_2014 _merge
-
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA\NHATS_Round_6_HRR_xref.dta" 
-drop _merge
-replace year=2017 if hrrnum_2016!=.
-replace hrrnum= hrrnum_2016 if hrrnum_2016!=.
-drop hrrnum_2016
-
-merge m:1 hrrnum year using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\hrrnum year avgMA.dta" 
-drop if spid==.
-drop _merge
-
-drop hrrnum 
-
-save as "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\spid year avgMA.dta"
-
 H="****RUN BELOW EVERY TIME****"
 
 
@@ -1394,10 +1351,6 @@ drop _merge
 merge 1:1 spid using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\other nhats vars.dta"
 
 
-*merge in hrr-level data
-drop _merge
-sort spid year
-merge spid year using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\spid year avgMA.dta"
 
 H="more variable cleaning"
 *more variable cleaning
@@ -1424,14 +1377,7 @@ recode excellent (1=0)(0=1), gen(not_excellent)
 
 gen perc_9or10=rating_9or10/100
 
-* MA penetration
-tab inanal
-count if inanal==1 & avgMA==.
-sort spid year
-by spid: replace avgMA= avgMA[_n-1] if avgMA==.
-count if inanal==1 & avgMA==.
-sum avgMA if inanal==1, detail
-recode avgMA (0/18=1 "first quart-0 to 17%")(18/27=2 "2nd quart- 18 to 26%")(27/37=3 "3rd quart- 27 to 36%")(37/90=4 "4th quart- 37 to max"), gen(MA_quart)
+
 
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
 
@@ -1469,7 +1415,7 @@ svy, subpop(inanal): tab lung_all ma1, column
 svy, subpop(inanal): tab cva_all ma1, column
 svy, subpop(inanal): tab cancer_all ma1, column
 svy, subpop(inanal): tab prob_dem ma1, column
-svy, subpop(inanal): tab MA_quart ma1, column
+
 
 
 *figure 1
@@ -1537,19 +1483,23 @@ qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.placedeath i.death
 	margins ma1#placedeath
 	marginsplot	
 
-*interaction with MA quart (regional) for excellent care
-	qui svy, subpop(inanal): logistic not_excellent i.ma1##i.MA_quart i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed year, cformat(%4.2f)
-	margins ma1#MA_quart
-	marginsplot	
 	
-	
-*interaction with MA quart (regional) for not informed
-	qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.MA_quart i.deathage_3cat female child  spouse  ///
+**** PLANNED ADDITION TO FIGURE 2: QUALITY ACROSS REGIONS WITH VARYING MA PENETRATION****
+
+*interaction with place of death for excellent care 
+qui svy, subpop(inanal): logistic not_excellent i.ma1##i.quart_MA i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed year, cformat(%4.2f)
-	margins ma1#MA_quart
+	margins ma1#quart_MA 
 	marginsplot	
-		
+
+*interaction with place of death for informed	
+qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.quart_MA i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins ma1#quart_MA 
+	marginsplot	
+
+	
+
 *TABLE 3	
 *looking at eol care characteristics and ma
 
