@@ -28,9 +28,6 @@ Datasets Used: nhats, nhats-linked Medicare claims only for full death info
 
 
 
-H="pull index from ICD-9/10 data"
-
-
 H="get chronic conditions using correct CCW algorithm"
 //get chronic condition indicators using actual CCW methodology
 
@@ -5263,3 +5260,84 @@ save "D:\NHATS\Projects\exploratory\JAMA_SMC_prevalence_Oct_2019\data\ccw_annual
 
 
 
+
+
+H="export to excel"
+use "D:\NHATS\Projects\exploratory\JAMA_SMC_prevalence_Oct_2019\data\ccw_annual.dta", clear
+merge 1:1 spid wave using "D:\NHATS\Projects\serious_illness\ask_identifying_serious_illness_icd9_to_10\data\final_data\serious_ill_nhats_1_6_full_6m.dta", nogen keep(match master)
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta",  nogen
+
+keep if /*sp_ivw==1 &*/ !lml & wave==5 //& !nhres
+
+label define agecat 1 "65-69" 2 "70-74" 3 "75-79" 4 "80-84" 5 "85-89" 6 "90+"
+label values agecat agecat
+
+gen ffs12=cont_ffs_n_mos>=12 & !missing(cont_ffs_n_mos)
+
+egen adl_mo=rowmax(adl_ins_help adl_bed_help)
+egen adl_sc=rowmax(adl_dres_help adl_bath_help adl_eat_help adl_toil_help)
+label var adl_mo "Mobility impairment"
+label var adl_sc "Self-care impairment"
+label var ffs12 "12mo FFS Medicare"
+
+egen serill=rowmax(ind_smi_any adl_impair ccw_ge4)
+gen siadl=ind_smi_any==1 & adl_impair==1
+gen crita=ind_smi_any==1 | adl_impair==1
+label var ind_smi_any "Any Serious Medical Condition"
+label var serill "SMC or ADL impairment or 4+ CCs"
+label var siadl "SMC and ADL impairment"
+label var crita "SMC or ADL impairment"
+gen pop=1
+
+local vars pop nhres ffs12 adl_impair adl_mo adl_sc prob_dem ind_pain ccw_ge3 ccw_ge4 ind_smi_any siadl crita serill 
+foreach x in adl_impair adl_mo adl_sc prob_dem ind_pain {
+	replace `x'=0 if nhres==1
+}
+foreach x of varlist ccw* ind_smi_any siadl serill crita {
+	replace `x'=. if !ffs12
+}
+
+local svars 
+foreach x of local vars {
+	local svars `svars' estimate_`x'=`x'
+}
+levelsof agecat, local(levels)
+foreach l of local levels {
+	local lab`l' : label agecat `l'
+	gen agecat`l'=agecat==`l'
+	label var agecat`l' "`lab`l''"
+	local agecat `agecat' agecat`l'
+	local sage `sage' estimate_agecat`l'=agecat`l'
+}
+
+tokenize `vars'
+local wc : word count `vars'
+forvalues i=1/`wc' {
+	local vlab`i' : var label ``i''
+}
+local svars estimate_pop=pop
+preserve
+
+collapse (sum) `svars' (mean) `vars' `agecat' [pw=anfinw]
+foreach l of local levels {
+	label var agecat`l' "`lab`l''"
+}
+forvalues i=1/`wc' {
+	label var ``i'' "`vlab`i''"
+}
+export excel using "D:\NHATS\Projects\exploratory\JAMA_SMC_prevalence_Oct_2019\output\2015_MC_serious_illness_nums.xls", sheet("total") sheetreplace firstrow(varlabels)
+
+
+restore
+
+foreach x in pop  {
+	preserve
+	keep if `x'==1
+	collapse (sum) `svars' (mean) `vars' [pw=anfinw], by(agecat)
+	forvalues i=1/`wc' {
+	label var ``i'' "`vlab`i''"
+}
+
+	export excel using "D:\NHATS\Projects\exploratory\JAMA_SMC_prevalence_Oct_2019\output\2015_MC_serious_illness_nums.xls", sheet("by age") sheetreplace firstrow(varlabels)
+	restore
+}
