@@ -196,7 +196,7 @@ save round_`w'_ltd.dta, replace
 }
 
 //check sensitive data files, keep only some variables, merge with ltd datasets
-forvalues w=1/7{
+forvalues w=1/$w{
 	use "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File.dta"
 	sort spid 
 	quietly by spid: gen dup = cond(_N==1,0,_n)
@@ -212,8 +212,7 @@ append using round_`w'_ltd.dta
 
 preserve
 
-//change back to $w when you get sensitive file. 
-forvalues w=1/7{
+forvalues w=1/$w{
 use "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File.dta", clear
 gen wave=`w'
 save "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File_new.dta", replace
@@ -251,11 +250,10 @@ merge m:1 spid using "${r6s}NHATS_Round_6_SP_Sen_Dem_File_new.dta", ///
 merge m:1 spid using "${r7s}NHATS_Round_7_SP_Sen_Dem_File_new.dta", ///
 	keepusing(r7dintvwrage hh7spageall r7ddeathage pd7mthdied pd7yrdied hc7cancerty*) nogen
 	
-/* add in when you get RD 8 Sensitive
 //merge in additional r8 sensitive data
 merge m:1 spid using "${r8s}NHATS_Round_8_SP_Sen_Dem_File_new.dta", ///
 	keepusing(r8dintvwrage hh8spageall r8ddeathage pd8mthdied pd8yrdied hc8cancerty*) nogen
-*/
+
 
 //3B?
 //merge in tracker status information
@@ -996,8 +994,7 @@ tab indephigh wave if sp_ivw_yes==1, missing
 *********************************************
 *********************************************
 gen age=.
-//need to change to $w once sensitive file comes out
-forvalues w=1/7{
+forvalues w=1/$w{
 	replace age=r`w'dintvwrage if wave==`w'
 	sum age if wave==`w', detail
 	}	
@@ -1774,7 +1771,7 @@ replace dem_3_cat=3 if dem_3_cat==. & dem_via_proxy==0 & speaktosp==2  //proxy i
 tab dem_3_cat wave, missing
 
 
-notes dem_3_cat: sr_dementia_ever dem_via_proxy speaptosp
+notes dem_3_cat: sr_dementia_ever dem_via_proxy speaktosp
 notes dem_3_cat: 3 Category dementia 
 
 forvalues i=1/8{
@@ -2577,7 +2574,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 10/03/2019
+Date Updated: 10/24/2019
 
 Description: This section uses the SP and OP data files and imputes
 hours of help provided to SP per methods in NHATS Technical Paper #7
@@ -3801,7 +3798,7 @@ notes res_care: Residential Care, excluding Nursing Home.
 notes deceased: status 62 68
 notes deceased: Died after round 1
 
-notes prob_dem: dem_cat_3, sr_dementia_ever
+notes prob_dem: dem_3_cat, sr_dementia_ever
 notes prob_dem: Probable Dementia. 
 
 foreach x in community_dwelling rcfres res_care deceased prob_dem{
@@ -4084,9 +4081,9 @@ label var died_`i' "SP died w/in `i' months, per future wave status"
 //look at death month & year. don't have, so set date to last of month
 gen dd=.
 replace pd2yrdied=pd2yrdied+2010 if pd2yrdied>0
-//CHANGE TO $w when RD 8 SENSITIVE RELEASED
+
 gen nhats_death_day=. 
-forvalues w=2/7 {
+forvalues w=2/$w {
 	foreach j in mth yr {
 		replace pd`w'`j'died=. if pd`w'`j'<0
 }
@@ -5436,7 +5433,7 @@ notes ivw_type: Determining if SP or Proxy completed interview.
 notes sp_ivw_yes: r*spstat
 notes sp_ivw_yes: If SP completed interview
 
-keep spid old_anfinwgt varstrat varunit wave yearsample r7status r6status r5status r4status r3status r2status r1status ivw_type sp_ivw_yes lml_ivw_yes proxy_ivw freq_go_out ///
+keep spid old_anfinwgt varstrat varunit wave yearsample r8status r7status r6status r5status r4status r3status r2status r1status ivw_type sp_ivw_yes lml_ivw_yes proxy_ivw freq_go_out ///
 help_go_out out_on_own needshelp hasdifficulty helpdiff independent homebound_cat never_go_out indeplow indephigh age female race_cat education educ_hs_ind imputed_inc1 ///
 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5 aveincome income_cat otherlang white black hisp other_race whiteoth maritalstat medicaid medigap mc_partd tricare ///
 private_ltc residence livearrang livealone srh srh_fp sr_ami_ever sr_ami_new sr_stroke_ever sr_stroke_new sr_cancer_ever sr_cancer_new sr_hip_ever sr_hip_new ///
@@ -7129,16 +7126,17 @@ replace anfinw=anfinw*3966339/(1534438+2157300) if inrange(age,85,89) & female==
 *replace anfinw=anfinw*1577880/1534438 if inrange(age,90,150) & female==1
 */
 
-H="Adjusting for Income CPI using 2017$"
-// Income adjusted for cpi inflation; now in terms of 2017 dollars.
+H="Adjusting for Income CPI using 2018$"
 gen income_adj=0
-replace income_adj= (245.120/224.939)*aveincome if wave==1
-replace income_adj= (245.120/229.594)*aveincome if wave==2
-replace income_adj= (245.120/232.957)*aveincome if wave==3
-replace income_adj= (245.120/236.736)*aveincome if wave==4
-replace income_adj= (245.120/237.017)*aveincome if wave==5
-replace income_adj= (245.120/240.007)*aveincome if wave==6
-replace income_adj=aveincome if wave==7
+replace income_adj= (251.107/224.939)*aveincome if wave==1
+replace income_adj= (251.107/229.594)*aveincome if wave==2
+replace income_adj= (251.107/232.957)*aveincome if wave==3
+replace income_adj= (251.107/236.736)*aveincome if wave==4
+replace income_adj= (251.107/237.017)*aveincome if wave==5
+replace income_adj= (251.107/240.007)*aveincome if wave==6
+replace income_adj= (251.107/245.120)*aveincome if wave==7
+replace income_adj=aveincome if wave==8
+
 
 H="Changelog"
 
@@ -7147,6 +7145,10 @@ H="Changelog"
 
 
 Updates:
+
+10/24/2019 MH
+----------
+Final Wave 8 file created with sensitive file for wave 8. Also updated cpi inflation tab for 2018 $'s.
 
 10/04/2019 EBL
 ----------
