@@ -1934,6 +1934,160 @@ svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_informed late
 
 
 
+H="******MA penetration by HRR******"
+
+
+H="makinghrr_numyear_MA do file"
+
+*merge all zip_hrr files by year into one master
+use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2011.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2012.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2013.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2014.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2015.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2016.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2017.dta" 
+
+save "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_all years.dta", replace
+
+clear
+*merge all fips penetration files by year
+use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2011.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2012.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2013.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2014.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2015.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2016.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2017.dta" 
+save "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta", replace
+
+*assign every zip the penetration of the county they are in
+use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips.dta" 
+destring zipcode, replace
+save "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips.dta", replace
+
+merge 1:m fips using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta"
+use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta"
+
+*match each zip by year to a county. use files from 2019 and 2010 due to some changes
+use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_all years.dta"
+sort zipcode year
+merge m:1 zipcode using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips.dta" 
+rename _merge merge1
+merge m:1 zipcode using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips_2010.dta"
+destring fips, replace
+destring fips_2010, replace
+replace fips=fips_2010 if fips==.
+count if fips==.
+drop _merge fips_2010 merge1
+
+*merge in the total population data by zip
+drop _merge
+merge m:1 zipcode using  "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_popover 65_v2.dta" 
+replace number_65up=pop_over65 if number_65up==. & pop_over65!=.
+
+*merge in zip to HRR
+drop _merge
+merge m:1 fips year using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta" 
+
+*putting it all together
+drop if hrrnum==.
+
+*make pop weights for zip codes in hrr
+sort hrrnum year zipcode
+by hrrnum year: egen totalpop=total(number_65up)
+gen weight=number_65up/totalpop
+
+*make a weighted penetration by HRR
+*first, take the % of penetration
+replace penetration=substr(penetration, 1, length(penetration)-1)
+destring penetration, replace
+
+*make weighted penetration
+by hrrnum year: egen avg_MA= total(penetration*weight)
+
+*make a variable to count obs by hrr and year
+sort hrrnum year zipcode
+by hrrnum year: gen count=_n
+
+
+keep if count==1
+drop zipcode fips number_65up totalpop weight penetration
+
+
+H="merge HRRMA file"
+
+//first, pull the HRR numbers for each wave
+
+cd "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA"
+forvalues i=1/6 {
+	use NHATS_Round_`i'_HRR_xref.dta, clear
+	destring spid, replace
+	rename hrrnum hrrnum
+	gen wave=`i'
+	tempfile t`i'
+	save `t`i''
+}
+
+clear
+forvalues i=1/6 {
+	append using `t`i''
+}
+
+//now carryforward, bc we've only got HRR through wave 6
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", keepusing(spid) nogen
+sort spid wave
+by spid: carryforward hrrnum, replace
+
+//merge with MA penetration and keep last obs
+gen year=2010+wave
+merge m:1 year hrrnum using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\int_data\hrrnum_year_avgMA.dta", nogen keep(match master)
+
+sort spid wave
+by spid: keep if _n==_N
+tempfile hrr
+save `hrr'
+
+//now merge them
+use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", clear
+drop _m
+//hrr for each year
+merge 1:1 spid using `hrr', nogen
+
+svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
+
+
+//per-year quartile
+
+gen avgma_quart=.
+levelsof year, local(levels)
+foreach l of local levels {
+	xtile a=avg_MA [pw=pweight] if year==`l', nq(4)
+	replace avgma_quart=a if year==`l'
+	drop a
+}
+label var avgma_quart "Per-year in-sample quartile of MA penetration by HRR"
+
+
+**** PLANNED ADDITION TO FIGURE 2: QUALITY ACROSS REGIONS WITH VARYING MA PENETRATION****
+
+*interaction with place of death for excellent care 
+qui svy, subpop(inanal): logistic not_excellent i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins avgma_quart#ma1 
+	marginsplot
+	marginsplot, recast(bar) plotopts(barw(.8) color(%40))
+	margins, dydx(ma1) over(avgma_quart)
+
+
+*interaction with place of death for informed	
+qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins avgma_quart#ma1 
+	marginsplot, recast(bar) plotopts(barw(.8) color(%40))
+	margins, dydx(ma1) over(avgma_quart)
+
+
 H="*********MH added MA section********"
 
 
@@ -2120,6 +2274,10 @@ H="Change log"
 
 
 Updates:
+10/25/2019 EBL
+------------
+Merged in constructed MA penetration and reran Claire's analysis in "merge HRRMA file"
+
 09/16/2019 MH
 ------------
 Small change to keep only those people in NHATS who match with MA definition. 

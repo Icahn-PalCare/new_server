@@ -17370,9 +17370,10 @@ label var died_12 "Died prior to next wave"
 // know if they died based off NHATS data.
 sort spid wave
 capture drop everdied
-gen everdied=1 if nwstatus==6 & wave!=8 
+gen everdied=1 if nwstatus==6  
 gsort spid -wave
 by spid: carryforward everdied, replace 
+replace everdied=0 if missing(everdied)
 
 //same as above explanation
 capture drop everlfu
@@ -18001,7 +18002,10 @@ tab status if wave==2
 
 gen n=1 
 
-mat tab=J(7,4,.)
+gen inhb=0
+replace inhb=1 if nwstatus==3
+
+mat tab=J(7,6,.)
 local r=1
 local c=1
 
@@ -18018,21 +18022,23 @@ local r=`r'+1
 mat list tab
 
 local r=1
-local c=1
-
 forvalues i=1/7{
+svy, subpop(if wave==`i' & nwstatus!=7 ): mean inhb
+mat tab[`r',`c'+1]=r(table)[1,1]*100
+mat tab[`r',`c'+2]=r(table)[5,1]*100
+mat tab[`r',`c'+3]=r(table)[6,1]*100
 sum n [aw=anfinw] if status==1 & wave==`i'
 local a=r(sum_w)
-sum n [aw=anfinw] if status==2 & wave==`i'+1
+sum n [aw=anfinw] if nwstatus==3 & wave==`i'
 local b=r(sum_w)
-mat tab[`r',`c'+1]=(`b'/`a')*100
-mat tab[`r',`c'+2]=(`b')
-mat tab[`r',`c'+3]=(`a')
+mat tab[`r',`c'+4]=(`a')
+mat tab[`r',`c'+5]=(`b')
 local r=`r'+1
 }
+
 mat list tab
 mat rownames tab="1-2" "2-3" "3-4" "4-5" "5-6" "6-7" "7-8"
-  mat colnames tab="Unweighted Cumulative Incidence" "Weighted Cumulative Incidence" "Weighted Homebound" "Weighted Community Dwelling"
+  mat colnames tab="Unweighted Cumulative Incidence" "Weighted Cumulative Incidence" "Weighted 95% CI Lower Limit" "Weighted 95% CI Upper Limit" "Weighted Community Dwelling" "Weighted Homebound"
   mat list tab 
   
   frmttable using incidence.doc, replace statmat(tab) title("Cumulative Incidence for Homebound") note ("Weighted Cumulative Incidence is calculated by taking the weighted population of homebound at the next wave and dividing that by the weighted population of the at risk (current wave)" \ "Weighted Homebound calculated from next wave" \ "Weighted Community Dwelling calculated from current wave")
@@ -18108,6 +18114,10 @@ H="changelog"
 
 
 Updates:
+10/25/2019 EBL
+------------
+Set "everdied" to zero if missing so that it's meaningful in the table 1. 
+
 10/24/2019 MH
 ------------
 Adding in wave 8 and re-running analysis. 

@@ -6727,7 +6727,7 @@ replace `x'=. if `x'<0
 }
 }
 
-save "D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1_${nsoc_wave}_n1.dta", replace
+save "D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1_${nsoc_wave}.dta", replace
 
 H="xxxDeath date from NHATS and claims--old"
 /*
