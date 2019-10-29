@@ -30,9 +30,9 @@ Simple Outline: Creating dataset, adding labels.
 
 //NEED TO CHANGE WAVE NUMBER FOR EACH WAVE
 
-global final D:\HRS\Projects\exploratory\kinless_natalie\Data\final
-global int D:\HRS\Projects\exploratory\kinless_natalie\Data\int
-global logs D:\HRS\Projects\exploratory\kinless_natalie\Output\logs
+global final D:\HRS\Projects\kinless_natalie\Data\final
+global int D:\HRS\Projects\kinless_natalie\Data\int
+global logs D:\HRS\Projects\kinless_natalie\Output\logs
 
 cd "${work}"
 
@@ -431,6 +431,34 @@ rename _merge merge
 tempfile fam
 save "`fam'"
 
+use "D:\HRS\Shared\raw\HRS\hrs_tracking_2016\TRK2016TR_R.dta", clear
+
+rename *, l
+
+keep hhid pn fwgtr gwgtr hwgtr jwgtr kwgtr lwgtr mwgtr nwgtr owgtr gwgtrnh hwgtrnh jwgtrnh kwgtrnh lwgtrnh mwgtrnh nwgtrnh owgtrnh // no nursing home weight for 1998
+
+local i=1
+foreach x in fwgtr gwgtr hwgtr jwgtr kwgtr lwgtr mwgtr nwgtr owgtr{
+rename `x' wgtr`i'
+local i=`i'+1
+}
+local i=2
+foreach x in gwgtrnh hwgtrnh jwgtrnh kwgtrnh lwgtrnh mwgtrnh nwgtrnh owgtrnh{
+rename `x' wgtrnh`i'
+local i=`i'+1
+}
+
+reshape long wgtr wgtrnh, i(hhid pn) j(year) 
+local i=1
+forvalues x=1998(2)2014{
+replace year=`x' if year==`i'
+local i=`i'+1
+}
+
+
+rename year core_year
+tempfile weight
+save `weight'
 
 use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
 keep if core_year>=2002
@@ -561,6 +589,29 @@ replace hospice_full=1 if hospice_sr==1 | hospice_c==1
 merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\working\exit_02_16_clean3.dta", nogen keep(master match) keepusing(*a124)
 
 egen location_of_death=rowmax(*a124)
+
+merge 1:1 hhid pn core_year using "`weight'"
+
+gen regwt = .
+
+replace regwt=wgtr if year==1998 // no nursing home weight for 1998
+replace regwt=wgtr if year==2000
+replace regwt=wgtr if year==2002
+replace regwt=wgtr if year==2004
+replace regwt=wgtr if year==2006
+replace regwt=wgtr if year==2008
+replace regwt=wgtr if year==2010
+replace regwt=wgtr if year==2012
+replace regwt=wgtr if year==2014
+
+replace regwt=wgtrnh if year==2000 & nhres==1
+replace regwt=wgtrnh if year==2002 & nhres==1
+replace regwt=wgtrnh if year==2004 & nhres==1
+replace regwt=wgtrnh if year==2006 & nhres==1
+replace regwt=wgtrnh if year==2008 & nhres==1
+replace regwt=wgtrnh if year==2010 & nhres==1
+replace regwt=wgtrnh if year==2012 & nhres==1
+replace regwt=wgtrnh if year==2014 & nhres==1
 
 label var liv_alone "Live-alone"
 label var hospice_c "Hospice from Claims"
@@ -943,6 +994,481 @@ save "${final}/kinless_natalie_exit.dta", replace
 
 
 
+H="*************************"
+
+
+H="Analysis"
+//Kinlessness Data Analysis 
+//Natalie Plick - Summer 2019
+
+clear
+use "${final}/kinless_natalie.dta", clear
+
+replace stratum=52 if stratum>52
+
+svyset secu [pweight=regwt], strata(stratum)
+
+//Restrict dataset to those who died within one year of their last core interview and those 50 and older:
+//drop if died_one_year!=1
+//drop if age1<50
+
+//child variable
+gen child_bin=.
+replace child_bin=0 if child==0
+replace child_bin=1 if child>=1
+
+
+//Labeling missing mother and father variables
+label define moth -1 missing
+label value mother_liv moth
+label define fath -1 missing
+label value father_liv fath
+
+//Making parent_liv variable
+gen parent_liv = .
+replace parent_liv = 0 if mother_liv==0 & father_liv==0
+replace parent_liv = 1 if mother_liv >0 | father_liv >0
+//Define parent variable this way^ because missing mother_liv and father_liv are defined as -1
+
+foreach x in hasown hasany{
+	replace `x'=0 if missing(`x')
+}
+
+
+gen flag_1_biol_kid = .
+replace flag_1_biol_kid=1 if hasownkid==1
+replace flag_1_biol_kid=0 if hasownkid==0
+
+gen flag_2_any_kid = .
+replace flag_2_any_kid=1 if hasanykid==1 | (flag_2_any_kid==. & child>=1)
+replace flag_2_any_kid=0 if hasanykid==0 | (flag_2_any_kid==. & child==0)
+
+gen flag_3_any_kid_married = .
+replace flag_3_any_kid_married =1 if flag_2_any_kid==1 | married==1
+replace flag_3_any_kid_married =0 if flag_2_any_kid==0 & married==0
+
+gen flag_4_any_kid_married_parent =.
+replace flag_4_any_kid_married_parent =1 if flag_3_any_kid_married==1 | parent_liv==1
+replace flag_4_any_kid_married_parent =0 if flag_3_any_kid_married==0 & parent_liv==0
+
+gen liv_sib=.
+replace liv_sib=1 if liv_bro==1 | liv_sis==1
+replace liv_sib=0 if liv_bro==0 & liv_sis==0
+
+gen flag_5_any_kid_married_par_sibs=.
+replace flag_5_any_kid_married_par_sibs=1 if flag_4_any_kid_married_parent==1 | liv_sib==1
+replace flag_5_any_kid_married_par_sibs=0 if flag_4_any_kid_married_parent==0 & liv_sib==0
+
+/*label define moth -1 missing
+label value mother_liv moth
+label define fath -1 missing
+label value father_liv fath*/
+
+gen over65=.
+replace over65=0 if age1<65
+replace over65=1 if age1>=65
+
+gen race=.
+replace race=1 if white==1
+replace race=0 if black==1 | hisp_eth==1 | other_na_api_race==1
+label define rac 1 "non-hispanic white" 0 "racial minority"
+label values race rac
+
+gen education=.
+replace education=0 if degree==0
+replace education=1 if degree==1 | degree==2
+replace education=2 if degree==3 | degree==4 | degree==5 | degree==6
+label define deg 0 "less than high school" 1 "high school or equivalent" 2 "college or graduate"
+label value education deg
+
+gen marital_bin=.
+replace marital_bin=1 if marital==1
+replace marital_bin=0 if marital>1 & marital<=5
+
+gen commdwell=.
+replace commdwell=1 if nhres_n1==0
+replace commdwell=0 if nhres_n1==1
+
+gen lowest_wealth_quartile=.
+replace lowest_wealth_quartile=1 if nw_quart==1
+replace lowest_wealth_quartile=0 if nw_quart==2 | nw_quart==3 | nw_quart==4
+
+gen health=.
+replace health=1 if srh>=1 & srh<=3
+replace health=0 if srh>=4 & srh<=5
+label define heal 0 "fair, poor" 1 "excellent, very good, good"
+label value health heal
+
+gen imprelig_edit=.
+replace imprelig_edit=1 if imprelig==1
+replace imprelig_edit=2 if imprelig==2
+replace imprelig_edit=3 if imprelig==3
+label define rel 1 "Very Important" 2 "Somewhat Important" 3 "Not Too Important"
+label value imprelig_edit imprelig
+
+gen religion_not_too_important=.
+replace religion_not_too_important=1 if imprelig_edit==3
+replace religion_not_too_important=0 if imprelig_edit==1 | imprelig_edit==2
+
+gen hospital_death=.
+replace hospital_death=1 if location_of_death==1
+replace hospital_death=0 if location_of_death<=7 & location_of_death>=2 & location_of_death!=8 
+
+gen location_edited=.
+replace location_edited = 1 if location_of_death==1
+replace location_edited = 2 if location_of_death==2
+replace location_edited = 3 if location_of_death==3 | location_of_death==4 | location_of_death==5 | location_of_death==7
+label define loc 1 "hospital" 2 "nursing home" 3 "home/hospice/assisted living/retirement/other"
+label value location_edited loc
+
+gen adl_index_core_cat=.
+replace adl_index_core_cat=0 if adl_index_core==0
+replace adl_index_core_cat=1 if adl_index_core==1 | adl_index_core==2
+replace adl_index_core_cat=2 if adl_index_core>=3 & !missing(adl_index_core)
+label define adl_groups_core 0 "0" 1 "1-2" 2 "3+"
+label value adl_index_core_cat adl_groups_core
+
+gen adl_index_exit_cat=.
+replace adl_index_exit_cat=0 if adl_index==0
+replace adl_index_exit_cat=1 if adl_index==1 | adl_index==2
+replace adl_index_exit_cat=2 if adl_index>=3 & !missing(adl_index)
+label define adl_groups_exit 0 "0" 1 "1-2" 2 "3+"
+label value adl_index_exit_cat adl_groups_exit
+
+gen n_i_cat=.
+replace n_i_cat=0 if n_i==0
+replace n_i_cat=1 if n_i==1
+replace n_i_cat=2 if n_i>=2 & !missing(n_i)
+label define nicat 0 "0" 1 "1" 2 "2+"
+label value n_i_cat nicat
+
+gen n_f_bin=.
+replace n_f_bin=0 if n_f==0
+replace n_f_bin=1 if n_f>=1 & !missing(n_f)
+
+gen paid_helpers=.
+replace paid_helpers=0 if n_p==0
+replace paid_helpers=1 if n_p>=1 & n_p<=6
+
+gen n_hp_cat=.
+replace n_hp_cat=1 if n_hp==1
+replace n_hp_cat=2 if n_hp==2
+replace n_hp_cat=3 if n_hp>=3 & !missing(n_hp)
+label define tothlp 1 "1" 2 "2" 3 "3+"
+label value n_hp_cat tothlp
+
+gen comor_c_hrs_edit=.
+replace comor_c_hrs_edit=comor_c_hrs
+replace comor_c_hrs_edit=2 if comor_c_hrs==2 | comor_c_hrs==3
+label define comor 0 "None (0)" 1 "Mild (1-3)" 2 "Moderate (4-6) or Severe(>7)"
+label value comor_c_hrs_edit comor
+
+gen duration_edit=.
+replace duration_edit=1 if duration==1 | duration==2
+replace duration_edit=2 if duration==3
+replace duration_edit=3 if duration==4
+replace duration_edit=4 if duration==5
+replace duration_edit=5 if duration==6
+label define dur 1 "sudden" 2 "<1 week" 3 "<1 month" 4 "<1 year" 5 ">1 year"
+label values duration_edit dur
+
+gen isolated=.
+replace isolated=1 if soc_visit_cat==0 | soc_visit_cat==1
+replace isolated=0 if soc_visit_cat==2 | soc_visit_cat==3
+
+gen discuss_edit=.
+replace discuss_edit=0 if discuss==0
+replace discuss_edit=1 if discuss==1
+
+gen lwill_edit=.
+replace lwill_edit=0 if lwill==0
+replace lwill_edit=1 if lwill==1
+
+gen hcp_edit=.
+replace hcp_edit=0 if hcp==0
+replace hcp_edit=1 if hcp==1
+
+label define prox 2 "spouse/partner" 3 "son" 4 "stepson or son of partner" 5 "spouse/partner of daughter" 6 "daughter" 7 "stepdaughter or daughter of partner" 8 "spouse/partner of son" 9 "grandchild of R or SP/P" 15 "brother" 17 "sister" 19 "other relative" 20 "other individual" 23 "paid helper" 24 "professional" 33 "spouse/partner of grandchild" 98 "don't know; not ascertained" 99 "refused"
+label values proxy_relat_exit prox
+
+gen proxy_relat_exit_edit=.
+replace proxy_relat_exit_edit=1 if proxy_relat_exit==2
+replace proxy_relat_exit_edit=2 if proxy_relat_exit==3 | proxy_relat_exit==5 | proxy_relat_exit==6 | proxy_relat_exit==8
+replace proxy_relat_exit_edit=3 if proxy_relat_exit==4 | proxy_relat_exit==7
+replace proxy_relat_exit_edit=4 if proxy_relat_exit==9 | proxy_relat_exit==19
+replace proxy_relat_exit_edit=5 if proxy_relat_exit==15
+replace proxy_relat_exit_edit=6 if proxy_relat_exit==17
+replace proxy_relat_exit_edit=7 if proxy_relat_exit==20 | proxy_relat_exit==23 | proxy_relat_exit==24
+label define exitprox 1 "spouse/partner" 2 "daughter/son/in-law children" 3 "stepchildren or children of partner" 4 "other relative" 5 "brother" 6 "sister" 7 "professional or other individual"
+label values proxy_relat_exit_edit exitprox
+
+gen hlphrs_i_com=hlphrs_i if nhres_n1==0
+gen hlphrs_p_com=hlphrs_p if nhres_n1==0
+
+foreach x in education location_edited adl_index_core_cat adl_index_exit_cat n_i_cat n_hp_cat comor_c_hrs_edit duration_edit pain_level_hrs soc_visit_cat proxy_relat_exit_edit{
+tab `x', gen(`x')
+}
+
+////// Labels created as No, becuase that is what is in table. Thus used "1-" in table
+label var female "Female"
+label variable hasownkid "No Biological Children"
+label variable hasanykid "No Children of any type"
+label variable married "No Spouse"
+label variable parent_liv "No Parents"
+label variable liv_sib "No Siblings"
+label variable flag_1_biol_kid "No Biological Children"
+label variable flag_2_any_kid "No Children of any type"
+label variable flag_3_any_kid_married "No children of any type or spouse"
+label variable flag_4_any_kid_married_parent "No children of any type, spouse, or parents"
+label variable flag_5_any_kid_married_par_sibs "No children of any type, spouse, parents, or siblings"
+////////
+
+label var over65 "65 and over"
+label var female "Female"
+label var race "Race: White"
+label var education1 "Less than HS" 
+label var education2 "HS or equivalent"
+label var education3 "College or Graduate" 
+label var marital_bin "Married"
+label var nhres_n1 "NH Resident at last core ivw"
+label var commdwell "Community Dwelling"
+label var lowest_wealth_quartile "Lowest Wealth Quartile"
+label var health "SR Health=excellent/very good/good"
+label var medicaid "Medicaid"
+label var medicare "Medicare" 
+label var northeast "Northeast" 
+label var midwest "Midwest" 
+label var south "South"
+label var west "West"
+label var religion_not_too_important "Religion not too Important"
+label var location_edited1 "Place of Death: Hospital"
+label var location_edited2 "Place of Death: Nursing Home" 
+label var location_edited3 "Place of Death: Home/Hospice/Assisted living/Retirement"
+label var adl_index_core_cat1 "ADL: 0 core"
+label var adl_index_core_cat2 "ADL:1-2 core" 
+label var adl_index_core_cat3 "ADL: 3+ core"
+label var adl_index_exit_cat1 "ADL: 0 exit"
+label var adl_index_exit_cat2 "ADL: 1-2 exit"
+label var adl_index_exit_cat3 "ADL: 3+ core"
+label var n_i_cat1 "Total Informal Helpers: 1"
+label var n_i_cat2 "Total Informal Helpers: 2"
+label var n_i_cat3 "Total Informal Helpers: 3+"
+label var n_f_bin "Formal Helpers" 
+label var paid_helpers "Paid Helpers" 
+label var n_hp_cat1 "Total number of helpers: 1"
+label var n_hp_cat2 "Total number of helpers: 2"
+label var n_hp_cat3 "Total number of helpers: 3+"
+label var hh_worker "Home Health Worker Helper"
+label var comor_c_hrs_edit1 "Comorbidities: 0"
+label var comor_c_hrs_edit2 "Comorbidities: 1-3"
+label var comor_c_hrs_edit3 "Comorbidities: 4+"
+label var prob_dem "Probable Dementia"
+label var duration_edit1 "Duration of final illness: Sudden"
+label var duration_edit2 "Duration of final illness: <1 week"
+label var duration_edit3 "Duration of final illness: <1 month"
+label var duration_edit4 "Duration of final illness: <1 year"
+label var duration_edit5 "Duration of final illness: >1 year"
+label var pain_hrs "Troubled by pain"
+label var pain_level_hrs1 "How bad was pain: Moderate"
+label var pain_level_hrs2 "How bad was pain: Mild" 
+label var pain_level_hrs3 "How bad was pain: Severe" 
+label var soc_visit_cat1 "Social visits: none or almost never"
+label var soc_visit_cat2 "Social visits: less than 1/week"
+label var soc_visit_cat3 "Social visits: less than every day up to 1x/week"
+label var soc_visit_cat4 "Social visits: every day or more"
+label var isolated "Social Isolation"
+label var discuss_edit " Discussion of EOL Care Preferences" 
+label var lwill_edit "Living Will"
+label var hcp_edit "Health Care Proxy"
+label var hospice_full "Hospice Utilization" 
+label var proxy_relat_exit_edit1 "Proxy Relationship: Spouse/partner"
+label var proxy_relat_exit_edit2 "Proxy Relationship: daughter/son/in-law children"
+label var proxy_relat_exit_edit3 "Proxy Relationship: stepchildren or children of partner"
+label var proxy_relat_exit_edit4 "Proxy Relationship: other relative"
+label var proxy_relat_exit_edit5 "Proxy Relationship: brother"
+label var proxy_relat_exit_edit6 "Proxy Relationship: sister"
+label var proxy_relat_exit_edit7 "Proxy Relationship: professional or other individual"
+label var hlphrs_i_com "Hours of help from total informal helpers (spouse and other), Community Dwelling"
+label var hlphrs_p_com "Hours of help from paid helpers (excludes institutional employees), Community Dwelling"
+gen n=1
+
+
+//table 1
+
+local kid hasownkid hasanykid married parent_liv liv_sib 
+local rn: word count `kid''
+
+mat tab=J(`rn', 2,.)
+mat stars=J(`rn', 5, 0)
+
+local r=1 
+local c=1
+
+foreach x in `kid'{
+local c=1
+	forvalues i=0/1{
+		sum `x' [aw=regwt] if female==`i' & died_one_year==1 & age1>=50
+		mat tab[`r',`c']=(1-`r(mean)')*100
+		local c=`c'+1
+		}
+	local r=`r'+1
+}
+
+mat colnames tab= "Male" "Female"
+mat rownames tab= `kid'
+mat list tab
+
+frmttable using "${int_share}/tables.rtf", replace statmat(tab) title("Table 1 Kin Categories") sdec(2) varlabels  
+
+///////////// 
+
+local kin_con flag_1_biol_kid flag_2_any_kid flag_3_any_kid_married flag_4_any_kid_married_parent flag_5_any_kid_married_par_sibs
+
+local rn: word count `kin_con''
+
+mat tab=J(`rn', 2,.)
+mat stars=J(`rn', 5, 0)
+
+local r=1 
+local c=1
+
+foreach x in `kin_con'{
+local c=1
+	forvalues i=0/1{
+		sum `x' [aw=regwt] if female==`i' & died_one_year==1 & age1>=50
+		mat tab[`r',`c']=(1-`r(mean)')*100
+		local c=`c'+1
+		}
+	local r=`r'+1
+}
+
+mat colnames tab= "Male" "Female"
+mat rownames tab= `kin_con'
+mat list tab
+
+frmttable using "${int_share}/tables.rtf", statmat(tab) title("Table 2 Kin Constellations") sdec(2) varlabels addtable
+
+
+/////////////////
+
+
+local cvar1 age months_bet
+
+local ivar1 over65 female race education1 education2 education3 marital_bin liv_alone nhres_n1 commdwell lowest_wealth_quartile health medicaid medicare northeast midwest south west religion_not_too_important  location_edited1 location_edited2 location_edited3 hosp_last_2yr icu vent adl_index_core_cat1 adl_index_core_cat2 adl_index_core_cat3 adl_index_exit_cat1 adl_index_exit_cat2 adl_index_exit_cat3 n_i_cat1 n_i_cat2 n_i_cat3 n_f_bin paid_helpers n_hp_cat1 n_hp_cat2 n_hp_cat3
+
+local cvar2 hlphrs_i hlphrs_i_com hlphrs_p hlphrs_p_com
+
+local ivar2 hh_worker comor_c_hrs_edit1 comor_c_hrs_edit2 comor_c_hrs_edit3 prob_dem duration_edit1 duration_edit2 duration_edit3 duration_edit4 duration_edit5 pain_hrs pain_level_hrs1 pain_level_hrs2 pain_level_hrs3 pain_limit_act_hrs cesd_tot_ge3 depr_exit soc_visit soc_visit_cat1 soc_visit_cat2 soc_visit_cat3 soc_visit_cat4 friend cesd5 isolated discuss_edit lwill_edit advdir hcp_edit hospice_full dyspnea_hrs no_appet_hrs vomit_hrs delirium_exit fatigue_hrs proxy_core proxy_core proxy_relat_exit_edit1 proxy_relat_exit_edit2 proxy_relat_exit_edit3 proxy_relat_exit_edit4 proxy_relat_exit_edit5 proxy_relat_exit_edit6 proxy_relat_exit_edit7 
+
+local rn: word count `cvar1' `ivar1' `cvar2' `ivar2' 1 1
+
+mat tab=J(`rn', 2,.)
+mat stars=J(`rn', 2, 0)
+
+local r=1 
+local c=1 
+foreach x in `cvar1'{
+local c=1 
+	forvalues i=0/1{
+		sum `x' [aw=regwt] if flag_3_any_kid_married==`i' & died_one_year==1 & age1>=50
+		mat tab[`r',`c']=`r(mean)'
+		local c=`c'+1
+		}
+	local c=1
+	svy: reg `x' flag_3_any_kid_married if died_one_year==1 & age1>=50
+	test flag_3_any_kid_married
+	mat stars[`r',`c']=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+	local r=`r'+1
+	}
+
+foreach x in `ivar1' {
+local c=1
+	forvalues i=0/1{
+		sum `x' [aw=regwt] if flag_3_any_kid_married==`i' & died_one_year==1 & age1>=50
+		mat tab[`r',`c']=`r(mean)'*100
+		local c=`c'+1
+		}
+	local c=1
+	svy, subpop(if died_one_year==1 & age1>=50): tab `x' flag_3_any_kid_married
+	mat stars[`r',`c']=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+	local r=`r'+1
+}
+foreach x in `cvar2'{
+local c=1 
+	forvalues i=0/1{
+		sum `x' [aw=regwt] if flag_3_any_kid_married==`i' & died_one_year==1 & age1>=50
+		mat tab[`r',`c']=`r(mean)'
+		local c=`c'+1
+		}
+	local c=1
+	svy: reg `x' flag_3_any_kid_married if died_one_year==1 & age1>=50
+	test flag_3_any_kid_married
+	mat stars[`r',`c']=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+	local r=`r'+1
+	}
+
+foreach x in `ivar2' {
+local c=1
+	forvalues i=0/1{
+		sum `x' [aw=regwt] if flag_3_any_kid_married==`i' & died_one_year==1 & age1>=50
+		mat tab[`r',`c']=`r(mean)'*100
+		local c=`c'+1
+		}
+	local c=1
+	svy, subpop(if died_one_year==1 & age1>=50): tab `x' flag_3_any_kid_married
+	mat stars[`r',`c']=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+	local r=`r'+1
+}
+foreach x in n {
+local c=1
+	forvalues i=0/1{
+sum `x' [aw=regwt] if flag_3_any_kid_married==`i' & died_one_year==1 & age1>=50
+		mat tab[`r',`c']=`r(N)'
+		mat tab[`r'+1,`c']=`r(sum)'
+		local c=`c'+1
+		}
+	}
+
+mat rownames tab = `cvar1' `ivar1' `cvar2' `ivar2' "N" "Estimate"
+mat colnames tab = "Kinless" "Has Kin"
+mat list tab
+mat list stars
+
+frmttable using "${int_share}/tables.rtf", statmat(tab) title("Table 3 Kin Characteristics") sdec(2) varlabels addtable annotate(stars) asymbol(*,**) note("Kin is defined by having a Spouse or Child of any type" "Died within a year and Age>=50")
+
+
+
+///////////////
+
+local m1 flag_3_any_kid_married age1 female race
+local m2 medicaid adl_index_core_cat1 adl_index_core_cat2 adl_index_exit_cat1 adl_index_exit_cat2 prob_dem comor_c_hrs_edit1 comor_c_hrs_edit2 depr_exit
+
+local m3 soc_visit_cat1 soc_visit_cat2 soc_visit_cat3 friend liv_alone n_i_cat1 n_i_cat2 n_f_bin paid_helper n_hp_cat1 n_hp_cat2 hlphrs_i hlphrs_p hh_worker northeast midwest south religion_not_too_important discuss_edit lwill_edit advdir hcp_edit dexp
+
+svy, subpop(if died_one_year==1 & age1>=50): logit hospital_death `m1', or
+outreg using "${int_share}/model.rtf", varlabels stats(e_b p) ctitles("" "Model 1") replace
+
+svy, subpop(if died_one_year==1 & age1>=50): logit  hospital_death `m1' `m2'
+outreg using "${int_share}/model.rtf", varlabels stats(e_b p) ctitles("" "Model 2 ") merge
+
+svy, subpop(if died_one_year==1 & age1>=50): logit  hospital_death `m1' `m2' `m3'
+outreg using "${int_share}/model.rtf", varlabels stats(e_b p) ctitles("" "Model 3 ") merge title("Weighted Logit Model on Hospital Death") replace note("Not restricted to Community Dwelling")
+
+
+
+svy, subpop(if died_one_year==1 & age1>=50 & nhres_n1!=1): logit  hospital_death `m1', or
+outreg using "${int_share}/model.rtf", varlabels stats(e_b p) ctitles("" "Model 1") addtable 
+
+svy, subpop(if died_one_year==1 & age1>=50 & nhres_n1!=1): logit  hospital_death `m1' `m2'
+outreg using "${int_share}/model.rtf", varlabels stats(e_b p) ctitles("" "Model 2 ") merge
+
+svy, subpop(if died_one_year==1 & age1>=50 & nhres_n1!=1): logit  hospital_death `m1' `m2' `m3'
+outreg using "${int_share}/model.rtf", varlabels stats(e_b p) ctitles("" "Model 3 ") merge title("Weighted Logit Model on Hospital Death Community Dwelling") replace
+
+
+
+
+
 H="Changelog"
 
 
@@ -951,6 +1477,15 @@ H="Changelog"
 
 
 Updates:
+
+10/29/2019 EBL/MH
+------------
+Put missing from family file as 0.
+
+08/27/2019 MH
+------------
+Analysis adding in weights, cleaning up code. 
+
 07/30/2019 MH
 ------------
 Using death_all varaible for death date to get death date from all sources in death_date.dta file. Also creating another dataset that includes people who didn't have na exit. 
