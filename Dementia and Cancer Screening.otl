@@ -1,0 +1,173 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Project Overview"
+/* 
+Project Name: TBD
+
+Date Started: August 20,2019
+
+Primary Investigator: Katherine Ornstein
+
+Created By: Naomi Alpert
+
+Primary Analyst: Naomi Alpert
+Secondary Analyst: N/A
+
+Datasets Used: NHATS-Medicare, NSOC
+
+Simple Outline: Look at cancer screening behavior in those with and without dementia
+*/
+
+/*Libnames*/
+libname nhats "D:\NHATS\Shared\base_data\NHATS cleaned";
+libname medicare "D:\NHATS\Shared\base_data\CMS_claims\SAS";
+libname inter "D:\NHATS\Projects\cancer and aging\Estimates for Incident_NSOC\data\Intermediate";
+libname final "D:\NHATS\Projects\cancer and aging\Estimates for Incident_NSOC\data\Final";
+libname xwalk "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks";
+
+H="2011 Index Date"
+/*Read in NHATS*/
+proc import out=nhats1_8 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+dbms=dta replace;
+run;
+
+proc contents data=nhats1_8;
+run;
+
+/*Select Wave 1*/
+data nhats1; set nhats1_8(where=(wave=1)); run; /*8245*/
+
+/*Select community dwellers*/
+proc freq data=nhats1; tables nhres community_dwelling; run; /*636 noncommunity dwelling*/
+
+data nhats1; set nhats1;
+sample=1; 
+if community_dwelling=0 then sample=0; run;
+
+proc freq data=nhats1; tables sample; run;
+
+/*select those non-res care community*/
+proc freq data=nhats1(where=(sample=1)); tables sp_ivw_yes sp_status*proxy_ivw; format _all_; run; /*412 with res-care (not NH)*/
+data nhats1; set nhats1;
+if sp_status=2 then sample=0;
+run;
+
+proc freq data=nhats1; tables sample; run;
+
+/*select those with completed interviews at baseline*/
+proc freq data=nhats1(where=(sample=1)); tables sp_ivw_yes proxy_ivw; run; /*all 7197 had interviews at baseline*/
+proc freq data=nhats1(where=(sample=1)); tables proxy_ivw*(dem_3_cat otherlang)/missing; run;
+proc freq data=nhats1; tables sample; run;
+
+
+/*Males and Females*/
+proc freq data=nhats1; tables sample*female; run;
+
+/*prostate cohort*/
+data prostate; set nhats1; 
+sample_prostate=sample;
+if female=1 then sample_prostate=0;
+run;
+
+proc freq data=prostate; tables sample_prostate; run;
+
+proc freq data=prostate; tables sample_prostate*(dem_3_cat agecat)/missing; run;
+proc freq data=prostate(where=(age>=67)); tables sample_prostate; run;
+
+/*breast cohort*/
+data breast; set nhats1; 
+sample_breast=sample;
+if female=0 then sample_breast=0;
+run;
+
+proc freq data=breast; tables sample_breast; run;
+
+proc freq data=breast; tables sample_breast*(dem_3_cat agecat)/missing; run;
+proc freq data=breast(where=(age>=67)); tables sample_breast; run;
+
+/*colorectal cohort*/
+data colon; set nhats1; 
+sample_colon=sample;
+run;
+
+proc freq data=colon; tables sample_colon; run;
+
+proc freq data=colon; tables sample_colon*dem_3_cat/missing; run;
+proc freq data=colon(where=(age>=67)); tables sample_colon; run;
+
+#number with dementia before age 75
+proc freq data=nhats1(where=(age<75 and sample=1)); tables female*dem_3_cat; run;
+
+
+H="2012 Index Date"
+/**2012**/
+/*Read in NHATS*/
+proc import out=nhats1_8 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+dbms=dta replace;
+run;
+
+proc contents data=nhats1_8;
+run;
+
+/*Select Wave 2*/
+data nhats2; set nhats1_8(where=(wave=2)); run; /*7075*/
+
+/*Select community dwellers*/
+proc freq data=nhats2; tables nhres community_dwelling; run; /*1083 noncommunity dwelling*/
+
+data nhats2; set nhats2;
+sample=1; 
+if community_dwelling=0 then sample=0; run;
+
+proc freq data=nhats2; tables sample; run;
+
+/*select those non-res care community*/
+proc freq data=nhats2(where=(sample=1)); tables sp_ivw_yes sp_status*proxy_ivw; format _all_; run; /*412 with res-care (not NH)*/
+data nhats2; set nhats2;
+if sp_status=2 then sample=0;
+run;
+
+proc freq data=nhats2; tables sample; run;
+
+/*select those with completed interviews at baseline*/
+proc freq data=nhats2(where=(sample=1)); tables sp_ivw_yes proxy_ivw; run; /*all 5640 had interviews at baseline*/
+proc freq data=nhats2(where=(sample=1)); tables proxy_ivw*(dem_3_cat otherlang)/missing; run;
+proc freq data=nhats2; tables sample; run;
+
+
+/*Males and Females*/
+proc freq data=nhats2; tables sample*female; run;
+
+/*prostate cohort*/
+data prostate; set nhats2; 
+sample_prostate=sample;
+if female=1 then sample_prostate=0;
+run;
+
+proc freq data=prostate; tables sample_prostate; run;
+
+proc freq data=prostate; tables sample_prostate*(dem_3_cat agecat)/missing; run;
+proc freq data=prostate(where=(age>=68)); tables sample_prostate; run;
+
+/*breast cohort*/
+data breast; set nhats2; 
+sample_breast=sample;
+if female=0 then sample_breast=0;
+run;
+
+proc freq data=breast; tables sample_breast; run;
+
+proc freq data=breast; tables sample_breast*(dem_3_cat agecat)/missing; run;
+proc freq data=breast(where=(age>=68)); tables sample_breast; run;
+
+/*colorectal cohort*/
+data colon; set nhats2; 
+sample_colon=sample;
+run;
+
+proc freq data=colon; tables sample_colon; run;
+
+proc freq data=colon; tables sample_colon*dem_3_cat/missing; run;
+proc freq data=colon(where=(age>=68)); tables sample_colon; run;
+
+proc freq data=nhats2(where=(age<75 and sample=1)); tables female*dem_3_cat; run;

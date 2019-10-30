@@ -66,7 +66,7 @@ data enroll; set nhats1_8(where=((replenishment=0 and wave=1) or (replenishment=
 	proc freq data=enroll; tables wave; run;	
 
 /*Select home dwellers at enrollment*/
-proc freq data=enroll; tables nhres*replenishment; run; /*648 nursing home residents*/
+proc freq data=enroll; tables nhres*replenishment; run; /*468 nursing home residents*/
 
 data enroll; set enroll; if nhres=1 then sample=0; run;
 
