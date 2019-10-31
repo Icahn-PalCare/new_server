@@ -429,7 +429,7 @@ H="10/7 get index changed"
 //grab aha data from 2017 to get trauma center info
 use "D:\Outside_data\AHA data\aha2017.dta", clear
 rename mcrnum prvdr_num
-drop if missing(prvdr_num)
+drop if missing(prvdr_num) 
 tempfile aha
 save `aha'
 
