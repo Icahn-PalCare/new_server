@@ -1190,6 +1190,9 @@ sort bene_id clm_hospc_start_dt_id
 gen hospice_month= month(clm_hospc_start_dt_id)
 gen hospice_year= year(clm_hospc_start_dt_id)
 
+gen los=disch_date-admit_date
+bys bene_id: egen hs_los=total(los)
+
 by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"20","40","41","42"), 1,0))
 
 sort bene_id clm_hospc_start_dt_id
@@ -1325,7 +1328,7 @@ by bene_id: keep if _n==_N
 
 merge 1:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keep(match) nogen
 
-keep bene_id spid ma1 ma2 hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year death_month prvdr_num
+keep bene_id spid ma1 ma2 hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year death_month prvdr_num hs_los
 merge 1:m spid using "`nhats'", nogen keep(match)
 
 label var ma1 "MA approach 1"
@@ -2274,6 +2277,10 @@ H="Change log"
 
 
 Updates:
+11/1/2019 MH
+-----------
+Added in Hospice length of stay to step 2.
+
 10/25/2019 EBL
 ------------
 Merged in constructed MA penetration and reran Claire's analysis in "merge HRRMA file"

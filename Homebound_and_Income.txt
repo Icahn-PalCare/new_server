@@ -17846,7 +17846,7 @@ frmttable using sample_derivation_new.rtf, addtable replace statmat(tab1) ///
 H="code for competing risk"
 replace lw=lw+1 if everdied==1 & died_12==1 & status==1
 sort spid wave
-replace lw=. if died_12==0 & everdied==1
+replace lw=. if died_12==0 & everdied==1 & everhb!=1 & evernh!=1
 
 gsort spid -wave
 by spid: carryforward lw, replace
@@ -17988,7 +17988,7 @@ ind_paid_helper metro_ind northeast midwest south
 H="code for cum inc. "
 replace lw=lw+1 if everdied==1 & died_12==1 & status==1
 sort spid wave
-replace lw=. if died_12==0 & everdied==1
+replace lw=. if died_12==0 & everdied==1 & everhb!=1 & evernh!=1
 
 gsort spid -wave
 by spid: carryforward lw, replace
