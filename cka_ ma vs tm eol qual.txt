@@ -1380,6 +1380,11 @@ recode excellent (1=0)(0=1), gen(not_excellent)
 
 gen perc_9or10=rating_9or10/100
 
+gen lowest_inc_qrt=0
+replace lowest_inc_qrt=1 if income_quart==1
+
+recode hs_los (0/3=1)(4/99999999=0), gen (hs_shortstay)
+
 
 
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
@@ -1418,6 +1423,7 @@ svy, subpop(inanal): tab lung_all ma1, column
 svy, subpop(inanal): tab cva_all ma1, column
 svy, subpop(inanal): tab cancer_all ma1, column
 svy, subpop(inanal): tab prob_dem ma1, column
+svy, subpop(inanal): tab avgma_quart ma1, column
 
 
 
@@ -1447,7 +1453,7 @@ foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig 
 
 *new model 2: fully adjusted
 foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
+		recode_care_decision di_recode_informed lowest_inc_qrt{
 		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed year, cformat(%4.2f)
 }
@@ -1470,6 +1476,8 @@ qui svy, subpop(inanal): logistic not_excellent i.ma1##i.ind_hospice i.deathage_
 	*interaction with place of death for excellent care 
 qui svy, subpop(inanal): logistic not_excellent i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed year, cformat(%4.2f)
+		  		margins, dydx(ma1) over(placedeath)
+
 	margins ma1#placedeath
 	marginsplot	
 	
@@ -1484,21 +1492,42 @@ qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.ind_hospice i.deat
 qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed year, cformat(%4.2f)
 	margins ma1#placedeath
+		margins, dydx(ma1) over(placedeath)
+	marginsplot	
+
+	
+	*interaction with medicaid for informed
+	
+qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.ind_hospice i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins ma1#ind_hospice
+	marginsplot	
+
+*interaction with place of death for informed	
+qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins ma1#placedeath
+		margins, dydx(ma1) over(placedeath)
 	marginsplot	
 
 	
 **** PLANNED ADDITION TO FIGURE 2: QUALITY ACROSS REGIONS WITH VARYING MA PENETRATION****
 
 *interaction with place of death for excellent care 
-qui svy, subpop(inanal): logistic not_excellent i.ma1##i.quart_MA i.deathage_3cat female child  spouse  ///
+svy, subpop(inanal): logistic not_excellent i.ma1##c.avg_MA i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed year, cformat(%4.2f)
-	margins ma1#quart_MA 
+	margins ma1#avgma_quart 
+
+*interaction with place of death for excellent care 
+qui svy, subpop(inanal): logistic not_excellent i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins ma1#avgma_quart 
 	marginsplot	
 
 *interaction with place of death for informed	
-qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.quart_MA i.deathage_3cat female child  spouse  ///
+qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed year, cformat(%4.2f)
-	margins ma1#quart_MA 
+	margins ma1#avgma_quart 
 	marginsplot	
 
 	
@@ -1507,7 +1536,7 @@ qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.quart_MA i.deathag
 *looking at eol care characteristics and ma
 
 
-foreach var of varlist ind_hospice  livedischarge late_transition placedeath {
+foreach var of varlist ind_hospice  livedischarge late_transition placedeath hs_shortstay {
 		svy, subpop(inanal): tab `var' ma1, column
 }
 	
@@ -2077,7 +2106,7 @@ label var avgma_quart "Per-year in-sample quartile of MA penetration by HRR"
 *interaction with place of death for excellent care 
 qui svy, subpop(inanal): logistic not_excellent i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed year, cformat(%4.2f)
-	margins avgma_quart#ma1 
+	margins avgma_quart#ma1  
 	marginsplot
 	marginsplot, recast(bar) plotopts(barw(.8) color(%40))
 	margins, dydx(ma1) over(avgma_quart)
