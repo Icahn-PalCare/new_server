@@ -2619,7 +2619,7 @@ log using "${logs}/`name'.smcl", text replace
 
 
 //Pull dates from restricted tracker
-use "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Round 7 Tracker Restricted STATA\NHATS_Round_7_Tracker_Restricted.dta", clear
+use "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Round 7-8 Tracker Restricted STATA\NHATS_Round_8_Tracker_Restricted.dta", clear
 keep spid r*spstatdtdy
 rename r*spstatdtdy spstatdtdy*
 reshape long spstatdtdy, i(spid) j(wave)
@@ -7145,6 +7145,9 @@ H="Changelog"
 
 
 Updates:
+11/4/2019 MH
+----------
+Updated to Round 8 restricted tracker. 
 
 10/24/2019 MH
 ----------
