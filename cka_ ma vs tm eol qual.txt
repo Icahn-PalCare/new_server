@@ -136,6 +136,84 @@ keep spid income_quart education  metro_ind nhres  memory  adl_index adl_impair 
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\other nhats vars.dta", replace
 
 
+H="makinghrr_numyear_MA do file"
+
+*merge all zip_hrr files by year into one master
+use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2011.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2012.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2013.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2014.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2015.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2016.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2017.dta" 
+
+save "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_all years.dta", replace
+
+clear
+*merge all fips penetration files by year
+use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2011.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2012.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2013.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2014.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2015.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2016.dta" 
+append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2017.dta" 
+save "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta", replace
+
+*assign every zip the penetration of the county they are in
+use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips.dta" 
+destring zipcode, replace
+save "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips.dta", replace
+
+merge 1:m fips using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta"
+use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta"
+
+*match each zip by year to a county. use files from 2019 and 2010 due to some changes
+use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_all years.dta"
+sort zipcode year
+merge m:1 zipcode using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips.dta" 
+rename _merge merge1
+merge m:1 zipcode using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips_2010.dta"
+destring fips, replace
+destring fips_2010, replace
+replace fips=fips_2010 if fips==.
+count if fips==.
+drop _merge fips_2010 merge1
+
+*merge in the total population data by zip
+drop _merge
+merge m:1 zipcode using  "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_popover 65_v2.dta" 
+replace number_65up=pop_over65 if number_65up==. & pop_over65!=.
+
+*merge in zip to HRR
+drop _merge
+merge m:1 fips year using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta" 
+
+*putting it all together
+drop if hrrnum==.
+
+*make pop weights for zip codes in hrr
+sort hrrnum year zipcode
+by hrrnum year: egen totalpop=total(number_65up)
+gen weight=number_65up/totalpop
+
+*make a weighted penetration by HRR
+*first, take the % of penetration
+replace penetration=substr(penetration, 1, length(penetration)-1)
+destring penetration, replace
+
+*make weighted penetration
+by hrrnum year: egen avg_MA= total(penetration*weight)
+
+*make a variable to count obs by hrr and year
+sort hrrnum year zipcode
+by hrrnum year: gen count=_n
+
+
+keep if count==1
+drop zipcode fips number_65up totalpop weight penetration
+
+
 H="****RUN BELOW EVERY TIME****"
 
 
@@ -1178,7 +1256,22 @@ merge 1:1 spid using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\d
 use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
 sort bene_id year 
 keep if death_date!=.
-keep bene_id death_date
+keep bene_id death_date dual_stus_cd_*
+
+gen death_month=month(death_date)
+
+gen medicaid_death=.
+forvalues i=1/9{
+replace medicaid_death=0 if death_month==`i' & inlist(dual_stus_cd_0`i', "XX", "NA", "09", "99")
+replace medicaid_death=1 if death_month==`i' & inlist(dual_stus_cd_0`i', "00", "01", "02", "03", "04", "05", "06", "08")
+}
+
+forvalues i=10/12{
+replace medicaid_death=0 if death_month==`i' & inlist(dual_stus_cd_`i', "XX", "NA", "09", "99")
+replace medicaid_death=1 if death_month==`i' & inlist(dual_stus_cd_`i', "00", "01", "02", "03", "04", "05", "06", "08")
+}
+
+label var medicaid_death "Medicaid at death Month"
 
 tempfile death
 save "`death'"
@@ -1328,7 +1421,7 @@ by bene_id: keep if _n==_N
 
 merge 1:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keep(match) nogen
 
-keep bene_id spid ma1 ma2 hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year death_month prvdr_num hs_los
+keep bene_id spid ma1 ma2 hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year death_month prvdr_num hs_los medicaid_death
 merge 1:m spid using "`nhats'", nogen keep(match)
 
 label var ma1 "MA approach 1"
@@ -1354,6 +1447,254 @@ drop _merge
 merge 1:1 spid using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\other nhats vars.dta"
 
 
+
+H="merge HRRMA file"
+
+//first, pull the HRR numbers for each wave
+
+cd "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA"
+forvalues i=1/6 {
+	use NHATS_Round_`i'_HRR_xref.dta, clear
+	destring spid, replace
+	rename hrrnum hrrnum
+	gen wave=`i'
+	tempfile t`i'
+	save `t`i''
+}
+
+clear
+forvalues i=1/6 {
+	append using `t`i''
+}
+
+//now carryforward, bc we've only got HRR through wave 6
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", keepusing(spid) nogen
+sort spid wave
+by spid: carryforward hrrnum, replace
+
+//merge with MA penetration and keep last obs
+gen year=2010+wave
+merge m:1 year hrrnum using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\int_data\hrrnum_year_avgMA.dta", nogen keep(match master)
+
+sort spid wave
+by spid: keep if _n==_N
+tempfile hrr
+save `hrr'
+
+//now merge them
+use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", clear
+drop _m
+//hrr for each year
+merge 1:1 spid using `hrr', nogen
+
+svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
+
+
+//per-year quartile
+
+gen avgma_quart=.
+levelsof year, local(levels)
+foreach l of local levels {
+	xtile a=avg_MA [pw=pweight] if year==`l', nq(4)
+	replace avgma_quart=a if year==`l'
+	drop a
+}
+label var avgma_quart "Per-year in-sample quartile of MA penetration by HRR"
+
+
+**** PLANNED ADDITION TO FIGURE 2: QUALITY ACROSS REGIONS WITH VARYING MA PENETRATION****
+
+*interaction with place of death for excellent care 
+qui svy, subpop(inanal): logistic not_excellent i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins avgma_quart#ma1  
+	marginsplot
+	marginsplot, recast(bar) plotopts(barw(.8) color(%40))
+	margins, dydx(ma1) over(avgma_quart)
+
+
+*interaction with place of death for informed	
+qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed year, cformat(%4.2f)
+	margins avgma_quart#ma1 
+	marginsplot, recast(bar) plotopts(barw(.8) color(%40))
+	margins, dydx(ma1) over(avgma_quart)
+
+
+H="xxxxxxxxPart2-- MA added in"
+tempfile nhats
+save "`nhats'"
+
+/*
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", clear
+
+merge 1:m bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hs_09_17.dta", gen(hospm) keep(master match) keepusing(ptnt_dschrg_stus_cd )
+gen ind_hospice=hospm==3
+by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"20","40","41","42"), 0,1))
+
+drop ptnt_dschrg_stus_cd
+
+duplicates drop 
+
+merge 1:1 spid using "`nhats'", nogen 
+merge 1:1 spid using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\death_date.dta", nogen
+
+*/
+
+
+///////////////////////
+
+
+//MBSF GETTING MA first part for methods 1 and 2. 
+
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
+sort bene_id year 
+keep if death_date!=.
+keep bene_id death_date
+tempfile death
+save "`death'"
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hs_09_17.dta", clear
+
+sort bene_id clm_hospc_start_dt_id
+
+gen hospice_month= month(clm_hospc_start_dt_id)
+gen hospice_year= year(clm_hospc_start_dt_id)
+
+by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"20","40","41","42"), 0,1))
+
+sort bene_id clm_hospc_start_dt_id
+
+merge m:1 bene_id using "`death'", keep(master match) nogen
+
+gen hs_12_pre=0
+by bene_id, sort: replace hs_12_pre=1 if (death_date-clm_hospc_start_dt_id<=366) & (death_date-clm_hospc_start_dt_id>=0)
+
+by bene_id, sort: egen ind_hs_12_pre=max(hs_12_pre)
+
+by bene_id: keep if _n==1
+
+tempfile hs
+save "`hs'"
+
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
+
+gen death_month=month(death_date)
+
+local month jan feb mar apr may jun jul aug sep oct nov dec
+local a=1
+
+gen ma1=0
+
+di `a'
+foreach x in `month'{
+gen `x'_c=substr(hmoind12,`a',1)
+replace `x'_c="1" if `x'_c!="0"
+destring `x'_c, replace
+replace ma1=1 if death_month==`a' & `x'_c==1
+local a=`a'+1
+di `a'
+}
+sort bene_id
+tempfile ma1 
+save "`ma1'"
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
+
+replace year=year+1
+
+local month jan feb mar apr may jun jul aug sep oct nov dec
+local a=1
+
+
+foreach x in `month'{
+gen `x'_c_1=substr(hmoind12,`a',1)
+replace `x'_c_1="1" if `x'_c_1!="0"
+destring `x'_c_1, replace
+local a=`a'+1
+}
+
+
+keep *_c_1 year bene_id
+
+tempfile ma2 
+save "`ma2'"
+
+
+use "`ma1'", clear
+
+merge 1:1 bene_id year using "`ma2'", keep(match) nogen
+
+
+gen ma2=0 
+
+
+/*
+consecutive MA status--don't want
+*/
+
+replace ma2=1 if death_month==1 & (jan_c==1 | jan_c_1==1 | feb_c_1==1 | mar_c_1==1 | apr_c_1==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==2 & (feb_c==1 | jan_c==1 | feb_c_1==1 | mar_c_1==1 | apr_c_1==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==3 & (mar_c==1 | jan_c==1 | feb_c==1 | mar_c_1==1 | apr_c_1==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==4 & (apr_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==5 & (may_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==6 & (jun_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==7 & (jul_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==8 & (aug_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==9 & (sep_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==10 & (oct_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==11 & (nov_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c==1 | oct_c==1 | nov_c_1==1 | dec_c_1==1)
+
+replace ma2=1 if death_month==12 & (dec_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c==1 | oct_c==1 | nov_c==1 | dec_c_1==1)
+
+sort bene_id year
+
+//by bene_id: keep if _n==_N
+
+
+merge m:1 bene_id using "`hs'", gen(hospm) keep(master match)
+
+gen ind_hospice=hospm==3
+
+gen ma_month_bef_hs=0
+local a=1
+local month dec_c_1 jan_c feb_c mar_c apr_c may_c jun_c jul_c aug_c sep_c oct_c nov_c 
+foreach x in `month'{
+replace ma_month_bef_hs=1 if hospice_month==`a' & `x'==1
+local a=`a'+1
+}
+
+replace ma1=1 if ind_died_on_hospice==1 & year==hospice_year & ma_month_bef_hs==1
+
+replace ma2=1 if ind_hs_12_pre==1 & year==hospice_year & ma_month_bef_hs==1
+
+sort bene_id year
+by bene_id: keep if _n==_N
+
+merge 1:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keep(match) nogen
+
+keep bene_id spid ma1 ma2 ind_hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year
+merge 1:m spid using "`nhats'", nogen
+
+label var ma1 "MA approach 1"
+label var ma2 "MA approach 2 (12 month)"
+label var ind_hs_12_pre "Hospice claim 12-months pre death"
+label var ind_died_on_hospice "Died in Hospice"
+label var ma_month_bef_hs "Had MA month before Hospice"
+
+save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
 
 H="more variable cleaning"
 *more variable cleaning
@@ -1969,334 +2310,8 @@ svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_informed late
 H="******MA penetration by HRR******"
 
 
-H="makinghrr_numyear_MA do file"
-
-*merge all zip_hrr files by year into one master
-use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2011.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2012.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2013.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2014.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2015.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2016.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_2017.dta" 
-
-save "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_all years.dta", replace
-
-clear
-*merge all fips penetration files by year
-use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2011.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2012.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2013.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2014.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2015.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2016.dta" 
-append using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_2017.dta" 
-save "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta", replace
-
-*assign every zip the penetration of the county they are in
-use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips.dta" 
-destring zipcode, replace
-save "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips.dta", replace
-
-merge 1:m fips using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta"
-use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta"
-
-*match each zip by year to a county. use files from 2019 and 2010 due to some changes
-use "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_hrr_all years.dta"
-sort zipcode year
-merge m:1 zipcode using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips.dta" 
-rename _merge merge1
-merge m:1 zipcode using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip fips_2010.dta"
-destring fips, replace
-destring fips_2010, replace
-replace fips=fips_2010 if fips==.
-count if fips==.
-drop _merge fips_2010 merge1
-
-*merge in the total population data by zip
-drop _merge
-merge m:1 zipcode using  "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\zip_popover 65_v2.dta" 
-replace number_65up=pop_over65 if number_65up==. & pop_over65!=.
-
-*merge in zip to HRR
-drop _merge
-merge m:1 fips year using "C:\Users\ankudc01\Desktop\MA TM EOL_hrr files\fips_penetration_all years.dta" 
-
-*putting it all together
-drop if hrrnum==.
-
-*make pop weights for zip codes in hrr
-sort hrrnum year zipcode
-by hrrnum year: egen totalpop=total(number_65up)
-gen weight=number_65up/totalpop
-
-*make a weighted penetration by HRR
-*first, take the % of penetration
-replace penetration=substr(penetration, 1, length(penetration)-1)
-destring penetration, replace
-
-*make weighted penetration
-by hrrnum year: egen avg_MA= total(penetration*weight)
-
-*make a variable to count obs by hrr and year
-sort hrrnum year zipcode
-by hrrnum year: gen count=_n
-
-
-keep if count==1
-drop zipcode fips number_65up totalpop weight penetration
-
-
-H="merge HRRMA file"
-
-//first, pull the HRR numbers for each wave
-
-cd "D:\NHATS\Shared\raw\NHATS\NHATS Restricted\NHATS Rounds1-6 HRR Files-STATA"
-forvalues i=1/6 {
-	use NHATS_Round_`i'_HRR_xref.dta, clear
-	destring spid, replace
-	rename hrrnum hrrnum
-	gen wave=`i'
-	tempfile t`i'
-	save `t`i''
-}
-
-clear
-forvalues i=1/6 {
-	append using `t`i''
-}
-
-//now carryforward, bc we've only got HRR through wave 6
-merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", keepusing(spid) nogen
-sort spid wave
-by spid: carryforward hrrnum, replace
-
-//merge with MA penetration and keep last obs
-gen year=2010+wave
-merge m:1 year hrrnum using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\int_data\hrrnum_year_avgMA.dta", nogen keep(match master)
-
-sort spid wave
-by spid: keep if _n==_N
-tempfile hrr
-save `hrr'
-
-//now merge them
-use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", clear
-drop _m
-//hrr for each year
-merge 1:1 spid using `hrr', nogen
-
-svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
-
-
-//per-year quartile
-
-gen avgma_quart=.
-levelsof year, local(levels)
-foreach l of local levels {
-	xtile a=avg_MA [pw=pweight] if year==`l', nq(4)
-	replace avgma_quart=a if year==`l'
-	drop a
-}
-label var avgma_quart "Per-year in-sample quartile of MA penetration by HRR"
-
-
-**** PLANNED ADDITION TO FIGURE 2: QUALITY ACROSS REGIONS WITH VARYING MA PENETRATION****
-
-*interaction with place of death for excellent care 
-qui svy, subpop(inanal): logistic not_excellent i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed year, cformat(%4.2f)
-	margins avgma_quart#ma1  
-	marginsplot
-	marginsplot, recast(bar) plotopts(barw(.8) color(%40))
-	margins, dydx(ma1) over(avgma_quart)
-
-
-*interaction with place of death for informed	
-qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed year, cformat(%4.2f)
-	margins avgma_quart#ma1 
-	marginsplot, recast(bar) plotopts(barw(.8) color(%40))
-	margins, dydx(ma1) over(avgma_quart)
-
-
 H="*********MH added MA section********"
 
-
-H="xxxxxxxxPart2-- MA added in"
-tempfile nhats
-save "`nhats'"
-
-/*
-use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", clear
-
-merge 1:m bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hs_09_17.dta", gen(hospm) keep(master match) keepusing(ptnt_dschrg_stus_cd )
-gen ind_hospice=hospm==3
-by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"20","40","41","42"), 0,1))
-
-drop ptnt_dschrg_stus_cd
-
-duplicates drop 
-
-merge 1:1 spid using "`nhats'", nogen 
-merge 1:1 spid using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\death_date.dta", nogen
-
-*/
-
-
-///////////////////////
-
-
-//MBSF GETTING MA first part for methods 1 and 2. 
-
-
-use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
-sort bene_id year 
-keep if death_date!=.
-keep bene_id death_date
-tempfile death
-save "`death'"
-
-use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hs_09_17.dta", clear
-
-sort bene_id clm_hospc_start_dt_id
-
-gen hospice_month= month(clm_hospc_start_dt_id)
-gen hospice_year= year(clm_hospc_start_dt_id)
-
-by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"20","40","41","42"), 0,1))
-
-sort bene_id clm_hospc_start_dt_id
-
-merge m:1 bene_id using "`death'", keep(master match) nogen
-
-gen hs_12_pre=0
-by bene_id, sort: replace hs_12_pre=1 if (death_date-clm_hospc_start_dt_id<=366) & (death_date-clm_hospc_start_dt_id>=0)
-
-by bene_id, sort: egen ind_hs_12_pre=max(hs_12_pre)
-
-by bene_id: keep if _n==1
-
-tempfile hs
-save "`hs'"
-
-
-use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
-
-gen death_month=month(death_date)
-
-local month jan feb mar apr may jun jul aug sep oct nov dec
-local a=1
-
-gen ma1=0
-
-di `a'
-foreach x in `month'{
-gen `x'_c=substr(hmoind12,`a',1)
-replace `x'_c="1" if `x'_c!="0"
-destring `x'_c, replace
-replace ma1=1 if death_month==`a' & `x'_c==1
-local a=`a'+1
-di `a'
-}
-sort bene_id
-tempfile ma1 
-save "`ma1'"
-
-use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", clear
-
-replace year=year+1
-
-local month jan feb mar apr may jun jul aug sep oct nov dec
-local a=1
-
-
-foreach x in `month'{
-gen `x'_c_1=substr(hmoind12,`a',1)
-replace `x'_c_1="1" if `x'_c_1!="0"
-destring `x'_c_1, replace
-local a=`a'+1
-}
-
-
-keep *_c_1 year bene_id
-
-tempfile ma2 
-save "`ma2'"
-
-
-use "`ma1'", clear
-
-merge 1:1 bene_id year using "`ma2'", keep(match) nogen
-
-
-gen ma2=0 
-
-
-/*
-consecutive MA status--don't want
-*/
-
-replace ma2=1 if death_month==1 & (jan_c==1 | jan_c_1==1 | feb_c_1==1 | mar_c_1==1 | apr_c_1==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==2 & (feb_c==1 | jan_c==1 | feb_c_1==1 | mar_c_1==1 | apr_c_1==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==3 & (mar_c==1 | jan_c==1 | feb_c==1 | mar_c_1==1 | apr_c_1==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==4 & (apr_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==5 & (may_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c_1==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==6 & (jun_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c_1==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==7 & (jul_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c_1==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==8 & (aug_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c_1==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==9 & (sep_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c_1==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==10 & (oct_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c==1 | oct_c_1==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==11 & (nov_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c==1 | oct_c==1 | nov_c_1==1 | dec_c_1==1)
-
-replace ma2=1 if death_month==12 & (dec_c==1 | jan_c==1 | feb_c==1 | mar_c==1 | apr_c==1 | may_c==1 | jun_c==1 | jul_c==1 | aug_c==1 | sep_c==1 | oct_c==1 | nov_c==1 | dec_c_1==1)
-
-sort bene_id year
-
-//by bene_id: keep if _n==_N
-
-
-merge m:1 bene_id using "`hs'", gen(hospm) keep(master match)
-
-gen ind_hospice=hospm==3
-
-gen ma_month_bef_hs=0
-local a=1
-local month dec_c_1 jan_c feb_c mar_c apr_c may_c jun_c jul_c aug_c sep_c oct_c nov_c 
-foreach x in `month'{
-replace ma_month_bef_hs=1 if hospice_month==`a' & `x'==1
-local a=`a'+1
-}
-
-replace ma1=1 if ind_died_on_hospice==1 & year==hospice_year & ma_month_bef_hs==1
-
-replace ma2=1 if ind_hs_12_pre==1 & year==hospice_year & ma_month_bef_hs==1
-
-sort bene_id year
-by bene_id: keep if _n==_N
-
-merge 1:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", keep(match) nogen
-
-keep bene_id spid ma1 ma2 ind_hs_12_pre ind_died_on_hospice ind_hospice ma_month_bef_hs death_date year hospice_year
-merge 1:m spid using "`nhats'", nogen
-
-label var ma1 "MA approach 1"
-label var ma2 "MA approach 2 (12 month)"
-label var ind_hs_12_pre "Hospice claim 12-months pre death"
-label var ind_died_on_hospice "Died in Hospice"
-label var ma_month_bef_hs "Had MA month before Hospice"
-
-save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
 
 H="Change log"
 
@@ -2306,6 +2321,10 @@ H="Change log"
 
 
 Updates:
+11/5/2019 MH
+-----------
+Added in Medicaid at death variable. 
+
 11/1/2019 MH
 -----------
 Added in Hospice length of stay to step 2.
