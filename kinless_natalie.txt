@@ -696,7 +696,7 @@ Created by: Mohammed
 Date Created: 07/30/2019
 
 Updated by: MH
-Date Updated: 07/30/2019
+Date Updated: 11/06/2019
 
 Description: 
 	1. All decedents with an N1 within 4 years of death
@@ -787,6 +787,34 @@ rename _merge merge
 tempfile fam
 save "`fam'"
 
+use "D:\HRS\Shared\raw\HRS\hrs_tracking_2016\TRK2016TR_R.dta", clear
+
+rename *, l
+
+keep hhid pn fwgtr gwgtr hwgtr jwgtr kwgtr lwgtr mwgtr nwgtr owgtr gwgtrnh hwgtrnh jwgtrnh kwgtrnh lwgtrnh mwgtrnh nwgtrnh owgtrnh // no nursing home weight for 1998
+
+local i=1
+foreach x in fwgtr gwgtr hwgtr jwgtr kwgtr lwgtr mwgtr nwgtr owgtr{
+rename `x' wgtr`i'
+local i=`i'+1
+}
+local i=2
+foreach x in gwgtrnh hwgtrnh jwgtrnh kwgtrnh lwgtrnh mwgtrnh nwgtrnh owgtrnh{
+rename `x' wgtrnh`i'
+local i=`i'+1
+}
+
+reshape long wgtr wgtrnh, i(hhid pn) j(year) 
+local i=1
+forvalues x=1998(2)2014{
+replace year=`x' if year==`i'
+local i=`i'+1
+}
+
+
+rename year core_year
+tempfile weight
+save `weight'
 
 use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
 keep if core_year>=2002
@@ -914,9 +942,33 @@ gen hospice_full=.
 replace hospice_full=0 if hospice_sr==0 & hospice_c==.
 replace hospice_full=1 if hospice_sr==1 | hospice_c==1
 
-merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\working\exit_02_16_clean3.dta", nogen keep(master match) keepusing(*a124)
+merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\working\exit_02_16_clean3.dta", nogen keep(match) keepusing(*a124) //matched to exit
 
 egen location_of_death=rowmax(*a124)
+
+merge 1:1 hhid pn core_year using "`weight'", nogen keep(match)
+
+gen regwt = .
+
+replace regwt=wgtr if year==1998 // no nursing home weight for 1998
+replace regwt=wgtr if year==2000
+replace regwt=wgtr if year==2002
+replace regwt=wgtr if year==2004
+replace regwt=wgtr if year==2006
+replace regwt=wgtr if year==2008
+replace regwt=wgtr if year==2010
+replace regwt=wgtr if year==2012
+replace regwt=wgtr if year==2014
+
+replace regwt=wgtrnh if year==2000 & nhres==1
+replace regwt=wgtrnh if year==2002 & nhres==1
+replace regwt=wgtrnh if year==2004 & nhres==1
+replace regwt=wgtrnh if year==2006 & nhres==1
+replace regwt=wgtrnh if year==2008 & nhres==1
+replace regwt=wgtrnh if year==2010 & nhres==1
+replace regwt=wgtrnh if year==2012 & nhres==1
+replace regwt=wgtrnh if year==2014 & nhres==1
+
 
 label var liv_alone "Live-alone"
 label var hospice_c "Hospice from Claims"
@@ -981,7 +1033,7 @@ n_hp n_u n_i n_k n_p n_f comor_in_hrs comor_c_hrs dem_hrs ///
 hlphrs_u hlphrs_s hlphrs_i hlphrs_k hlphrs_p region northeast midwest south west ///
 proxy_relat_exit hisp_eth num_sons liv_sons num_dau liv_dau liv_step_kids num_step_kids ///
 step_dau_count step_son_count num_bro liv_bro num_sis liv_sis prob_dem proxy_core ///
-nw_* hospice_c hospice_full hosp_nights_2yr hosp_stays_2yr hosp_last_2yr has*kid liv_alone friend location_of_death dyspnea_hrs no_appet_hrs vomit_hrs depr_exit delirium_exit fatigue_hrs exit
+nw_* hospice_c hospice_full hosp_nights_2yr hosp_stays_2yr hosp_last_2yr has*kid liv_alone friend location_of_death dyspnea_hrs no_appet_hrs vomit_hrs depr_exit delirium_exit fatigue_hrs exit iadl_ind_core regwt stratum secu
 
 
 
@@ -1477,6 +1529,10 @@ H="Changelog"
 
 
 Updates:
+
+11/06/2019 MH
+------------
+Adding in new variables, then keeping merged observations with exit. 
 
 10/29/2019 EBL/MH
 ------------
