@@ -1,0 +1,269 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="set libraries"
+/* 
+********************HEADING******************** 
+
+Project Name: Cognitive Decline and Health Care Utilization in Older Adults
+
+Date Started: 11/6/19
+
+Primary Investigator: Jing Li
+Funding Source: NA
+
+Created by: EBL
+
+Primary Analyst: EBL
+Secondary Analyst: MH
+
+Datasets Used: HRS & Medicare
+
+Quick Outline:  Jing Li's team will investigate utilization around the advent of dementia, as determined by HRS.  They've given us a list of ID's, and for those with FFS, we'll send them quarterly doctor's visits, as per their two-pager.
+
+*/
+ 
+//Stata
+// Global Macros use $ symbol to be called. 
+
+libname clean 'D:\HRS\Shared\base_data\hrs_cleaned'; 
+libname medi 'D:\HRS\Shared\raw\CMS\CMS_DUA_51675_2014\Merged\SAS';
+libname proj_int "D:\HRS\Projects\exploratory\jing_li_cog_decline\data\int_data";
+
+/*rand data path*/
+libname rand 'D:\HRS\Shared\raw\HRS\hrs_public_2014\rand2014\main';
+
+
+global hrs "D:\HRS\Shared\base_data\hrs_cleaned"
+global medi "D:\HRS\Shared\raw\CMS\CMS_DUA_51675_2014\Merged\Stata"
+//Intermediate Data Path
+global intpath "D:\HRS\Projects\exploratory\jing_li_cog_decline\data\int_data"
+
+// Final Data Path
+global datapath "D:\HRS\Projects\exploratory\jing_li_cog_decline\data\final_data"
+
+//Log files path
+global logpath "D:\HRS\Projects\exploratory\jing_li_cog_decline\data\output\logs"
+
+//Log files path
+global outpath "D:\HRS\Projects\exploratory\jing_li_cog_decline\output\in_progress"
+
+
+
+H="Stata only"
+
+
+H="get index"
+//start with list of ids received from jing li on 11/1/19
+
+use "${intpath}\HRS_id_1029.dta", clear
+gen id=hhid+pn
+gen core_year=wave*2+1990
+
+merge 1:1 id core_year using "${hrs}\core_00_to_14.dta", keep(match master) nogen
+keep id hhid pn c_ivw_date wave core_year
+rename c_ivw_date index_date
+gen index_year=year(index_date)
+merge m:1 hhid pn using "${medi}\xref2015medicare.dta", keepusing(BID_HRS_22) keep(match) nogen
+rename *, l
+
+save "${intpath}\index.dta", replace
+
+
+H="get ffs"
+//first get death date for those with link
+use "${hrs}\death_date_2015.dta", clear
+keep if !missing(bid_hrs_22) 
+keep bid death_all
+tempfile death
+save `death'
+
+use bid_hrs_22 start_dt ab_mo_cnt hmo_mo using "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta", clear
+gen ffs=ab_mo_cnt>=1 & hmo_mo==0
+merge m:1 bid_hrs_22 using `death', keep(match master) keepusing(death_all) nogen
+replace ffs=1 if death_all<start_dt & hmo_mo==0
+drop *mo* death_all 
+tempfile bqsf
+save `bqsf'
+
+forvalues i=2000(2)2014 {
+	use "${intpath}\index.dta" if core_year==`i', clear
+	merge 1:m bid using `bqsf', keep(match) nogen
+	keep if start_dt<=index_date
+	gsort id -start_dt
+	by id: gen num=_n
+	drop start_dt
+	reshape wide ffs, i(id) j(num)
+	gen cont_ffs_n_mos=0
+	forvalues y=1/8 {
+		replace cont_ffs_n_mos=cont_ffs_n_mos+3 if ffs`y'==1 & cont_ffs_n_mos==`y'*3-3
+}
+	drop ffs*
+	tempfile ffs`i'
+	save `ffs`i''
+}
+clear
+forvalues i=2000(2)2014 {
+	append using `ffs`i''
+}
+tempfile bef
+save `bef'
+
+
+forvalues i=2000(2)2014 {
+	use "${intpath}\index.dta" if core_year==`i', clear
+	merge 1:m bid using `bqsf', keep(match) nogen
+
+keep if start_dt>=index_date
+gsort id -start_dt
+by id: gen num=_n
+drop start_dt
+reshape wide ffs, i(id) j(num)
+gen cont_ffs_p_mos=0
+forvalues y=1/4 {
+	replace cont_ffs_p_mos=cont_ffs_p_mos+3 if ffs`y'==1 & cont_ffs_p_mos==`y'*3-3
+}
+drop ffs*
+tempfile ffs`i'
+save `ffs`i''
+}
+clear
+forvalues i=2000(2)2014 {
+append using `ffs`i''
+}
+
+merge 1:1 bid index_date using `bef'
+
+replace cont_ffs_n_mos=0 if missing(cont_ffs_n_mos)
+replace cont_ffs_p_mos=0 if missing(cont_ffs_p_mos)
+
+save "${intpath}\ffs.dta", replace
+
+H="get appointments"
+//pull id list to merge so data's somewhat less unwieldy
+use "${intpath}\index", clear
+keep bid_hrs_22
+duplicates drop
+tempfile idlist
+save `idlist'
+
+
+use bid_hrs_22 dgnscd* hcpscd* admit_date rfr_npi using "D:\HRS\Shared\base_data\hrs_cms\Stata\pb_1998_2015.dta", clear
+merge m:1 bid using `idlist', keep(match) nogen
+gen num=_n
+
+rename dgnscd0* dgnscd*
+rename hcpscd0* hcpscd*
+
+foreach x in enm prev mem oth {
+	gen `x'=0
+}
+
+forvalues i=1/13 {
+	replace enm=1 if inrange(real(hcpscd`i'),99201,99215)
+	replace prev=1 if inlist(hcpscd`i',"99387","99397","G0344","G0438","G0439") | substr(hcpscd`i',1,4)=="G040"
+}
+
+forvalues i=1/12 {
+	replace mem=1 if enm==1 & (inlist(substr(dgnscd`i',1,4),"3310","3312","3317","2900","2903","2940","2948","2908") | inlist(substr(dgnscd`i',1,4),"2909","2949","3313","3314","3315","3316","3319","4380") | inlist(substr(dgnscd`i',1,5),"33111","33119","29010","29011","29012","29013","29020","29021","29040") | inlist(substr(dgnscd`i',1,5),"29041","29042","29043","29410","29411","29420","29421","33181") | inlist(substr(dgnscd`i',1,5),"33182","33183","33189","78093") | substr(dgnscd`i',1,3)=="797")
+}
+
+replace oth=1 if enm==1 & mem==0
+
+keep if enm==1
+
+drop dgns* hcps* num
+duplicates drop
+
+tempfile pb
+save `pb'
+
+use bid_hrs_22 dgnscd* hcpscd* admit_date using "D:\HRS\Shared\base_data\hrs_cms\Stata\op_1998_2015.dta", clear
+merge m:1 bid using `idlist', keep(match) nogen
+
+
+gen num=_n
+
+rename dgnscd0* dgnscd*
+rename hcpscd0* hcpscd*
+
+foreach x in enm prev mem oth {
+	gen `x'=0
+}
+
+forvalues i=1/45 {
+	replace enm=1 if inrange(real(hcpscd`i'),99201,99215)
+	replace prev=1 if inlist(hcpscd`i',"99387","99397","G0344","G0438","G0439") | substr(hcpscd`i',1,4)=="G040"
+}
+
+forvalues i=1/25 {
+	replace mem=1 if enm==1 & (inlist(substr(dgnscd`i',1,4),"3310","3312","3317","2900","2903","2940","2948","2908") | inlist(substr(dgnscd`i',1,4),"2909","2949","3313","3314","3315","3316","3319","4380") | inlist(substr(dgnscd`i',1,5),"33111","33119","29010","29011","29012","29013","29020","29021","29040") | inlist(substr(dgnscd`i',1,5),"29041","29042","29043","29410","29411","29420","29421","33181") | inlist(substr(dgnscd`i',1,5),"33182","33183","33189","78093") | substr(dgnscd`i',1,3)=="797")
+}
+
+replace oth=1 if enm==1 & mem==0
+keep if enm==1
+
+foreach x in enm prev mem oth {
+	rename `x' `x'_op
+}
+
+keep bid admit_date *op
+duplicates drop
+sort bid admit mem
+by bid admit: keep if _n==_N
+
+tempfile op
+save `op'
+
+merge 1:m bid admit_date using `pb'
+
+save "${intpath}\all_eandm.dta", replace
+
+H="get quarterly visits"
+cd $intpath
+
+forvalues i=2000/2014 {
+	use index if index_year==`i', clear
+	merge 1:m bid_hrs_22 using all_eandm.dta, keep(match) nogen
+	keep if inrange(admit_date,index_date-730,index_date+365)
+	tempfile t`i'
+	save `t`i''
+}
+
+clear
+forvalues i=2000/2014 {
+	append using `t`i''
+}
+
+sort bid index_date admit_date
+
+local labmem E&M visits with a memory-related ICD-9 dx
+local labprev preventive visits
+local laboth non-memory E&M visits
+
+forvalues i=0/8 {
+	gen nq`i'd=index_date-`i'*(365/4)
+	if `i'>0 {
+		gen inr`i'=inrange(admit_date,nq`i'd,nq`=`i'-1'd-1)
+		foreach x in prev mem oth {
+			by bid index_date: egen n_`x'_nq`i'=total(cond(inr`i'==1 & `x'==1,1,0))
+}
+}
+}
+
+drop inr*
+
+forvalues i=0/4 {
+	gen pq`i'd=index_date+`i'*(365/4)
+	if `i'>0 {
+		gen inr`i'=inrange(admit_date,pq`=`i'-1'd,pq`i'd-1)
+		foreach x in prev mem oth {
+			by bid index_date: egen n_`x'_pq`i'=total(cond(inr`i'==1 & `x'==1,1,0))
+}
+}
+}
+
+keep id index_date n_*
+duplicates drop
+save visits.dta, replace
+
+H="combine and clean for final"

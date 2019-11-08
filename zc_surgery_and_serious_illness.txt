@@ -64,6 +64,36 @@ rename *, l
 save "${intpath}\index.dta", replace
 
 
+H="get ffs before"
+use bid_hrs_22 start_dt ab_mo_cnt hmo_mo using "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" if year(start_dt>=2002), clear
+gen ffs=ab_mo_cnt>=1 & hmo_mo==0
+drop *mo*
+tempfile bqsf
+save `bqsf'
+
+forvalues i=2006/2014 {
+use "${intpath}\index.dta" if year(index_date)==`i', clear
+merge 1:m bid using `bqsf', keep(match) nogen
+keep if start_dt<=index_date
+gsort id -start_dt
+by id: gen num=_n
+drop start_dt
+reshape wide ffs, i(id) j(num)
+gen cont_ffs_n_mos=0
+forvalues y=1/12 {
+	replace cont_ffs_n_mos=cont_ffs_n_mos+3 if ffs`y'==1 & cont_ffs_n_mos==`y'*3-3
+}
+drop ffs
+tempfile ffs`i'
+save `ffs`i''
+}
+clear
+forvalues i=2006/2014 {
+append using `ffs`i''
+}
+
+save "${intpath}\ffs.dta", replace
+
 H="get dx before"
 cd "${medi}"
 
@@ -111,25 +141,120 @@ foreach x in snf hh hs op pb dm {
 save "${intpath}\dx_all.dta", replace
 	
 
+H="get hcpcs before"
+
+
 H="get surgeries"
 //first, import surgery flags
 
 import excel "D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\ref_docs\surgery_flags_i9_2015_mod.xlsx", sheet("surgery_flags_i9_2015") firstrow case(lower) allstring clear
 keep if substr(surgeryflag,2,1)=="2"
-gen dgnscda=substr(icd9cmcode,2,4)
-gen dgnscd=subinstr(dgnscda," ", "",.)
-keep dgnscd 
+gen prcdrcda=substr(icd9cmcode,2,4)
+gen prcdrcd=subinstr(prcdrcda," ", "",.)
+keep prcdrcd 
 duplicates drop
 tempfile surgdx
 save `surgdx'
 
-use "${intpath}\dx_ip.dta", clear
-merge m:1 dgnscd using `surgdx', keep(match) nogen
 
 
-drop dgnscd
+use "${intpath}\index.dta", clear
+sort id index_date
+by id: gen index_date_n1=index_date[_n-1]
+tempfile t
+save `t'
+
+
+forvalues i=2006/2014 {
+use `t' if index_year==`i', clear
+merge 1:m bid_hrs_22 using "${medi}\mp_1998_2015.dta", keep(match)
+keep if inrange(admit_date,index_date_n1,index_date)
+
+keep bid_hrs_22 prcdr_cd* index_date prcdr_dt* admit_date
+rename prcdr_cd* prcdrcd*
+rename prcdrcd0* prcdrcd*
+rename prcdr_dt0* prcdr_dt*
+gen num=_n
+reshape long prcdrcd prcdr_dt, i(num) j(run)
+drop num run
+duplicates drop
+drop if missing(prcdrcd)
+merge m:1 prcdrcd using `surgdx'
+by bid, sort: egen ind_major_surg=max(cond(_m==3,1,0))
+preserve
+keep if ind_major_surg
+keep bid admit_date index_date 
+duplicates drop
+tempfile sd`i'
+save `sd`i''
+restore
+drop prcdr* _merge admit_date
+duplicates drop
+tempfile y`i'
+save `y`i''
+}
+
+clear
+forvalues i=2006/2014 {
+	append using `y`i''
+}
+
 duplicates drop
 save "${intpath}\surg.dta", replace
+
+clear
+forvalues i=2006/2014 {
+	append using `sd`i''
+}
+duplicates drop
+save "${intpath}\surgdates.dta", replace
+
+//get supplementary info: 2+ ed vis or adm 6m prior to surgery
+
+use bid_hrs_22 admit_date rvcntr* using "D:\HRS\Shared\base_data\hrs_cms\Stata\op_1998_2015.dta", clear
+gen ed_op=0
+rename rvcntr0* rvcntr*
+forvalues i=1/45 {
+replace ed_op=1 if inlist(substr(rvcntr`i',1,3),"045") | rvcntr`i'=="0981"
+}
+drop rvcntr*
+keep if ed_op==1
+rename admit opadmit
+tempfile op
+save `op'
+
+use bid_hrs_22 using "${intpath}\index.dta", clear
+duplicates drop
+merge 1:m bid using  `op', keep(match) nogen
+tempfile op	
+save `op'
+
+use "${intpath}\surgdates.dta", clear
+joinby bid using `op', unm(master) _merge(xmerge)
+by bid admit_date, sort: gen inrange=inrange(opadmit,admit_date-183,admit_date)
+by bid admit_date: egen n_ed_op_n6m_surg=total(inrange)
+replace n_ed_op=n_ed_op>=2
+by bid index_date, sort: egen ind_ge2_ed_vis_n6m_surg=max(n_ed_op)
+keep bid index_date ind_ge*
+duplicates drop
+tempfile ed
+save `ed'
+
+use bid_hrs_22 admit_date using "D:\HRS\Shared\base_data\hrs_cms\Stata\mp_1998_2015.dta" if year(admit_date)>=2005, clear
+rename admit mpadm
+joinby bid using "${intpath}\surgdates.dta", unm(master) _merge(xmerge)
+gen inrange=inrange(mpadm,admit_date-183,admit_date-1)
+by bid index_date, sort: egen ind_hosp_n6m_surg=max(inrange)
+keep bid index_date ind_hosp
+duplicates drop
+tempfile ip
+save `ip'
+
+use "${intpath}\index.dta", clear
+merge 1:1 bid index_date using `ip', nogen keep(match master)
+merge 1:1 bid index_date using `ed', nogen keep(match master)
+save "${intpath}\chf_sup.dta", replace
+
 
 H="get project-specific SI"
 use "${intpath}\dx_all.dta", clear
@@ -151,11 +276,819 @@ gen liver1=inlist(substr(dgnscd,1,4),"4560","4561","4562","5710","5712","5715","
 gen renal1=inlist(substr(dgnscd,1,4),"40311","40391","40412","40492","V4511","V4512") | inlist(substr(dgnscd,1,4),"V420","V560") | substr(dgnscd,1,3)=="586"
 
 foreach x in dem canc esrd chf copd liver renal {
-	by id index_date, sort: egen `x'=max(`x'1)
+	by id index_date, sort: egen ind_`x'=max(`x'1)
 }
 
 drop dgnscd *1
 duplicates drop
+
+tempfile dx
+save `dx'
+
+
+//get severe trauma and tbi
+use "${medi}/mp_1998_2015.dta", clear
+rename dgns_cd* dgnscd*
+rename dgnscd0* dgnscd*
+save "${intpath}\allmp.dta", replace
+trauma "${intpath}\allmp.dta" "${intpath}\idpic_output.dta" 1 1 dgnscd
+
+use "${intpath}\index.dta", clear
+sort id index_date
+by id: gen index_date_n1=index_date[_n-1]
+tempfile t
+save `t'
+foreach x in mp  {
+	forvalues y=2006/2014 {
+		use `t' if index_year==`y', clear
+		merge 1:m bid_hrs_22 using  "${intpath}/idpic_output.dta", keep(match) nogen
+		keep if inrange(admit_date,index_date-365,index_date)
+		drop if ssls=="N"
+		gen st=inrange(niss,25,75) | (((icarecnt>0 & !missing(icarecnt)) | (crnryday>0 & !missing(crnryday))) & niss>0)
+		gen tbi=inrange(mxaisbr1,4,6)
+		by bid_hrs_22, sort: egen ind_severe_trauma=max(st)
+		by bid_hrs_22: egen ind_tbi=max(tbi)
+		keep bid_hrs_22 index_date ind_sev ind_tbi
+		duplicates drop
+		tempfile y`y'
+		save `y`y''
+		
+}
+	clear
+	forvalues y=2006/2014 {
+		append using `y`y''
+}
+	duplicates drop
+	tempfile `x'
+	save ``x''
+}
+
+
+//get supplementary info: oxygen 
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\dm_1998_2015.dta", clear
+keep bid_hrs_22 admit_date betos*
+tempfile dm 
+save `dm'
+
+forvalues y=2006/2014 {
+
+use "${intpath}\index.dta" if index_year==`y', clear
+		merge 1:m bid using  `dm', keep(match) nogen
+		keep if inrange(admit_date,index_date-365,index_date)
+		rename betos0* betos*
+		gen oxygen=0
+		forvalues i=1/13 {
+			replace oxygen=1 if betos`i'=="D1C"
+}
+		drop betos* admit
+		keep if oxy==1
+		duplicates drop
+		tempfile dm`y'
+		save `dm`y''
+}
+
+clear
+forvalues y=2006/2014 {
+	append using `dm`y''
+}
+tempfile dm	
+save `dm'
+
+use "${intpath}\index.dta", clear
+merge 1:1 bid_hrs_22 index_date using `dx', keep(match master) gen(dxm)
+merge 1:1 bid_hrs_22 index_date using `mp', keep(match master) gen(mpm)
+merge 1:1 bid_hrs_22 index_date using `dm', keep(match master) gen(dmm)
+
+save "${intpath}\sidiag.dta", replace
+ 
+
+H="get hospitalization"
+cd "${intpath}"
+
+forvalues i=2006/2014 {
+	use index.dta if index_year==`i', clear
+	merge 1:m bid using  "${medi}\mp_1998_2015.dta", keep(match master) keepusing(admit_date) nogen
+	gen inrange=inrange(admit_date,index_date-365,index_date)
+	by id, sort: egen n_hosp_adm_n12m=total(inrange)
+	drop admit inrange 
+	duplicates drop
+	tempfile t`i'
+	save `t`i''
+}
+
+clear
+forvalues i=2006/2014 {
+
+append using `t`i''
+}
+
+save util_pre.dta, replace
+
+H="combine into one dataset and run sample derivation"
+cd "${intpath}
+//combine into one dataset
+
+use index.dta, clear
+merge 1:1 id index_date using ffs.dta, gen(ffsm) 
+merge 1:1 bid index_date using "${intpath}\sidiag.dta", gen(dxm2)
+merge 1:1 bid index_date using surg.dta, gen(surgm)
+merge 1:1 bid index_date using chf_sup.dta, gen(chfm)
+merge 1:1 bid index_date using util_pre.dta, gen(utilm)
+gen c_ivw_date=index_date
+merge 1:1 id c_ivw_date using "${hrs}\core_00_to_14.dta", keep(match master) gen(corem)
+preserve
+keep id
+duplicates drop
+merge 1:1 id using "${hrs}\exit_02_to_16_dt.dta", keep(match) nogen
+keep if exit_year<2016
+tempfile exit
+save `exit'
+restore
+append using `exit'
+replace index_date=e_ivw_date if missing(index_date)
+preserve
+use "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", clear
+drop id
+gen id=hhid+pn
+tempfile t
+save `t'
+restore
+merge m:1 id using `t', keep(match) gen(trackm)
+drop if missing(index_date)
+
+//get serious illness
+gen ind_dem_smi=ind_dem==1 & adl_independent_core==0 & n_hosp_adm_n12m>=1 & !missing(n_hosp_adm_n12m)
+label var ind_dem_smi "Dementia dx & ADL impairment & hospitalization one year prior"
+
+gen ind_canc_smi=ind_canc==1
+label var ind_canc_smi "Cancer, solid with metastasis or hematologic"
+
+gen ind_esrd_smi=ind_esrd==1
+label var ind_esrd_smi "ESRD"
+
+gen ind_chf_smi=ind_chf==1 & (ind_hosp_n6m_surg==1 | ind_ge2_ed_vis_n6m_surg==1)
+label var ind_chf_smi "CHF & hospitalization or 2+ ED visits 6m prior to a major surgery"
+
+gen ind_tbi_smi=ind_tbi==1
+label var ind_tbi_smi "TBI with Head AIS>3"
+
+gen ind_liver_smi=ind_liver==1
+label var ind_liver_smi "Liver disease"
+
+gen ind_renal_smi=ind_renal==1
+label var ind_renal_smi "Renal disease"
+
+gen ind_trauma_smi=ind_severe_trauma==1
+label var ind_trauma_smi "Trauma with ISS>25 or ICU admission"
+
+egen n_smi_any=rowtotal(*smi)
+gen ind_smi_any=n_smi>=1 & !missing(n_smi)
+label var ind_smi_any "One or more serious medical condition"
+
+gen age=floor((index_date-birth_date)/365.25)
+gen age65=age>=65
+sort id index_date
+by id: gen hasnext=!missing(index_date[_n+1])
+gen ffs12=cont_ffs_n_mos>=12 & !missing(cont_ffs_n_mos)
+label var age65 "Age >=65"
+label var hasnext "Has following interview (core or exit)"
+label var ffs12 "12+ months of FFS prior to core"
+gen n=!missing(index_date)
+label var n "All core and exit interviews 2006-2014 with linked Medicare ID"
+local samplevars n age65 hasnext ffs12 ind_smi_any 
+
+*preserve
+local rn : word count `samplevars'
+
+mat tab=J(`rn',3,.)
+local r=1
+
+local denom=_N
+
+foreach x of local samplevars {
+	keep if `x'==1
+	mat tab[`r',1]=`denom'-_N
+	local denom=_N
+	mat tab[`r',2]=_N
+	duplicates report id
+	mat tab[`r',3]=r(unique_value)
+	local r=`r'+1
+}
+
+mat rownames tab=`samplevars'
+
+
+replace ind_major_surg=0 if missing(ind_major_surg)
+sort id index_date
+by id: keep if _n==1
+
+
+frmttable using "${outpath}\sample_derivation.rtf", statmat(tab) varlabels sdec(0) title("Sample Derivation") ///
+ctitles("" "Interviews don't meet" "Interviews do meet" "Unique Rs") replace
+
+tab ind_major_surg
+
+tempfile t1
+save `t1'
+
+keep bid_hrs_22 index_date
+tempfile idlist
+save `idlist'
+
+keep bid
+rename bid patid
+sort patid
+export delimited using "D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\data\int_data\ids.txt", delimiter(tab) replace
+
+cd "${medi}"
+
+
+foreach x in ip snf hh hs op pb dm {
+	use bid_hrs_22 admit_date hcpscd* using "${medi}/`x'_1998_2015.dta" if year(admit_date)>=2005, clear
+	duplicates drop
+	merge m:1 bid using `idlist', keep(match) nogen
+	tempfile `x'1
+	save ``x'1'
+		keep if inrange(admit_date,index_date-365,index_date)
+		rename hcpscd0* hcpscd*
+		gen num=_n
+		reshape long hcpscd, i(num) j(obs)
+		drop num obs admit
+		drop if missing(hcpscd)
+		duplicates drop
+		
+	tempfile `x'
+	save ``x''
+}
+
+use `ip', clear
+foreach x in snf hh hs op pb dm {
+	append using ``x''
+	duplicates drop
+}
+
+drop index
+rename bid patid
+rename hcp px
+export delimited using "D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\data\int_data\pxfile.txt", delimiter(tab) replace
+
+use `idlist', clear
+merge 1:m bid index_date using "${intpath}\dx_all.dta", keep(match) 
+keep bid dgns
+rename bid patid
+rename dgn dx
+export delimited using "D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\data\int_data\dxfile.txt", delimiter(tab) replace
+
+//now run the SAS file
+
+
+H="SAS to get the frailty"
+********************************************************************************************************************;
+*   Program:		https://urldefense.proofpoint.com/v2/url?u=http-3A__frailty-5Fscore.sas&d=DwIG-g&c=shNJtf5dKgNcPZ6Yh64b-A&r=ClVUsuUoT8UnTfIanDrbh9dyIM5HHNgV1H2w3vn9Kcs&m=VfQt4XFb7QDzIqDwlgofznpz-liVjr0C2Rc8BudBbhY&s=WWngwYU-0_ucxN5th0CC98IsAjtNCRDwSReVXhdIHKQ&e= 					          												   					              ;
+*																											        				         											     ;
+*   Purpose:		To compute the Frailty Score based on ICD-9 Diagnosis and Procedure codes	             ;
+*																											        				              										             ;
+* 																											        				              										             ;
+*													 														        				              										             ;
+*	Definitions:	
+
+*	1.	Codes = This text file contains ICD-9 diagnosis codes, CPT codes, and HCPCS codes that are used to define each variable in the
+		model that estimates CFI.																												  ; 	
+
+*	2.	Weight = This text file contains model coefficients for each variable in the model that estimates CFI.			 ; 
+
+*	3.	Ids = Please create input dataset with unique patient IDs (1 per row) for whom CFI needs to be estimated.  
+		Variable name for the patient identifier should be “patid”.  This dataset may potentially contain patients who may not have been 
+		included in Dxfile or Pxfile, this patient’s CFI will be set to the intercept of the CFI model.				 ; 
+
+*	4.	Dxfile = This input dataset contains unique patient IDs (“patid”) and ICD-9 diagnosis codes (“dx”) in the long format 
+		(one code in each row, multiple rows per patient) that are used to estimate CFI.  
+		It is recommended that one year of claims data prior to the index date is used for CFI estimation.  Both patient IDs and ICD-9 diagnosis
+		codes should be in the character format.																								  ; 
+
+*	5.	Pxfile = This input dataset contains unique patient IDs (“patid”) and CPT/HCPCS codes (“px”) in the long format (one code in each row,
+		multiple rows per patient) that are used to estimate CFI.  It is recommended that one year of claims data prior to the index date is 
+		used for CFI estimation.  Both patient IDs and CPT/HCPCS codes should be in the character format.			; 
+
+options ps = 53 pageno =1;
+
+****************************************;
+* read txt files to create sas datasets ;
+****************************************;
+
+data Codes;
+  infile 'D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\ref_docs\Codes.txt' delimiter='09'x  missover ; /*  <- change the file path*/
+       format set_type $2. ;
+       format code_type $2. ;
+       format description $99. ;
+       format range_min $10. ;
+       format range_max $10. ;
+       format Disease_number 8. ;
+       input set_type $ @;
+       input code_type $ @;
+       input description $ @;
+       input range_min $ @;
+       input range_max $ @;
+       input Disease_number ;
+ run;
+
+ data Weight;
+  infile 'D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\ref_docs\Weight.txt' delimiter='09'x DSD missover lrecl=32767;/*  <- change the file path*/
+       format Weight best12. ;
+       format Disease_number 8. ;
+       input Weight @;
+       input Disease_number ;
+ run;
+
+    data Ids;
+    infile 'D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\data\int_data\Ids.txt' delimiter='09'x DSD missover lrecl=32767;/*  <- change the file path*/
+       format patid $12. ;
+       format exposure best12. ;
+       input patid $ @;
+       input exposure ;
+    run;
+
+proc sort data=ids;
+by patid;
+run;
+
+    data Dxfile;
+    infile 'D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\data\int_data\Dxfile.txt' delimiter='09'x DSD missover lrecl=32767;/*  <- change the file path*/
+       format PatID $12. ;
+       format DX $7. ;
+       input PatID $ @;
+       input DX $ ;
+       ;
+    run;
+
+
+    data Pxfile;
+    infile 'D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\data\int_data\Pxfile.txt' delimiter='09'x DSD missover lrecl=32767;/*  <- change the file path*/
+       format PatID $12. ;
+       format PX $7. ;
+       input PatID $ @;
+       input PX $ ;
+    run;
+
+
+ data px_score
+      dx_score;
+    set Codes;
+ if set_type = 'dx' then output dx_score;
+ if set_type = 'px' then output px_score;
+ keep range_min range_max disease_number;
+ run;
+
+*********************************;
+* dx format for frailty disease  ;
+*********************************;
+
+ data master;
+   set dx_score;
+ label = left(disease_number);
+ drop disease_number;
+ run;
+
+
+  data other;
+     start = 'other';
+     end   = 'other';
+     label = 'other';
+  run;
+
+  data study_dx;
+      set master(rename=(range_min = start range_max = end))
+          other;
+  fmtname = '$study_dx';
+  run;
+
+ proc format cntlin = study_dx;
+  run;
+
+ data score_dx;
+     set Dxfile(keep = patid dx);
+ class    = put(dx, $study_dx.);
+ if class ^= 'other';
+ run;
+
+
+*********************************;
+* px format for frailty disease  ;
+*********************************;
+
+ data master;
+   set px_score;
+ label = left(disease_number);
+ drop disease_number;
+ run;
+
+
+  data other;
+     start = 'other';
+     end   = 'other';
+     label = 'other';
+  run;
+
+  data study_px;
+      set master(rename=(range_min = start range_max = end))
+          other;
+  fmtname = '$study_px';
+  run;
+
+ proc format cntlin = study_px;
+  run;
+
+ data score_px;
+     set Pxfile(keep = patid px);
+ class    = put(px, $study_px.);
+ if class ^= 'other';
+ run;
+
+ ********************************;
+ * Calculating frailty index     ;
+ ********************************;
+
+ data Weight;
+   set Weight;
+class = left(disease_number);
+keep class Weight;
+run;
+
+proc sort data = Weight;
+   by class;
+run;
+
+data score;
+ set  score_px
+      score_dx;
+keep patid class;
+run;
+
+proc sort nodupkey data = score;
+    by patid class;
+run;
+
+proc sort data = score;
+    by class;
+run;
+
+data scores;
+   merge score(in = in1)
+         Weight(in = in2);
+  by class;
+  if in1 and in2;
+run;
+
+proc sort data = scores;
+   by patid class;
+run;
+
+
+data count;
+   set scores;
+   by patid;
+   if first.patid then score = 0.10288;
+       score + Weight;
+   if last.patid then output;
+keep patid score;
+run;
+
+data data_frailty_score;
+   merge Ids(in = in1 keep = patid)
+         count(in = in2);
+   by patid;
+   if not in2 then score = 0.10288;
+keep patid score;
+run;
+
+ *******************************************************************************************************
+ * Dataset created at the above step ("data_frailty_score") will have the frailty index for all the patients.
+   Below step prints the frailty index for 100 patients     
+ *******************************************************************************************************;
+proc export data=data_frailty_score outfile='D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\data\int_data\data_frailty_score.dta' replace; run;
+
+
+H="combine the frailty"
+cd "${intpath}
+//combine into one dataset
+
+//first get the cleaned re vars
+use "D:\HRS\Shared\raw\HRS\hrs_restricted_2014\Received\Race\2014\re20141\stata\RE2014.dta", clear
+rename *, l
+merge m:1 hhid pn using "D:\HRS\Shared\raw\HRS\hrs_tracking_2014\trk2014tr_r.dta", ///
+keep(match master) keepusing(gender)
+rename gender gend2
+
+gen racecat=1 if inlist(race1,3)
+replace racecat=2 if inlist(race1,4)
+replace racecat=4 if inlist(race1,2)
+replace racecat=5 if inlist(race1,1)
+replace racecat=7 if inlist(race1,7,8,9)
+replace racecat=1 if inlist(race2m1,3,4)
+replace racecat=2 if inlist(race2m1,5) 
+replace racecat=3 if inlist(race2m1,6,7) 
+replace racecat=4 if inlist(race2m1,2) 
+replace racecat=5 if inlist(race2m1,1) 
+replace racecat=6 if inrange(race2m2,1,98)
+replace racecat=7 if inlist(race2m1,97,98,99,0) & missing(racecat)
+
+label define racecat 1 "Amer. Indian/Alaska Native" 2 "Asian" 3 "Hawaiian/Pac Islander" 4 "Black" 5 "White" 6 ///
+"Multiple" 7 "Unknown/Other"
+label values racecat racecat
+
+//unreportable pac-islander 
+replace racecat=7 if racecat==3
+gen hisp=inrange(hispanic1,1,5) | inlist(hispanic2m1,1,2,3,7,8,9)
+label var hisp "Hispanic"
+
+keep hhid pn racecat hisp gend2
+
+tempfile re
+save `re'
+
+
+
+use index.dta, clear
+merge 1:1 id index_date using ffs.dta, gen(ffsm) 
+merge 1:1 bid index_date using "${intpath}\sidiag.dta", gen(dxm2)
+merge 1:1 bid index_date using surg.dta, gen(surgm)
+merge 1:1 bid index_date using chf_sup.dta, gen(chfm)
+merge 1:1 bid index_date using util_pre.dta, gen(utilm)
+gen c_ivw_date=index_date
+merge 1:1 id c_ivw_date using "${hrs}\core_00_to_14.dta", keep(match master) gen(corem)
+preserve
+keep id
+duplicates drop
+merge 1:1 id using "${hrs}\exit_02_to_16_dt.dta", keep(match) nogen
+keep if exit_year<2016
+tempfile exit
+save `exit'
+restore
+append using `exit'
+replace index_date=e_ivw_date if missing(index_date)
+merge 1:1 id core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", gen(demm) keep(match master)
+preserve
+use "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", clear
+drop id
+gen id=hhid+pn
+tempfile t
+save `t'
+restore
+merge m:1 id using `t', keep(match) gen(trackm)
+drop if missing(index_date)
+gen patid=bid
+merge m:1 patid using data_frailty_score.dta, keep(match master) gen(frailm)
+drop patid
+rename score frailty_score
+gen ind_frail=inrange(frailty_score,.25,1)
+label var ind_frail "Frail (CFI>=0.25)"
+
+
+merge m:1 hhid pn using `re', keep(match master) gen(rem)
+replace female=gender-1 if missing(female)
+
+//get serious illness
+gen ind_dem_smi=ind_dem==1 & adl_independent_core==0 & n_hosp_adm_n12m>=1 & !missing(n_hosp_adm_n12m)
+label var ind_dem_smi "Dementia dx & ADL impairment & hospitalization one year prior"
+
+gen ind_canc_smi=ind_canc==1
+label var ind_canc_smi "Cancer, solid with metastasis or hematologic"
+
+gen ind_esrd_smi=ind_esrd==1
+label var ind_esrd_smi "ESRD"
+
+gen ind_chf_smi=ind_chf==1 & (ind_hosp_n6m_surg==1 | ind_ge2_ed_vis_n6m_surg==1)
+label var ind_chf_smi "CHF & hospitalization or 2+ ED visits 6m prior to a major surgery"
+
+gen ind_tbi_smi=ind_tbi==1
+label var ind_tbi_smi "TBI with Head AIS>3"
+
+gen ind_liver_smi=ind_liver==1
+label var ind_liver_smi "Liver disease"
+
+gen ind_renal_smi=ind_renal==1
+label var ind_renal_smi "Renal disease"
+
+gen ind_trauma_smi=ind_severe_trauma==1
+label var ind_trauma_smi "Trauma with ISS>25 or ICU admission"
+
+egen n_smi_any=rowtotal(*smi)
+gen ind_smi_any=n_smi>=1 & !missing(n_smi)
+label var ind_smi_any "One or more serious medical condition"
+
+gen age=floor((index_date-birth_date)/365.25)
+gen age65=age>=65
+sort id index_date
+by id: gen hasnext=!missing(index_date[_n+1])
+gen ffs12=cont_ffs_n_mos>=12 & !missing(cont_ffs_n_mos)
+label var age65 "Age >=65"
+label var hasnext "Has following interview (core or exit)"
+label var ffs12 "12+ months of FFS prior to core"
+gen n=!missing(index_date)
+label var n "All core and exit interviews 2006-2014 with linked Medicare ID"
+local samplevars n age65 hasnext ffs12 ind_smi_any 
+
+
+sort id index_date
+by id: gen died=!missing(exit_year[_n+1])
+by id: gen index_date_p1=index_date[_n+1]
+by id: carryforward tics_tot, replace
+replace ind_trauma_smi=1 if ind_tbi_smi==1
+label var ind_trauma_smi "Trauma with ISS>25 or ICU admission or TBI with Head AIS>3"
+gen ind_vuln=adl_independent_core==0 | age>=85 | (pdem3<.5 & !missing(pdem3))
+label var ind_vuln "85+yrs old or ADL impaired or likely CIND or dementia"
+replace ind_smi_any=1 if ind_vuln==1 | ind_frail==1 | nhres==1
+
+*preserve
+local rn : word count `samplevars'
+
+mat tab=J(`rn',3,.)
+local r=1
+
+local denom=_N
+
+foreach x of local samplevars {
+	keep if `x'==1
+	mat tab[`r',1]=`denom'-_N
+	local denom=_N
+	mat tab[`r',2]=_N
+	duplicates report id
+	mat tab[`r',3]=r(unique_value)
+	local r=`r'+1
+}
+
+mat rownames tab=`samplevars'
+
+
+replace ind_major_surg=0 if missing(ind_major_surg)
+
+by id: keep if _n==1
+
+
+frmttable using "${outpath}\sample_derivation.rtf", statmat(tab) varlabels sdec(0) title("Sample Derivation") ///
+ctitles("" "Interviews don't meet" "Interviews do meet" "Unique Rs") replace
+
+tab ind_major_surg
+
+save ser_ill_surg_sample.dta, replace
+
+
+H="tables 1 and 2"
+cd "${intpath}
+
+use ser_ill_surg_sample.dta, replace
+
+replace ind_trauma_smi=1 if ind_tbi_smi==1
+label var ind_trauma_smi "Trauma with ISS>25 or ICU admission or TBI with Head AIS>3"
+
+local cvars1 age
+local ivars1 hisp
+local catvars1 racecat
+local ivars2 female ind_vuln ind_dem_smi ind_canc_smi ind_esrd_smi ind_chf_smi /*ind_tbi_smi*/ ind_liver_smi ind_renal_smi ind_trauma_smi ind_frail nhres died ind_major_surg
+
+
+forvalues i=1/3 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+local rn : word count `cvars1' `ivars1' `cativars1' `ivars2' `cativars2' `cvars3' `cvars3' `ivars3' 1 1 1
+local r=1
+local c=1
+
+mat tab=J(`rn',3,.)
+mat stars=J(`rn',3,0)
+
+foreach y in  1 {
+	forvalues i=1/3 {
+		foreach x of local cvars`i' {
+			sum `x', d
+			mat tab[`r',`c']=r(mean)
+			mat tab[`r',`c'+1]=r(sd)
+			mat tab [`r'+1,`c']=r(p50)
+			mat tab[`r'+1,`c'+1]=r(p25)
+			mat tab[`r'+1,`c'+2]=r(p75)
+			mat tab[`r'+2,`c'+1]=r(min)
+			mat tab[`r'+2,`c'+2]=r(max)
+
+			local r=`r'+3
+			
+}
+		foreach x of local ivars`i' {
+			sum `x'
+			mat tab[`r',`c']=r(mean)*100
+			mat tab[`r',`c'+1]=r(mean)*r(N)
+
+			local r=`r'+1
+}
+		foreach x of local catvars`i' {
+
+			foreach z of local `x' {
+				sum `z' 
+				mat tab[`r',`c']=r(mean)*100
+			mat tab[`r',`c'+1]=r(mean)*r(N)
+				local r=`r'+1
+}
+}
+}
+	sum n 
+	mat tab[`r',`c']=r(N)
+	
+	local r=1
+	local c=`c'+3
+}
+
+mat rownames tab=`cvars1' Med_IQR Min_Max `ivars1' `cativars1' `ivars2' `cativars2' ///
+ `ivars3' N
+
+frmttable using "${outpath}\aim_2_tables_`c(current_date)'.rtf", ///
+statmat(tab) title("HRS Subjects with SMC 2006-2014 with at least one follow-up interview (core or exit)") ///
+varlabels ///
+sdec(2) annotate(stars) asymbol(*,**) replace
+
+local r=1
+local c=1
+
+mat tab=J(`rn',10,.)
+mat stars=J(`rn',10,0)
+
+foreach y in "0,1" 0 1 {
+	forvalues i=1/3 {
+		foreach x of local cvars`i' {
+			sum `x' if inlist(ind_major_surg,`y'), d
+			mat tab[`r',`c']=r(mean)
+			mat tab[`r',`c'+1]=r(sd)
+			mat tab [`r'+1,`c']=r(p50)
+			mat tab[`r'+1,`c'+1]=r(p25)
+			mat tab[`r'+1,`c'+2]=r(p75)
+			mat tab[`r'+2,`c'+1]=r(min)
+			mat tab[`r'+2,`c'+2]=r(max)
+			if "`y'"=="1" {
+				ttest `x', by(ind_major_surg)
+				mat tab[`r',`c'+3]=r(p)
+				mat stars[`r',`c'+3]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+3
+			if `i'==3 local r=`r'+1
+			
+}
+		foreach x of local ivars`i' {
+			sum `x' if inlist(ind_major_surg,`y')
+			mat tab[`r',`c']=r(mean)*100
+			mat tab[`r',`c'+1]=r(mean)*r(N)
+			if "`y'"=="1" {
+				tab `x' ind_major_surg, chi2
+				mat tab[`r',`c'+3]=r(p)
+				mat stars[`r',`c'+3]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+}
+		foreach x of local catvars`i' {
+			if "`y'"=="1" {
+				tab `x' ind_major_surg, chi2
+				mat tab[`r',`c'+3]=r(p)
+				mat stars[`r',`c'+3]=(r(p)<.05)+(r(p)<.01)
+}
+			foreach z of local `x' {
+				sum `z' if inlist(ind_major_surg,`y')
+				mat tab[`r',`c']=r(mean)*100
+			mat tab[`r',`c'+1]=r(mean)*r(N)
+				local r=`r'+1
+}
+}
+}
+	sum n if inlist(ind_major_surg,`y')
+	mat tab[`r',`c']=r(N)
+	
+	local r=1
+	local c=`c'+3
+}
+
+mat rownames tab=`cvars1' Med_IQR Min_Max `ivars1' `cativars1' `ivars2' `cativars2' ///
+ `ivars3' N
+
+frmttable using "${outpath}\aim_2_tables_`c(current_date)'.rtf", ///
+statmat(tab) title("HRS Subjects with SMC 2006-2014 with at least one follow-up interview (core or exit)") ///
+varlabels ctitles("" "Full Sample" "" "" "No Surgery" "" "" "With Surgery" "" "" \ "" "Mean/Median/%" "25p/min/N"  "75p/max" "Mean/Median/%" "25p/min/N"  "75p/max" "Mean/Median/%" "25p/min/N"  "75p/max" "P-value") ///
+sdec(2) annotate(stars) asymbol(*,**) addtable landscape
+
+
+
+
 
 H="get trauma"
 

@@ -1448,7 +1448,8 @@ merge 1:1 spid using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL qualit
 
 
 
-H="merge HRRMA file"
+H="build data step 4: merge HRRMA file"
+*step 4
 
 //first, pull the HRR numbers for each wave
 
@@ -1521,7 +1522,9 @@ qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.avgma_quart i.deat
 	margins, dydx(ma1) over(avgma_quart)
 
 
-H="xxxxxxxxPart2-- MA added in"
+H="build data step 5:  MA added in"
+*step 5
+
 tempfile nhats
 save "`nhats'"
 
@@ -1696,7 +1699,7 @@ label var ma_month_bef_hs "Had MA month before Hospice"
 
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
 
-H="more variable cleaning"
+H=" variable cleaning"
 *more variable cleaning
 recode deathage_cat (1/2=1 "65-74")(3/4=2 "75-84")(5/6=3 "85+"),gen(deathage_3cat)
 
@@ -1738,16 +1741,15 @@ use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data
 
 svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
 
+egen miss=rowmiss not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant recode_care_decision di_recode_informed )
+misstable summarize not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant recode_care_decision di_recode_informed if inanal==1
+
 *table 1: in MA at time of death vs not
 *looking at quality variables
 svy, subpop(inanal): tab ma1
 tab ma1 if inanal==1, m
 
 svy, subpop(inanal): tab ma1 year, column
-svy, subpop(inanal): tab ind_hospice, column
-tab ind_hospice, m
-svy, subpop(inanal): tab ind_hospice ma1, column
-svy, subpop(inanal): tab ind_hospice year, column
 
 
 svy, subpop(inanal): tab ma2, count cellwidth(15) format (%15.2g)
@@ -1755,30 +1757,21 @@ svy, subpop(inanal): tab ma2, count cellwidth(15) format (%15.2g)
 svy, subpop(inanal): tab deathage_3cat ma1, column
 svy, subpop(inanal): tab female ma1, column
 svy, subpop(inanal): tab race_cat ma1, column
-svy, subpop(inanal): tab income_quart ma1, column
+svy, subpop(inanal): tab lowest_inc_qrt ma1, column
+svy, subpop(inanal): tab medicaid_death ma1, column
 svy, subpop(inanal): tab metro_ind ma1, column
-svy, subpop(inanal): tab adl_impair ma1, column
-svy, subpop(inanal): tab mi_all ma1, column
-svy, subpop(inanal): tab dm_all ma1, column
+svy, subpop(inanal): tab avgma_quart ma1, column
+
+svy, subpop(inanal): tab diff_get_out_bed ma1, column
 svy, subpop(inanal): tab lung_all ma1, column
 svy, subpop(inanal): tab cva_all ma1, column
 svy, subpop(inanal): tab cancer_all ma1, column
 svy, subpop(inanal): tab prob_dem ma1, column
-svy, subpop(inanal): tab avgma_quart ma1, column
-
 
 
 *figure 1
 
-/*
-i don't actually know how to do this right.
-svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
-tabout excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant ma1 if inanal==1 using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\output\fig2.htm", ///
-c(row ci) f(1 1) clab(Row_% 95% CI) svy stats (chi2) ///
-npos(lab) percent ///
-rep ///
-style(tex) bt font(bold) cl1(2-6)
-*/
+
 foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed {
 		qui svy, subpop(inanal): logistic `var' i.ma1,  cformat(%4.2f)
