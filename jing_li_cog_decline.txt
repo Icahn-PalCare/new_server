@@ -49,9 +49,6 @@ global outpath "D:\HRS\Projects\exploratory\jing_li_cog_decline\output\in_progre
 
 
 
-H="Stata only"
-
-
 H="get index"
 //start with list of ids received from jing li on 11/1/19
 
@@ -114,7 +111,7 @@ forvalues i=2000(2)2014 {
 	merge 1:m bid using `bqsf', keep(match) nogen
 
 keep if start_dt>=index_date
-gsort id -start_dt
+gsort id start_dt
 by id: gen num=_n
 drop start_dt
 reshape wide ffs, i(id) j(num)
@@ -159,7 +156,7 @@ foreach x in enm prev mem oth {
 }
 
 forvalues i=1/13 {
-	replace enm=1 if inrange(real(hcpscd`i'),99201,99215)
+	replace enm=1 if inrange(real(hcpscd`i'),99201,99205) | inrange(real(hcpscd`i'),99211,99215)
 	replace prev=1 if inlist(hcpscd`i',"99387","99397","G0344","G0438","G0439") | substr(hcpscd`i',1,4)=="G040"
 }
 
@@ -191,7 +188,7 @@ foreach x in enm prev mem oth {
 }
 
 forvalues i=1/45 {
-	replace enm=1 if inrange(real(hcpscd`i'),99201,99215)
+	replace enm=1 if inrange(real(hcpscd`i'),99201,99205) | inrange(real(hcpscd`i'),99211,99215)
 	replace prev=1 if inlist(hcpscd`i',"99387","99397","G0344","G0438","G0439") | substr(hcpscd`i',1,4)=="G040"
 }
 
@@ -246,6 +243,7 @@ forvalues i=0/8 {
 		gen inr`i'=inrange(admit_date,nq`i'd,nq`=`i'-1'd-1)
 		foreach x in prev mem oth {
 			by bid index_date: egen n_`x'_nq`i'=total(cond(inr`i'==1 & `x'==1,1,0))
+			label var n_`x'_nq`i' "Number of `lab`x'' in `=(`i'-1')*3'-`=`i'*3' months before interview"
 }
 }
 }
@@ -258,6 +256,8 @@ forvalues i=0/4 {
 		gen inr`i'=inrange(admit_date,pq`=`i'-1'd,pq`i'd-1)
 		foreach x in prev mem oth {
 			by bid index_date: egen n_`x'_pq`i'=total(cond(inr`i'==1 & `x'==1,1,0))
+			label var n_`x'_pq`i' "Number of `lab`x'' in `=`i'-1'-`i' months after interview"
+
 }
 }
 }
@@ -267,3 +267,62 @@ duplicates drop
 save visits.dta, replace
 
 H="combine and clean for final"
+cd $intpath
+
+use index, clear
+
+merge 1:1 id index_date using ffs, gen(ffsm)
+merge 1:1 id index_date using visits, gen(vism)
+merge 1:1 hhid pn wave using "${intpath}\HRS_id_1029.dta", nogen keep(match using)
+replace core_year=wave*2+1990 if missing(core_year)
+
+merge 1:1 hhid pn core_year using "${hrs}\core_00_to_14.dta", keep(match master) nogen keepusing(c_ivw_date)
+
+destring id, replace
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", keep(match) keepusing(birth_date) nogen
+
+
+replace cont_ffs_n_mos=0 if missing(cont_ffs_n_mos)
+replace cont_ffs_p_mos=0 if missing(cont_ffs_p_mos)
+foreach x of varlist *nq* {
+	replace `x'=0 if cont_ffs_n_mos>=24 & missing(`x')
+}
+foreach x of varlist *pq* {
+	replace `x'=0 if cont_ffs_p_mos>=12 & missing(`x')
+}
+
+gen age=year(index_date)-year(birth_date)
+replace age=age-1 if month(index_date)<month(birth_date)
+replace age=age-1 if month(index_date)==month(birth_date) & day(index_date)<day(birth_date)
+replace age=65 if age==64
+
+/*
+gen age=floor((index_date-birth_date)/365.25)
+replace age=age+1 if day(birth_date)==day(index_date) & month(birth_date)==month(index_date)
+replace age*/
+gen group=1 if missing(age)
+replace group=1 if cont_ffs_n_mos<24 | cont_ffs_p_mos<12
+replace group=2 if cont_ffs_p_mos==12 & age==65
+replace group=3 if cont_ffs_n_mos>=12 & cont_ffs_p_mos==12 & age==66
+replace group=4 if cont_ffs_n_mos>=24 & cont_ffs_p_mos==12 & age>=67
+
+label define group 1 "No link available or not FFS Medicare over study period" 2 "65 w/ 12m FFS post" 3 "66 w/ 12m FFS pre and post" 4 "67+ with 24m FFS pre and 12m post"
+label values group group
+*keep hhidpn hhid pn wave n_* group
+label var group "Age/FFS flag"
+
+foreach x of varlist n_* {
+	replace `x'=. if group==1
+}
+
+foreach x of varlist *nq* {
+	replace `x'=. if group==2
+}
+
+foreach x of varlist *nq5 *nq6 *nq7 *nq8 {
+	replace `x'=. if group==3
+}
+
+order hhidpn hhid pn wave group
+
+save HRS_id_1029_w_visits.dta, replace

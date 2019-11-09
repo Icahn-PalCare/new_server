@@ -1,7 +1,7 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Project outline"
-s Burden of Care for Adults with Dementia: Impact on Care Quality and Family Outcomes
+Burden of Care for Adults with Dementia: Impact on Care Quality and Family Outcomes
 
 
 10/9/17
@@ -15534,80 +15534,6 @@ INNER JOIN medicare.xref2015medicare b
 ON a.hhid=b.hhid AND a.pn=b.pn;
 quit;
 
-H="Burdensome transitions using days"
-proc sort data=proj_int.index out=index1 nodupkey;
-by bid_hrs_22 id index_date;
-run;
-
-
-
-
-/**************************************************************************/
-/* ************** Claims Before Death  ******************************/
-/**************************************************************************/
-/*macro to get claims before death
-saves datasets for each claim type / time window to the spo_mc_i directory*/
-%macro claimspre(days_start=,days_bef_index=,source=,suf=);
-
-/*claims fully within x time of death date*/
-proc sql;
-create table &source._meet_1 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
-quit;
-
-/*claims that start earlier than x time but span into x time before death*/
-proc sql;
-create table &source._meet_2 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
-quit;
-
-data proj_int.&source._meet_&suf.(compress=yes);
-set &source._meet_1 &source._meet_2;
-run;
-%mend;
-
-/*3m before death*/
-%claimspre(days_start=0,days_bef_index=90,source=hh,suf=3m); /*home health*/
-%claimspre(days_start=0,days_bef_index=90,source=hs,suf=3m); /*hospice*/
-%claimspre(days_start=0,days_bef_index=90,source=mp,suf=3m); /*medpar*/
-%claimspre(days_start=0,days_bef_index=90,source=dm,suf=3m); /*dme*/
-%claimspre(days_start=0,days_bef_index=90,source=op,suf=3m); /*outpatient*/
-%claimspre(days_start=0,days_bef_index=90,source=pb,suf=3m); /*carrier*/
-
-data op_meet_2_1;
-set op_meet_2;
-format index_date date9.;
-format admit_date date9.;
-format disch_date date9.;
-run;
-
-data op_meet_2_2;
-set op_meet_2;
-day_a=index_date-admit_date;
-day_d=index_date-disch_date;
-days=90-day_d;
-run;
-
-data want;
-set op_meet_2;
-do i=admit_date to disch_date;
-date=i;
-output;
-end;
-format date date9.;
-run;
-
-data want_1;
-set want;
-where 0<=index_date-date<=90;
-run;
-
 H="*********************"
 
 
@@ -19399,3 +19325,250 @@ H="changelog"
 12/20/18-finished update for 2015 claims and worked on 7-years.
 
 
+
+
+H="Burdensome transitions using days"
+proc sort data=proj_int.index out=index1 nodupkey;
+by bid_hrs_22 id index_date;
+run;
+
+
+
+
+/**************************************************************************/
+/* ************** Claims Before Death  ******************************/
+/**************************************************************************/
+/*macro to get claims before death
+saves datasets for each claim type / time window to the spo_mc_i directory*/
+%macro claimspre(days_start=,days_bef_index=,source=,suf=);
+
+/*claims fully within x time of death date*/
+proc sql;
+create table &source._meet_1 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table &source._meet_2 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
+quit;
+
+data proj_int.&source._meet_&suf.(compress=yes);
+set &source._meet_1 &source._meet_2;
+run;
+%mend;
+
+/*3m before death*/
+%claimspre(days_start=0,days_bef_index=90,source=hh,suf=3m); /*home health*/
+%claimspre(days_start=0,days_bef_index=90,source=hs,suf=3m); /*hospice*/
+%claimspre(days_start=0,days_bef_index=90,source=ip,suf=3m); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=90,source=dm,suf=3m); /*dme*/
+%claimspre(days_start=0,days_bef_index=90,source=op,suf=3m); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=90,source=pb,suf=3m); /*carrier*/
+%claimspre(days_start=0,days_bef_index=90,source=sn,suf=3m); /*snf*/
+
+data op_meet_3m_er_obs;
+set proj_int.op_meet_3m;
+er_flag = 0;
+obs_flag = 0;
+array rvcntr rvcntr01-rvcntr45;
+array hcpcs hcpscd01-hcpscd45;
+array rvunt rvunt01-rvunt45;
+do over rvcntr;
+do over hcpcs;
+do over rvunt;
+if strip(rvcntr) in:("0450", "0451", "0452", "0456", "0459") then er_flag = 1;
+if strip(rvcntr) in:("0762") then obs_flag =1;
+if strip(rvcntr) in:("0760") and strip(hcpcs) in: ("G0378") and rvunt>=8 then obs_flag =1;
+end;
+end;
+end;
+run;
+
+data proj_int.op_er_meet_3m;
+set op_meet_3m_er_obs;
+if er_flag=1;
+run;
+
+data proj_int.op_obs_meet_3m;
+set op_meet_3m_er_obs;
+if obs_flag=1;
+run;
+
+data test;
+set proj_int.pb_meet_3m;
+snf_pb=0;
+array plcrvc plcrvc01-plcrvc13;
+do over plcrvc;
+if strip(plcrvc) in:("31", "32") then snf_pb = 1;
+end;
+run;
+
+
+proc freq data= test;
+table snf_pb;
+run;
+
+
+/*For MDS*/
+data mds_2 (keep= BID_HRS_22 AB1_ENTRY_DT A3A_ASMT_REF_DT A4A_REENTRY_DT TRGT_DT entry_dt entry target r3a_discharge_cd R4_DISCHARGE_DT disch_dt disch);
+set medi.mds_2_99_10;
+if AB1_ENTRY_DT~="********" then entry_dt=AB1_ENTRY_DT;
+entry=input(put(entry_dt,8.),yymmdd8.);
+format entry date9.;
+target=input(put(TRGT_DT,8.),yymmdd8.);
+format target date9.;
+if R4_DISCHARGE_DT~="********" then disch_dt=R4_DISCHARGE_DT;
+disch=input(put(disch_dt,8.),yymmdd8.);
+format disch date9.;
+run;
+
+proc sort data=mds_2 out=mds_2 ;
+by bid_hrs_22 target ;
+run;
+
+proc sql;
+create table mds_2_meet_1 as select a.*,b.index_date,b.id 
+from mds_2_99_10 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and 0<=b.index_date-a.admit_date<=90 ;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table &source._meet_2 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
+quit;
+
+data proj_int.&source._meet_&suf.(compress=yes);
+set &source._meet_1 &source._meet_2;
+run;
+
+
+
+
+
+%macro dates(source=,type=);
+
+data &source._meet_&type._1;
+set &source._meet_&type.;
+format index_date date9.;
+format admit_date date9.;
+format disch_date date9.;
+day_a=index_date-admit_date;
+day_d=index_date-disch_date;
+days=90-day_d;
+run;
+
+
+data &source.&type.;
+set &source._meet_&type._1;
+do i=admit_date to disch_date;
+date=i;
+output;
+end;
+format date date9.;
+run;
+
+data &source.&type._1;
+set &source.&type.;
+where 0<=index_date-date<=90;
+&source.=1;
+run;
+
+%mend;
+
+%dates(source=op,type=1);
+%dates(source=op,type=2);
+%dates(source=hh,type=1);
+%dates(source=hh,type=2);
+%dates(source=hs,type=1);
+%dates(source=hs,type=2);
+%dates(source=ip,type=1);
+%dates(source=ip,type=2);
+%dates(source=pb,type=1);
+%dates(source=pb,type=2);
+%dates(source=sn,type=1);
+%dates(source=sn,type=2);
+
+%macro combine(source=, npi=);
+
+data &source.;
+set &source.1_1 &source.2_1;
+run;
+
+proc sort data=&source. out=&source. ;
+by bid_hrs_22 date ;
+run;
+
+data &source._dup (keep= bid_hrs_22 bid_n hhidpn index_date flag date admit_date disch_date days_a days_d &source. fac_type) ;
+set &source.;
+if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and (provider~=lag(provider) or &npi.~=lag(&npi.)) then flag=1;
+run;
+%mend;
+
+%combine(source=op,npi=ORGNPINM);
+%combine(source=hh,npi=ORGNPINM);
+%combine(source=hs,npi=ORGNPINM);
+%combine(source=ip,npi=npi);
+%combine(source=pb,npi=rfr_npi);
+
+data all;
+set hh_dup hs_dup mp_dup ;
+run;
+
+data mp_test;
+set mp_dup;
+by bid_hrs_22 date;
+if first.bid_hrs_22 or first.date then count=0;
+count +1;
+if last.id_hrs_22 or last.date;
+run;
+
+data hh_test;
+set hh_dup;
+by bid_hrs_22 date;
+if first.bid_hrs_22 or first.date then count=0;
+count +1;
+if last.id_hrs_22 or last.date;
+run;
+
+data hs_test;
+set hs_dup;
+by bid_hrs_22 date;
+if first.bid_hrs_22 or first.date then count=0;
+count +1;
+if last.id_hrs_22 or last.date;
+run;
+
+
+data all_days;
+set mp_test hh_test hs_test;
+run;
+
+proc sort data=all_days out=all_days ;
+by bid_hrs_22 date;
+run;
+
+data all_days;
+set all_days;
+if bid_hrs_22=lag(bid_hrs_22) & date=lag(date) then dup=1;
+run;
+
+data test;
+set pb;
+if PLCRVC01='13' then as_liv=1;
+if PLCRVC01='13' then as_liv=1;
+if PLCRVC01='13' then as_liv=1;
+run;
