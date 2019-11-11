@@ -1776,6 +1776,9 @@ tab placedeath
 recode excellent (1=0)(0=1), gen(not_excellent)
 
 gen perc_9or10=rating_9or10/100
+gen perc_7or8=rating_7or8/100
+gen perc_6orless=rating_6orless/100
+
 
 gen lowest_inc_qrt=0
 replace lowest_inc_qrt=1 if income_quart==1
@@ -1903,9 +1906,11 @@ svy, subpop(inanal): logistic recode_care_decision i.ma1##i.ind_hospice i.deatha
 		  
 *interaction with place of death		  
 svy, subpop(inanal): logistic di_recode_informed i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
+		  diff_get_out_bed  year medicaid_death , cformat(%4.2f)
 		  margins, dydx(ma1) over(placedeath)
 		  margins ma1#placedeath
+		  		  margins placedeath#ma1
+
 		  marginsplot
 
 /*
@@ -1922,22 +1927,14 @@ svy, subpop(inanal): logistic recode_care_decision i.ma1##i.placedeath i.deathag
 		  marginsplot
 */		  		  		 
 		  		  
-*interaction with quartile MA penetration
-svy, subpop(inanal): logistic di_recode_informed i.ma1##c.avg_MA i.deathage_3cat female child  spouse  ///
+*interaction with regional MA penetration
+svy, subpop(inanal): logistic di_recode_informed i.ma1##c.avg_MA#c.avg_MA i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
 		  margins, dydx(ma1) at(avg_MA=(10(10)60))
 		  margins ma1, at(avg_MA=(10(10)60))
 		  marginsplot
 
 
-/*		  
-svy, subpop(inanal): logistic not_excellent i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
-		  margins, dydx(ma1) over(avgma_quart)
-		  margins avgma_quart#ma1
-		  marginsplot
-
-		  
 svy, subpop(inanal): logistic recode_care_decision i.ma1##i.avgma_quart i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
 		  margins, dydx(ma1) over(avgma_quart)
@@ -1959,6 +1956,11 @@ foreach var of varlist ind_hospice  livedischarge late_transition placedeath hs_
 	
 svy, subpop(inanal): mean perc_9or10, over(ma1) 	
 	svy, subpop(inanal): reg perc_9or10 i.ma1 
+svy, subpop(inanal): mean perc_7or8, over(ma1) 	
+	svy, subpop(inanal): reg perc_7or8 i.ma1 
+svy, subpop(inanal): mean perc_6orless, over(ma1) 	
+	svy, subpop(inanal): reg perc_6orless i.ma1 
+		
 	
 svy, subpop(inanal): mean comp_process_score, over(ma1) 	
 	svy, subpop(inanal): reg comp_process_score i.ma1 
