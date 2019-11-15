@@ -692,6 +692,335 @@ proc freq data=prostate(where=(sample_prostate=1)); tables dem_3_cat; run;
 /*Save updated prostate cohort*/
 data prostate_eligible_screening; set inter.prostate; run;
 
+H="Breast Exclusions-Medicare"
+proc import out=nhats1_8 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+dbms=dta replace;
+run;
+
+/*breast Exclusions*/
+data breast; set inter.breast; run;
+
+proc freq data=breast; tables sample_breast*female; run;
+
+/*Connect with xwalk*/
+data xwalk; set medicare.xwalk_2016; run;
+proc contents data=xwalk; run;
+
+proc sort data=breast; by spid; run;
+proc sort data=xwalk; by spid; run;
+
+data breast1; merge breast(in=a) xwalk (in=b); if a; if b; by spid; run;
+
+data breast; set breast1; run;
+
+proc freq data=breast; tables sample_breast; run;
+proc freq data=breast; tables ivw_month; run;
+
+/*1 year Medicare coverage before NHATS enrollment*/
+data mbsf; set medicare.mbsf_06_17; run;
+proc contents data=mbsf; run;
+
+
+data mbsf_red; set mbsf(where=(BENE_ENROLLMT_REF_YR in (2010, 2011))); run;
+
+ 	/*list of breast ids in the sample*/
+		data breast_id; set breast(where=(sample_breast=1)); keep bene_id ivw_month; run;
+		proc freq data=breast_id; tables ivw_month; run;
+
+
+		proc sort data=mbsf_red; by bene_id; run;
+		proc sort data=breast_id; by bene_id; run;
+
+	/*mbsf for those in the breast sample*/
+		data mbsf_red; merge mbsf_red breast_id (in=a); if a; by bene_id; run;
+		data test; set mbsf_red; keep bene_id; run;
+			proc sort data=test nodup out=test; by bene_id; run; /*4147*/
+
+/*Define months of coverage in year before enrollment*/
+data mbsf_red; set mbsf_red;
+array Ind {12}$ BENE_MDCR_ENTLMT_BUYIN_IND_01-BENE_MDCR_ENTLMT_BUYIN_IND_12;
+array AB {12} AB1-AB12;
+array HMOind{12} $BENE_HMO_IND_01-BENE_HMO_IND_12;
+array HMO {12} HMO1-HMO12;
+
+do i=1 to 12;
+if Ind(i) in ("3", "C") then AB(i)=1; else AB(i)=0;
+
+if HMOind(i)="0" then HMO(i)=0; else HMO(i)=1;
+end;
+
+ABsum=sum(of AB1-AB12);
+HMOsum=sum(of HMO1-HMO12);
+
+if ivw_month=5 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1 then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1) then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 and AB10=1 and AB9=1 and AB8=1 and AB7=1 and AB6=1 then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1 or HMO10=1 or HMO9=1 or HMO8=1 or HMO7=1 or HMO6=1) then HMO2010=1; else HMO2010=0;
+end;
+
+if ivw_month=6 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1  and AB6=1 then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1 or HMO6=1) then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 and AB10=1 and AB9=1 and AB8=1 and AB7=1 then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1 or HMO10=1 or HMO9=1 or HMO8=1 or HMO7=1)  then HMO2010=1; else HMO2010=0;
+
+end;
+
+if ivw_month=7 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1  and AB6=1 and AB7=1 
+then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1 or HMO6=1
+or HMO7=1) then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 and AB10=1 and AB9=1 and AB8=1  then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1 or HMO10=1 or HMO9=1 or HMO8=1)  then HMO2010=1; else HMO2010=0;
+end;
+
+if ivw_month=8 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1  and AB6=1 and AB7=1 and AB8=1
+then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1 or HMO6=1
+or HMO7=1 or HMO8=1)  then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 and AB10=1 and AB9=1   then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1 or HMO10=1 or HMO9=1) then HMO2010=1; else HMO2010=0;
+end;
+
+if ivw_month=9 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1  and AB6=1 and AB7=1 and AB8=1 and AB9=1 
+then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1 or HMO6=1
+or HMO7=1 or HMO8=1 or HMO9=1)  then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 and AB10=1 then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1 or HMO10=1)  then HMO2010=1; else HMO2010=0;
+end;
+
+if ivw_month=10 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1  and AB6=1 and AB7=1 and AB8=1 and AB9=1  and AB10=1
+then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1 or HMO6=1
+or HMO7=1 or HMO8=1 or HMO9=1 or HMO10=1) then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1)  then HMO2010=1; else HMO2010=0;
+end;
+
+if AB2011=1 and HMO2011=0 then FFS2011=1; else FFS2011=0;
+if AB2010=1 and HMO2010=0 then FFS2010=1; else FFS2010=0;
+
+run;
+
+proc print data=mbsf_red (where=(FFS2011=1 or FFS2010=1) obs=25); var bene_id  BENE_AGE_AT_END_REF_YR ivw_month 
+BENE_ENROLLMT_REF_YR AB1-AB12 AB2011 AB2010 
+HMO1-HMO12 HMO2011 HMO2010 FFS2011 FFS2010 ABsum HMOsum BENE_HI_CVRAGE_TOT_MONS BENE_SMI_CVRAGE_TOT_MONS BENE_HMO_CVRAGE_TOT_MONS;
+run;
+
+proc freq data=mbsf_red; tables FFS2011 FFS2010; run;
+
+data FFS2010; set mbsf_red(where=(BENE_ENROLLMT_REF_YR=2010)); keep bene_id FFS2010; run;
+	proc freq data=FFS2010; tables FFS2010; run;
+
+data FFS2011; set mbsf_red (where=(BENE_ENROLLMT_REF_YR=2011)); keep bene_id FFS2011; run;
+	proc freq data=FFS2011; tables FFS2011; run;
+
+data FFS; merge FFS2010 FFS2011; by bene_id; 
+if FFS2010=1 and FFS2011=1 then FFS=1; else FFS=0; 
+run;
+
+proc freq data=FFS; tables FFS FFS2010*FFS2011/missing; run; /*2581*/
+
+/*list of ids of patients with FFS*/
+data FFS_id; set FFS (where=(FFS=1)); run;
+
+/*merge back with breast data set*/
+proc sort data=FFS_id; by bene_id; run;
+proc sort data=breast; by bene_id; run;
+
+data breast1; merge FFS_Id (in=a) breast; by bene_id; 
+if a=0 then sample_breast=0;
+run;
+
+proc freq data=breast1; tables sample_breast; run;
+
+data breast; set breast1; run;
+
+H="Breast Exclusions-Prior History"
+/*History of breast Cancer*/
+/*survey*/
+proc contents data=breast; run;
+proc freq data=breast (where=(sample_breast=1)); tables sr_cancer_ever*sr_breastcancer_had/missing; run;
+
+data breast1; set breast;
+if sr_breastcancer_had=1 then sample_breast=0;
+run;
+
+proc freq data=breast1; tables sample_breast; run;
+data breast; set breast1; run;
+
+/*claims*/
+/*exclude those with ICD 9 174x, 2330, V103, 611.72*/
+
+data breast_id; set breast(where=(sample_breast=1)); keep spid bene_id sample_breast ivw_date; run;
+
+/*NCH claims*/
+data nch; set medicare.pb_09_17; run;
+
+proc sort data=nch; by bene_id; run;
+proc sort data=breast_id; by bene_id; run;
+
+data nch_red; merge nch breast_id(in=a); by bene_id; if a;  run;
+	data test; set nch_red; keep bene_id; run;
+		proc sort data=test nodup out=test; by bene_id; run; /*n=2327*/
+
+data nch_red; set nch_red (where=(ivw_date>admit_date and ivw_date-admit_date<=365)); run;
+
+/*history of breast cancer*/
+proc contents data=nch_red; run;
+proc freq data=nch_red; tables ICD_DGNS_VRSN_CD1/missing; run;
+proc print data=nch_red(where=(ICD_DGNS_VRSN_CD1="")); var ICD_DGNS_CD1; run;
+proc print data=nch_red(where=(substr(ICD_DGNS_CD1,1,3)="174")); var ICD_DGNS_CD1; run;
+
+data nch1; set nch_red;
+array dx{13} $ICD_DGNS_CD1-ICD_DGNS_CD12 PRNCPAL_DGNS_CD;
+array dx_type{13} $ICD_DGNS_VRSN_CD1-ICD_DGNS_VRSN_CD12 PRNCPAL_DGNS_VRSN_CD;
+
+do i=1 to 13;
+if dx_type(i)="9" and dx(i) in ("2330", "V103", "61172") or substr(dx(i),1,3)="174" then breast_history=1;
+end;
+
+if breast_history=. then breast_history=0;
+run;
+
+proc freq data=nch1; tables breast_history; run;
+
+proc sql;
+create table breast_pre as
+select bene_id, sum(breast_history) as bcdxnum
+from nch1
+group by bene_id;
+quit;
+
+proc print data=breast_pre (obs=10); run;  proc freq data=breast_pre; tables bcdxnum; run;
+ 
+data breast_pre_NCH; set breast_pre;
+if bcdxnum>0 then breast_history=1; else breast_history=0;
+drop bcdxnum;
+run;
+
+proc freq data=breast_pre_NCH; tables breast_history; run; /*39*/
+
+
+/*Outpatient*/
+data outpat; set medicare.op_09_17; run;
+
+proc sort data=outpat; by bene_id; run;
+proc sort data=breast_id; by bene_id; run;
+
+data outpat_red; merge outpat breast_id(in=a); by bene_id; if a;  run;
+	data test; set outpat_red; keep bene_id; run;
+		proc sort data=test nodup out=test; by bene_id; run; /*n=2327*/
+
+data outpat_red; set outpat_red (where=(ivw_date>admit_date and ivw_date-admit_date<=365)); run;
+
+/*history of breast cancer*/
+proc contents data=outpat_red; run;
+
+data outpat1; set outpat_red;
+array dx{29} $ICD_DGNS_CD1-ICD_DGNS_CD25 PRNCPAL_DGNS_CD RSN_VISIT_CD1-RSN_VISIT_CD3;
+array dx_type{29} $ICD_DGNS_VRSN_CD1-ICD_DGNS_VRSN_CD25 PRNCPAL_DGNS_VRSN_CD RSN_VISIT_VRSN_CD1-RSN_VISIT_VRSN_CD3;
+
+do i=1 to 29;
+if dx_type(i)="9" and dx(i) in ("2330", "V103", "61172") or substr(dx(i),1,3)="174" then breast_history=1;
+end;
+
+if breast_history=. then breast_history=0;
+run;
+
+proc freq data=outpat1; tables breast_history; run;
+
+proc sql;
+create table breast_pre as
+select bene_id, sum(breast_history) as bcdxnum
+from outpat1
+group by bene_id;
+quit;
+
+proc print data=breast_pre (obs=10); run;  proc freq data=breast_pre; tables bcdxnum; run;
+ 
+data breast_pre_outpat; set breast_pre;
+if bcdxnum>0 then breast_history=1; else breast_history=0;
+drop bcdxnum;
+run;
+
+proc freq data=breast_pre_outpat; tables breast_history; run; /*24*/
+
+/*Inpatient*/
+data inpat; set medicare.ip_06_17; run;
+
+proc sort data=inpat; by bene_id; run;
+proc sort data=breast_id; by bene_id; run;
+
+data inpat_red; merge inpat breast_id(in=a); by bene_id; if a;  run;
+	data test; set inpat_red; keep bene_id; run;
+		proc sort data=test nodup out=test; by bene_id; run; /*n=2327*/
+
+data inpat_red; set inpat_red (where=(ivw_date>admit_date and ivw_date-admit_date<=365)); run;
+
+/*history of breast cancer*/
+proc contents data=inpat_red; run;
+
+data inpat1; set inpat_red;
+array dx{27} $ICD_DGNS_CD1-ICD_DGNS_CD25 PRNCPAL_DGNS_CD ADMTG_DGNS_CD;
+array dx_type{27} $ICD_DGNS_VRSN_CD1-ICD_DGNS_VRSN_CD25 PRNCPAL_DGNS_VRSN_CD ADMTG_DGNS_VRSN_CD;
+
+do i=1 to 27;
+if dx_type(i)="9" and dx(i) in ("2330", "V103", "61172") or substr(dx(i),1,3)="174" then breast_history=1;
+end;
+
+if breast_history=. then breast_history=0;
+run;
+
+proc freq data=inpat1; tables breast_history; run;
+
+proc sql;
+create table breast_pre as
+select bene_id, sum(breast_history) as bcdxnum
+from inpat1
+group by bene_id;
+quit;
+
+proc print data=breast_pre (obs=10); run;  proc freq data=breast_pre; tables bcdxnum; run;
+ 
+data breast_pre_inpat; set breast_pre;
+if bcdxnum>0 then breast_history=1; else breast_history=0;
+drop bcdxnum;
+run;
+
+proc freq data=breast_pre_inpat; tables breast_history; run; /*5*/
+
+data breast_pre; set breast_pre_NCH(where=(breast_history=1)) breast_pre_outpat(where=(breast_history=1))
+breast_pre_inpat (where=(breast_history=1));
+run; 
+
+proc print data=breast_pre; run;
+
+proc sort data=breast_pre nodup out=breast_pre; by bene_id; run;
+proc print data=breast_pre; run; /*52*/
+
+/*merge back with breast dataset */
+data breast1; merge breast_pre (in=a) breast; by bene_id; 
+if a=1 then sample_breast=0;
+run;
+
+proc freq data=breast1; tables sample_breast; run;
+data breast; set breast1; run;
+
+
+
+/*check dementia status*/
+proc freq data=breast(where=(sample_breast=1)); tables dem_3_cat; run;
+
+/*Save updated breast cohort*/
+data breast_eligible_screening; set inter.breast; run;
+
 H="2012 Index Date"
 /**2012**/
 /*Read in NHATS*/
