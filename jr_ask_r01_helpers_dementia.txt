@@ -67,7 +67,6 @@ set clean.death_date_2015;
 index_date=death_all;
 index_month=death_month;
 index_year=death_year;
-if bid_hrs_22~='';
 run;
 
 
@@ -12862,7 +12861,7 @@ keep  birthday birthmo birthyr birth_date race hisp_eth degree gender id
 tempfile tracker
 save `tracker'
  
-use decedent_dataset.dta if inrange(index_year,2004,2015), clear
+use decedent_dataset.dta, clear
 cap drop _m
 format %td index_date
 merge m:1 id using `tracker'
@@ -12901,7 +12900,7 @@ keep if _m==3
 cap drop _m
 gsort id -core_year
 by id: gen obs=_n
-keep if obs<=5 // keeping last 5 core interviews (N1 - N4 + Baseline)
+keep if obs<=8 // keeping last 5 core interviews (N1 - N4 + Baseline)
 
 * I'm creating a single ivw date variable that has both the core ivw date and exit ivw date
 gen ivw_date = c_ivw_date
@@ -15978,6 +15977,97 @@ rename (mc mcaid oop hlp* all) (annumc annumcaid annuoop annuhlp* annuall)
 restore 
 
 H="*********************************"
+
+
+H="New approach"
+clear all
+capture log close
+
+global datapath "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\int_data"
+local logpath "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\logs"
+global ooppath "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\oopdata"
+global output "E:\projects\burden_dementia\archive logs"
+cd $datapath
+
+
+use D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta, clear
+drop id
+gen id=hhid+pn
+keep  birthday birthmo birthyr birth_date race hisp_eth degree gender id
+tempfile tracker
+save `tracker'
+
+use decedent_dataset.dta, clear
+merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta", keep(match master) 
+gen nflag=0
+gen no_exit=_m==1
+drop _m
+tempfile x
+save `x'
+
+use decedent_dataset.dta, clear
+merge 1:m id using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keep(match) nogen
+gsort id -core_year
+by id: gen nflag=_n
+tempfile c
+save `c'
+
+use decedent_dataset.dta if index_year>=2006, clear
+merge 1:1 id using `tracker', keep(match) gen(trackm)
+merge 1:1 id using `x', keep(match master) gen(xm)
+append using `c'
+replace birth_date=mdy(6,birthd,birthy) if missing(birth_date)
+cap drop death_date
+gen death_date = index_date
+gen age_at_death=floor((death_date-birth_date)/365.25)
+gen age_lt_75=age<75
+label var age_lt "Age <75 at death"
+gen ivw_2_death=(index_date-c_ivw_date)/365.25
+by id, sort: egen lt8yrs=max(ivw_2_death)
+replace lt8yrs=lt8yrs<8
+label var lt8yrs "Earliest core <8 years pre-death (not complete baseline)"
+by id: gen no_core=_N==1 & nflag==0
+
+by id: egen nocore4yr=max(cond(ivw_2_death>4 & nflag==1),1,0)
+label var nocore4yr "No core ivw within 4 years of death"
+
+sort id core_year 
+by id: gen mis2=core_year[_n+1]>core_year+4 & !missing(core_year[_n+1])
+by id: egen miss_core=max(mis2)
+label var miss_core "Missing consecutive cores"
+
+merge 1:1 id core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", keepus(pdem) gen(demm)
+by id, sort: egen dem_cohort=max(cond(nflag==1 & inrange(pdem,.5,1)),1,0)
+by id, sort: egen missdem=max(cond(nflag==1 & missing(pdem)),1,0)
+replace dem_cohort=. if missdem==1
+label var missdem "No dementia probability at N1 ivw"
+label var no_exit "No exit ivw 2002-2016"
+label var no_core "No core ivws 1998-2014"
+replace nocore4=1 if no_core==1
+preserve
+gen begin=0
+keep if nflag==0
+local samplevars begin age_lt_75 no_exit nocore4yr  miss_core lt8yrs missdem
+
+local rn : word count `samplevars'
+
+mat tab=J(`rn',2,.)
+local r=1
+local c=1
+
+foreach x of local samplevars {
+	sum begin if `x'!=1
+	if "`x'"!="begin" mat tab[`r',1]=`last'-r(N)
+	mat tab[`r',2]=r(N)
+	local last=r(N)
+	drop if `x'==1
+	local r=`r'+1
+}
+
+mat rownames tab=`samplevars'
+
+frmttable using "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\sample_derivation_`c(current_date)'.rtf", ///
+statmat(tab) varlabels title("Sample Derivation") sdec(0) replace
 
 
 H="long form dataset"

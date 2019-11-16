@@ -102,7 +102,7 @@ proc freq data=colon; tables sample_colon; run;
 proc freq data=colon; tables sample_colon*dem_3_cat/missing; run;
 proc freq data=colon(where=(age>=67)); tables sample_colon; run;
 
-#number with dementia before age 75
+/*number with dementia before age 75*/
 proc freq data=nhats1(where=(age<75 and sample=1)); tables female*dem_3_cat; run;
 
 
@@ -690,7 +690,7 @@ data prostate; set prostate1; run;
 proc freq data=prostate(where=(sample_prostate=1)); tables dem_3_cat; run;
 
 /*Save updated prostate cohort*/
-data prostate_eligible_screening; set inter.prostate; run;
+data inter.prostate_eligible_screening; set prostate; run;
 
 H="Breast Exclusions-Medicare"
 proc import out=nhats1_8 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
@@ -1019,7 +1019,509 @@ data breast; set breast1; run;
 proc freq data=breast(where=(sample_breast=1)); tables dem_3_cat; run;
 
 /*Save updated breast cohort*/
-data breast_eligible_screening; set inter.breast; run;
+data inter.breast_eligible_screening; set breast; run;
+
+H="Colorectal Exclusions-Medicare"
+proc import out=nhats1_8 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+dbms=dta replace;
+run;
+
+/*colon Exclusions*/
+data colon; set inter.colorectal; run;
+
+proc freq data=colon; tables sample_colon*female; run;
+
+/*Connect with xwalk*/
+data xwalk; set medicare.xwalk_2016; run;
+proc contents data=xwalk; run;
+
+proc sort data=colon; by spid; run;
+proc sort data=xwalk; by spid; run;
+
+data colon1; merge colon(in=a) xwalk (in=b); if a; if b; by spid; run;
+
+data colon; set colon1; run;
+
+proc freq data=colon; tables sample_colon; run;
+proc freq data=colon; tables ivw_month; run;
+
+/*1 year Medicare coverage before NHATS enrollment*/
+data mbsf; set medicare.mbsf_06_17; run;
+proc contents data=mbsf; run;
+
+
+data mbsf_red; set mbsf(where=(BENE_ENROLLMT_REF_YR in (2010, 2011))); run;
+
+ 	/*list of colon ids in the sample*/
+		data colon_id; set colon(where=(sample_colon=1)); keep bene_id ivw_month; run;
+		proc freq data=colon_id; tables ivw_month; run;
+
+
+		proc sort data=mbsf_red; by bene_id; run;
+		proc sort data=colon_id; by bene_id; run;
+
+	/*mbsf for those in the colon sample*/
+		data mbsf_red; merge mbsf_red colon_id (in=a); if a; by bene_id; run;
+		data test; set mbsf_red; keep bene_id; run;
+			proc sort data=test nodup out=test; by bene_id; run; /*7197*/
+
+/*Define months of coverage in year before enrollment*/
+data mbsf_red; set mbsf_red;
+array Ind {12}$ BENE_MDCR_ENTLMT_BUYIN_IND_01-BENE_MDCR_ENTLMT_BUYIN_IND_12;
+array AB {12} AB1-AB12;
+array HMOind{12} $BENE_HMO_IND_01-BENE_HMO_IND_12;
+array HMO {12} HMO1-HMO12;
+
+do i=1 to 12;
+if Ind(i) in ("3", "C") then AB(i)=1; else AB(i)=0;
+
+if HMOind(i)="0" then HMO(i)=0; else HMO(i)=1;
+end;
+
+ABsum=sum(of AB1-AB12);
+HMOsum=sum(of HMO1-HMO12);
+
+if ivw_month=5 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1 then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1) then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 and AB10=1 and AB9=1 and AB8=1 and AB7=1 and AB6=1 then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1 or HMO10=1 or HMO9=1 or HMO8=1 or HMO7=1 or HMO6=1) then HMO2010=1; else HMO2010=0;
+end;
+
+if ivw_month=6 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1  and AB6=1 then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1 or HMO6=1) then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 and AB10=1 and AB9=1 and AB8=1 and AB7=1 then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1 or HMO10=1 or HMO9=1 or HMO8=1 or HMO7=1)  then HMO2010=1; else HMO2010=0;
+
+end;
+
+if ivw_month=7 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1  and AB6=1 and AB7=1 
+then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1 or HMO6=1
+or HMO7=1) then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 and AB10=1 and AB9=1 and AB8=1  then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1 or HMO10=1 or HMO9=1 or HMO8=1)  then HMO2010=1; else HMO2010=0;
+end;
+
+if ivw_month=8 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1  and AB6=1 and AB7=1 and AB8=1
+then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1 or HMO6=1
+or HMO7=1 or HMO8=1)  then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 and AB10=1 and AB9=1   then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1 or HMO10=1 or HMO9=1) then HMO2010=1; else HMO2010=0;
+end;
+
+if ivw_month=9 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1  and AB6=1 and AB7=1 and AB8=1 and AB9=1 
+then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1 or HMO6=1
+or HMO7=1 or HMO8=1 or HMO9=1)  then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 and AB10=1 then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1 or HMO10=1)  then HMO2010=1; else HMO2010=0;
+end;
+
+if ivw_month=10 then do;
+if BENE_ENROLLMT_REF_YR=2011 and AB1=1 and AB2=1 and AB3=1 and AB4=1 and AB5=1  and AB6=1 and AB7=1 and AB8=1 and AB9=1  and AB10=1
+then AB2011=1; else AB2011=0;
+if BENE_ENROLLMT_REF_YR=2011 and (HMO1=1 or HMO2=1 or HMO3=1 or HMO4=1 or HMO5=1 or HMO6=1
+or HMO7=1 or HMO8=1 or HMO9=1 or HMO10=1) then HMO2011=1; else HMO2011=0;
+if BENE_ENROLLMT_REF_YR=2010 and AB12=1 and AB11=1 then AB2010=1; else AB2010=0;
+if BENE_ENROLLMT_REF_YR=2010 and (HMO12=1 or HMO11=1)  then HMO2010=1; else HMO2010=0;
+end;
+
+if AB2011=1 and HMO2011=0 then FFS2011=1; else FFS2011=0;
+if AB2010=1 and HMO2010=0 then FFS2010=1; else FFS2010=0;
+
+run;
+
+proc print data=mbsf_red (where=(FFS2011=1 or FFS2010=1) obs=25); var bene_id  BENE_AGE_AT_END_REF_YR ivw_month 
+BENE_ENROLLMT_REF_YR AB1-AB12 AB2011 AB2010 
+HMO1-HMO12 HMO2011 HMO2010 FFS2011 FFS2010 ABsum HMOsum BENE_HI_CVRAGE_TOT_MONS BENE_SMI_CVRAGE_TOT_MONS BENE_HMO_CVRAGE_TOT_MONS;
+run;
+
+proc freq data=mbsf_red; tables FFS2011 FFS2010; run;
+
+data FFS2010; set mbsf_red(where=(BENE_ENROLLMT_REF_YR=2010)); keep bene_id FFS2010; run;
+	proc freq data=FFS2010; tables FFS2010; run;
+
+data FFS2011; set mbsf_red (where=(BENE_ENROLLMT_REF_YR=2011)); keep bene_id FFS2011; run;
+	proc freq data=FFS2011; tables FFS2011; run;
+
+data FFS; merge FFS2010 FFS2011; by bene_id; 
+if FFS2010=1 and FFS2011=1 then FFS=1; else FFS=0; 
+run;
+
+proc freq data=FFS; tables FFS FFS2010*FFS2011/missing; run; /*4500*/
+
+/*list of ids of patients with FFS*/
+data FFS_id; set FFS (where=(FFS=1)); run;
+
+/*merge back with colon data set*/
+proc sort data=FFS_id; by bene_id; run;
+proc sort data=colon; by bene_id; run;
+
+data colon1; merge FFS_Id (in=a) colon; by bene_id; 
+if a=0 then sample_colon=0;
+run;
+
+proc freq data=colon1; tables sample_colon; run;
+
+data colon; set colon1; run;
+
+H="Colorectal Exclusions-Prior History"
+/*History of colon Cancer*/
+/*survey*/
+proc contents data=colon; run;
+proc freq data=colon (where=(sample_colon=1)); tables sr_cancer_ever*sr_coloncancer_had/missing; run;
+
+data colon1; set colon;
+if sr_coloncancer_had=1 then sample_colon=0;
+run;
+
+proc freq data=colon1; tables sample_colon; run;
+data colon; set colon1; run;
+
+/*claims*/
+/*exclude those with ICD 9 185 or V1046*/
+
+data colon_id; set colon(where=(sample_colon=1)); keep spid bene_id sample_colon ivw_date; run;
+
+/*NCH claims*/
+data nch; set medicare.pb_09_17; run;
+
+proc sort data=nch; by bene_id; run;
+proc sort data=colon_id; by bene_id; run;
+
+data nch_red; merge nch colon_id(in=a); by bene_id; if a;  run;
+	data test; set nch_red; keep bene_id; run;
+		proc sort data=test nodup out=test; by bene_id; run; /*n=4403*/
+
+data nch_red; set nch_red (where=(ivw_date>admit_date and ivw_date-admit_date<=365)); run;
+
+/*history of colon cancer*/
+proc contents data=nch_red; run;
+proc print data=nch_red(where=(substr(ICD_DGNS_CD1,1,3)="153")); var ICD_DGNS_CD1; run;
+
+data nch1; set nch_red;
+array dx{13} $ICD_DGNS_CD1-ICD_DGNS_CD12 PRNCPAL_DGNS_CD;
+array dx_type{13} $ICD_DGNS_VRSN_CD1-ICD_DGNS_VRSN_CD12 PRNCPAL_DGNS_VRSN_CD;
+
+do i=1 to 13;
+if dx_type(i)="9" and (dx(i) in ("1540", "1541", "2303", "2304", "V1005", "V1006")
+or substr(dx(i),1,3)="153") then colon_history=1;
+end;
+
+if colon_history=. then colon_history=0;
+run;
+
+proc freq data=nch1; tables colon_history; run;
+
+proc sql;
+create table colon_pre as
+select bene_id, sum(colon_history) as ccdxnum
+from nch1
+group by bene_id;
+quit;
+
+proc print data=colon_pre (obs=10); run;  proc freq data=colon_pre; tables ccdxnum; run;
+ 
+data colon_pre_NCH; set colon_pre;
+if ccdxnum>0 then colon_history=1; else colon_history=0;
+drop ccdxnum;
+run;
+
+proc freq data=colon_pre_NCH; tables colon_history; run; /*24*/
+
+
+/*Outpatient*/
+data outpat; set medicare.op_09_17; run;
+
+proc sort data=outpat; by bene_id; run;
+proc sort data=colon_id; by bene_id; run;
+
+data outpat_red; merge outpat colon_id(in=a); by bene_id; if a;  run;
+	data test; set outpat_red; keep bene_id; run;
+		proc sort data=test nodup out=test; by bene_id; run; /*n=4403*/
+
+data outpat_red; set outpat_red (where=(ivw_date>admit_date and ivw_date-admit_date<=365)); run;
+
+/*history of colon cancer*/
+proc contents data=outpat_red; run;
+
+data outpat1; set outpat_red;
+array dx{29} $ICD_DGNS_CD1-ICD_DGNS_CD25 PRNCPAL_DGNS_CD RSN_VISIT_CD1-RSN_VISIT_CD3;
+array dx_type{29} $ICD_DGNS_VRSN_CD1-ICD_DGNS_VRSN_CD25 PRNCPAL_DGNS_VRSN_CD RSN_VISIT_VRSN_CD1-RSN_VISIT_VRSN_CD3;
+
+do i=1 to 29;
+if dx_type(i)="9" and (dx(i) in ("1540", "1541", "2303", "2304", "V1005", "V1006")
+or substr(dx(i),1,3)="153") then colon_history=1;
+end;
+
+if colon_history=. then colon_history=0;
+run;
+
+proc freq data=outpat1; tables colon_history; run;
+
+proc sql;
+create table colon_pre as
+select bene_id, sum(colon_history) as ccdxnum
+from outpat1
+group by bene_id;
+quit;
+
+proc print data=colon_pre (obs=10); run;  proc freq data=colon_pre; tables ccdxnum; run;
+ 
+data colon_pre_outpat; set colon_pre;
+if ccdxnum>0 then colon_history=1; else colon_history=0;
+drop ccdxnum;
+run;
+
+proc freq data=colon_pre_outpat; tables colon_history; run; /*12*/
+
+/*Inpatient*/
+data inpat; set medicare.ip_06_17; run;
+
+proc sort data=inpat; by bene_id; run;
+proc sort data=colon_id; by bene_id; run;
+
+data inpat_red; merge inpat colon_id(in=a); by bene_id; if a;  run;
+	data test; set inpat_red; keep bene_id; run;
+		proc sort data=test nodup out=test; by bene_id; run; /*n=4403*/
+
+data inpat_red; set inpat_red (where=(ivw_date>admit_date and ivw_date-admit_date<=365)); run;
+
+/*history of colon cancer*/
+proc contents data=inpat_red; run;
+
+data inpat1; set inpat_red;
+array dx{27} $ICD_DGNS_CD1-ICD_DGNS_CD25 PRNCPAL_DGNS_CD ADMTG_DGNS_CD;
+array dx_type{27} $ICD_DGNS_VRSN_CD1-ICD_DGNS_VRSN_CD25 PRNCPAL_DGNS_VRSN_CD ADMTG_DGNS_VRSN_CD;
+
+do i=1 to 27;
+if dx_type(i)="9" and (dx(i) in ("1540", "1541", "2303", "2304", "V1005", "V1006")
+or substr(dx(i),1,3)="153") then colon_history=1;
+end;
+
+if colon_history=. then colon_history=0;
+run;
+
+proc freq data=inpat1; tables colon_history; run;
+
+proc sql;
+create table colon_pre as
+select bene_id, sum(colon_history) as ccdxnum
+from inpat1
+group by bene_id;
+quit;
+
+proc print data=colon_pre (obs=10); run;  proc freq data=colon_pre; tables ccdxnum; run;
+ 
+data colon_pre_inpat; set colon_pre;
+if ccdxnum>0 then colon_history=1; else colon_history=0;
+drop ccdxnum;
+run;
+
+proc freq data=colon_pre_inpat; tables colon_history; run; /*7*/
+
+data colon_pre; set colon_pre_NCH(where=(colon_history=1)) colon_pre_outpat(where=(colon_history=1))
+colon_pre_inpat (where=(colon_history=1));
+run; 
+
+proc print data=colon_pre; run;
+
+proc sort data=colon_pre nodup out=colon_pre; by bene_id; run;
+proc print data=colon_pre; run; /*29*/
+
+/*merge back with colon dataset */
+data colon1; merge colon_pre (in=a) colon; by bene_id; 
+if a=1 then sample_colon=0;
+run;
+
+proc freq data=colon1; tables sample_colon; run;
+data colon; set colon1; run;
+
+/*******************************************************************************/
+/* HISTORY OF OTHER colon ISSUES
+/*****************************************************************************/
+/*Exclude those with other colon issues (IBS, diverticulitis, gastrointestinal bleeding, ischemic bowel disease*/
+
+data colon_id; set colon(where=(sample_colon=1)); keep spid bene_id sample_colon ivw_date; run;
+
+/*NCH claims*/
+data nch; set medicare.pb_09_17; run;
+
+proc sort data=nch; by bene_id; run;
+proc sort data=colon_id; by bene_id; run;
+
+data nch_red; merge nch colon_id(in=a); by bene_id; if a;  run;
+	data test; set nch_red; keep bene_id; run;
+		proc sort data=test nodup out=test; by bene_id; run; /*n=4374*/
+
+data nch_red; set nch_red (where=(ivw_date>admit_date and ivw_date-admit_date<=365)); run;
+
+/*Other colon issues*/
+proc contents data=nch_red; run;
+
+data nch1; set nch_red;
+array dx{13} $ICD_DGNS_CD1-ICD_DGNS_CD12 PRNCPAL_DGNS_CD;
+array dx_type{13} $ICD_DGNS_VRSN_CD1-ICD_DGNS_VRSN_CD12 PRNCPAL_DGNS_VRSN_CD;
+/*array hcpcscd{13} $hcpcscd1-hcpcscd13;*/
+
+do i=1 to 13;
+if dx_type(i)="9" and dx(i) in ("2865", "4590", "56202", "56203", "56212", "56213", "5693", "56984",
+"56985", "56986", "5781", "5789", "7921", "99811") then GI_bleed=1;
+if dx_type(i)="9" and dx(i) in ("5570", "5571", "5579") then IBD=1;
+if dx_type(i)="9" and dx(i) in ("5641") then IBS=1;
+if dx_type(i)="9" and dx(i) in ("56211") then diverticulitis=1;
+end;
+
+if GI_bleed=1 or IBD=1 or IBS=1 or diverticulitis=1 then other_colon_symptoms=1;
+
+run;
+
+proc freq data=nch1; tables GI_bleed IBD IBS diverticulitis other_colon_symptoms/missing; run;
+
+proc sql;
+create table other_colon_symptoms as
+select bene_id, sum(other_colon_symptoms) as other_colon_symptoms_n
+from nch1
+group by bene_id;
+quit;
+
+proc print data=other_colon_symptoms (obs=10); run;  proc freq data=other_colon_symptoms; tables other_colon_symptoms_n; run;
+ 
+data other_colon_symptoms_NCH; set other_colon_symptoms;
+if other_colon_symptoms_n>0 then other_colon_symptoms=1; else other_colon_symptoms=0;
+drop other_colon_symptoms_n;
+run;
+
+proc freq data=other_colon_symptoms_NCH; tables other_colon_symptoms; run; /*370*/
+
+
+/*Outpatient*/
+data outpat; set medicare.op_09_17; run;
+
+proc sort data=outpat; by bene_id; run;
+proc sort data=colon_id; by bene_id; run;
+
+data outpat_red; merge outpat colon_id(in=a); by bene_id; if a;  run;
+	data test; set outpat_red; keep bene_id; run;
+		proc sort data=test nodup out=test; by bene_id; run; /*n=4374*/
+
+data outpat_red; set outpat_red (where=(ivw_date>admit_date and ivw_date-admit_date<=365)); run;
+
+/*history of colon cancer*/
+proc contents data=outpat_red; run;
+
+data outpat1; set outpat_red;
+array dx{29} $ICD_DGNS_CD1-ICD_DGNS_CD25 PRNCPAL_DGNS_CD RSN_VISIT_CD1-RSN_VISIT_CD3;
+array dx_type{29} $ICD_DGNS_VRSN_CD1-ICD_DGNS_VRSN_CD25 PRNCPAL_DGNS_VRSN_CD RSN_VISIT_VRSN_CD1-RSN_VISIT_VRSN_CD3;
+/*array px{25} $ICD_PRCDR_CD1-ICD_PRCDR_CD25;
+array hcpcscd{383} $hcpcscd1-hcpcscd383;*/
+
+do i=1 to 29;
+if dx_type(i)="9" and dx(i) in ("2865", "4590", "56202", "56203", "56212", "56213", "5693", "56984",
+"56985", "56986", "5781", "5789", "7921", "99811") then GI_bleed=1;
+if dx_type(i)="9" and dx(i) in ("5570", "5571", "5579") then IBD=1;
+if dx_type(i)="9" and dx(i) in ("5641") then IBS=1;
+if dx_type(i)="9" and dx(i) in ("56211") then diverticulitis=1;
+end;
+
+if GI_bleed=1 or IBD=1 or IBS=1 or diverticulitis=1 then other_colon_symptoms=1;
+run;
+
+proc freq data=outpat1; tables GI_bleed IBD IBS diverticulitis other_colon_symptoms/missing; run;
+
+proc sql;
+create table other_colon_symptoms as
+select bene_id, sum(other_colon_symptoms) as other_colon_symptoms_n
+from outpat1
+group by bene_id;
+quit;
+
+proc print data=other_colon_symptoms (obs=10); run;  proc freq data=other_colon_symptoms; tables other_colon_symptoms_n; run;
+ 
+data other_colon_symptoms_outpat; set other_colon_symptoms;
+if other_colon_symptoms_n>0 then other_colon_symptoms=1; else other_colon_symptoms=0;
+drop other_colon_symptoms_n;
+run;
+
+proc freq data=other_colon_symptoms_outpat; tables other_colon_symptoms; run; /*123*/
+
+/*Inpatient*/
+data inpat; set medicare.ip_06_17; run;
+
+proc sort data=inpat; by bene_id; run;
+proc sort data=colon_id; by bene_id; run;
+
+data inpat_red; merge inpat colon_id(in=a); by bene_id; if a;  run;
+	data test; set inpat_red; keep bene_id; run;
+		proc sort data=test nodup out=test; by bene_id; run; /*n=4374*/
+
+data inpat_red; set inpat_red (where=(ivw_date>admit_date and ivw_date-admit_date<=365)); run;
+
+/*history of colon cancer*/
+proc contents data=inpat_red; run;
+
+data inpat1; set inpat_red;
+array dx{27} $ICD_DGNS_CD1-ICD_DGNS_CD25 PRNCPAL_DGNS_CD ADMTG_DGNS_CD;
+array dx_type{27} $ICD_DGNS_VRSN_CD1-ICD_DGNS_VRSN_CD25 PRNCPAL_DGNS_VRSN_CD ADMTG_DGNS_VRSN_CD;
+/*array px{25} $ICD_PRCDR_CD1-ICD_PRCDR_CD25;*/
+
+do i=1 to 27;
+if dx_type(i)="9" and dx(i) in ("2865", "4590", "56202", "56203", "56212", "56213", "5693", "56984",
+"56985", "56986", "5781", "5789", "7921", "99811") then GI_bleed=1;
+if dx_type(i)="9" and dx(i) in ("5570", "5571", "5579") then IBD=1;
+if dx_type(i)="9" and dx(i) in ("5641") then IBS=1;
+if dx_type(i)="9" and dx(i) in ("56211") then diverticulitis=1;
+end;
+
+if GI_bleed=1 or IBD=1 or IBS=1 or diverticulitis=1 then other_colon_symptoms=1;
+run;
+
+proc freq data=inpat1; tables GI_bleed IBD IBS diverticulitis other_colon_symptoms/missing; run;
+
+proc sql;
+create table other_colon_symptoms as
+select bene_id, sum(other_colon_symptoms) as other_colon_symptoms_n
+from inpat1
+group by bene_id;
+quit;
+
+proc print data=other_colon_symptoms (obs=10); run;  proc freq data=other_colon_symptoms; tables other_colon_symptoms_n; run;
+ 
+data other_colon_symptoms_inpat; set other_colon_symptoms;
+if other_colon_symptoms_n>0 then other_colon_symptoms=1; else other_colon_symptoms=0;
+drop other_colon_symptoms_n;
+run;
+
+proc freq data=other_colon_symptoms_inpat; tables other_colon_symptoms; run; /*90*/
+
+data other_colon_symptoms; set other_colon_symptoms_NCH(where=(other_colon_symptoms=1)) other_colon_symptoms_outpat(where=(other_colon_symptoms=1))
+other_colon_symptoms_inpat (where=(other_colon_symptoms=1));
+run; 
+
+proc print data=other_colon_symptoms; run;
+
+proc sort data=other_colon_symptoms nodup out=other_colon_symptoms; by bene_id; run;
+proc print data=other_colon_symptoms; run; /*n=183*/
+
+/*merge back with colon dataset */
+data colon1; merge other_colon_symptoms (in=a) colon; by bene_id; 
+if a=1 then sample_colon=0;
+run;
+
+proc freq data=colon1; tables sample_colon; run;
+data colon; set colon1; run;
+
+/*check dementia status*/
+proc freq data=colon(where=(sample_colon=1)); tables dem_3_cat; run;
+
+/*Save updated colon cohort*/
+data inter.colon_eligible_screening; set colon; run;
 
 H="2012 Index Date"
 /**2012**/

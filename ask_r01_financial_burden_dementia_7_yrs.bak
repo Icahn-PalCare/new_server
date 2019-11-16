@@ -19572,3 +19572,51 @@ if PLCRVC01='13' then as_liv=1;
 if PLCRVC01='13' then as_liv=1;
 if PLCRVC01='13' then as_liv=1;
 run;
+
+H="mds section"
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta", clear
+
+gen admit=date(ab1_entry_dt, "YMD")
+format %td admit
+
+gen target=date(trgt_dt, "YMD")
+format %td target
+
+gen disch=date(r4_discharge_dt, "YMD")
+format %td disch
+
+gen reentry=date(a4a_reentry_dt, "YMD")
+format %td reentry
+
+//keep if inlist(aa8a, "01","00","06","07","08", "09")
+
+gen date=.
+replace date=admit if admit<=target
+replace date=reentry if reentry<=target & reentry!=.
+replace date=disch if disch!=. & disch>=target
+replace date=target if date==.
+format %td date
+
+sort bid_hrs_22 date
+
+gen type_cd=.
+replace type_cd=1 if aa8a=="09" | aa8a=="01"
+replace type_cd=2 if aa8a=="06" | aa8a=="07"
+by bid_hrs_22: replace type_cd=1 if admit!=. & year(admit)<1999
+
+gen fail=1 if aa8a=="08"
+
+replace type_cd=1 if year(admit)<1999 & type_cd==0 & admit!=.
+replace date=admit if type_cd==1 & year(admit)<1999 & admit!=.
+
+sort bid_hrs_22 date type_cd
+bys bid_hrs_22 date: keep if _n==1
+
+gen type_cd1=.
+replace type_cd1=1 if admit!=. | reentry!=.
+replace type_cd1=2 if disch!=.
+
+tab type_cd type_cd1,m
+
+gen flag=1 if type_cd!=type_cd1
+tab flag
