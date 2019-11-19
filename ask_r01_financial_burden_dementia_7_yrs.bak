@@ -19576,16 +19576,32 @@ run;
 H="mds section"
 use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta", clear
 
-gen admit=date(ab1_entry_dt, "YMD")
+append using "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_15.dta"
+
+keep bid_hrs_22 fac_int_id fac_prvdr_intrnl aa8a_pri_rfa a0310f_entry_dschrg_cd a2100_dschrg_stus_cd a2000_dschrg_dt a2300_asmt_rfrnc_dt trgt_dt a1900_admsn_dt v0100c_prior_asmt_rfrnc_dt ab1_entry_dt r4_discharge_dt a4a_reentry_dt
+
+gen admit1=ab1_entry_dt
+replace admit1=a1900_admsn_dt if admit1=="********"
+
+gen disch1=r4_discharge_dt
+replace disch1=a2000_dschrg_dt if disch=="********"
+
+gen reentry1=a4a_reentry_dt
+
+destring fac_prvdr_intrnl, replace
+
+replace fac_int_id=fac_prvdr_intrnl if fac_int_id==.
+
+gen admit=date(admit1, "YMD")
 format %td admit
 
 gen target=date(trgt_dt, "YMD")
 format %td target
 
-gen disch=date(r4_discharge_dt, "YMD")
+gen disch=date(disch1, "YMD")
 format %td disch
 
-gen reentry=date(a4a_reentry_dt, "YMD")
+gen reentry=date(reentry1, "YMD")
 format %td reentry
 
 //keep if inlist(aa8a, "01","00","06","07","08", "09")
@@ -19598,25 +19614,44 @@ replace date=target if date==.
 format %td date
 
 sort bid_hrs_22 date
-
+////
 gen type_cd=.
 replace type_cd=1 if aa8a=="09" | aa8a=="01"
 replace type_cd=2 if aa8a=="06" | aa8a=="07"
-by bid_hrs_22: replace type_cd=1 if admit!=. & year(admit)<1999
+replace type_cd=1 if admit!=. & year(admit)<1999
 
 gen fail=1 if aa8a=="08"
 
 replace type_cd=1 if year(admit)<1999 & type_cd==0 & admit!=.
 replace date=admit if type_cd==1 & year(admit)<1999 & admit!=.
+replace type_cd=1 if aa8a_pri_rfa=="00" & admit!=.
+replace type_cd=2 if aa8a_pri_rfa=="08" & disch!=.
 
+drop if type_cd==.
+
+sort bid_hrs_22 fac_int_id date type_cd
+/*
+drop if type_cd==.
 sort bid_hrs_22 date type_cd
-bys bid_hrs_22 date: keep if _n==1
+bys bid_hrs_22 date type_cd: keep if _n==1 
+*/
+sort bid_hrs_22 fac_int_id date type_cd
+gen a=1 if bid_hrs_22==bid_hrs_22[_n+1] & type_cd==2 & type_cd[_n+1]==2 & fac_int_id==fac_int_id[_n+1]
+gen b=1 if bid_hrs_22==bid_hrs_22[_n-1] & type_cd==1 & type_cd[_n-1]==1 & fac_int_id==fac_int_id[_n-1]
+
+//taking a more conservative approach where if there are multiple admits or discharges in a row the first admit is kept and the last discharege is kept. 
+
+drop if a==1 | b==1
+
+
+
+
 
 gen type_cd1=.
 replace type_cd1=1 if admit!=. | reentry!=.
 replace type_cd1=2 if disch!=.
 
-tab type_cd type_cd1,m
+tab type_cd type_cd1, m
 
 gen flag=1 if type_cd!=type_cd1
 tab flag
