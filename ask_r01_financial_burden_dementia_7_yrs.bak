@@ -19332,9 +19332,6 @@ proc sort data=proj_int.index out=index1 nodupkey;
 by bid_hrs_22 id index_date;
 run;
 
-
-
-
 /**************************************************************************/
 /* ************** Claims Before Death  ******************************/
 /**************************************************************************/
@@ -19345,7 +19342,7 @@ saves datasets for each claim type / time window to the spo_mc_i directory*/
 /*claims fully within x time of death date*/
 proc sql;
 create table &source._meet_1 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
+from &source._1998_2015 a inner join
 index1 b
 on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
 and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
@@ -19360,22 +19357,54 @@ on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
 and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
 quit;
 
-data proj_int.&source._meet_&suf.(compress=yes);
+data &source._meet_&suf.(compress=yes);
 set &source._meet_1 &source._meet_2;
 run;
+
+
 %mend;
 
 /*3m before death*/
 %claimspre(days_start=0,days_bef_index=90,source=hh,suf=3m); /*home health*/
-%claimspre(days_start=0,days_bef_index=90,source=hs,suf=3m); /*hospice*/
+/*%claimspre(days_start=0,days_bef_index=90,source=hs,suf=3m); /*hospice*/*/
 %claimspre(days_start=0,days_bef_index=90,source=ip,suf=3m); /*inpatient*/
 %claimspre(days_start=0,days_bef_index=90,source=dm,suf=3m); /*dme*/
 %claimspre(days_start=0,days_bef_index=90,source=op,suf=3m); /*outpatient*/
 %claimspre(days_start=0,days_bef_index=90,source=pb,suf=3m); /*carrier*/
 %claimspre(days_start=0,days_bef_index=90,source=sn,suf=3m); /*snf*/
 
+
+data hs_1998_2015;
+set medi.hs_1998_2015;
+hs_start=input(put(hspcstrt, 8.), yymmdd8.);
+format hs_start date9.;
+run;
+
+/*claims fully within x time of death date*/
+proc sql;
+create table hs_meet_1 as select a.*,b.index_date,b.id 
+from hs_1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and 0<=b.index_date-a.hs_start<=90;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table hs_meet_2 as select a.*,b.index_date,b.id 
+from hs_1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.hs_start>0 and b.index_date-a.disch_date<=90;
+quit;
+
+data hs_meet_3m(compress=yes);
+set hs_meet_1 hs_meet_2;
+run;
+
+
 data op_meet_3m_er_obs;
-set proj_int.op_meet_3m;
+set op_meet_3m;
 er_flag = 0;
 obs_flag = 0;
 array rvcntr rvcntr01-rvcntr45;
@@ -19392,18 +19421,18 @@ end;
 end;
 run;
 
-data proj_int.op_er_meet_3m;
+data op_er_meet_3m;
 set op_meet_3m_er_obs;
 if er_flag=1;
 run;
 
-data proj_int.op_obs_meet_3m;
+data op_obs_meet_3m;
 set op_meet_3m_er_obs;
 if obs_flag=1;
 run;
 
-data test;
-set proj_int.pb_meet_3m;
+data pb_plc_meet_3m;
+set pb_meet_3m;
 snf_pb=0;
 array plcrvc plcrvc01-plcrvc13;
 do over plcrvc;
@@ -19411,58 +19440,17 @@ if strip(plcrvc) in:("31", "32") then snf_pb = 1;
 end;
 run;
 
-
-proc freq data= test;
+proc freq data= pb_meet_3m_pb;
 table snf_pb;
 run;
 
 
-/*For MDS*/
-data mds_2 (keep= BID_HRS_22 AB1_ENTRY_DT A3A_ASMT_REF_DT A4A_REENTRY_DT TRGT_DT entry_dt entry target r3a_discharge_cd R4_DISCHARGE_DT disch_dt disch);
-set medi.mds_2_99_10;
-if AB1_ENTRY_DT~="********" then entry_dt=AB1_ENTRY_DT;
-entry=input(put(entry_dt,8.),yymmdd8.);
-format entry date9.;
-target=input(put(TRGT_DT,8.),yymmdd8.);
-format target date9.;
-if R4_DISCHARGE_DT~="********" then disch_dt=R4_DISCHARGE_DT;
-disch=input(put(disch_dt,8.),yymmdd8.);
-format disch date9.;
-run;
+/*making it into a by date format */
 
-proc sort data=mds_2 out=mds_2 ;
-by bid_hrs_22 target ;
-run;
+%macro dates(source=,suf=, npi=);
 
-proc sql;
-create table mds_2_meet_1 as select a.*,b.index_date,b.id 
-from mds_2_99_10 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and 0<=b.index_date-a.admit_date<=90 ;
-quit;
-
-/*claims that start earlier than x time but span into x time before death*/
-proc sql;
-create table &source._meet_2 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
-quit;
-
-data proj_int.&source._meet_&suf.(compress=yes);
-set &source._meet_1 &source._meet_2;
-run;
-
-
-
-
-
-%macro dates(source=,type=);
-
-data &source._meet_&type._1;
-set &source._meet_&type.;
+data &source._meet_&suf._d;
+set &source._meet_&suf.;
 format index_date date9.;
 format admit_date date9.;
 format disch_date date9.;
@@ -19472,8 +19460,8 @@ days=90-day_d;
 run;
 
 
-data &source.&type.;
-set &source._meet_&type._1;
+data &source._meet_&suf._dates;
+set &source._meet_&suf._d;
 do i=admit_date to disch_date;
 date=i;
 output;
@@ -19481,27 +19469,241 @@ end;
 format date date9.;
 run;
 
-data &source.&type._1;
-set &source.&type.;
+data &source._&suf.; 
+set &source._meet_&suf._dates;
 where 0<=index_date-date<=90;
 &source.=1;
 run;
 
+proc sort data=&source._&suf. out=&source._&suf. ;
+by bid_hrs_22 date ;
+run;
+
+data &source._dup (keep= bid_hrs_22 bid_n hhidpn index_date flag date admit_date disch_date days_a days_d &source. fac_type provider &npi. at_upin) ;
+set &source._&suf.;
+if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and (provider~=lag(provider) or &npi.~=lag(&npi.)) then flag=1;
+run;
 %mend;
 
-%dates(source=op,type=1);
-%dates(source=op,type=2);
-%dates(source=hh,type=1);
-%dates(source=hh,type=2);
-%dates(source=hs,type=1);
-%dates(source=hs,type=2);
-%dates(source=ip,type=1);
-%dates(source=ip,type=2);
-%dates(source=pb,type=1);
-%dates(source=pb,type=2);
-%dates(source=sn,type=1);
-%dates(source=sn,type=2);
+%dates(source=ip,suf=3m,npi=ORGNPINM);
+%dates(source=op_er,suf=3m,npi=ORGNPINM);
+%dates(source=op_obs,suf=3m,npi=ORGNPINM);
+%dates(source=pb_plc,suf=3m,npi=rfr_npi);
+%dates(source=sn,suf=3m,npi=ORGNPINM);
+%dates(source=hh,suf=3m,npi=ORGNPINM);
+/*%dates(source=hs,suf=3m,npi=ORGNPINM);*/
 
+data hs_meet_3m_d;
+set hs_meet_3m;
+format index_date date9.;
+format admit_date date9.;
+format disch_date date9.;
+format hs_start date9.;
+day_a=index_date-hs_start;
+day_d=hs_start-disch_date;
+days=90-day_d;
+run;
+
+
+data hs_meet_3m_dates;
+set hs_meet_3m_d;
+do i=hs_start to disch_date;
+date=i;
+output;
+end;
+format date date9.;
+run;
+
+data hs_3m; 
+set hs_meet_3m_dates;
+where 0<=index_date-date<=90;
+hs=1;
+run;
+
+proc sort data=hs_3m out=hs_3m ;
+by bid_hrs_22 date ;
+run;
+
+data hs_dup (keep= bid_hrs_22 bid_n hhidpn index_date flag date admit_date disch_date days_a days_d hs fac_type provider ORGNPINM at_upin hcpscd01-hcpscd45 rvcntr01-rvcntr45) ;
+set hs_3m;
+if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and (provider~=lag(provider) or ORGNPINM~=lag(ORGNPINM)) then flag=1;
+run;
+
+
+proc sql;
+create table test as select a.*, b.*
+from ip_dup a
+full outer join op_er_dup b
+on a.bid_hrs_22=b.bid_hrs_22 and a.date=b.date;
+quit;
+
+* check hcpcs code;
+data hosp_check;
+keep bid_hrs_22 bid_n hhidpn index_date flag date admit_date disch_date days_a days_d hs fac_type provider ORGNPINM at_upin hcpscd01-hcpscd45 rvcntr01-rvcntr45
+qcode q_home q_fac q_snf q_inp q_oth rcode r_home r_inp r_fac r_oth;
+set hs_dup;
+qcode = 0;
+q_home=0;
+q_fac=0;
+q_snf=0;
+q_inp=0;
+q_oth=0;
+array hcpcs hcpscd01-hcpscd45;
+do over hcpcs;
+if strip(hcpcs) in:("Q5001", "Q5002", "Q5003", "Q5004", "Q5005", "Q5006", "Q5007", "Q5008", "Q5009", "Q5010") then qcode = 1;
+if strip(hcpcs) in:("Q5001") then q_home = 1;
+if strip(hcpcs) in:("Q5002", "Q5003", "Q5007", "Q5010") then q_fac = 1;
+if strip(hcpcs) in:("Q5004") then q_snf = 1;
+if strip(hcpcs) in:("Q5005", "Q5006", "Q5008") then q_inp = 1;
+if strip(hcpcs) in:("Q5009") then q_oth = 1;
+end;
+rcode = 0;
+r_home=0;
+r_inp=0;
+r_fac=0;
+r_oth=0;
+array rev rvcntr01-rvcntr45;
+do over rev;
+if strip(rev) in:("0650", "0651", "0652", "0653", "0654", "0655", "0656", "0657", "0658", "0659" ) then rcode = 1;
+if strip(rev) in:("0651", "0652") then r_home = 1;
+if strip(rev) in:("0655", "0656", "0657") then r_inp = 1;
+if strip(rev) in:("0658") then r_fac = 1;
+if strip(rev) in:("0659") then r_oth = 1;
+end;
+run;
+
+data hosp_check;
+set hosp_check;
+year=year(date);
+run;
+
+proc freq data=hosp_check; tables rcode*year / missprint; run;
+
+/* */
+proc import out=proj_int.mds datafile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta";
+run;
+
+
+/*claims fully within x time of death date*/
+proc sql;
+create table mds_meet_1 as select a.*,b.index_date,b.id 
+from proj_int.mds a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and 0<=b.index_date-a.admission<=90 ;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table mds_meet_2 as select a.*,b.index_date,b.id 
+from proj_int.mds a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.admission>90 and b.index_date-a.discharge<=0;
+quit;
+
+data mds_meet_3m (compress=yes);
+set mds_meet_1 mds_meet_2;
+run;
+
+
+data mds_meet_3m_d;
+set mds_meet_3m;
+format index_date date9.;
+format admit_date date9.;
+format disch_date date9.;
+day_a=index_date-admission;
+day_d=index_date-discharge;
+days=90-day_d;
+run;
+
+
+data mds_meet_3m_dates;
+set mds_meet_3m_d;
+do i=admission to discharge;
+date_1=i;
+output;
+end;
+format date_1 date9.;
+run;
+
+data mds_3m; 
+set mds_meet_3m_dates;
+where 0<=index_date-date_1<=90;
+mds=1;
+run;
+
+proc sort data=mds_3m out=mds_3m ;
+by bid_hrs_22 date_1 ;
+run;
+
+data mds_dup (keep= bid_hrs_22 target date admission discharge index_date day_a day_d date_1 mds flag) ;
+set mds_3m;
+if date_1=lag(date_1) and bid_hrs_22=lag(bid_hrs_22) and fac_int_id~=lag(fac_int_id) then flag=1;
+run;
+
+proc freq data=mds_dup;
+table flag;
+run;
+
+
+
+/* merging all files together, missing mds */
+data test;
+merge ip_dup op_er_dup op_obs_dup sn_dup hh_dup hs_dup mds_dup;
+by bid_hrs_22 date;
+run;
+
+
+
+
+
+
+
+
+
+
+
+
+/*pb_plc is outpatient claims at a snf */ 
+/* finding last 3 days for burdensome transition */ 
+
+/*
+data test_1;
+set test;
+if index_date-date<=3 then last_3=1;
+if bid_hrs_22=lag(bid_hrs_22) and last_3=1 and lag(last_3)=1 and ((ORGNPINM~=lag(ORGNPINM) and ORGNPINM~="" and lag(ORGNPINM)~="") or (at_upin~=lag(at_upin) and at_upin~="" and lag(at_upin)~="")) then burd=1;
+if index_date-date<=90 then last_90=1;
+
+if bid_hrs_22=lag(last_90) and last_90=1 and lag(last_90)=1 and 
+run;
+
+proc freq data=test_1;
+table burd;
+run;
+
+
+/*1 hospitalization with pneumonia, urinary tract infection, dehydration, or sepsis ( 480-486 770.0, J12-J18)
+
+
+
+
+
+
+
+
+
+
+proc sql;
+create table test as select a.bid_hrs_22, a.date, a.ip, b.bid_hrs_22, b.date, b.hs
+from ip_3m a 
+inner join hs_3m b
+on a.bid_hrs_22=b.bid_hrs_22 and a.date=b.date;
+quit;
+
+
+
+/* looking to see if there are duplicates one stay joins to another in the same place */
 %macro combine(source=, npi=);
 
 data &source.;
@@ -19523,13 +19725,14 @@ run;
 %combine(source=hs,npi=ORGNPINM);
 %combine(source=ip,npi=npi);
 %combine(source=pb,npi=rfr_npi);
+%combine(source=sn,npi=ORGNPINM);
 
 data all;
-set hh_dup hs_dup mp_dup ;
+set hh_dup hs_dup ip_dup sn_dup ;
 run;
-
-data mp_test;
-set mp_dup;
+/* counting distinct in various groups */
+data ip_test;
+set ip_dup;
 by bid_hrs_22 date;
 if first.bid_hrs_22 or first.date then count=0;
 count +1;
@@ -19552,9 +19755,16 @@ count +1;
 if last.id_hrs_22 or last.date;
 run;
 
+data sn_test;
+set sn_dup;
+by bid_hrs_22 date;
+if first.bid_hrs_22 or first.date then count=0;
+count +1;
+if last.id_hrs_22 or last.date;
+run;
 
 data all_days;
-set mp_test hh_test hs_test;
+set ip_test hh_test hs_test sn_test;
 run;
 
 proc sort data=all_days out=all_days ;
@@ -19564,6 +19774,10 @@ run;
 data all_days;
 set all_days;
 if bid_hrs_22=lag(bid_hrs_22) & date=lag(date) then dup=1;
+run;
+
+proc export data=all_days
+outfile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\all_days.dta" replace;
 run;
 
 data test;
@@ -19576,23 +19790,16 @@ run;
 H="mds section"
 use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta", clear
 
-append using "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_15.dta"
-
-keep bid_hrs_22 fac_int_id fac_prvdr_intrnl aa8a_pri_rfa a0310f_entry_dschrg_cd a2100_dschrg_stus_cd a2000_dschrg_dt a2300_asmt_rfrnc_dt trgt_dt a1900_admsn_dt v0100c_prior_asmt_rfrnc_dt ab1_entry_dt r4_discharge_dt a4a_reentry_dt
+keep bid_hrs_22 fac_int_id aa8a_pri_rfa trgt_dt ab1_entry_dt r4_discharge_dt a4a_reentry_dt 
 
 gen admit1=ab1_entry_dt
-replace admit1=a1900_admsn_dt if admit1=="********"
+
 
 gen disch1=r4_discharge_dt
-replace disch1=a2000_dschrg_dt if disch=="********"
 
 gen reentry1=a4a_reentry_dt
 
-destring fac_prvdr_intrnl, replace
-
-replace fac_int_id=fac_prvdr_intrnl if fac_int_id==.
-
-gen admit=date(admit1, "YMD")
+gen admit=date(admit1, "YMD") 
 format %td admit
 
 gen target=date(trgt_dt, "YMD")
@@ -19643,10 +19850,12 @@ gen b=1 if bid_hrs_22==bid_hrs_22[_n-1] & type_cd==1 & type_cd[_n-1]==1 & fac_in
 
 drop if a==1 | b==1
 
+tempfile a
+save "`a'"
 
 
 
-
+/*
 gen type_cd1=.
 replace type_cd1=1 if admit!=. | reentry!=.
 replace type_cd1=2 if disch!=.
@@ -19655,3 +19864,87 @@ tab type_cd type_cd1, m
 
 gen flag=1 if type_cd!=type_cd1
 tab flag
+*/
+
+
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_15.dta", clear
+sort bid_hrs_22
+keep bid_hrs_22 a0310a_fed_obra_cd a0310f_entry_dschrg_cd a0310e_first_since_admsn_cd a2300_asmt_rfrnc_dt a2400b_mdcr_stay_strt_dt fac_prvdr_intrnl trgt_dt submsn_dt a1900_admsn_dt a2000_dschrg_dt a0310b_pps_cd 
+
+gen admit1=a1900_admsn_dt
+
+gen disch1=a2000_dschrg_dt
+
+destring fac_prvdr_intrnl, replace
+
+gen admit=date(admit1, "YMD") 
+format %td admit
+
+gen target=date(trgt_dt, "YMD")
+format %td target
+
+gen disch=date(disch1, "YMD")
+format %td disch
+
+// assessment reference date is the same as the target date unless it is missing. 
+gen date=target
+replace date=admit if admit<=target & (a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01") & admit!=.
+replace date=disch if disch>=target & inlist(a0310f_entry_dschrg_cd, "10", "11", "12") & disch!=.
+format %td date
+
+
+sort bid_hrs_22 date fac_prvdr_intrnl
+////
+gen type_cd=.
+replace type_cd=1 if a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01" 
+replace type_cd=2 if inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
+
+gen same_day=1 if a0310a_fed_obra_cd=="01" & inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
+replace type_cd=3 if same_day==1
+
+drop if type_cd==.
+
+drop if type_cd[_n-1]==1 & type_cd==1 & bid_hrs_22[_n-1]==bid_hrs_22 & fac_prvdr_intrnl[_n-1]==fac_prvdr_intrnl 
+
+drop if type_cd[_n+1]==2 & type_cd==2 & bid_hrs_22[_n+1]==bid_hrs_22 & fac_prvdr_intrnl[_n+1]==fac_prvdr_intrnl
+
+
+
+tempfile b
+save "`b'"
+
+use "`a'", clear
+append using "`b'" 
+
+replace fac_int_id=fac_prvdr_intrnl if fac_int_id==.
+
+drop a b fac_prvdr_intrnl
+
+sort bid_hrs_22 date fac_int_id
+
+gen a=date if type_cd==1
+gen d=date if type_cd==2
+
+replace d=date[_n+1] if type_cd[_n+1]==2 & bid_hrs_22==bid_hrs_22[_n+1] & fac_int_id==fac_int_id[_n+1]
+
+replace a=date[_n-1] if type_cd[_n-1]==1 & bid_hrs_22==bid_hrs_22[_n-1] & fac_int_id==fac_int_id[_n-1]
+
+format a %td
+format d %td
+
+replace a=date if same==1
+replace d=date if same==1
+
+replace a=admit if fail==1
+replace d=disch if fail==1
+replace d=target if d==. & target>=date
+replace a=target if a==. & target<=date
+
+//sort bid_hrs_22 a d fac_int_id
+bys bid_hrs_22 a d fac_int_id: keep if _n==1 
+
+rename a admission
+rename d discharge
+
+saveold "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta", version(12) replace
+

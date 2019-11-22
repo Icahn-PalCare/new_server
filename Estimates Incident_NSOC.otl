@@ -66,7 +66,7 @@ data enroll; set nhats1_8(where=((replenishment=0 and wave=1) or (replenishment=
 	proc freq data=enroll; tables wave; run;	
 
 /*Select home dwellers at enrollment*/
-proc freq data=enroll; tables nhres*replenishment; run; /*468 nursing home residents*/
+proc freq data=enroll; tables nhres*replenishment; run; /*648 nursing home residents*/
 
 data enroll; set enroll; if nhres=1 then sample=0; run;
 
@@ -1319,3 +1319,39 @@ proc freq data=pre; tables yrdx; run;
 data post; set pre_post(where=(post_cancer_NSOC=1)); keep spid yrdx; run;
 proc sort data=post nodup out=post; by spid; run;
 proc freq data=post; tables yrdx; run;
+
+H="NSOC cohort of caregivers"
+proc import out=nhats1_8 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+dbms=dta replace;
+run;
+
+
+data cancerdx; set inter.incidentcancersample; run;
+proc contents data=cancerdx; run;
+
+proc freq data=cancerdx; tables sample*wave; run;
+proc freq data=cancerdx(where=(n1_int_wave=wave)); 
+tables sample*(wave replenishment eligible_nsoc completed_nsoc)/missing; run; 
+proc freq data=cancerdx(where=(n1_int_wave=wave and sample=1)); 
+tables (eligible_nsoc completed_nsoc)*(wave replenishment)/missing; run;
+
+proc means n nmiss min median max data=cancerdx(where=(n1_int_wave=wave and sample=1)); var dxt0; run;
+
+/*list of incident cancer patients*/
+/*keep pre-cancer interview,
+diagnosis date, Medicaid, education,
+marital status, race, self-reported health, lives alone, dementia, count of medical conditions,
+pain, depression, anxiety, help with ADLS, receiving paid help*/
+data pre_interview; set cancerdx (where=(n1_int_wave=wave and sample=1));
+keep spid wave n1_int_wave sample dxt0 medicaid education maritalstat race_cat
+srh srh_fp livealone dem_2_cat dem_3_cat sr_numconditions1 ind_pain sr_phq2_depressed
+sr_gad2_anxiety adl_impair iadl_impair ind_paid_helper; 
+run;
+
+proc import out=nsoc2011 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1.dta"
+dbms=dta replace;
+run;
+
+proc contents data=nsoc2011; run;
+
+proc freq data=nsoc2011; tables cg_ivw_year; run;
