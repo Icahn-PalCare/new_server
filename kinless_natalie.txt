@@ -30,9 +30,9 @@ Simple Outline: Creating dataset, adding labels.
 
 //NEED TO CHANGE WAVE NUMBER FOR EACH WAVE
 
-global final D:\HRS\Projects\kinless_natalie\Data\final
-global int D:\HRS\Projects\kinless_natalie\Data\int
-global logs D:\HRS\Projects\kinless_natalie\Output\logs
+global final D:\HRS\Projects\kinlessness\kinless_natalie\Data\final
+global int D:\HRS\Projects\kinlessness\kinless_natalie\Data\int
+global logs D:\HRS\Projects\kinlessness\kinless_natalie\Output\logs
 
 cd "${work}"
 
@@ -1521,6 +1521,73 @@ outreg using "${int_share}/model.rtf", varlabels stats(e_b p) ctitles("" "Model 
 
 
 
+H="Categorical variable crosstabs"
+//first, run the other stuff
+
+
+mat tab=J(4,3,.)
+mat stars=J(4,3,0)
+local r=1
+
+foreach x in adl_index_core_cat duration n_hp_cat soc_visit_cat {
+qui svy, subpop(if died_one_year==1 & age1>=50): tab flag_3_any_kid_married `x', row
+mat tab[`r',1]=e(p_Pear)
+mat stars[`r',1]=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+qui svy, subpop(if died_one_year==1 & age1>=50 & nhres==1): tab flag_3_any_kid_married `x', row
+mat tab[`r',2]=e(p_Pear)
+mat stars[`r',2]=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+qui svy, subpop(if died_one_year==1 & age1>=50 & nhres==0): tab flag_3_any_kid_married `x', row
+mat tab[`r',3]=e(p_Pear)
+mat stars[`r',3]=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+local r=`r'+1
+}
+
+mat rownames tab=adl_index_core_cat duration n_hp_cat soc_visit_cat
+
+foreach x in 1 {
+log using "${logs}\kinless_categorical_var_tabs`c(current_date)'", replace
+di ""
+di ""
+di ""
+di ""
+di "This table has all the p-values for the categorical variables
+di ""
+di ""
+
+
+frmttable, statmat(tab) title("Categorical P-Values") ctitles("" "All" "Nursing Home" "Community Dwelling") sdec(4) annotate(stars) asymbol(*,**) 
+
+}
+
+
+//And here's the results including the percentages, etc.
+
+mat tab=J(4,3,.)
+mat stars=J(4,3,0)
+local r=1
+
+foreach x in adl_index_core_cat duration n_hp_cat soc_visit_cat {
+svy, subpop(if died_one_year==1 & age1>=50): tab flag_3_any_kid_married `x', row
+mat tab[`r',1]=e(p_Pear)
+mat stars[`r',1]=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+svy, subpop(if died_one_year==1 & age1>=50 & nhres==1): tab flag_3_any_kid_married `x', row
+mat tab[`r',2]=e(p_Pear)
+mat stars[`r',2]=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+svy, subpop(if died_one_year==1 & age1>=50 & nhres==0): tab flag_3_any_kid_married `x', row
+mat tab[`r',3]=e(p_Pear)
+mat stars[`r',3]=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+local r=`r'+1
+}
+
+mat rownames tab=adl_index_core_cat duration n_hp_cat soc_visit_cat
+
+frmttable, statmat(tab) title("Categorical P-Values") ctitles("" "All" "Nursing Home" "Community Dwelling") sdec(4) annotate(stars) asymbol(*,**) 
+
+
+log close
+
+translate "${logs}\kinless_categorical_var_tabs`c(current_date)'.smcl" "${logs}\kinless_categorical_var_tabs`c(current_date)'.pdf", replace
+
 H="Changelog"
 
 
@@ -1529,6 +1596,12 @@ H="Changelog"
 
 
 Updates:
+
+
+
+11/22/2019 EBL
+------------
+Updated filepaths and added categorical variable crosstabs.
 
 11/06/2019 MH
 ------------

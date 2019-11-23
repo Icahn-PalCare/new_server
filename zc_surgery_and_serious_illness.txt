@@ -50,11 +50,34 @@ global outpath "D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\output\in
 
 
 H="Stata only"
+capture log close
+clear
+set more off
+local datapath D:\HRS\Projects\surgery\zc_surgery_and_serious_illness\data\int_data
+
+
+
+
+use `datapath'\dx_0_1yr.dta,clear
+
+// convert diagnosis codes to string variables, tostring diag,gen(icd9_c)
+gen new=ltrim(diag)
+icd9 check new,gen(icd9_c)
+replace new="" if icd9_c>0 
+// convert into dot format (ex 12.1 instead of 121)
+icd9 clean new,dots 
+
+replace diag=new
+drop icd9_c new
+
+save `datapath'\dx_0_1yr_2.dta,replace
+outsheet using `datapath'\dx_0_1yr_2.csv, comma replace
+
 
 
 H="get index"
 use "${hrs}\core_00_to_14.dta", clear
-keep if core_year>=2006
+keep if inrange(core_year,2004,2014)
 keep id hhid pn c_ivw_date
 rename c_ivw_date index_date
 gen index_year=year(index_date)
@@ -63,15 +86,14 @@ rename *, l
 
 save "${intpath}\index.dta", replace
 
-
 H="get ffs before"
-use bid_hrs_22 start_dt ab_mo_cnt hmo_mo using "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" if year(start_dt>=2002), clear
+use bid_hrs_22 start_dt ab_mo_cnt hmo_mo using "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" if year(start_dt>=2000), clear
 gen ffs=ab_mo_cnt>=1 & hmo_mo==0
 drop *mo*
 tempfile bqsf
 save `bqsf'
 
-forvalues i=2006/2014 {
+forvalues i=2004/2014 {
 use "${intpath}\index.dta" if year(index_date)==`i', clear
 merge 1:m bid using `bqsf', keep(match) nogen
 keep if start_dt<=index_date
@@ -83,12 +105,12 @@ gen cont_ffs_n_mos=0
 forvalues y=1/12 {
 	replace cont_ffs_n_mos=cont_ffs_n_mos+3 if ffs`y'==1 & cont_ffs_n_mos==`y'*3-3
 }
-drop ffs
+drop ffs*
 tempfile ffs`i'
 save `ffs`i''
 }
 clear
-forvalues i=2006/2014 {
+forvalues i=2004/2014 {
 append using `ffs`i''
 }
 
@@ -103,28 +125,33 @@ tempfile idlist
 save `idlist'
 
 foreach x in ip snf hh hs op pb dm {
-	use bid_hrs_22 admit_date dgnscd* using "${medi}/`x'_1998_2015.dta" if year(admit_date)>=2005, clear
+	di "`x'"
+	use bid_hrs_22 admit_date dgnscd* using "${medi}/`x'_1998_2015.dta" if year(admit_date)>=2002, clear
 	duplicates drop
 	merge m:1 bid using `idlist', keep(match) nogen
 	tempfile `x'1
 	save ``x'1'
 	
-	forvalues y=2006/2014 {
+	forvalues y=2004/2014 {
+		di "`x'"
+		di "`y'"
 		use "${intpath}\index.dta" if index_year==`y', clear
 		merge 1:m bid using ``x'1', keep(match) nogen
 		keep if inrange(admit_date,index_date-365,index_date)
-		rename dgnscd0* dgnscd*
-		gen num=_n
-		reshape long dgnscd, i(num) j(obs)
-		drop num obs admit
-		drop if missing(dgnscd)
-		duplicates drop
+		if _N>0 {
+			rename dgnscd0* dgnscd*
+			gen num=_n
+			reshape long dgnscd, i(num) j(obs)
+			drop num obs admit
+			drop if missing(dgnscd)
+			duplicates drop
+}		
 		tempfile y`y'
 		save `y`y''
 		
 }
 	clear
-	forvalues y=2006/2014 {
+	forvalues y=2004/2014 {
 		append using `y`y''
 }
 	duplicates drop
@@ -135,6 +162,7 @@ foreach x in ip snf hh hs op pb dm {
 use `ip', clear
 foreach x in snf hh hs op pb dm {
 	append using ``x''
+	keep hhid pn id index_date index_year bid_hrs_22 dgnscd
 	duplicates drop
 }
 
@@ -165,7 +193,7 @@ tempfile t
 save `t'
 
 
-forvalues i=2006/2014 {
+forvalues i=2004/2014 {
 use `t' if index_year==`i', clear
 merge 1:m bid_hrs_22 using "${medi}\mp_1998_2015.dta", keep(match)
 keep if inrange(admit_date,index_date_n1,index_date)
@@ -195,7 +223,7 @@ save `y`i''
 }
 
 clear
-forvalues i=2006/2014 {
+forvalues i=2004/2014 {
 	append using `y`i''
 }
 
@@ -203,7 +231,7 @@ duplicates drop
 save "${intpath}\surg.dta", replace
 
 clear
-forvalues i=2006/2014 {
+forvalues i=2004/2014 {
 	append using `sd`i''
 }
 duplicates drop
@@ -299,7 +327,7 @@ by id: gen index_date_n1=index_date[_n-1]
 tempfile t
 save `t'
 foreach x in mp  {
-	forvalues y=2006/2014 {
+	forvalues y=2004/2014 {
 		use `t' if index_year==`y', clear
 		merge 1:m bid_hrs_22 using  "${intpath}/idpic_output.dta", keep(match) nogen
 		keep if inrange(admit_date,index_date-365,index_date)
@@ -315,7 +343,7 @@ foreach x in mp  {
 		
 }
 	clear
-	forvalues y=2006/2014 {
+	forvalues y=2004/2014 {
 		append using `y`y''
 }
 	duplicates drop
@@ -330,7 +358,7 @@ keep bid_hrs_22 admit_date betos*
 tempfile dm 
 save `dm'
 
-forvalues y=2006/2014 {
+forvalues y=2004/2014 {
 
 use "${intpath}\index.dta" if index_year==`y', clear
 		merge 1:m bid using  `dm', keep(match) nogen
@@ -348,7 +376,7 @@ use "${intpath}\index.dta" if index_year==`y', clear
 }
 
 clear
-forvalues y=2006/2014 {
+forvalues y=2004/2014 {
 	append using `dm`y''
 }
 tempfile dm	
@@ -365,7 +393,7 @@ save "${intpath}\sidiag.dta", replace
 H="get hospitalization"
 cd "${intpath}"
 
-forvalues i=2006/2014 {
+forvalues i=2004/2014 {
 	use index.dta if index_year==`i', clear
 	merge 1:m bid using  "${medi}\mp_1998_2015.dta", keep(match master) keepusing(admit_date) nogen
 	gen inrange=inrange(admit_date,index_date-365,index_date)
@@ -454,7 +482,7 @@ label var age65 "Age >=65"
 label var hasnext "Has following interview (core or exit)"
 label var ffs12 "12+ months of FFS prior to core"
 gen n=!missing(index_date)
-label var n "All core and exit interviews 2006-2014 with linked Medicare ID"
+label var n "All core and exit interviews 2004-2014 with linked Medicare ID"
 local samplevars n age65 hasnext ffs12 ind_smi_any 
 
 *preserve
