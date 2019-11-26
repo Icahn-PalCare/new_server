@@ -1,7 +1,7 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Project outline"
-The Burden of Care for Adults with Dementia: Impact on Care Quality and Family Outcomes
+Burden of Care for Adults with Dementia: Impact on Care Quality and Family Outcomes
 
 
 10/9/17
@@ -16099,7 +16099,10 @@ replace hlphrs=0 if hlphrs==.
 foreach x in s k f {
 	replace hlphrs_`x'=720 if hlphrs_`x'>720 & !missing(hlphrs_`x')
 	replace hlphrs_`x'=0 if hlphrs_`x'==.
-	replace hlphrs_`x'=hlphrs_i if hlphrs_`x'>hlphrs_i
+}
+
+foreach x in s k{
+replace hlphrs_`x'=hlphrs_i if hlphrs_`x'>hlphrs_i
 }
 
 gen hlphrs_ns=hlphrs_i-hlphrs_s

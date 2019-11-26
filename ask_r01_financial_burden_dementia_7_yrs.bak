@@ -19332,6 +19332,19 @@ proc sort data=proj_int.index out=index1 nodupkey;
 by bid_hrs_22 id index_date;
 run;
 
+data index_90;
+set index1;
+index_90=index_date-90;
+do i=index_90 to index_date;
+date=i;
+output;
+end;
+format date date9.;
+format index_date date9.;
+format index_90 date9.;
+run;
+run;
+
 /**************************************************************************/
 /* ************** Claims Before Death  ******************************/
 /**************************************************************************/
@@ -19342,7 +19355,7 @@ saves datasets for each claim type / time window to the spo_mc_i directory*/
 /*claims fully within x time of death date*/
 proc sql;
 create table &source._meet_1 as select a.*,b.index_date,b.id 
-from &source._1998_2015 a inner join
+from medi.&source._1998_2015 a inner join
 index1 b
 on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
 and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
@@ -19615,31 +19628,32 @@ format disch_date date9.;
 day_a=index_date-admission;
 day_d=index_date-discharge;
 days=90-day_d;
+rename date=date_1;
 run;
 
 
 data mds_meet_3m_dates;
 set mds_meet_3m_d;
 do i=admission to discharge;
-date_1=i;
+date=i;
 output;
 end;
-format date_1 date9.;
+format date date9.;
 run;
 
 data mds_3m; 
 set mds_meet_3m_dates;
-where 0<=index_date-date_1<=90;
+where 0<=index_date-date<=90;
 mds=1;
 run;
 
 proc sort data=mds_3m out=mds_3m ;
-by bid_hrs_22 date_1 ;
+by bid_hrs_22 date ;
 run;
 
 data mds_dup (keep= bid_hrs_22 target date admission discharge index_date day_a day_d date_1 mds flag) ;
 set mds_3m;
-if date_1=lag(date_1) and bid_hrs_22=lag(bid_hrs_22) and fac_int_id~=lag(fac_int_id) then flag=1;
+if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and fac_int_id~=lag(fac_int_id) then flag=1;
 run;
 
 proc freq data=mds_dup;
@@ -19647,17 +19661,80 @@ table flag;
 run;
 
 
-
-/* merging all files together, missing mds */
+/* merging all files together*/
 data test;
-merge ip_dup op_er_dup op_obs_dup sn_dup hh_dup hs_dup mds_dup;
+merge index_90 ip_dup op_er_dup op_obs_dup sn_dup hh_dup hs_dup mds_dup;
 by bid_hrs_22 date;
 run;
 
 
+proc freq data=test;
+table op_er*op_obs;
+run;
 
 
+data test_order;
+set test;
+order=. ;
+if ip=1 then order=1;
+if (op_er=1 or op_obs=1) and order~=. then order=2;
+if sn=1 and order~=. then order=3;
+if hh=1 and order~=. then order=4;
+if hs=1 and order~=. then order=5;
+if mds=1 and order~=. then order=6;
+if order=. then order=0;
+run;
 
+proc sort data=test_order out=test_order ;
+by bid_hrs_22 date ;
+run;
+
+data test_order_1;
+set test_order;
+transition=0;
+if bid_hrs_22=lag(bid_hrs_22) and order~=lag(order) then transition=1;
+run;
+
+data test_order_2;
+set test_order_1;
+by bid_hrs_22;
+if first.bid_hrs_22 then t_count=0;
+if transition=1 then t_count+1;
+run;
+
+proc sort data=test_order_2  ;
+by bid_hrs_22 descending t_count ;
+run;
+
+data test_order_3;
+set test_order_2;
+by bid_hrs_22;
+retain burd_t;
+if first.bid_hrs_22 then burd_t=t_count;
+run;
+
+proc sort data=test_order_3  ;
+by bid_hrs_22 date ;
+run;
+
+
+data test_order_4;
+set test_order_3;
+flag_burd=0;
+if burd_t>=3 then flag_burd=1 ;
+run;
+
+
+proc sort data=test_order_4 nodupkey;
+by bid_hrs_22 ;
+run;
+
+proc freq data=test_order;
+table order;
+run;
+
+data test_order;
+set test_order;
 
 
 
