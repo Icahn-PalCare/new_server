@@ -232,7 +232,7 @@ H="merging disability with rest of nhats and keeping interviews within a year"
 
 
 *merging in date of disability with rest of nhats
-use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta"
 merge m:1 spid using "D:\NHATS\Projects\trajectories and disability\cka_psych sxs before after disability\data\date of first disability.dta"
 gen keep=0 if _merge==1
 
@@ -240,7 +240,7 @@ gen keep=0 if _merge==1
 gen day_dif= ivw_date-datefirsthelp
 gen mnth_dif= floor((ivw_date-datefirsthelp)/30)
 
-replace keep=1 if abs(mnth_dif)<=12
+replace keep=1 if abs(mnth_dif)<=12 & keep!=0
 
 drop _merge
 merge 1:1 spid wave using "D:\NHATS\Projects\trajectories and disability\cka_psych sxs before after disability\data\gap between surveys.dta"
@@ -256,8 +256,8 @@ gen keepprepost=keep
 replace keepprepost=0 if countperid==1
 
 *Limit sample with population with 2 observations, one the closest prior to disability (within 12 months) the other closest after disability (within 12 months)
-recode mnth_dif(-12/-1=1)(0/12=0), gen(neg)
-recode mnth_dif(-12/-1=0)(0/12=1), gen(pos)
+recode mnth_dif(min/-13=.)(-12/-1=1)(0/12=0)(13/max=.), gen(neg)
+recode mnth_dif(min/-13=.)(-12/-1=0)(0/12=1)(13/max=.), gen(pos)
 egen numneg=total(neg==1) if keepprepost==1, by(spid)
 egen numpos=total(pos==1) if keepprepost==1, by(spid)
 egen minneg=min(mnth_dif) if keepprepost==1, by(spid)
@@ -290,7 +290,8 @@ by spid: gen sr_gad2_score_n= sr_gad2_score[_n-1]
 
 gen keep_nodep=1 if sr_phq2_depressed_n==0
 
-
+***variable to keep only those in limited cohort and examine dep after disability
+gen keep_postdislimit=1 if keepprepost==1 & pos==1
 
 H="cleaning vars"
 *cleaning variables
@@ -358,7 +359,7 @@ replace keep=0 if sr_phq2_score==. & sr_gad2_score==.
 H="analysis"
 *analysis
 
-set  varunit [pweight=anfinwgt], strat(varstrat)
+svyset varunit [pweight=anfinwgt], strata (varstrat)
 
 *figure 1
 *depression score
@@ -387,7 +388,7 @@ svy, subpop(keep_norecover): reg sr_gad2_score i.quart_dif proxy
 margins quart_dif
 marginsplot
 
-
+tab keep
 *table 1
 svy, subpop(keep): tab age_3cat 
 svy, subpop(keep): tab female 
@@ -433,50 +434,12 @@ margins quart_dif, cformat(%4.3f)
 svy: logistic sr_phq2_depressed keep_recover##post_dis_ind
 margins keep_recover#post_dis_ind
 
-svy, subpop(post_dis_ind): tab sr_phq2_depressed
-svy, subpop(post_dis_ind): logistic sr_phq2_depressed i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
- i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy, cformat(%4.2f)
 
- svy, subpop(post_dis_ind): tab sr_gad2_anxiety
- svy, subpop(post_dis_ind): logistic sr_gad2_anxiety i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
- i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy, cformat(%4.2f)
-
- 
- *REDO- look at new depression after disability, limiting to those with no prior depression
- tab sr_phq2_depressed if keep_nodep==1
- svy, subpop(keep_nodep): logistic sr_phq2_depressed i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
- i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy, cformat(%4.2f)
- 
- logistic sr_phq2_depressed i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
- i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy if keep_nodep==1, cformat(%4.2f)
- 
-  *REDO- look at new depression after disability, adjusting for prior depression
-svy, subpop(pos): logistic sr_phq2_depressed sr_phq2_depressed_n i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
- i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy, cformat(%4.2f)
- 
-svy, subpop(pos): logistic sr_gad2_anxiety sr_gad2_anxiety_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
- i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy, cformat(%4.2f)
-  
- 
- *look at change scores in depression
- svy, subpop(pos): reg dep_cha_sc  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
- i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy mnth_dif, cformat(%4.2f)
- svy, subpop(pos): reg anx_cha_sc  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
- i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy , cformat(%4.2f)
- 
- *look at change scores and adjust for prior depression score
-  svy, subpop(pos): reg dep_cha_sc  sr_phq2_score_n i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
- i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy mnth_dif, cformat(%4.2f)
- 
- svy, subpop(pos): reg anx_cha_sc  sr_gad2_anxiety_n i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
- i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy mnth_dif, cformat(%4.2f)
- 
- 
  *look at depression scores after disability, adjusting for prior disability
-  svy, subpop(pos): reg sr_phq2_score sr_phq2_depressed_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+  svy, subpop(keep_postdislimit): reg sr_phq2_score sr_phq2_score_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
  i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy , cformat(%4.2f)
  
- svy, subpop(pos): reg sr_gad2_score sr_gad2_score_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
+ svy, subpop(keep_postdislimit): reg sr_gad2_score sr_gad2_score_n  i.age_3cat female i.race_3cat educ_hs_ind i.income_quart i.home_setting ///
  i.adl_3cat sr_cancer_ever  sr_heart_dis_ever sr_ami_ever sr_stroke_ever  sr_lung_dis_ever  prob_dem  ind_pain srh_fp sr_hosp_ind proxy , cformat(%4.2f)
  
 
