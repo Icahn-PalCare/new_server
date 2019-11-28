@@ -1846,7 +1846,7 @@ svy, subpop(inanal): tab ma2, count cellwidth(15) format (%15.2g)
 svy, subpop(inanal): tab deathage_3cat ma1, column
 svy, subpop(inanal): tab female ma1, column
 svy, subpop(inanal): tab race_cat ma1, column
-svy, subpop(inanal): tab lowest_inc_qrt ma1, column
+svy, subpop(inanal): tab income_quart ma1, column
 svy, subpop(inanal): tab medicaid_death ma1, column
 svy, subpop(inanal): tab metro_ind ma1, column
 svy, subpop(inanal): tab avgma_quart ma1, column
@@ -1977,20 +1977,20 @@ svy, subpop(inanal): logistic twoplusmsr i.ma1##c.avg_MA#c.avg_MA i.deathage_3ca
 */
 	
 *interaction with dual status
-	svy, subpop(inanal): logistic di_recode_informed i.ma1##i.medicaid_death i.deathage_3cat female child  spouse  ///
+	svy, subpop(inanal): logistic twoplusmsr i.ma1##i.medicaid_death i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed  year , cformat(%4.2f)
 		  margins, dydx(ma1) over(medicaid_death)
 		  margins ma1#medicaid_death
 		  marginsplot
 
 		  *interaction with low income 
-	svy, subpop(inanal): logistic di_recode_informed i.ma1##i.lowest_inc_qrt i.deathage_3cat female child  spouse  ///
+	svy, subpop(inanal): logistic twoplusmsr i.ma1##i.lowest_inc_qrt i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed  year , cformat(%4.2f)
 		  margins, dydx(ma1) over(lowest_inc_qrt)
 		  margins ma1#lowest_inc_qrt
 		  marginsplot
 		  
-			svy, subpop(inanal): logistic di_recode_informed i.ma1##i.income_quart i.deathage_3cat female child  spouse  ///
+			svy, subpop(inanal): logistic twoplusmsr i.ma1##i.income_quart i.deathage_3cat female child  spouse  ///
 		  diff_get_out_bed  year , cformat(%4.2f)
 		  margins, dydx(ma1) over(income_quart)
 		  margins ma1#income_quart
@@ -2022,8 +2022,7 @@ svy, subpop(inanal): mean perc_6orless, over(ma1)
 svy, subpop(inanal): mean comp_process_score, over(ma1) 	
 	svy, subpop(inanal): reg comp_process_score i.ma1 
 		
-	
-	
+
 	
 *interaction with hospice for family not kept informed
 qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
