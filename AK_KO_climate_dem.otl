@@ -1,0 +1,275 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="First Heading"
+/* 
+********************HEADING******************** 
+
+Project Name:
+
+Date Started:
+
+Primary Investigator:
+Funding Source:
+
+Created by:
+
+Primary Analyst:
+Secondary Analyst:
+
+Datasets Used:
+
+Simple Outline:
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+
+//Intermediate Data Path
+global intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+gloabl datapath "E:\nhats\data\Projects\..."
+
+//Log files path
+gloabl logpath "E:\nhats\data\Projects\..."
+
+
+//SAS 
+
+
+//Intermediate Data Path
+//libname intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+//libname datapath "E:\nhats\data\Projects\..."
+
+//Log files path
+//libname logpath "E:\nhats\data\Projects\..."
+
+
+H="Generic template"
+clear all
+global ref_data "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data"
+
+import excel "$ref_data\Multiple NHI for US counties - columbia .xlsx", sheet("Sheet1") firstrow case(lower)
+//replace county=subinstr(county," ", "",.)
+tempfile climate
+save "`climate'"
+
+clear all
+import excel "$ref_data\fips_xwalk_new", sheet("Crosswalk") firstrow case(lower)
+duplicates drop state county, force
+replace county=lower(county)
+//replace county=subinstr(county," ", "",.)
+tempfile xwalk
+save "`xwalk'"
+
+import delimited "$ref_data\data.csv", varnames(1) clear
+tempfile data
+save "`data'"
+
+use "`climate'", clear
+
+merge m:1 state using "`data'", keep(matched) nogen
+
+rename state state_name
+rename code state
+replace county=lower(county)
+replace county=subinstr(county," city", "",.)
+merge 1:1 state county using "`xwalk'", keep(matched) nogen
+
+rename fipsstatecountycode fips
+
+
+foreach x in wildfire volcano tornado snowfall landslide hurricane earthquake drought heatwave avalanche flood{
+replace `x'="0" if `x'=="None"
+replace `x'="1" if `x'=="Low"
+replace `x'="1" if `x'=="Lo"
+replace `x'="2" if `x'=="Medium"
+replace `x'="3" if `x'=="High"
+destring `x', replace
+}
+
+
+egen clim_prob=rowtotal(tornado snowfall hurricane drought heatwave flood wildfire landslide)
+
+tempfile climate_geo
+save "`climate_geo'"
+
+///////
+use "D:\HRS\Shared\raw\HRS\hrs_restricted_2014\Detail\2014\hrsxdetail2014(2nd try unzip)\stata\HRSXGEO14b_R.dta", clear
+rename wave core_year
+destring core_year, replace
+tempfile hrs_geo
+save "`hrs_geo'", replace
+
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta" if core_year==2014, clear
+
+merge 1:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", keep(master matched) keepusing(birthday birthyr pn hhid race hispanic hisp_eth white black native_amer asian_pi other_race other_na_api_race death_date degree gender secu stratum study)
+
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta" , keep(master match) nogen keepusing(hhid pn core_year pdem)
+gen prob_dem=.
+replace prob_dem=0 if pdem<.5 & !missing(pdem)
+replace prob_dem=1 if pdem>=.5 & !missing(pdem)
+
+merge 1:1 hhid pn core_year using "`hrs_geo'", keep(master matched) nogen
+rename stctyfips10 fips
+
+merge m:1 fips using "`climate_geo'", keep(master matched) nogen
+
+gen age= floor(core_year-birthyr)
+
+gen education=.
+replace education=0 if degree==0
+replace education=1 if degree==1 | degree==2
+replace education=2 if degree==3 | degree==4 | degree==5 | degree==6
+label define deg 0 "less than high school" 1 "high school or equivalent" 2 "college or graduate"
+label value education deg
+tab education, gen (education)
+label var education1 "Less than HS" 
+label var education2 "HS or equivalent"
+label var education3 "College or Graduate" 
+
+label var hazards "Climate Index"
+
+gen hazards_bin=0
+replace hazards_bin=1 if inrange(hazards,14,22)
+label var hazards_bin "Climate Hazard, binary"
+
+label var clim_prob "Climate Index-restricted"
+
+sum clim_prob, d
+gen clim_prob_bin=0
+replace clim_prob_bin=1 if inrange(clim_prob,14,18)
+label var clim_prob_bin "Climate Hazard-restricted, binary"
+
+gen n=1
+gen group1=1 if age>=65
+gen group2=1 if group1==1 & prob_dem==0
+gen group3=1 if group1==1 & prob_dem==1
+gen group4=1
+
+svyset secu [pweight=wgtr], strata(stratum) 
+
+
+
+local r=1 
+local c=1
+mat tab=J(2, 3,.)
+
+forvalues i=1/3{
+	foreach x in hazards_bin clim_prob_bin{
+	sum `x' [aw=wgtr] if group`i'==1
+	mat tab[`r',`c']=`r(sum_w)'*`r(mean)'
+	local r=`r'+1
+	}
+local c=`c'+1
+local r=1
+}
+mat list tab
+
+mat rownames tab= hazards_bin clim_prob_bin
+
+frmttable using "D:\HRS\Projects\exploratory\AK_KO_climate_dem\logs\table_1.rtf", ///
+statmat(tab) title("Population of 2014 Core, by Dementia Status") ///
+ctitles("" "65+" "65+ without Dementia" "65+ with Dementia" ) varlabels ///
+sdec(2) note("Using 2014 interview." "Climate Index/Hazard-restricted variable created using: tornado, snowfall, hurricane, drought, heatwave, flood, wildfire, and landslide" "Climate Hazard, binary had a threshold of 14 to be considered at risk; 14 is based off the website" "Climate Hazard-restricted, binary had a threshold of 14 to be considered at risk; 14 is based off the 75th percentile") replace
+
+
+local cvars1 age
+local ivars1 female white black hisp_eth other_race education1 married medicare medicaid  fw_lowest fw_midlow fw_midhigh fw_highest srh_pf adl_independent_core 
+local cvars2 adl_index_core hazards clim_prob
+local ivars2 hazards_bin clim_prob_bin
+
+local rn: word count `cvars1' `ivars1' `cvars2' `ivars2' 1
+
+local r=1 
+local c=1
+mat tab=J(`rn', 3,.)
+mat stars=J(`rn', 3,0)
+forvalues i=1/3{
+foreach x in `cvars1' {
+	sum `x' [aw=wgtr] if group`i'==1
+	mat tab[`r',`c']=`r(mean)'
+		if `i'==1{
+			ttest `x' if group1==1, by(prob_dem)
+			mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
+			} 
+	local r=`r'+1
+}
+
+foreach x in `ivars1'{
+	sum `x' [aw=wgtr] if group`i'==1
+	mat tab[`r',`c']=`r(mean)'*100
+		if `i'==1{
+			tab `x' prob_dem if group1==1, chi2
+			mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
+			} 
+	local r=`r'+1	
+	}
+	
+foreach x in `cvars2' {
+	sum `x' [aw=wgtr] if group`i'==1
+	mat tab[`r',`c']=`r(mean)'
+		if `i'==1{
+			ttest `x' if group1==1, by(prob_dem)
+			mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
+			} 
+	local r=`r'+1	
+	}
+	
+foreach x in `ivars2'{
+	sum `x' [aw=wgtr] if group`i'==1
+	mat tab[`r',`c']=`r(mean)'*100
+		if `i'==1{
+			tab `x' prob_dem if group1==1, chi2
+			mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
+			} 
+	local r=`r'+1
+}
+
+sum n [aw=wgtr] if group`i'==1 
+mat tab[`r',`c']==`r(N)'
+
+local c=`c'+1
+local r=1
+}
+
+mat rownames tab=`cvars1' `ivars1' `cvars2' `ivars2' "Population(N)"
+mat colnames tab="65+" "65+ without Dementia" "65+ with Dementia"
+mat list tab
+mat list stars
+
+
+
+frmttable using "D:\HRS\Projects\exploratory\AK_KO_climate_dem\logs\table_1.rtf", ///
+statmat(tab) title("Characteristics of 2014 Core, by Dementia Status") ///
+ctitles("" "65+" "65+ without Dementia" "65+ with Dementia" ) varlabels ///
+sdec(2) note("Using 2014 interview." "Climate Index/Hazard-restricted variable created using: tornado, snowfall, hurricane, drought, heatwave, flood, wildfire, and landslide" "Climate Hazard, binary had a threshold of 14 to be considered at risk; 14 is based off the website" "Climate Hazard-restricted, binary had a threshold of 14 to be considered at risk; 14 is based off the 75th percentile") ///
+annotate(stars) asymbol(*,**) addtable replace
+
+
+
+H="Change log"
+
+
+********************Change Log******************** 
+
+
+
+Updates:
+
+
+
+12/17/2018 MH
+------------
+A formal template in Notetab was created with different headings. 
+
+12/13/2018 MH
+-------------
+Change log conception was first introduced.
+
+
+*/
