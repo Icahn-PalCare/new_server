@@ -18005,6 +18005,12 @@ gen n=1
 gen inhb=0
 replace inhb=1 if nwstatus==3
 
+gen innh=0 
+replace innh=1 if nwstatus==5
+
+gen indied=0
+replace indied=1 if nwstatus==6 
+
 mat tab=J(7,6,.)
 local r=1
 local c=1
@@ -18044,6 +18050,90 @@ mat rownames tab="1-2" "2-3" "3-4" "4-5" "5-6" "6-7" "7-8"
   frmttable using incidence.doc, replace statmat(tab) title("Cumulative Incidence for Homebound") note ("Weighted Cumulative Incidence is calculated by taking the weighted population of homebound at the next wave and dividing that by the weighted population of the at risk (current wave)" \ "Weighted Homebound calculated from next wave" \ "Weighted Community Dwelling calculated from current wave")
 
 
+  //////////////
+ 
+mat tab=J(7,6,.)
+local r=1
+local c=1
+
+forvalues i=1/7{
+sum n if status==1 & wave==`i'
+local a=r(N)
+sum n if nwstatus==7 & status==1 & wave==`i'
+local d=r(N)
+sum n if status==3 & wave==`i'+1
+local b=r(N)
+mat tab[`r',`c']=(`b'/(`a'-`d'))*100
+local r=`r'+1
+}
+mat list tab
+
+local r=1
+forvalues i=1/7{
+svy, subpop(if wave==`i' & nwstatus!=7 ): mean innh
+mat tab[`r',`c'+1]=r(table)[1,1]*100
+mat tab[`r',`c'+2]=r(table)[5,1]*100
+mat tab[`r',`c'+3]=r(table)[6,1]*100
+sum n [aw=anfinw] if status==1 & wave==`i'
+local a=r(sum_w)
+sum n [aw=anfinw] if nwstatus==5 & wave==`i'
+local b=r(sum_w)
+mat tab[`r',`c'+4]=(`a')
+mat tab[`r',`c'+5]=(`b')
+local r=`r'+1
+}
+
+mat list tab
+mat rownames tab="1-2" "2-3" "3-4" "4-5" "5-6" "6-7" "7-8"
+  mat colnames tab="Unweighted Cumulative Incidence" "Weighted Cumulative Incidence" "Weighted 95% CI Lower Limit" "Weighted 95% CI Upper Limit" "Weighted Community Dwelling" "Weighted Nursing Home"
+  mat list tab 
+  
+  frmttable using incidence.doc, replace statmat(tab) title("Cumulative Incidence for Nursing Home") note ("Weighted Cumulative Incidence is calculated by taking the weighted population of Nursing Home at the next wave and dividing that by the weighted population of the at risk (current wave)" \ "Weighted Nursing Home calculated from next wave" \ "Weighted Community Dwelling calculated from current wave") addtable
+  
+  ///////////
+  
+  mat tab=J(7,6,.)
+local r=1
+local c=1
+
+forvalues i=1/7{
+sum n if status==1 & wave==`i'
+local a=r(N)
+sum n if nwstatus==7 & status==1 & wave==`i'
+local d=r(N)
+sum n if nwstatus==6 & wave==`i'
+local b=r(N)
+mat tab[`r',`c']=(`b'/(`a'-`d'))*100
+local r=`r'+1
+}
+mat list tab
+
+local r=1
+forvalues i=1/7{
+svy, subpop(if wave==`i' & nwstatus!=7 ): mean indied
+mat tab[`r',`c'+1]=r(table)[1,1]*100
+mat tab[`r',`c'+2]=r(table)[5,1]*100
+mat tab[`r',`c'+3]=r(table)[6,1]*100
+sum n [aw=anfinw] if status==1 & wave==`i'
+local a=r(sum_w)
+sum n [aw=anfinw] if nwstatus==6 & wave==`i'
+local b=r(sum_w)
+mat tab[`r',`c'+4]=(`a')
+mat tab[`r',`c'+5]=(`b')
+local r=`r'+1
+}
+
+mat list tab
+mat rownames tab="1-2" "2-3" "3-4" "4-5" "5-6" "6-7" "7-8"
+  mat colnames tab="Unweighted Cumulative Incidence" "Weighted Cumulative Incidence" "Weighted 95% CI Lower Limit" "Weighted 95% CI Upper Limit" "Weighted Community Dwelling" "Weighted Nursing Home"
+  mat list tab 
+  
+  frmttable using incidence.doc, replace statmat(tab) title("Cumulative Incidence for Death") note ("Weighted Cumulative Incidence is calculated by taking the weighted population of Death at the next wave and dividing that by the weighted population of the at risk (current wave)" \ "Weighted Death calculated from next wave" \ "Weighted Community Dwelling calculated from current wave") addtable
+  
+  
+  /////////
+  
+  
 //incidence rate
 
 capture drop fail
@@ -18056,11 +18146,13 @@ keep if wave==1 & status==1
 
 
   stset lw [pw=anfinwgt], failure(fail==1) id(spid)
- stptime ,  output(stp, replace) 
+ stptime,  output(stp, replace) 
+    return list
   stset lw, failure(fail==1) id(spid)
  stptime if inlist(wave,1,2),  output(stp1, replace)
+ return list
  restore
- preserve
+preserve
  
  //stp is weighted
  use stp.dta, clear
@@ -18106,6 +18198,196 @@ mat tab=J(1,4,.)
   note("IR is unweighted") addtable 
 
 
+H="code looking at Medicaid"
+replace lw=lw+1 if everdied==1 & died_12==1 & status==1
+sort spid wave
+replace lw=. if died_12==0 & everdied==1 & everhb!=1 & evernh!=1
+
+gsort spid -wave
+by spid: carryforward lw, replace
+
+//ANALYSIS
+//creating Incidence Table using stptime command for survival analysis 
+//with lw being the time and homebound the failure. 
+
+capture drop fail
+ gen fail=0
+ replace fail=1 if everhb==1
+ replace fail=2 if evernh==1
+ replace fail=3 if everdied==1 & fail!=1 & fail!=2
+ 
+keep if wave==1 & status==1
+
+
+
+local cvars1 age
+local cvars2 persontime  income_adj
+local ivars1 female white black hisp other_race married 
+label var inchb "Incident Homebound Next Wave"
+label var incnh "Incident Nursing Home Next Wave"
+local ivars2 inccat1 inccat2 inccat3 proxy  ///
+medicaid medigap srh_fp adl_eat_help adl_bath_help adl_toil_help adl_dres_help ///
+adl_ins_help adl_bed_help adl_impair iadl_impair ///
+sr_cond_cat1 sr_cond_cat2 sr_ami_ever sr_stroke_ever sr_cancer_ever sr_hip_ever sr_heart_dis_ever ///
+sr_htn_ever sr_ra_ever sr_osteoprs_ever sr_diabetes_ever sr_lung_dis_ever ///
+prob_dementia dem_2_cat adl_diff_ind /*inchbnextwave incnhnextwave ///
+lfunextwave died_12 everhb evernh*/ metro_ind northeast midwest south
+ //work on competing risk
+ 
+
+
+foreach x in agecat income_quart {
+levelsof `x', local(levels)
+foreach l of local levels {
+	gen `x'`l'=`x'==`l'
+	local lab : label `x' `l'
+	label var `x'`l' "`lab'"
+}
+}
+label var income_quart1 "Income Quartile: Lowest"
+label var income_quart2 "Income Quartile: Second Lowest"
+label var income_quart3 "Income Quartile: Second Highest"
+label var income_quart4 "Income Quartile: Highest"
+
+label var agecat2 "Age 70-74"
+label var agecat3 "Age 75-79"
+label var agecat4 "Age 80-84"
+label var agecat5 "Age 85-89"
+label var agecat6 "Age 90+"
+
+forvalues i=2/6 {
+	local age `age' agecat`i'
+}
+
+forvalues i=1/3 {
+	local inc `inc' income_quart`i'
+}
+local vars `age' ib4.income_quart /*fin_strain anydebt govtasst finhlpfam meals_wheels */ ///
+female black hisp married ind_noone educ_hs_ind  ///
+medicaid prob_dem `cond' adl_diff_ind srh_fp sr_cond_cat2 sr_cond_cat3 ///
+ind_paid_helper metro_ind northeast midwest south
+
+ stset lw [pw=anfinw], failure(fail==1) id(spid)
+ 
+
+
+
+ stcrreg `age' female black hisp married ib4.income_quart , compete(fail==2 3) 
+outreg, keep(1.income_quart 2.income_quart 3.income_quart) stats(e_b se p)
+ stcrreg `age' female black hisp married ib4.income_quart medicaid, compete(fail==2 3)
+outreg, merge keep(1.income_quart 2.income_quart 3.income_quart medicaid) stats(e_b se p)
+ stcrreg `age' female black hisp married ib5.inccat, compete(fail==2 3)
+ outreg, merge keep(1.inccat 2.inccat 3.inccat 4.inccat)  stats(e_b se p)
+stcrreg `age' female black hisp married ib4.income_quart##medicaid, compete(fail==2 3) 
+outreg, keep(1.income_quart 2.income_quart 3.income_quart 1.medicaid 1.income_quart#1.medicaid 2.income_quart#1.medicaid 3.income_quart#1.medicaid) merge stats(e_b se p)
+ stcrreg `age' female black hisp married ib5.inccat, compete(fail==2 3)
+ outreg, merge keep(1.inccat 2.inccat 3.inccat 4.inccat)  stats(e_b se p)
+
+
+
+H="****************"
+
+
+H="Next status for all"
+//Part 1
+
+clear all
+set more off
+capture log close
+
+
+cd "D:\NHATS\Projects\homebound\ko_homebound_income\output\logs"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" if lml==0, clear
+
+
+//cpi inflation
+gen income_adj=0
+replace income_adj= (251.107/224.939)*aveincome if wave==1
+replace income_adj= (251.107/229.594)*aveincome if wave==2
+replace income_adj= (251.107/232.957)*aveincome if wave==3
+replace income_adj= (251.107/236.736)*aveincome if wave==4
+replace income_adj= (251.107/237.017)*aveincome if wave==5
+replace income_adj= (251.107/240.007)*aveincome if wave==6
+replace income_adj= (251.107/245.120)*aveincome if wave==7
+replace income_adj=aveincome if wave==8
+
+
+gen orig_weight=anfinw
+replace anfinw=an2011wgt if (year==2011 & wave==5) | (year==2011 & wave==6) | (year==2011 & wave==7) | (year==2011 & wave==8)
+drop if yearsample==2015
+
+
+//VARIABLE CREATION/CLEANUP
+gen ind_noone=n_social==0
+label var ind_noone "SR nobody in social network"
+
+sort spid wave
+by spid: egen firstdem=min(cond(prob_dem==1,wave,.))
+
+
+xtset spid wave
+replace homebound_cat=. if nhres==1
+sort spid wave
+by spid: egen everdied=max(died_12)
+sort spid wave
+by spid: egen lw=max(wave)
+replace lw=lw+1 if everdied==1
+gen homebound=homebound==1 if !missing(homebound) & !nhres
+gen status="C" if sp_ivw==1 & !missing(homebound)
+replace status="H" if homebound==1
+replace status="N" if nhres==1
+
+
+//label define status 1 "Community, not HB" 2 "Homebound" 3 "NH resident" 4 ///
+//"Community, previously HB or NH resident"
+//label values status status
+label var status "Status this wave"
+
+
+
+sort spid wave
+gen hbw=wave if homebound==1 //homebound at what wave
+gen nhw=wave if nhres==1 // NH at what wave
+by spid, sort: egen firsthb=min(hbw) //first homebound wave for an individual
+by spid, sort: egen firstnh=min(nhw) //first NH wave for an individual
+gen everhb=!missing(firsthb) //if an individual was ever homebound
+gen evernh=!missing(firstnh) //if an individual was ever NH
+label var everhb "Ever HB"
+label var evernh "Ever NH"
+
+
+
+keep spid wave status lw everhb evernh everdied died_12
+
+reshape wide status everhb evernh everdied lw died_12, i(spid) j(wave)
+
+forvalues w=1/7{
+replace status`=`w'+1'="D" if died_12`w'==1
+}
+
+forvalues w=1/8{
+replace status`w'="." if status`w'==""
+}
+
+capture drop list
+gen list=status1+status2+status3+status4+status5+status6+status7+status8
+
+tab list
+
+forvalues w=1/7{
+tab status`w'
+tab status`=`w'+1'
+tab status`w' status`=`w'+1'
+}
+
+//then can merge this back to the original dataset 
+
+
+
+
+
+
+
 H="changelog"
 
 
@@ -18114,6 +18396,14 @@ H="changelog"
 
 
 Updates:
+12/3/2019 EBL
+------------
+Added "code looking at Medicaid," perhaps for an appendix
+
+11/20/2019 MH
+------------
+Added in new tab that gives numbers for how many from each status went into next waves status. 
+
 10/25/2019 EBL
 ------------
 Set "everdied" to zero if missing so that it's meaningful in the table 1. 

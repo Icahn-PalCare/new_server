@@ -5940,10 +5940,286 @@ ctitles("", "All Observations", "Unique people") sdec(0) ///
 note("477 People had 1+ CPT codes +/- 90 days of interview." / "Housecalls are 2+ CPT codes +/- 90 days or ivw, or 1 CPT code & NH/Death +/- 90 days of ivw." )
 
 
+H="********************"
+
+
+H="things for Bruce 12/3/19"
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\iah_wave1-7.dta", clear
+
+global output "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+local date=subinstr("$S_DATE"," ","_",.)
+
+gen homebound_part = 0
+replace homebound_part = 1 if inrange(homebound_cat,2,3)
+label var homebound_part "Partially Homebound"
+label var homebound "Completely Homebound"
+
+gen homebound_not = 0
+replace homebound_not = 1 if homebound_cat>=4
+label var homebound_not "Indepent"
+
+gen homebound_3cat = .
+replace homebound_3cat = 1 if homebound==1
+replace homebound_3cat = 2 if homebound_part==1
+replace homebound_3cat = 3 if homebound_3cat==.
+la define hblbl 1"Complete HB"2"Partial HB"3"Independent"
+la values homebound_3cat hblbl
+
+gen anyhcall = 0
+replace anyhcall = 1 if housecalls_count>=2 & housecalls_count!=.
+
+svyset spid [pw=anfinwgt], strata(varstrat)
+
+gen all = 1
+
+gen iah_rehab = 0
+replace iah_rehab = 1 if ip_rehab==1 |snf==1 |hh==1
+
+drop *jenny
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match master) nogen keepusing(*jenny)
+replace iah_adl=1 if adlcount_jenny>=2
+
+gen iah_all = 0
+replace iah_all = 1 if iah_adl==1 & iah_chronic==1 & iah_nonelect==1 & iah_rehab==1
+
+
+local r=1 
+local c=1
+mat tab=J(6,6,.)
+
+foreach x of varlist iah_nonelect iah_chronic iah_adl iah_rehab iah_all {
+	sum `x'
+	mat tab[`r',1]=r(mean)*r(N)
+	sum `x' [aw=anfinwgt]
+	mat tab[`r',2]=r(mean)*100
+	mat tab[`r',3]=r(sum)
+	egen ind_`x'=max(`x')
+	local r=`r'+1
+}
+
+preserve
+by spid, sort: egen w=max(cond(wave==year-2010,anfinwgt,0))
+keep if iah_all==1
+sort spid wave
+by spid: keep if _n==1
+*replace anfinwgt=w
+gen iah_all_u=1
+label var iah_all_u "IAH (at first wave meet all criteria)"
+
+foreach x of varlist iah_all_u {
+	sum `x'
+	mat tab[`r',1]=r(mean)*r(N)
+	sum `x' [aw=anfinwgt]
+	mat tab[`r',2]=r(mean)*100
+	mat tab[`r',3]=r(sum)
+	egen ind_`x'=max(`x')
+	local r=`r'+1
+}
+
+
+mat rownames tab= iah_nonelect iah_chronic iah_adl iah_rehab iah_all iah_all_u
+
+frmttable, statmat(tab) title("IAH") ctitles("" "N (all waves)" "%" "Pop estimate") sdec(0,2,0,0,2,0) varlabels
+
+local r=1
+mat tab=J(5,3,.)
+
+levelsof homebound_cat, local(levels)
+foreach l of local levels {
+	local lab : label homebound_cat `l'
+	gen hb`l'=homebound_cat==`l' if !missing(homebound_cat)
+	label var hb`l' "`lab'"
+	local hb `hb' hb`l'
+}
+
+foreach x of varlist `hb' hcalls {
+	sum `x'
+	mat tab[`r',`c']=r(mean)*r(N)
+	sum `x' [aw=anfinwgt]
+	mat tab[`r',`c'+1]=r(mean)*100
+	mat tab[`r',`c'+2]=r(sum)
+	local r=`r'+1
+}
+
+mat rownames tab= `hb' hcalls
+
+frmttable, statmat(tab) title("Homebound/HBMC among IAH (at first IAH meeting)") ctitles("" "N" "%" "Pop estimate") sdec(0,2,0,0,2,0) varlabels
+
+
+
+H="looking 12m after 12/3/19"
+import sas BENE_ID CLM_ID REV_CNTR using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Cumulative\inpatient_revenue_center_j_06_17.sas7bdat", case(lower) clear
+tempfile iprev
+save `iprev'
+
+use spid wave index_date bene_id using "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\iah_wave1-7.dta", clear
+
+tempfile index
+save `index'
+
+use bene_id admit_date clm_id disch_date clm_ip_admsn_type_cd ptnt_dschrg_stus_cd using"D:\NHATS\Shared\base_data\CMS_claims\Stata\ip_06_17.dta", clear
+merge 1:m bene_id clm_id using `iprev', gen(revm) keep(match master)
+gen nonel=!inlist(clm_ip_admsn_type_cd,"3")
+gen rh=inlist(ptnt_dschrg_stus_cd,"62","90") | inlist(rev_cntr,"0024")
+tempfile ip
+save `ip'
+
+forvalues i=2011/2017 {
+	use `index' if year(index_date)==`i'
+	merge 1:m bene_id using `ip', keep(match master) nogen
+	keep if inrange(admit_date,index_date,index_date+365)
+	by bene_id, sort: egen ind_adm_nonel=max(nonel)
+	by bene_id, sort: egen ind_rehab=max(rh)
+	tempfile t
+	save `t'
+	keep spid index_date wave bene_id ind_*
+	duplicates drop
+	tempfile t1
+	save `t1'
+	
+	use `t', clear
+	rename disch_date ipdisch
+	joinby bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\snf_09_17.dta"
+	keep if inrange(admit_date,ipdisch-7,ipdisch)
+	gen snfrh=1
+	keep bene_id snfrh
+	duplicates drop
+	merge 1:1 bene_id using `t1', keep(match using) nogen
+	replace ind_rehab=1 if snfrh==1
+	tempfile t`i'
+	save `t`i''
+}
+
+clear
+
+forvalues i=2011/2017 {
+	append using `t`i''
+}
+
+tempfile aft
+save `aft'
+
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\iah_wave1-7.dta", clear
+merge 1:1 spid wave using `aft', nogen
+global output "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+local date=subinstr("$S_DATE"," ","_",.)
+
+gen homebound_part = 0
+replace homebound_part = 1 if inrange(homebound_cat,2,3)
+label var homebound_part "Partially Homebound"
+label var homebound "Completely Homebound"
+
+gen homebound_not = 0
+replace homebound_not = 1 if homebound_cat>=4
+label var homebound_not "Indepent"
+
+gen homebound_3cat = .
+replace homebound_3cat = 1 if homebound==1
+replace homebound_3cat = 2 if homebound_part==1
+replace homebound_3cat = 3 if homebound_3cat==.
+la define hblbl 1"Complete HB"2"Partial HB"3"Independent"
+la values homebound_3cat hblbl
+
+gen anyhcall = 0
+replace anyhcall = 1 if housecalls_count>=2 & housecalls_count!=.
+
+svyset spid [pw=anfinwgt], strata(varstrat)
+
+gen all = 1
+
+gen iah_rehab = 0
+replace iah_rehab = 1 if ip_rehab==1 |snf==1 |hh==1
+
+drop *jenny
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match master) nogen keepusing(*jenny)
+replace iah_adl=1 if adlcount_jenny>=2
+
+gen iah_all = 0
+replace iah_all = 1 if iah_adl==1 & iah_chronic==1 & iah_nonelect==1 & iah_rehab==1
+
+//look in next year--do they meet?
+sort spid wave
+foreach x in adl chronic {
+	by spid: gen iah_`x'p1=iah_`x'[_n+1]
+	replace iah_`x'p1=iah_`x' if !inrange(index_date[_n+1],index_date,index_date+365)
+}
+
+
+by spid: gen iah_all_p12m=(iah_adl==1 | iah_adl[_n+1]==1) & (iah_chronic==1 | iah_chronic[_n+1]==1) & ind_adm_nonel==1 & ind_rehab==1
+
+gen iah_all_full_yr=iah_all==1 | iah_all_p12m==1
+
+local r=1 
+local c=1
+mat tab=J(6,6,.)
+
+foreach x of varlist iah_nonelect iah_chronic iah_adl iah_rehab iah_all {
+	sum `x'
+	mat tab[`r',1]=r(mean)*r(N)
+	sum `x' [aw=anfinwgt]
+	mat tab[`r',2]=r(mean)*100
+	mat tab[`r',3]=r(sum)
+	egen ind_`x'=max(`x')
+	local r=`r'+1
+}
+
+preserve
+by spid, sort: egen w=max(cond(wave==year-2010,anfinwgt,0))
+keep if iah_all==1
+sort spid wave
+by spid: keep if _n==1
+*replace anfinwgt=w
+gen iah_all_u=1
+label var iah_all_u "IAH (at first wave meet all criteria)"
+
+foreach x of varlist iah_all_u {
+	sum `x'
+	mat tab[`r',1]=r(mean)*r(N)
+	sum `x' [aw=anfinwgt]
+	mat tab[`r',2]=r(mean)*100
+	mat tab[`r',3]=r(sum)
+	egen ind_`x'=max(`x')
+	local r=`r'+1
+}
+
+
+mat rownames tab= iah_nonelect iah_chronic iah_adl iah_rehab iah_all iah_all_u
+
+frmttable, statmat(tab) title("IAH") ctitles("" "N (all waves)" "%" "Pop estimate") sdec(0,2,0,0,2,0) varlabels
+
+local r=1
+mat tab=J(5,3,.)
+
+levelsof homebound_cat, local(levels)
+foreach l of local levels {
+	local lab : label homebound_cat `l'
+	gen hb`l'=homebound_cat==`l' if !missing(homebound_cat)
+	label var hb`l' "`lab'"
+	local hb `hb' hb`l'
+}
+
+foreach x of varlist `hb' hcalls {
+	sum `x'
+	mat tab[`r',`c']=r(mean)*r(N)
+	sum `x' [aw=anfinwgt]
+	mat tab[`r',`c'+1]=r(mean)*100
+	mat tab[`r',`c'+2]=r(sum)
+	local r=`r'+1
+}
+
+mat rownames tab= `hb' hcalls
+
+frmttable, statmat(tab) title("Homebound/HBMC among IAH (at first IAH meeting)") ctitles("" "N" "%" "Pop estimate") sdec(0,2,0,0,2,0) varlabels
+
+restore
+svy: mean iah_all* if wave<7
+
 H="***************************"
 
 
 H="Changelog"
+12/3/2019 - Added "things for Bruce" and "looking 12m after" headers. EBL
+
 9/18/2019 - Updated 2 column table. OKR
 
 9/17/2019 - Cleaned up code to improve readability. OKR
