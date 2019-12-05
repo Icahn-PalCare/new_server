@@ -18437,3 +18437,238 @@ Cleaned some code, added notes, using whiteoth variable in tables.
 Updated for round 7 data. No new analysis done. 
 
 */
+
+H="new"
+//Part 1
+
+clear all
+set more off
+capture log close
+
+
+cd "D:\NHATS\Projects\homebound\ko_homebound_income\output\logs"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" if lml==0, clear
+
+
+//cpi inflation
+gen income_adj=0
+replace income_adj= (251.107/224.939)*aveincome if wave==1
+replace income_adj= (251.107/229.594)*aveincome if wave==2
+replace income_adj= (251.107/232.957)*aveincome if wave==3
+replace income_adj= (251.107/236.736)*aveincome if wave==4
+replace income_adj= (251.107/237.017)*aveincome if wave==5
+replace income_adj= (251.107/240.007)*aveincome if wave==6
+replace income_adj= (251.107/245.120)*aveincome if wave==7
+replace income_adj=aveincome if wave==8
+
+//replacing analytic weights to use only weights for origianl cohort. 
+//only using original cohort (decision made based off of prior analysis with replenishment cohort. 
+gen orig_weight=anfinw
+replace anfinw=an2011wgt if (year==2011 & wave==5) | (year==2011 & wave==6) | (year==2011 & wave==7) | (year==2011 & wave==8)
+drop if yearsample==2015
+/*
+//For Creating National Estimates
+replace anfinw=anfinw*5491440/4649902 if inrange(age,65,69) & female==0
+replace anfinw=anfinw*4087340/4097017 if inrange(age,70,74) & female==0
+replace anfinw=anfinw*3027820/3001146 if inrange(age,75,79) & female==0
+replace anfinw=anfinw*2169060/2173979 if inrange(age,80,84) & female==0
+replace anfinw=anfinw*1194880/1224397 if inrange(age,85,89) & female==0
+replace anfinw=anfinw*524540/463619 if inrange(age,90,150) & female==0
+
+replace anfinw=anfinw*6124980/5250466 if inrange(age,65,69) & female==1
+replace anfinw=anfinw*4781940/4843444 if inrange(age,70,74) & female==1
+replace anfinw=anfinw*3886940/3878674 if inrange(age,75,79) & female==1
+replace anfinw=anfinw*3249940/3215654 if inrange(age,80,84) & female==1
+replace anfinw=anfinw*2230480/2257969 if inrange(age,85,89) & female==1
+replace anfinw=anfinw*1382160/1329677 if inrange(age,90,150) & female==1
+*/
+
+//VARIABLE CREATION/CLEANUP
+gen ind_noone=n_social==0
+label var ind_noone "SR nobody in social network"
+
+sort spid wave
+by spid: egen firstdem=min(cond(prob_dem==1,wave,.))
+
+xtset spid wave
+replace homebound_cat=. if nhres==1
+gen homebound=homebound==1 if !missing(homebound) & !nhres
+gen status=1 if sp_ivw==1 & !missing(homebound)
+replace status=2 if homebound==1
+replace status=3 if nhres==1
+label define status 1 "Community, not HB" 2 "Homebound" 3 "NH resident" 4 ///
+"Community, previously HB or NH resident"
+label values status status
+label var status "Status this wave"
+
+sort spid wave
+by spid: egen hb_min=min(wave) if homebound==1
+gen inchb=0
+replace inchb=1 if hb_min==wave 
+
+gen wave_after_inchb=0
+by spid: replace wave_after_inchb=1 if spid[_n-1]==spid & wave[_n-1]==wave-1 & inchb[_n-1]==1
+
+sort spid wave
+gen hb_still=0
+replace hb_still=1 if hb_min[_n-1]==hb_min & spid[_n-1]==spid & hb_min!=.
+
+//hb displays all hb times. 
+gen hb=0
+replace hb=inchb
+replace hb=hb_still if hb_still==1
+
+//hb_wave displays at what wave
+sort spid wave
+by spid: gen hb_wave=_n if hb==1
+//hb time displays the time starting at 0, when incident homebound occurs. 
+gen hb_time=0 if inchb==1
+replace hb_time=hb_time[_n-1]+1 if hb_still==1
+//first no homebound after incident homebound and following wave of homebound if applicable. 
+gen first_no_hb=1 if spid==spid[_n-1] & hb_time[_n-1]!=. & hb_time==.
+//people first wave after homebound, but not accounting for missing hb status. 
+gen comm_after=0
+replace comm_after=1 if nhres==0 & first_no_hb==1
+gen nh_after =0
+replace nh_after=1 if nhres==1 & first_no_hb==1
+
+
+
+
+
+gen after_hb=0
+by spid: replace after_hb=1 if hb[_n-1]==1 | after_hb[_n-1]==1
+
+gen after_hb_non_hb=0
+replace after_hb_non_hb=1 if after_hb==1 & non_hb==1
+
+gen after_hb_nhres=0
+replace after_hb_nhres=1 if after_hb & nhres==1
+
+sort spid wave
+gen hbw=wave if homebound==1 //homebound at what wave
+gen nhw=wave if nhres==1 // NH at what wave
+by spid, sort: egen firsthb=min(hbw) //first homebound wave for an individual
+by spid, sort: egen firstnh=min(nhw) //first NH wave for an individual
+gen everhb=!missing(firsthb) //if an individual was ever homebound
+gen evernh=!missing(firstnh) //if an individual was ever NH
+label var everhb "Ever HB"
+label var evernh "Ever NH"
+*drop if firsthb==1 | missing(homebou)
+sort spid wave
+by spid: gen hbnextwave=homebound[_n+1] //flag next wave being homebound
+by spid: gen nhnextwave=nhres[_n+1] //flag next wave being NH
+gen inchbnextwave=firsthb==wave+1 & homebound==0 //flag incident homebound next wave
+gen incnhnextwave=firstnh==wave+1 & nhres==0 //flag incident NH next wave
+replace adl_diff_ind=1 if adl_impair==1
+label var adl_diff_ind "ADL difficulty or impairment"
+
+//Which group an individual ends up in
+gen wherelandgroup=1 if missing(firsthb) & missing(firstnh)
+replace wherelandgroup=2 if !missing(firsthb) 
+replace wherelandgroup=3 if !missing(firstnh) 
+replace wherelandgroup=4 if !missing(firstnh) & firsthb<firstnh
+label define wherelandgroup 1 "Never homebound or NH resident" 2 "Future HB" ///
+3 "Future NH resident" 4 "Homebound, then NH"
+label values wherelandgroup wherelandgroup
+
+//Dropping waves after first homebound/NH
+sort spid wave
+by spid: drop if firstnh<wave
+by spid: drop if firsthb<wave
+
+//ever* var needs to be changed because later waves are dropped. 
+replace everhb=0 if firsthb>firstnh
+replace evernh=0 if firsthb<firstnh 
+
+
+//finding next wave status 
+gen nwstatus=.
+forvalues i=1/7 {
+replace nwstatus=r`=`i'+1'status if wave==`i'
+}
+tab nwstat
+tab r2status
+replace nwstatus=1 if inlist(nwstatus,60,63) & !missing(hbne)
+replace nwstatus=4 if inlist(nwstatus,61)
+replace nwstatus=6 if inlist(nwstatus,62,86)
+replace nwstatus=7 if nwstatus>7
+replace nwstatus=6 if died_12==1 & nwstatus==7
+label define nwstatus 1 "Community, not homebound" 2 "Homebound, not incident" ///
+3 "Incident homebound" 4 "NH Resident, not incident" ///
+5 "Incident NH" 6 "Died" 7 "LFU"
+label values nwstatus nwstatus
+replace nwstatus=2 if hbne==1
+replace nwstatus=3 if inchb==1
+replace nwstat=4 if nhne==1
+replace nwstat=5 if incnhne==1
+label var nwstat "Status next wave"
+replace died_12=0 if nwstatus<=5
+label var died_12 "Died prior to next wave"
+
+//generating everdied, but since we don't follow people after wave 6 we don't 
+// know if they died based off NHATS data.
+sort spid wave
+capture drop everdied
+gen everdied=1 if nwstatus==6  
+gsort spid -wave
+by spid: carryforward everdied, replace 
+replace everdied=0 if missing(everdied)
+
+//same as above explanation
+capture drop everlfu
+gen everlfu=1 if nwstatus==7 & wave!=8
+by spid: carryforward everlfu, replace 
+
+sort spid wave
+/*gen northeast=region==1
+gen midwest=region==2
+gen south=region==3
+gen west=region==4
+label var northe "Northeast"
+label var midw "Midwest"
+label var south "South"
+label var west "West"*/
+gen sr_cond_cat=1 if sr_numcond<2
+replace sr_cond_cat=2 if inrange(sr_numcond,2,4)
+replace sr_cond_cat=3 if inrange(sr_numcond,5,15)
+label define sr_cond_cat 1 "0-1 SR condition" 2 "2-4 SR conditions" 3 "5+ SR conditions"
+label values sr_cond_cat sr_cond_cat
+tab sr_cond_cat, gen(sr_cond_cat)
+forvalues i=1/3 {
+local lab: label sr_cond_cat `i'
+label var sr_cond_cat`i' "`lab'"
+}
+
+
+tab wave nwstat if wave<=4, row
+tab nwsta status if wave==1 
+
+//income quartile definiton
+sum income_adj
+forvalues i=1/4 {
+gen inccat`i'=income_quart==`i'
+local lab : label income_quart `=`i''
+label var inccat`i' "Income Quartile: `lab'"
+}
+/*label define income_quart 1 "1st Income Quartile (Low)" 2 "2nd Income Quartile" ///
+3 "3rd Income Quartile" 4 "4th Income Quartile (Highest)"
+label values income_quart income_quart*/
+
+
+
+gen prob_dementia=dem_3==1 if !missing(dem_3)
+label var prob_dementia "Probable dementia"
+
+by spid, sort: gen persontime=_N
+replace persontime=firsthb if firsthb<persontime
+replace persontime=firstnh if firstnh<persontime
+label var persontime "Waves contributing information"
+gen anydebt=creditdebt==1 | medpayno==1 if !missing(creditdebt) | !missing(medpayn)
+label var anydebt "Credit card or medical debt"
+
+//important to define the last wave in community 
+sort spid wave
+by spid: egen lw=max(wave)
+replace lw=lw-1
+label var lw "Last Time in the Community"
