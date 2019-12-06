@@ -214,6 +214,12 @@ keep if count==1
 drop zipcode fips number_65up totalpop weight penetration
 
 
+H="merging in new weight for 2015 to nhats file"
+use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\raw_w1_w8.dta", clear
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_5\NHATS_Round_5_SP_File.dta", keepusing(w5an2011wgt0)
+drop _merge
+save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\raw_w1_w8.dta", replace
+
 H="****RUN BELOW EVERY TIME****"
 
 
@@ -764,7 +770,7 @@ gen sunit8= w8varunit
 gen pweight2 = w2anfinwgt0
 gen pweight3 = w3anfinwgt0
 gen pweight4 = w4anfinwgt0
-gen pweight5 = w5anfinwgt0
+gen pweight5 = w5an2011wgt0
 gen pweight6 = w6anfinwgt0
 gen pweight7 = w7anfinwgt0
 gen pweight8 = w8anfinwgt0
@@ -1109,6 +1115,25 @@ replace inanal = 1 if family_friend_resp5 ==1 & r5dresid==6
 replace inanal = 1 if family_friend_resp6 ==1 & r6dresid==6
 replace inanal = 1 if family_friend_resp7 ==1 & r7dresid==6
 replace inanal = 1 if family_friend_resp8 ==1 & r8dresid==6
+
+gen inanal_alldead= 0
+replace inanal_alldead = 1 if r2dresid==6
+replace inanal_alldead = 1 if r3dresid==6
+replace inanal_alldead = 1 if r4dresid==6
+replace inanal_alldead = 1 if r5dresid==6
+replace inanal_alldead = 1 if r6dresid==6
+replace inanal_alldead = 1 if r7dresid==6
+replace inanal_alldead = 1 if r8dresid==6
+
+
+gen inanal_butdontknow=0
+replace inanal_butdontknow = 1 if inanal_alldead==1 & (is2famrrutin ==3|is2famrrutin ==4)
+replace inanal_butdontknow = 1 if inanal_alldead==1 & (is3famrrutin ==3|is3famrrutin ==4)
+replace inanal_butdontknow = 1 if inanal_alldead==1 & (is4famrrutin ==3|is4famrrutin ==4)
+replace inanal_butdontknow = 1 if inanal_alldead==1 & (is5famrrutin ==3|is5famrrutin ==4)
+replace inanal_butdontknow = 1 if inanal_alldead==1 & (is6famrrutin ==3|is6famrrutin ==4)
+replace inanal_butdontknow = 1 if inanal_alldead==1 & (is7famrrutin ==3|is7famrrutin ==4)
+replace inanal_butdontknow = 1 if inanal_alldead==1 & (is8famrrutin ==3|is8famrrutin ==4)
 
 
 svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
@@ -1516,6 +1541,17 @@ foreach l of local levels {
 }
 label var avgma_quart "Per-year in-sample quartile of MA penetration by HRR"
 
+gen avgma_quint=.
+levelsof year, local(levels)
+foreach l of local levels {
+	xtile a=avg_MA [pw=pweight] if year==`l', nq(5)
+	replace avgma_quint=a if year==`l'
+	drop a
+}
+label var avgma_quint "Per-year in-sample quintile of MA penetration by HRR"
+
+
+
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
 
 H="build data step 5:  MA added in"
@@ -1772,10 +1808,11 @@ foreach var of varlist pd8placepre pd7placepre pd6placepre pd5placepre pd4placep
 replace placedeath=1 if `var'==1
 replace placedeath=2 if `var'==2
 replace placedeath=3 if `var'==3
-replace placedeath=4 if `var'==4 | `var'==5 | `var'==91
+replace placedeath=. if `var'==4 | `var'==5 | `var'==91
 }
-label define pd2 1 "1 home or hospice residence" 2 "2 hospital or in transit to hospital" 3 "3 nursing home" 4 "4 other/dk"
-label values  placedeath pd2
+label define pd3 1 "1 home or hospice residence" 2 "2 hospital or in transit to hospital" 3 "3 nursing home" 
+label values  placedeath pd3
+replace placedeath=. if placedeath==4
 tab placedeath 
 
 
@@ -1815,6 +1852,22 @@ foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig 
 recode sumscore (0=0)(1/9=1), gen(oneplusmsr)
 recode sumscore (0/1=0)(2/9=1), gen(twoplusmsr)
 recode sumscore (0/2=0)(3/9=1), gen(threeplusmsr)
+recode sumscore (0/3=0)(4/9=1), gen(fourplusmsr)
+recode sumscore (0=0 "0") (1=1 "1")(2=2 "2") (3/9=3 "3+"), gen(sumscore_cat)
+
+
+
+*subpop in hospice
+gen inanal_hosp=inanal
+replace inanal_hosp=0 if ind_hospice==0
+
+symptoms_always comm_always
+*lowest quartile hospice
+xtile quart_symptoms_always= symptoms_always, nq(4)
+xtile quart_comm_always=comm_always, nq(4)
+
+gen low_quart_hosp=0 if ind_hospice==1 
+replace low_quart_hosp=1 if ind_hospice==1 & (quart_symptoms_always==1 | quart_comm_always==1)
 
 		
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
@@ -1833,15 +1886,23 @@ foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig 
 		tab `var'_missing ma1 if inanal==1, column chi 
 		}
 
+		
+svy, subpop(inanal): tab threeplusmsr
+
+		
+		
 *table 1: in MA at time of death vs not
 *looking at quality variables
 svy, subpop(inanal): tab ma1
 tab ma1 if inanal==1, m
 
+
+
+
 svy, subpop(inanal): tab ma1 year, column
 
 
-svy, subpop(inanal): tab ma2, count cellwidth(15) format (%15.2g)
+svy, subpop(inanal): tab ma1, count cellwidth(15) format (%15.2g)
 
 svy, subpop(inanal): tab deathage_3cat ma1, column
 svy, subpop(inanal): tab female ma1, column
@@ -1849,7 +1910,7 @@ svy, subpop(inanal): tab race_cat ma1, column
 svy, subpop(inanal): tab income_quart ma1, column
 svy, subpop(inanal): tab medicaid_death ma1, column
 svy, subpop(inanal): tab metro_ind ma1, column
-svy, subpop(inanal): tab avgma_quart ma1, column
+svy, subpop(inanal): tab avgma_quint ma1, column
 
 svy, subpop(inanal): tab diff_get_out_bed ma1, column
 svy, subpop(inanal): tab lung_all ma1, column
@@ -1858,42 +1919,33 @@ svy, subpop(inanal): tab cancer_all ma1, column
 svy, subpop(inanal): tab prob_dem ma1, column
 
 
-*figure 1
-
+*figure 1: forest plot
 
 foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
-		qui svy, subpop(inanal): logistic `var' i.ma1,  cformat(%4.2f)
-		margins ma1
-}
-
-*table 2: association between MA and EOL outcome
-*model 1: unadjusted
-foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.ma1, cformat(%4.2f)
-}
-
-*model 2: fully adjusted
-foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed twoplusmsr {
+		recode_care_decision di_recode_informed  threeplusmsr {
 		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed year, cformat(%4.2f)
+		  diff_get_out_bed, cformat(%4.2f)
 }
 
+***for appendix
 
-*model 3: fully adjusted, exclude Medicaid
-foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+*1. testing ologit model of count of total measures low qual care
+svy, subpop(inanal): ologit sumscore_cat i.ma1 i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed, cformat(%4.2f)
+		  margins ma1
+		  
+*appendix table 2: fully adjusted, exclude Medicaid
+foreach var of varlist threeplusmsr not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed  {
 		svy, subpop(inanal_noduals): logistic `var' i.ma1 i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed year, cformat(%4.2f)
+		  diff_get_out_bed , cformat(%4.2f)
 }
 
-*appendix 3: alt MA def, fully adjusted
-foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+*appendix table 3: alt MA def, fully adjusted
+foreach var of varlist threeplusmsr not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
 		recode_care_decision di_recode_informed  {
-		svy, subpop(inanal_noduals): logistic `var' i.ma2 i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed year, cformat(%4.2f)
+		svy, subpop(inanal): logistic `var' i.ma2 i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed , cformat(%4.2f)
 }
 
 
@@ -1905,93 +1957,48 @@ foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig 
 
 *FIGURE 2
 *interaction with hospice
-svy, subpop(inanal): logistic di_recode_informed i.ma1##i.ind_hospice i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
-		  margins, dydx(ma1) over(ind_hospice)
-		  margins ma1#ind_hospice
 
-*same but with 2+markers low qual care
-svy, subpop(inanal): logistic twoplusmsr i.ma1##i.ind_hospice i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
+svy, subpop(inanal): logistic threeplusmsr i.ma1##i.ind_hospice i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed , cformat(%4.2f)
 		  margins, dydx(ma1) over(ind_hospice)
 		  margins ma1#ind_hospice		  
 		  
-/*
-svy, subpop(inanal): logistic not_excellent i.ma1##i.ind_hospice i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
-		  margins, dydx(ma1) over(ind_hospice)
-		  margins ind_hospice#ma1
-		  marginsplot
-		  
-svy, subpop(inanal): logistic recode_care_decision i.ma1##i.ind_hospice i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
-		  margins, dydx(ma1) over(ind_hospice)
-		  margins ind_hospice#ma1
-		  marginsplot
-*/		  
+*
+
 		  
 *interaction with place of death		  
-svy, subpop(inanal): logistic di_recode_informed i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death , cformat(%4.2f)
+svy, subpop(inanal): logistic threeplusmsr i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed  , cformat(%4.2f)
 		  margins, dydx(ma1) over(placedeath)
 		  margins ma1#placedeath
 		  		  margins placedeath#ma1
 
-		  marginsplot
+tab placedeath ma1 if inanal==1
 
-		  
-svy, subpop(inanal): logistic twoplusmsr i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death , cformat(%4.2f)
-		  margins, dydx(ma1) over(placedeath)
-		  margins ma1#placedeath
-		  		  margins placedeath#ma1
-
-		  marginsplot		  
-/*
-svy, subpop(inanal): logistic not_excellent i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
-		  margins, dydx(ma1) over(placedeath)
-		  margins placedeath#ma1
-		  marginsplot
-		  
-svy, subpop(inanal): logistic recode_care_decision i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
-		  margins, dydx(ma1) over(placedeath)
-		  margins placedeath#ma1
-		  marginsplot
-*/		  		  		 
-		  		  
 *interaction with regional MA penetration
-svy, subpop(inanal): logistic di_recode_informed i.ma1##c.avg_MA#c.avg_MA i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
-		  margins, dydx(ma1) at(avg_MA=(10(10)60))
-		  margins ma1, at(avg_MA=(10(10)60))
+
+		  
+		  svy, subpop(inanal): logistic threeplusmsr i.ma1##i.avgma_quint i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed, cformat(%4.2f)
+		  margins, dydx(ma1) over(avgma_quint)
+		  margins ma1#avgma_quint
 		  marginsplot
 		  
-svy, subpop(inanal): logistic twoplusmsr i.ma1##c.avg_MA#c.avg_MA i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year medicaid_death, cformat(%4.2f)
-		  margins, dydx(ma1) at(avg_MA=(10(10)60))
-		  margins ma1, at(avg_MA=(10(10)60))
-		  marginsplot
+
 
 */
 	
 *interaction with dual status
-	svy, subpop(inanal): logistic twoplusmsr i.ma1##i.medicaid_death i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year , cformat(%4.2f)
+	svy, subpop(inanal): logistic threeplusmsr i.ma1##i.medicaid_death i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed  , cformat(%4.2f)
 		  margins, dydx(ma1) over(medicaid_death)
 		  margins ma1#medicaid_death
 		  marginsplot
 
 		  *interaction with low income 
-	svy, subpop(inanal): logistic twoplusmsr i.ma1##i.lowest_inc_qrt i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year , cformat(%4.2f)
-		  margins, dydx(ma1) over(lowest_inc_qrt)
-		  margins ma1#lowest_inc_qrt
-		  marginsplot
-		  
-			svy, subpop(inanal): logistic twoplusmsr i.ma1##i.income_quart i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  year , cformat(%4.2f)
+
+			svy, subpop(inanal): logistic threeplusmsr i.ma1##i.income_quart i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed  , cformat(%4.2f)
 		  margins, dydx(ma1) over(income_quart)
 		  margins ma1#income_quart
 		  		  margins income_quart#ma1
@@ -2001,12 +2008,14 @@ svy, subpop(inanal): logistic twoplusmsr i.ma1##c.avg_MA#c.avg_MA i.deathage_3ca
 *TABLE 3	
 *looking at eol care characteristics and ma
 
+svy, subpop(inanal): tab ind_hospice ma1, column
+svy, subpop(inanal_hosp): tab hs_shortstay ma1, column
+svy, subpop(inanal_hosp): tab livedischarge ma1, column
+svy, subpop(inanal_hosp): tab low_quart_hosp ma1, column
 
-foreach var of varlist ind_hospice  livedischarge late_transition placedeath hs_shortstay {
-		svy, subpop(inanal): tab `var' ma1, column
-}
 
-foreach var of varlist perc_6orless perc_7or8 perc_9or10 symptoms_always symptoms_usually symptoms_rarenever comm_always comm_usually comm_rarenever timely_always timely_usually timely_rarenever recommend_def recommend_prob recommend_not {
+
+foreach var of varlist  symptoms_always comm_always recommend_def {
 svy, subpop(inanal): mean `var', over(ma1)
 svy, subpop(inanal): reg `var' i.ma1
 }
@@ -2022,57 +2031,10 @@ svy, subpop(inanal): mean perc_6orless, over(ma1)
 svy, subpop(inanal): mean comp_process_score, over(ma1) 	
 	svy, subpop(inanal): reg comp_process_score i.ma1 
 		
+svy, subpop(inanal): tab late_transition ma1, column
+svy, subpop(inanal): tab placedeath ma1, column
 
 	
-*interaction with hospice for family not kept informed
-qui svy, subpop(inanal): logistic di_recode_informed i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all cancer_all lung_all prob_dem ind_hospice, cformat(%4.2f)
-	margins ma1#ind_hospice
-	marginsplot	
-	
-	
-*interaction with hospice for unmet needs for sadness and anxiety
-qui svy, subpop(inanal): logistic unmet_sad i.ma1##i.ind_hospice i.deathage_3cat female i.race_cat child other_family other_friend year ///
-		income_quart metro_ind adl_impair mi_all lung_all cancer_all prob_dem ind_hospice, cformat(%4.2f)
-	margins ma1#ind_hospice
-	marginsplot	
-	
-*sensitivity analysis
-*new model 2: fully adjusted
-foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.ma2 i.deathage_3cat female child  spouse  ///
-		 year diff_get_out_bed, cformat(%4.2f)
-}
-
-
-foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.placedeath , cformat(%4.2f)
-}
-
-
-*looking at eol care characteristics and ma
-foreach var of varlist ind_hospice livedischarge late_transition placedeath {
-		svy, subpop(inanal): tab `var' ma1, column
-}
-
-*QUALITY AND SITE OF DEATH: adjusted rates and associations by site of death for each quality measure
-foreach var of varlist excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.placedeath i.deathage_3cat female child  spouse  ///
-		 year diff_get_out_bed, cformat(%4.2f)
-		 margins placedeath
-}
-
-*is quality in ma/tm different by site of death?
-foreach var of varlist excellent unmet_sad  di_recode_informed {
-		svy, subpop(inanal): logistic `var' i.placedeath##i.ma1 
-		 margins placedeath#ma1
-		 
-}
-
-
 
 *** running for Rashmi ******************
 
