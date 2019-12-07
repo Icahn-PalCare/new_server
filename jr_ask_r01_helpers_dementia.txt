@@ -16486,6 +16486,8 @@ annotate(stars) asymbol(*,**) replace
 
 
 H="graphs"
+global datapath "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\int_data"
+global final "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\final_data"
 
 use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
 sort id core_year
@@ -16508,7 +16510,7 @@ gen kidcat=kid_adult_ind+1
 replace kidcat=3 if kid_adult_nearby==1
 replace kidcat=4 if living_kids_ind==1 & kid_adult_ind==0
 
-label define kidcat 1 "No living kids" 2 "Adult kids w/in 10mi" 3 "Adult kids only >10mi" 4 "Minor living children only"
+label define kidcat 1 "No living kids" 2 "Adult kids w/in 10mi" 3 "Adult kids only >10mi" 4 "Minor living Children only"
 label values kidcat kidcat
 
 tab kidcat married if !dem_cohort, row chi2
@@ -16517,7 +16519,7 @@ tab kidcat married if dem_cohort, row chi2
 gen helpcat=married==1
 replace helpcat=2 if !married & living_kids==1
 replace helpcat=3 if !married & !living_kids_ind
-label define helpcat 1 "Married" 2 "Unmarried with living children" 3 "Unmarried w/o living children"
+label define helpcat 1 "Married" 2 "Unmarried with living Children" 3 "Unmarried w/o living Children"
 label values helpcat helpcat
 replace helpcat=. if nflag!=1
 by id, sort: egen hc=max(helpcat)
@@ -16528,9 +16530,10 @@ merge 1:1 id using `core', keep(match master) nogen
 
 
 
-keep id  hlp_*y* dem_cohort ///
+keep id  hlp_*_y* dem_cohort ///
 reschil_d_n1 married_or_part helpcat nhres_n1
 
+drop hlp_f_*
 foreach x in _i _s _ns _k _oth {
 	rename hlp`x'_y* hlp`x'*
 }
@@ -16552,7 +16555,7 @@ i(id) j(year_before_death)
 
 replace year=-year+11
 
-label define year 1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1"
+label define year 1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10  "0-1"
 label values year year
 
 foreach x in "" cum {
@@ -16566,7 +16569,7 @@ nh cumnh {
 }
 
 
-foreach x in cum annu {
+foreach x in annu {
 preserve
 collapse (mean) hlp* cumhlp* ///
 nh cumnh (semean) `se', by(dem_cohort year_before_death)
@@ -16574,14 +16577,14 @@ nh cumnh (semean) `se', by(dem_cohort year_before_death)
 rename (hlp*) (annuhlp* )
 
 	twoway (connected `x'hlp_s year if dem_cohort==0) (connected `x'hlp_ns year if dem_cohort==0), ///
-	legend(label(1 "Spouses") label(2 "Other informal helpers")) xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Other informal helpers")) xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_no_dem, replace) title("No Dementia")
 
 	twoway (connected `x'hlp_s year if dem_cohort==1) (connected `x'hlp_ns year if dem_cohort==1), ///
-	legend(label(1 "Spouses") label(2 "Other informal helpers")) xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Other informal helpers")) xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_dem, replace) title("Dementia")
 
-	graph combine `x'_no_dem `x'_dem, ycommon
+	graph combine `x'_no_dem `x'_dem, ycommon xsize(8) ysize(4)
 	graph save hlp_hours_by_type_basic.gph, replace
 	graph export `x'_hlp_hours_by_type_2_cat.pdf, replace
 
@@ -16590,34 +16593,37 @@ rename (hlp*) (annuhlp* )
 
 	twoway (connected `x'hlp_s year if dem_cohort==0) (connected `x'hlp_k year if dem_cohort==0) ///
 	(connected `x'hlp_oth year if dem_cohort==0), ///
-	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers")) ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Children") label(3 "Other informal helpers")) ///
 	xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_no_dem, replace) title("No Dementia")
 
 	twoway (connected `x'hlp_s year if dem_cohort==1) (connected `x'hlp_k year if dem_cohort==1) ///
 	(connected `x'hlp_oth year if dem_cohort==1), ///
-	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers")) ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Children") label(3 "Other informal helpers")) ///
 	xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_dem, replace) title("Dementia")
 
-	graph combine `x'_no_dem `x'_dem, ycommon
-	graph save hlp_hours_by_type_kids.gph, replace
+	graph combine `x'_no_dem `x'_dem, ycommon  xsize(8) ysize(4)
+	graph save hlp_hours_by_type_Children.gph, replace
 	graph export `x'_hlp_hours_by_type_3_cat.pdf, replace
 
 
 
 
-drop *se_* *hlp_f*
+drop *se_* cum* *hlp_f*
 
-foreach y in annu cum {
+foreach y in annu {
 
 label var `y'hlp "`y' Help from informal sources"
 label var `y'hlp_s "`y' Help from spouse"
-label var `y'hlp_k "`y' Help from kids"
+label var `y'hlp_k "`y' Help from Children"
 label var `y'hlp_ns "`y' Non-spouse help"
 label var `y'hlp_oth "`y' Non-spouse, non-kid help"
 }
 keep *hlp* year dem_cohort
+
+sort dem_cohort year
+
 export excel using ///
 "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\graphs_data_helper_hours`c(current_date)'.xls", ///
 firstrow(varlabels) sheet(full, replace) 
@@ -16631,20 +16637,20 @@ rename (hlp*) (annuhlp* )
 	twoway (connected `x'hlp_s year if dem_cohort==0 & helpcat==2) ///
 	(connected `x'hlp_k year if dem_cohort==0 & helpcat==2) ///
 	(connected `x'hlp_oth year if dem_cohort==0 & helpcat==2), ///
-	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers")) ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Children") label(3 "Other informal helpers")) ///
 	xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_no_dem, replace) title("No Dementia")
 
 	twoway (connected `x'hlp_s year if dem_cohort==1 & helpcat==2) ///
 	(connected `x'hlp_k year if dem_cohort==1 & helpcat==2) ///
 	(connected `x'hlp_oth year if dem_cohort==1 & helpcat==2), ///
-	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers")) ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Children") label(3 "Other informal helpers")) ///
 	xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_dem, replace) title("Dementia")
 
-	graph combine `x'_no_dem `x'_dem, ycommon
-	graph save hlp_hours_by_type_unmarried_kids.gph, replace
-	graph export `x'_hlp_hours_by_type_unmarried_kids.pdf, replace
+	graph combine `x'_no_dem `x'_dem, ycommon  xsize(8) ysize(4)
+	graph save hlp_hours_by_type_unmarried_Children.gph, replace
+	graph export `x'_hlp_hours_by_type_unmarried_Children.pdf, replace
 
 restore
 preserve
@@ -16655,33 +16661,34 @@ rename (hlp*) (annuhlp* )
 	twoway (connected `x'hlp_s year if dem_cohort==0 & helpcat==3) ///
 	(connected `x'hlp_k year if dem_cohort==0 & helpcat==3) ///
 	(connected `x'hlp_oth year if dem_cohort==0 & helpcat==3), ///
-	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers")) ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Children") label(3 "Other informal helpers")) ///
 	xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_no_dem, replace) title("No Dementia")
 
 	twoway (connected `x'hlp_s year if dem_cohort==1 & helpcat==3) ///
 	(connected `x'hlp_k year if dem_cohort==1 & helpcat==3) ///
 	(connected `x'hlp_oth year if dem_cohort==1 & helpcat==3), ///
-	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers")) ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Children") label(3 "Other informal helpers")) ///
 	xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_dem, replace) title("Dementia")
 
-	graph combine `x'_no_dem `x'_dem, ycommon
-	graph save hlp_hours_by_type_unmarried_no_kids.gph, replace
-	graph export `x'_hlp_hours_by_type_unmarried_no_kids.pdf, replace
+	graph combine `x'_no_dem `x'_dem, ycommon  xsize(8) ysize(4)
+	graph save hlp_hours_by_type_unmarried_no_Children.gph, replace
+	graph export `x'_hlp_hours_by_type_unmarried_no_Children.pdf, replace
 
 	
-drop *se_* *hlp_f*
+drop *se_* cum* *hlp_f*
 
-foreach y in annu cum {
+foreach y in annu {
 
 label var `y'hlp "`y' Help from informal sources"
 label var `y'hlp_s "`y' Help from spouse"
-label var `y'hlp_k "`y' Help from kids"
+label var `y'hlp_k "`y' Help from Children"
 label var `y'hlp_ns "`y' Non-spouse help"
 label var `y'hlp_oth "`y' Non-spouse, non-kid help"
 }
 keep *hlp* year dem_cohort helpcat
+sort helpcat dem_cohort year
 export excel using ///
 "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\graphs_data_helper_hours`c(current_date)'.xls", ///
 firstrow(varlabels) sheet(3_categories, replace) 
@@ -16696,36 +16703,37 @@ rename (hlp*) (annuhlp* )
 
 	twoway (connected `x'hlp_s year if dem_cohort==0 & married==1) (connected `x'hlp_k year if dem_cohort==0 & married_or==1) ///
 	(connected `x'hlp_oth year if dem_cohort==0 & married_or==1), ///
-	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers")) ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Children") label(3 "Other informal helpers")) ///
 	xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_no_dem, replace) title("No Dementia")
 
 	twoway (connected `x'hlp_s year if dem_cohort==1 & married==1) ///
 	(connected `x'hlp_k year if dem_cohort==1 & married_or==1) ///
 	(connected `x'hlp_oth year if dem_cohort==1 & married_or==1), ///
-	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers"))  ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Children") label(3 "Other informal helpers"))  ///
 	xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_dem, replace) title("Dementia")
 
-	graph combine `x'_no_dem `x'_dem, ycommon
+	graph combine `x'_no_dem `x'_dem, ycommon  xsize(8) ysize(4)
 	graph save hlp_hours_by_type_married.gph, replace
 	graph export `x'_hlp_hours_by_type_married.pdf, replace	
 
 
-drop *se_* *hlp_f*
+drop *se_* cum* *hlp_f*
 
-foreach y in annu cum {
+foreach y in annu {
 
 label var `y'hlp "`y' Help from informal sources"
 label var `y'hlp_s "`y' Help from spouse"
-label var `y'hlp_k "`y' Help from kids"
+label var `y'hlp_k "`y' Help from Children"
 label var `y'hlp_ns "`y' Non-spouse help"
 label var `y'hlp_oth "`y' Non-spouse, non-kid help"
 }
 keep *hlp* year dem_cohort married_or
-export excel using ///
-"D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\graphs_data_helper_hours`c(current_date)'.xls", ///
-firstrow(varlabels) sheet(marital, replace) 
+
+*export excel using ///
+*"D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\graphs_data_helper_hours`c(current_date)'.xls", ///
+*firstrow(varlabels) sheet(marital, replace) 
 
 
 
@@ -16740,32 +16748,33 @@ rename (hlp*) (annuhlp* )
 
 	twoway (connected `x'hlp_s year if dem_cohort==0 & nhres_n1==1) (connected `x'hlp_k year if dem_cohort==0 & nhres_n1==1) ///
 	(connected `x'hlp_oth year if dem_cohort==0 & nhres_n1==1), ///
-	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers")) ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Children") label(3 "Other informal helpers")) ///
 	xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_no_dem, replace) title("No Dementia")
 
 	twoway (connected `x'hlp_s year if dem_cohort==1 & nhres_n1==1) ///
 	(connected `x'hlp_k year if dem_cohort==1 & nhres_n1==1) ///
 	(connected `x'hlp_oth year if dem_cohort==1 & nhres_n1==1), ///
-	legend(label(1 "Spouses") label(2 "Kids") label(3 "Other informal helpers"))  ///
+	ytitle(Hours of caregiving per year) xtitle(Year before death) legend(label(1 "Spouses") label(2 "Children") label(3 "Other informal helpers"))  ///
 	xlabel(1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10 "0-1")  ///
 	name(`x'_dem, replace) title("Dementia")
 
-	graph combine `x'_no_dem `x'_dem, ycommon
+	graph combine `x'_no_dem `x'_dem, ycommon  xsize(8) ysize(4) 
 	graph save hlp_hours_by_type_nhres.gph, replace
 	graph export `x'_hlp_hours_by_type_nhres.pdf, replace	
 
 
-drop *se_* *hlp_f*
+drop *se_* cum* *hlp_f*
 
-foreach y in annu cum {
+foreach y in annu {
 
 label var `y'hlp "`y' Help from informal sources"
 label var `y'hlp_s "`y' Help from spouse"
-label var `y'hlp_k "`y' Help from kids"
+label var `y'hlp_k "`y' Help from Children"
 label var `y'hlp_ns "`y' Non-spouse help"
 label var `y'hlp_oth "`y' Non-spouse, non-kid help"
 }
+sort nhres_n1 dem_cohort year
 keep *hlp* year dem_cohort nhres_n1
 export excel using ///
 "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\graphs_data_helper_hours`c(current_date)'.xls", ///

@@ -1,0 +1,173 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="First Heading"
+/* 
+********************HEADING******************** 
+
+Project Name: Homebound Trajectories
+
+Date Started: 12/4/2019
+
+Primary Investigator: Katherine Ornstein
+Funding Source:
+
+Created by: MH
+
+Primary Analyst: MH
+Secondary Analyst: EBL
+
+Datasets Used: NHATS
+
+Simple Outline: Using NHATS data to further homebound R01. Using homebound and income idea, we look at what happens after the incident homebound stay. 
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+
+//Intermediate Data Path
+//global intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+global datapath "D:\NHATS\Shared\base_data\NHATS cleaned"
+
+//Log files path
+global logpath "D:\NHATS\Projects\homebound\ko_homebound_income\output\logs"
+
+
+H="Generic template"
+/*
+
+Created by: MH
+Date Created: 12/5/2019
+
+Updated by:
+Date Updated:
+
+Description: Inital data setup for homebound trajectories we are following people 
+homebound status. 
+
+
+
+**************************************************
+*/
+local date = subinstr("$S_DATE"," ","_",.) 
+local name ko_hb_traj_`date'
+di "`name'"
+
+capture log close 
+clear all
+
+set more off
+version 12
+set linesize 80
+
+
+cd ${logpath}
+log using `name'.smcl, text replace
+
+********
+
+use "${datapath}\sp_round_1_8.dta" if lml==0, clear
+
+
+//cpi inflation
+gen income_adj=0
+replace income_adj= (251.107/224.939)*aveincome if wave==1
+replace income_adj= (251.107/229.594)*aveincome if wave==2
+replace income_adj= (251.107/232.957)*aveincome if wave==3
+replace income_adj= (251.107/236.736)*aveincome if wave==4
+replace income_adj= (251.107/237.017)*aveincome if wave==5
+replace income_adj= (251.107/240.007)*aveincome if wave==6
+replace income_adj= (251.107/245.120)*aveincome if wave==7
+replace income_adj=aveincome if wave==8
+
+//replacing analytic weights to use only weights for origianl cohort. 
+//only using original cohort (decision made based off of prior analysis with replenishment cohort. 
+gen orig_weight=anfinw
+replace anfinw=an2011wgt if (year==2011 & wave==5) | (year==2011 & wave==6) | (year==2011 & wave==7) | (year==2011 & wave==8)
+drop if yearsample==2015
+
+
+
+//VARIABLE CREATION/CLEANUP
+gen ind_noone=n_social==0
+label var ind_noone "SR nobody in social network"
+
+sort spid wave
+by spid: egen firstdem=min(cond(prob_dem==1,wave,.))
+
+xtset spid wave
+replace homebound_cat=. if nhres==1
+gen homebound=homebound==1 if !missing(homebound) & !nhres
+gen status=1 if sp_ivw==1 & !missing(homebound)
+replace status=2 if homebound==1
+replace status=3 if nhres==1
+label define status 1 "Community, not HB" 2 "Homebound" 3 "NH resident" 4 ///
+"Community, previously HB or NH resident"
+label values status status
+label var status "Status this wave"
+
+sort spid wave
+by spid: egen hb_min=min(wave) if homebound==1
+gen inchb=0
+replace inchb=1 if hb_min==wave 
+
+by spid: egen ever_hb=max(hb)
+
+//Looking at the wave right after incident homebound.
+gen wave_after_inchb=0
+by spid: replace wave_after_inchb=1 if spid[_n+1]==spid & wave[_n+1]==wave+1 & inchb==1
+
+gen next_wave_com=0
+replace next_wave_com=1 if wave_after_inchb==1 & spid==spid[_n+1] & homebound[_n+1]!=1 & nhres[_n+1]==0 & died_12==0 
+
+gen next_wave_hb=0
+replace next_wave_hb=1 if wave_after_inchb==1 & spid==spid[_n+1] & homebound[_n+1]==1 & nhres[_n+1]==0 & died_12==0  
+
+gen next_wave_nhres=0
+replace next_wave_nhres=1 if wave_after_inchb==1 & spid==spid[_n+1] & homebound[_n+1]!=1 & nhres[_n+1]==1 & died_12==0 
+
+gen next_wave_lfu=0
+replace next_wave_lfu=1 if inchb==1 & wave_after_inchb==0 & died_12==0 & spid!=spid[_n+1]
+
+gen wave_after=0
+replace wave_after=1 if wave_after_inchb==1
+
+gen wave_after_inchb1=0
+replace wave_after_inchb1=1 if spid==spid[_n-1] & wave_after_inchb[_n-1]==1 & inchb[_n-1]==1
+
+tab wave_after_inchb1 help_go_out if next_wave_com[_n-1]==1
+
+gen diff_help_out=0
+replace diff_help_out=1 if hasdifficulty==1 | needshelp==1
+
+
+
+
+
+log close
+translate `name'.smcl `name'.pdf
+exit
+
+
+
+H="Change log"
+
+
+********************Change Log******************** 
+
+
+
+Updates:
+
+
+
+12/5/2019 MH
+------------
+Working on trajectories and creating varaibles to see what happens to a person after their incident homebound wave. 
+
+
+
+*/
