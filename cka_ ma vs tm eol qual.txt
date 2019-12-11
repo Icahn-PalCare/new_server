@@ -1810,7 +1810,6 @@ replace placedeath=2 if `var'==2
 replace placedeath=3 if `var'==3
 replace placedeath=. if `var'==4 | `var'==5 | `var'==91
 }
-label define pd3 1 "1 home or hospice residence" 2 "2 hospital or in transit to hospital" 3 "3 nursing home" 
 label values  placedeath pd3
 replace placedeath=. if placedeath==4
 tab placedeath 
@@ -1861,7 +1860,6 @@ recode sumscore (0=0 "0") (1=1 "1")(2=2 "2") (3/9=3 "3+"), gen(sumscore_cat)
 gen inanal_hosp=inanal
 replace inanal_hosp=0 if ind_hospice==0
 
-symptoms_always comm_always
 *lowest quartile hospice
 xtile quart_symptoms_always= symptoms_always, nq(4)
 xtile quart_comm_always=comm_always, nq(4)
@@ -1880,26 +1878,11 @@ use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data
 
 svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
 
-*APPENDIX TABLE OF MISSING DATA
-foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed {
-		tab `var'_missing ma1 if inanal==1, column chi 
-		}
-
-		
-svy, subpop(inanal): tab threeplusmsr
-
-		
 		
 *table 1: in MA at time of death vs not
 *looking at quality variables
 svy, subpop(inanal): tab ma1
 tab ma1 if inanal==1, m
-
-
-
-
-svy, subpop(inanal): tab ma1 year, column
 
 
 svy, subpop(inanal): tab ma1, count cellwidth(15) format (%15.2g)
@@ -1973,7 +1956,6 @@ svy, subpop(inanal): logistic threeplusmsr i.ma1##i.placedeath i.deathage_3cat f
 		  margins ma1#placedeath
 		  		  margins placedeath#ma1
 
-tab placedeath ma1 if inanal==1
 
 *interaction with regional MA penetration
 
@@ -2016,392 +1998,19 @@ svy, subpop(inanal_hosp): tab low_quart_hosp ma1, column
 
 
 foreach var of varlist  symptoms_always comm_always recommend_def {
-svy, subpop(inanal): mean `var', over(ma1)
-svy, subpop(inanal): reg `var' i.ma1
+svy, subpop(inanal_hosp): mean `var', over(ma1)
+svy, subpop(inanal_hosp): reg `var' i.ma1
 }
 	
-svy, subpop(inanal): mean perc_9or10, over(ma1) 	
-	svy, subpop(inanal): reg perc_9or10 i.ma1 
-svy, subpop(inanal): mean perc_7or8, over(ma1) 	
-	svy, subpop(inanal): reg perc_7or8 i.ma1 
-svy, subpop(inanal): mean perc_6orless, over(ma1) 	
-	svy, subpop(inanal): reg perc_6orless i.ma1 
-		
+
 	
-svy, subpop(inanal): mean comp_process_score, over(ma1) 	
-	svy, subpop(inanal): reg comp_process_score i.ma1 
+svy, subpop(inanal_hosp): mean comp_process_score, over(ma1) 	
+	svy, subpop(inanal_hosp): reg comp_process_score i.ma1 
 		
 svy, subpop(inanal): tab late_transition ma1, column
 svy, subpop(inanal): tab placedeath ma1, column
 
 	
-
-*** running for Rashmi ******************
-
-svy linearized, subpop(inanal if inanal==1) : logit excellent mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend, or 
-svy linearized, subpop(inanal if inanal==1) : ologit recode_overall_rate diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child i.wave_nhat, or 
-svy linearized, subpop(inanal if inanal==1) : logit excellent mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend, or 
- 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_pain mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_bre mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_sad mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_relig mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend, or 
-svy linearized, subpop(inanal if inanal==1) : logit di_recode_always_respect mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend, or 
-svy linearized, subpop(inanal if inanal==1) : logit recode_care_decision mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend, or 
-svy linearized, subpop(inanal if inanal==1) : logit recode_care_decision2 mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend, or 
-
-************ bivariates on B and hispanic 
-
-
-svy linearized, subpop(inanal if inanal==1) : tabulate resp_sex white, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate age_85 white, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate hispanic  white, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate other_race white, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate child white, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate other_family white, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate other_friend white, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate spouse white, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate recode_cancer white, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate diff_get_out_bed white, cell column row pearson
-
-
-
-tab resp_sex white if inanal==1, row col 
-tab age_85 white if inanal==1, row col 
-tab white white if inanal==1, row col 
-tab black  white if inanal==1, row col 
-tab hispanic white if inanal==1, row col 
-tab other_race white if inanal==1, row col
-tab child white if inanal==1, row col
-tab other_family  white if inanal==1, row col 
-tab other_friend white if inanal==1, row col
-tab spouse white if inanal==1, row col
-tab recode_cancer white if inanal==1, row col 
-tab diff_get_out_bed white if inanal==1, row col 
-
-
-svy linearized, subpop(inanal if inanal==1) : tabulate resp_sex black, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate age_85 black, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate hispanic  black, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate other_race black, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate child black, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate other_family black, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate other_friend black, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate spouse black, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate recode_cancer black, cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate diff_get_out_bed black, cell column row pearson
-
-
-
-tab resp_sex black if inanal==1, row col 
-tab age_85 black if inanal==1, row col 
-tab black black if inanal==1, row col 
-tab black  black if inanal==1, row col 
-tab hispanic black if inanal==1, row col 
-tab other_race black if inanal==1, row col
-tab child black if inanal==1, row col
-tab other_family  black if inanal==1, row col 
-tab other_friend black if inanal==1, row col
-tab spouse black if inanal==1, row col
-tab recode_cancer black if inanal==1, row col 
-tab diff_get_out_bed black if inanal==1, row col 
-
-
-svy linearized, subpop(inanal if inanal==1) : tabulate resp_sex hispanic , cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate age_85 hispanic , cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate hispanic  hispanic , cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate other_race hispanic , cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate child hispanic , cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate other_family hispanic , cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate other_friend hispanic , cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate spouse hispanic , cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate recode_cancer hispanic , cell column row pearson
-svy linearized, subpop(inanal if inanal==1) : tabulate diff_get_out_bed hispanic , cell column row pearson
-
-
-
-tab resp_sex hispanic  if inanal==1, row col 
-tab age_85 hispanic  if inanal==1, row col 
-tab other_race hispanic  if inanal==1, row col
-tab child hispanic  if inanal==1, row col
-tab other_family  hispanic  if inanal==1, row col 
-tab other_friend hispanic  if inanal==1, row col
-tab spouse hispanic  if inanal==1, row col
-tab recode_cancer hispanic  if inanal==1, row col 
-tab diff_get_out_bed hispanic  if inanal==1, row col 
-
-********* outcome analysis ************************************
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_pain white, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_bre white, cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_sad white, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_relig white, cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_pain white, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_bre white, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_sad white, cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_always_respect white, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_care_decision white, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_overall_rate white, cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_care_notwant white, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_informed white, cell column row pearson
-
-tab unmet_pain white if inanal==1, row col 
-tab unmet_bre white if inanal==1, row col 
-
-tab unmet_sad white if inanal==1, row col 
-tab unmet_relig white if inanal==1, row col 
-
-tab recode_had_pain white if inanal==1, row col 
-tab recode_had_bre white if inanal==1, row col
-tab recode_had_sad white if inanal==1, row col
-
-
-tab di_recode_always_respect white if inanal==1, row col 
-tab recode_care_decision white if inanal==1, row col
-tab recode_overall_rate white if inanal==1, row col
-
-tab recode_care_notwant white if inanal==1, row col
-tab di_recode_informed white if inanal==1, row col
-
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_pain black, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_bre black, cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_sad black, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_relig black, cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_pain black, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_bre black, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_sad black, cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_always_respect black, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_care_decision black, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_overall_rate black, cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_care_notwant black, cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_informed black, cell column row pearson
-
-tab unmet_pain black if inanal==1, row col 
-tab unmet_bre black if inanal==1, row col 
-
-tab unmet_sad black if inanal==1, row col 
-tab unmet_relig black if inanal==1, row col 
-
-tab recode_had_pain black if inanal==1, row col 
-tab recode_had_bre black if inanal==1, row col
-tab recode_had_sad black if inanal==1, row col
-
-
-tab di_recode_always_respect black if inanal==1, row col 
-tab recode_care_decision black if inanal==1, row col
-tab recode_overall_rate black if inanal==1, row col
-
-tab recode_care_notwant black if inanal==1, row col
-tab di_recode_informed black if inanal==1, row col
-
-
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_pain hispanic , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_bre hispanic , cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_sad hispanic , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_relig hispanic , cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_pain hispanic , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_bre hispanic , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_sad hispanic , cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_always_respect hispanic , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_care_decision hispanic , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_overall_rate hispanic , cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_care_notwant hispanic , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_informed hispanic , cell column row pearson
-
-tab unmet_pain hispanic  if inanal==1, row col 
-tab unmet_bre hispanic  if inanal==1, row col 
-
-tab unmet_sad hispanic  if inanal==1, row col 
-tab unmet_relig hispanic  if inanal==1, row col 
-
-tab recode_had_pain hispanic  if inanal==1, row col 
-tab recode_had_bre hispanic  if inanal==1, row col
-tab recode_had_sad hispanic  if inanal==1, row col
-
-
-tab di_recode_always_respect hispanic  if inanal==1, row col 
-tab recode_care_decision hispanic  if inanal==1, row col
-tab recode_overall_rate hispanic  if inanal==1, row col
-
-tab recode_care_notwant hispanic  if inanal==1, row col
-tab di_recode_informed hispanic  if inanal==1, row col
-
-***8 Need to recode the 3 on recode_care_decision 
-
-gen recode_care_decision2 = recode_care_decision 
-recode recode_care_decision2 (3=.)  
-
-************** multivariate ******************************
-svy linearized, subpop(inanal if inanal==1) : ologit recode_overall_rate recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4 , or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_pain recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_bre recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_sad recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4, or 
-svy linearized, subpop(inanal if inanal==1) : logit di_recode_always_respect recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4 , or 
-svy linearized, subpop(inanal if inanal==1) : logit recode_care_decision recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4 , or 
-svy linearized, subpop(inanal if inanal==1) : logit excellent recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4, or 
-svy linearized, subpop(inanal if inanal==1) : logit recode_care_notwant recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4, or 
-svy linearized, subpop(inanal if inanal==1) : logit di_recode_informed recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_relig recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4, or 
-
-
-
-svy linearized, subpop(inanal if inanal==1) : logit di_recode_informed 
-
-recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child wave_nhat3  wave_nhat4, or 
-
-
-svy linearized, subpop(inanal if inanal==1) : ologit recode_overall_rate recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child , or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_pain recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child , or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_bre recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child , or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_sad recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child , or 
-svy linearized, subpop(inanal if inanal==1) : logit di_recode_always_respect recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child , or 
-svy linearized, subpop(inanal if inanal==1) : logit recode_care_decision recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child , or 
-svy linearized, subpop(inanal if inanal==1) : logit excellent recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child , or 
-svy linearized, subpop(inanal if inanal==1) : logit recode_care_notwant recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child , or 
-svy linearized, subpop(inanal if inanal==1) : logit di_recode_informed recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child , or 
-
-xi: logit excellent recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 child other_family other_friend hosp_last_month  if inanal==1, or 
-
-********** Now looking at Transition 
-
-is4famrrutin
-
-tab pd4stayunit
-
-tab pd4staydays
-
- R4 PD4A LENGTH |
-   OF STAY DAYS |      Freq.     Percent        Cum.
-----------------+-----------------------------------
--1 Inapplicable |      4,629       97.72       97.72
-              1 |         44        0.93       98.65
-              2 |         10        0.21       98.86
-              3 |         12        0.25       99.11
-              4 |         11        0.23       99.35
-              5 |          6        0.13       99.47
-              6 |          3        0.06       99.54
-              7 |          7        0.15       99.68
-              8 |          2        0.04       99.73
-              9 |          3        0.06       99.79
-             10 |          3        0.06       99.85
-             11 |          3        0.06       99.92
-             16 |          1        0.02       99.94
-             20 |          1        0.02       99.96
-             28 |          1        0.02       99.98
-            200 |          1        0.02      100.00
-----------------+-----------------------------------
-          Total |      4,737      100.00
-
-
-gen los_last_place = -1
-replace los_last_place = pd2staydays if r2dresid==6 
-replace los_last_place = pd3staydays if r3dresid==6
-replace los_last_place = pd4staydays if r4dresid==6
-replace los_last_place = pd5staydays if r5dresid==6
-replace los_last_place = pd6staydays if r6dresid==6
-
-replace los_last_place = -2 if pd2stayunit >=2 & pd2stayunit <=4
-replace los_last_place = -2 if pd3stayunit >=2 & pd3stayunit <=4
-replace los_last_place = -2 if pd4stayunit >=2 & pd4stayunit <=4
-replace los_last_place = -2 if pd5stayunit >=2 & pd5stayunit <=4
-replace los_last_place = -2 if pd6stayunit >=2 & pd6stayunit <=4
-
-**Generate late_transition variable from those who had been in place of death <= 3 days (length of stay last place)
-** and who had documented where they were before. 
-**Note, we do not placepre info on people who died at home
-
-gen late_transition = 0 if r2dresid ==6| r3dresid ==6| r4dresid ==6| r5dresid ==6| r6dresid ==6 
-replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd4placepre >0 &  pd4placepre <=91) 
-replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd3placepre >0 &  pd3placepre <=91) 
-replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd2placepre >0 &  pd2placepre <=91) 
-replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd5placepre >0 &  pd5placepre <=91) 
-replace late_transition = 1 if (los_last_place >=1 & los_last_place <=3) & ( pd6placepre >0 &  pd6placepre <=91) 
-
-
-svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
-
-recode recode_care_decision2 (1=1) (2=0)
-recode recode_care_notwant (1=1) (2=0) 
-
-*** Multivariate ******************
-gen wave_nhat2 = 0 
-replace wave_nhat2 =1 if wave_nhat==2
-
-gen wave_nhat3= 0
-replace wave_nhat3 =1 if wave_nhat==3 
-
-gen wave_nhat4= 0
-replace wave_nhat4 =1 if wave_nhat==4 
-
-gen wave_nhat5=0
-replace wave_nhat5 =1 if wave_nhat==5
-
-gen wave_nhat6=0
-replace wave_nhat6 =1 if wave_nhat==6
-
-svy linearized, subpop(inanal if inanal==1) : logit excellent mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-svy linearized, subpop(inanal if inanal==1) : ologit recode_overall_rate mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-tab late_transition recode_overall_rate, row col chi 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_pain mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_bre mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_sad mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-svy linearized, subpop(inanal if inanal==1) : logit di_recode_always_respect mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-
-svy linearized, subpop(inanal if inanal==1) : logit unmet_pain mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-tab unmet_pain
-tab recode_care_decision2
-recode recode_care_decision2 (1=1) (2=0)
-tab recode_care_notwant
-recode recode_care_decision2 (1=1) (2=0)
-recode recode_care_notwant (1=1) (2=0) 
-svy linearized, subpop(inanal if inanal==1) : logit recode_care_notwant mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-svy linearized, subpop(inanal if inanal==1) : logit recode_care_decision2 mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-svy linearized, subpop(inanal if inanal==1) : ologit recode_overall_rate recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition wave_nhat3 wave_nhat2 , or 
-
-svy linearized, subpop(inanal if inanal==1) : logit unmet_pain recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition wave_nhat3 wave_nhat2 , or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_bre recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition wave_nhat3 wave_nhat2, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_sad recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child  late_transition wave_nhat3 wave_nhat2, or 
-svy linearized, subpop(inanal if inanal==1) : logit di_recode_always_respect recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition wave_nhat3 wave_nhat2, or 
-svy linearized, subpop(inanal if inanal==1) : logit recode_care_decision recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition wave_nhat3 wave_nhat2, or 
-svy linearized, subpop(inanal if inanal==1) : logit excellent recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition wave_nhat3 wave_nhat2, or 
-svy linearized, subpop(inanal if inanal==1) : logit recode_care_notwant recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition wave_nhat3 wave_nhat2, or 
-svy linearized, subpop(inanal if inanal==1) : logit di_recode_informed recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition wave_nhat3 wave_nhat2, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_relig recode_cancer diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition wave_nhat3 wave_nhat2, or 
-svy linearized, subpop(inanal if inanal==1) : logit unmet_relig mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-svy linearized, subpop(inanal if inanal==1) : logit di_recode_informed mi_all dm_all lung_all cva_all dementia_all cancer_all i.wave_nhat  diff_get_out_bed black hispanic age_cat1 age_cat2 age_cat3 age_cat4 age_cat5 spouse child late_transition, or 
-
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_pain late_transition , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_bre late_transition , cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_sad late_transition , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate unmet_relig late_transition , cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_pain late_transition , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_bre late_transition , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_had_sad late_transition , cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_always_respect late_transition , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_care_decision late_transition , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_overall_rate late_transition , cell column row pearson
-
-svy linearized, subpop(inanal  if inanal ==1) : tabulate recode_care_notwant late_transition , cell column row pearson
-svy linearized, subpop(inanal  if inanal ==1) : tabulate di_recode_informed late_transition , cell column row pearson
-
-
 
 H="Change log"
 
