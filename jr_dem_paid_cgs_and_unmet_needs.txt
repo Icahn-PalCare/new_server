@@ -167,7 +167,7 @@ egen nontoil_mismatch=rowmax(eat_mismatch insd_mismatch bed_mismatch dres_mismat
 egen noninsd_mismatch=rowmax(eat_mismatch toil_mismatch bed_mismatch dres_mismatch bath_mismatch laun_mismatch shop_mismatch meal_mismatch bank_mismatch out_mismatch)
 
 label var nontoil_mismatch "Mismatch on any non-toileting ADL or IADL"
-label var nontoil_mismatch "Mismatch on any non-inside ADL or IADL"
+label var noninsd_mismatch "Mismatch on any non-inside ADL or IADL"
 egen sc_jenny=rowmax(eat_j toil_j insd_j bath_j)
 egen hh_jenny=rowmax(laun_j shop_j meal_j bank_j)
 egen mob_jenny=rowmax(insd_j out_j bed_j)
@@ -208,6 +208,12 @@ foreach x in sc hh mob {
 	
 replace livearrang=0 if rcfres==1 & livearrang==1
 label define livearrang 0 "Alone, residential care facility" 1 "Alone, independent", modify	
+
+//12/9/19-ebl-from Jenny, rerun only keeping first observation
+
+sort spid wave
+*by spid: keep if _n==1
+
 save "${intpath}\dem_wave_1_5_w_help_sample.dta", replace
 
 H="table 1"
@@ -488,6 +494,8 @@ label define lva 1 "Lives alone" 2 "Lives with spouse only" 3 "Lives with spouse
 label values lva lva
 label copy helpcat prim_helper_cat
 keep if toil_jenny==1 //& !ind_no_helpers
+sort spid wave
+by spid: keep if _n==1
 gen pop=1
 merge 1:1 spid wave using "${nhats}\sp_round_1_8.dta", nogen
 gen income_adj=0
@@ -642,8 +650,8 @@ preserve
 keep if pop==1
 
 pvenn2 toil_match ind_gt40hrs ind_gt3_helpers, nolabel //legend(off)
-graph save "${outpath}\venn", replace
-graph export"${outpath}\venn_`c(current_date)'.pdf", replace
+graph save "${outpath}\venn_`c(current_date)'", replace
+graph export "${outpath}\venn_`c(current_date)'.pdf", replace
 
 restore
 replace govtasst=0 if missing(govtasst) 
@@ -844,6 +852,8 @@ label define lva 1 "Lives alone" 2 "Lives with spouse only" 3 "Lives with spouse
 label values lva lva
 label copy helpcat prim_helper_cat
 keep if insd_jenny==1 //& !ind_no_helpers
+sort spid wave
+by spid: keep if _n==1
 gen pop=1
 merge 1:1 spid wave using "${nhats}\sp_round_1_8.dta", nogen
 gen income_adj=0
@@ -886,7 +896,7 @@ local ivars3
 local catvars3 prim_helper_cat
 local ivars4 rcfres metro_ind
 local catvars4 region
-local ivars5 ind_no_helpers ind_paid_helper adl_insd_help noninsd_mismatch
+local ivars5 ind_no_helpers ind_paid_helper adl_insd_help insd_mismatch
 local cvars6 tot_hrswk_help_i tot_hrswk_paid_i n_helpers sr_numconditions1 
 local ivars6 sr_phq2_depressed sev_dem sr_hosp_ind 
 local cvars7 adlcount_jenny iadlcount_jenny 
@@ -1154,6 +1164,8 @@ H="look at mismatch in domains"
 
 
 H="changelog"
+12/16/19-Updated so thre's only one obs per person
+
 10/4/19-Updated the table to run on adverse consequences of toileting.
 
 9/16/19-Belatedly created change log. Evan.
