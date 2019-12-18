@@ -71,7 +71,6 @@ log using `name'.smcl, text replace
 
 use "${datapath}\sp_round_1_8.dta" if lml==0, clear
 
-
 //cpi inflation
 gen income_adj=0
 replace income_adj= (251.107/224.939)*aveincome if wave==1
@@ -95,6 +94,9 @@ drop if yearsample==2015
 gen ind_noone=n_social==0
 label var ind_noone "SR nobody in social network"
 
+bys spid wave: egen tot_hlp_hrs=sum(tot_hrswk_help_i) 
+
+
 sort spid wave
 by spid: egen firstdem=min(cond(prob_dem==1,wave,.))
 
@@ -109,6 +111,13 @@ label define status 1 "Community, not HB" 2 "Homebound" 3 "NH resident" 4 ///
 label values status status
 label var status "Status this wave"
 
+
+
+gen homebound_semi=0 if !missing(homebound_cat) & !nhres
+replace homebound_semi=1 if inlist(homebound_cat, 2, 3) & !nhres
+
+
+
 sort spid wave
 by spid: egen hb_min=min(wave) if homebound==1
 gen inchb=0
@@ -119,15 +128,19 @@ by spid: egen ever_hb=max(hb)
 //Looking at the wave right after incident homebound.
 gen wave_after_inchb=0
 by spid: replace wave_after_inchb=1 if spid[_n+1]==spid & wave[_n+1]==wave+1 & inchb==1
+//this really tells if hb in this wave
 
 gen next_wave_com=0
-replace next_wave_com=1 if wave_after_inchb==1 & spid==spid[_n+1] & homebound[_n+1]!=1 & nhres[_n+1]==0 & died_12==0 
+replace next_wave_com=1 if wave_after_inchb==1 & spid==spid[_n+1] & homebound[_n+1]!=1 & nhres[_n+1]==0 & died_12==0 & homebound_semi[_n+1]!=1
 
 gen next_wave_hb=0
-replace next_wave_hb=1 if wave_after_inchb==1 & spid==spid[_n+1] & homebound[_n+1]==1 & nhres[_n+1]==0 & died_12==0  
+replace next_wave_hb=1 if wave_after_inchb==1 & spid==spid[_n+1] & homebound[_n+1]==1 & nhres[_n+1]==0 & died_12==0 & homebound_semi[_n+1]!=1
+
+gen next_wave_semi=0
+replace next_wave_semi=1 if wave_after_inchb==1 & spid==spid[_n+1] & homebound[_n+1]!=1 & nhres[_n+1]==0 & died_12==0 & homebound_semi[_n+1]==1
 
 gen next_wave_nhres=0
-replace next_wave_nhres=1 if wave_after_inchb==1 & spid==spid[_n+1] & homebound[_n+1]!=1 & nhres[_n+1]==1 & died_12==0 
+replace next_wave_nhres=1 if wave_after_inchb==1 & spid==spid[_n+1] & homebound[_n+1]!=1 & nhres[_n+1]==1 & died_12==0 & homebound_semi[_n+1]!=1
 
 gen next_wave_lfu=0
 replace next_wave_lfu=1 if inchb==1 & wave_after_inchb==0 & died_12==0 & spid!=spid[_n+1]
@@ -138,11 +151,32 @@ replace wave_after=1 if wave_after_inchb==1
 gen wave_after_inchb1=0
 replace wave_after_inchb1=1 if spid==spid[_n-1] & wave_after_inchb[_n-1]==1 & inchb[_n-1]==1
 
+foreach x in next_wave_com next_wave_hb next_wave_semi next_wave_nhres next_wave_lfu{
+tab wave_after_inchb `x'
+}
+
+
+gen a=1 if wave_after_inchb1==1 & independent==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid
+
 tab wave_after_inchb1 help_go_out if next_wave_com[_n-1]==1
 
 gen diff_help_out=0
 replace diff_help_out=1 if hasdifficulty==1 | needshelp==1
 
+sort spid wave
+gen hb_still=0
+replace hb_still=1 if hb_min[_n-1]==hb_min & spid[_n-1]==spid & hb_min!=.
+
+tab wave_after_inchb next_wave_com
+tab needshelp if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid
+tab hasdifficulty if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid
+tab help_go_out if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid
+tab independent if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid
+tab freq_go_out if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1
+
+
+tab surgery if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1
+tab rehab if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1
 
 
 
@@ -162,7 +196,9 @@ H="Change log"
 
 Updates:
 
-
+12/17/2019 MH
+------------
+Adding in semi-homebound and creating tables for what happens after incident homebound. 
 
 12/5/2019 MH
 ------------
