@@ -40,7 +40,7 @@ H="Generic template"
 /*
 
 Created by: MH
-Date Created: 12/5/2019
+Date Created: 12/19/2019
 
 Updated by:
 Date Updated:
@@ -103,20 +103,32 @@ by spid: egen firstdem=min(cond(prob_dem==1,wave,.))
 xtset spid wave
 replace homebound_cat=. if nhres==1
 gen homebound=homebound==1 if !missing(homebound) & !nhres
-gen status=1 if sp_ivw==1 & !missing(homebound)
-replace status=2 if homebound==1
-replace status=3 if nhres==1
-label define status 1 "Community, not HB" 2 "Homebound" 3 "NH resident" 4 ///
-"Community, previously HB or NH resident"
-label values status status
-label var status "Status this wave"
-
-
 
 gen homebound_semi=0 if !missing(homebound_cat) & !nhres
 replace homebound_semi=1 if inlist(homebound_cat, 2, 3) & !nhres
 
+gen status=1 if sp_ivw==1 & !missing(homebound)
+replace status=2 if homebound==1 
+replace status=3 if inlist(homebound_cat,2,3)
+replace status=4 if nhres==1
+label define status 1 "Community, not HB" 2 "Homebound" 3 "Semi-Homebound" 4 "NH resident" 
+label values status status
+label var status "Status this wave"
 
+sort spid wave
+by spid: egen lw=max(wave)
+label var lw "Last Time observed"
+
+sort spid wave
+gen status_nw=1 if spid==spid[_n+1] & wave+1==wave[_n+1] & sp_ivw[_n+1]==1 & !missing(homebound[_n+1])
+replace status_nw=2 if spid==spid[_n+1] & wave+1==wave[_n+1] & homebound_cat[_n+1]==1
+replace status_nw=3 if spid==spid[_n+1] & wave+1==wave[_n+1] & inlist(homebound_cat[_n+1],2,3)
+replace status_nw=4 if spid==spid[_n+1] & wave+1==wave[_n+1] & nhres[_n+1]==1
+replace status_nw=5 if spid!=spid[_n+1] & wave+1!=wave[_n+1] & died_12==1 & lw==wave
+replace status_nw=6 if spid!=spid[_n+1] & wave+1!=wave[_n+1] & died_12==0 & lw==wave
+label define status_nw 1 "Community, not HB" 2 "Homebound" 3 "Semi-Homebound" 4 "NH Resident" 5 "Died" 6 "LFU"
+label values status_nw status_nw
+label var status_nw "Status next wave"
 
 sort spid wave
 by spid: egen hb_min=min(wave) if homebound==1
@@ -168,17 +180,38 @@ gen hb_still=0
 replace hb_still=1 if hb_min[_n-1]==hb_min & spid[_n-1]==spid & hb_min!=.
 
 tab wave_after_inchb next_wave_com
-tab needshelp if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid
-tab hasdifficulty if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid
-tab help_go_out if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid
-tab independent if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid
-tab freq_go_out if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1
+tab needshelp if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid, m
+tab hasdifficulty if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid, m
+tab help_go_out if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid,m
+tab independent if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid, m
+
+tab freq_go_out if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1, m
 
 
 tab surgery if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1
 tab rehab if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1
 
+tab device_out if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1
 
+tab ind_imp_goout if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1
+
+gen hb_helpers=.
+sort spid wave
+by spid: replace hb_helpers=n_helpers[_n+1]-n_helpers
+
+tab hb_helpers if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1
+
+gen hb_hours=.
+sort spid wave
+by spid: replace hb_hours=tot_hlp_hrs[_n+1]-tot_hlp_hrs
+
+tab hb_hours if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid & independent==1
+
+xtset spid wave
+
+
+
+xttrans status if wave<3
 
 
 log close
