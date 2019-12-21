@@ -2031,3 +2031,67 @@ save ser_ill_surg_sample2.dta, replace
 
 
 H="**********************************"
+
+
+H="table5"
+//table
+use ser_ill_surg_sample2.dta, clear
+
+replace hisp_eth=0 if hisp_eth==.
+replace black=0 if black==.
+replace white=0 if white==.
+
+gen race1=1 if white==1
+replace race1=2 if black==1
+replace race1=3 if hisp_eth==1
+replace race1=4 if race1==.
+tab race1, gen(race1_)
+label var race1_1 "Non-Hispanic White/Caucasian"
+label var race1_2 "Non-Hispanic black or African American"
+label var race1_3 "Hispanic Ethnicity"
+label var race1_4 "Other"
+
+gen comor_bin=.
+replace comor_bin=0 if comor_c_hrs==0
+replace comor_bin=1 if comor_c_hrs>0 & !missing(comor_c_hrs) 
+label var comor_bin "Multi-morbidity"
+
+
+local cvar1 age
+
+local ivar1 race1_3 race1_2 race1_1
+
+local ivar2 ind_vuln ind_dem_smi ind_canc_smi ind_esrd_smi ind_chf_smi ind_liver_smi ind_trauma_smi ind_frail nhres comor_bin died 
+
+foreach x in `ivar1' `ivar2'{
+tab `x',m
+}
+
+local r=1
+local c=1
+local rn : word count `cvar1' `ivar1' `ivar2' 1
+
+mat tab=J(`rn',2,.)
+
+
+foreach x in `cvar1' {
+	sum `x'
+	mat tab[`r',1]=`r(mean)'
+	mat tab[`r',2]=`r(sd)'
+	local r=`r'+1
+}
+
+foreach x in `ivar1' `ivar2' {
+	sum `x'
+	mat tab[`r',1]=`r(mean)'*100
+	local r=`r'+1
+}
+
+sum n
+mat tab[`r',1]=`r(N)'
+
+mat rownames tab=`cvar1' `ivar1' `ivar2' "Recieved major surgery over f/u"
+mat list tab
+
+frmttable using "${outpath}\table_5.rtf", statmat(tab) varlabels sdec(2) title("Preliminary Sample Data for Aim 2") ///
+ctitles("" "Mean/%" "SD") replace
