@@ -36,7 +36,7 @@ global datapath "D:\NHATS\Shared\base_data\NHATS cleaned"
 global logpath "D:\NHATS\Projects\homebound\ko_homebound_income\output\logs"
 
 
-H="Generic template"
+H="Homebound decision matrix"
 /*
 
 Created by: MH
@@ -209,9 +209,14 @@ tab hb_hours if wave_after_inchb1==1 & next_wave_com[_n-1]==1 & spid[_n-1]==spid
 
 xtset spid wave
 
+tab status status_nw if wave==1, row nofreq 
+tab status status_nw if wave==2, row
+
+tab status status_nw if wave==2 & spid[_n-1]==spid & status[_n-1]==2, row
+
+xttrans status if wave==1 | wave==2 , freq
 
 
-xttrans status if wave<3
 
 
 log close
