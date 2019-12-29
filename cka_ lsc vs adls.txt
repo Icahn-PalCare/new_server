@@ -35,17 +35,17 @@ use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta"
 H="hospitalizations post interview"
 //note--elsewhere, this project uses the sensitive/public only dataset, but the dates are restricted (as are claims, obviously)
 
-use "E:\nhats\data\NHATS cleaned\sp_round_1_7.dta", clear
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", clear
 rename ivw_date index_date
 keep spid wave index_date
-merge m:1 spid using  "E:\nhats\data\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", ///
+merge m:1 spid using  "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", ///
 keepusing(bene_id) keep(match) nogen
 drop if missing(index_date)
 
 forvalues i=1/7 {
 	preserve
 	keep if wave==`i'
-	merge 1:m bene_id using "E:\nhats\data\NHATS CMS DUA 28016\Merged\Stata\ip_06_17.dta", ///
+	merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\ip_06_17.dta", ///
 	keep(match) nogen keepusing(admit_date)
 	//note that this includes the date of interview
 	keep if inrange(admit_date,index_date,index_date+365)
@@ -70,7 +70,7 @@ restore
 forvalues i=1/7 {
 	preserve
 	keep if wave==`i'
-	merge 1:m bene_id using "E:\nhats\data\NHATS CMS DUA 28016\Merged\Stata\mbsf_06_17.dta", ///
+	merge 1:m bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta", ///
 	keep(match) nogen keepusing(buyin12 hmoind12 year)
 	gen month=month(index_date)
 	rename *12 *
@@ -116,7 +116,7 @@ tempfile ffsall
 save `ffsall'
 
 
-use "E:\nhats\data\NHATS cleaned\sp_round_1_7_public_sens_only.dta", clear 
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7_public_sens_only.dta", clear 
 merge 1:1 spid wave using `tempall', nogen
 merge 1:1 spid wave using `ffsall', nogen
 
@@ -151,7 +151,14 @@ replace keep=. if adl_index==.
 replace keep=. if freq_go_out==.
 *31
 
-
+*now keep for first obs of person
+sort spid wave
+by spid, sort: gen pid=_n 
+egen keepmin= min(cond(keep==1,pid,.)), by(spid)
+replace keepmin=0 if keepmin!=pid
+recode keepmin (0=0)(1/6=1), gen(keep_firstobs)
+tab keep_firstobs
+drop keepmin
 
 *COVARIATES
 recode n_social_network (0=0 "0_none") (1=1 "1_one")(2/5=2 "2_ 2+ people"), gen(networkcat)
