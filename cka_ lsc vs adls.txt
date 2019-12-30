@@ -384,6 +384,185 @@ svy, subpop(keep): tab anylcs fall_last_month, row ci
 svy, subpop(keep): tab anyadl ind_pain, row ci
 svy, subpop(keep): tab anylcs ind_pain, row ci
 
+
+
+
+****SENSITIVITY TESTS*****
+
+*ANALYSIS
+svyset varunit [pweight=anfinwgt], strata(varstrat)
+
+*table 1
+
+svy, subpop(keep_firstobs): tab female
+svy, subpop(keep_firstobs): mean age
+svy, subpop(keep_firstobs): tab race_cat
+svy, subpop(keep_firstobs): tab proxy_ivw
+svy, subpop(keep_firstobs): tab livealone
+svy, subpop(keep_firstobs): tab networkcat
+svy, subpop(keep_firstobs): tab nopaymed
+svy, subpop(keep_firstobs): tab nopayutil
+svy, subpop(keep_firstobs): tab medicaid
+svy, subpop(keep_firstobs): tab sr_heart_dis_ever
+svy, subpop(keep_firstobs): tab sr_htn_ever
+svy, subpop(keep_firstobs): tab sr_stroke_ever 
+svy, subpop(keep_firstobs): tab sr_cancer_ever 
+svy, subpop(keep_firstobs): tab sr_osteoprs_ever 
+svy, subpop(keep_firstobs): tab sr_diabetes_ever 
+svy, subpop(keep_firstobs): tab sr_lung_dis_ever 
+svy, subpop(keep_firstobs): tab dem_2_cat
+svy, subpop(keep_firstobs): tab sr_phq2_depressed 
+svy, subpop(keep_firstobs): tab sr_gad2_anxiety
+svy, subpop(keep_firstobs): mean sr_numconditions1
+svy, subpop(keep_firstobs): tab srh_fp
+svy, subpop(keep_firstobs): tab fall_last_month
+svy, subpop(keep_firstobs): tab ind_pain
+
+*figure
+*NEW FIGURE 2
+
+tab freqout adl_3cat if keep_firstobs==1, column
+tab freqout adl_3cat if keep_firstobs==1, row
+
+
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==1 & adl_3cat==0
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==1 & adl_3cat==1
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==1 & adl_3cat==2
+
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==2 & adl_3cat==0
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==2 & adl_3cat==1
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==2 & adl_3cat==2
+
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==3 & adl_3cat==0
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==3 & adl_3cat==1
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==3 & adl_3cat==2
+
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==4 & adl_3cat==0
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==4 & adl_3cat==1
+svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==4 & adl_3cat==2
+
+svy, subpop(keep_firstobs): tab nhats_died_12 freqout, column
+svy, subpop(keep_firstobs): tab nhats_died_12 adl_3cat, column
+
+
+*table 3
+*died*
+logistic nhats_died_12 female age if keep_firstobs==1
+lroc, nograph
+predict c1, xb
+
+qui logistic nhats_died_12 female age adl_index if keep_firstobs==1
+lroc, nograph
+predict c2, xb
+roccomp nhats_died_12 c1 c2, graph summary
+
+qui logistic nhats_died_12 female age freqout if keep_firstobs==1
+lroc, nograph
+predict c4, xb
+roccomp nhats_died_12 c2 c4, graph summary
+
+qui logistic nhats_died_12 female age freqout adl_index if keep_firstobs==1
+lroc, nograph
+predict c6, xb
+roccomp nhats_died_12 c2 c6, graph summary
+
+*hospitalized*
+logistic srhosp_oneyear female age if keep_firstobs==1
+lroc, nograph
+predict nh1, xb
+
+qui logistic srhosp_oneyear female age adl_index if keep_firstobs==1
+lroc, nograph
+predict no2, xb
+
+qui logistic srhosp_oneyear female age freqout if keep_firstobs==1 
+lroc, nograph
+predict h3, xb
+
+qui logistic srhosp_oneyear female age freqout adl_index if keep_firstobs==1
+lroc, nograph
+predict no4, xb
+roccomp srhosp_oneyear no2 no4, graph summary
+
+
+
+*NEW TABLE 4
+
+svy, subpop(keep): tab anyadl
+svy, subpop(keep): tab anylcs
+
+svy, subpop(keep): tab anyadl anylcs, row ci
+svy, subpop(keep): tab anyadl anylcs, column ci
+
+svy, subpop(keep): tab anyadl female, row ci
+svy, subpop(keep): tab anylcs female, row ci
+
+svy, subpop(keep): tab anyadl agecat2, row ci
+svy, subpop(keep): tab anylcs agecat2, row ci
+
+svy, subpop(keep): tab anyadl race_cat, row ci
+svy, subpop(keep): tab anylcs race_cat, row ci
+
+svy, subpop(keep): tab anyadl proxy_ivw, row ci
+svy, subpop(keep): tab anylcs proxy_ivw, row ci
+
+svy, subpop(keep): tab anyadl livealone, row ci
+svy, subpop(keep): tab anylcs livealone, row ci
+
+svy, subpop(keep): tab anyadl networkcat, row ci
+svy, subpop(keep): tab anylcs networkcat, row ci
+
+svy, subpop(keep): tab anyadl nopaymed, row ci
+svy, subpop(keep): tab anylcs nopaymed, row ci
+
+svy, subpop(keep): tab anyadl nopayutil, row ci
+svy, subpop(keep): tab anylcs nopayutil, row ci
+
+svy, subpop(keep): tab anyadl medicaid, row ci
+svy, subpop(keep): tab anylcs medicaid, row ci
+
+svy, subpop(keep): tab anyadl sr_heart_dis_ever, row ci
+svy, subpop(keep): tab anylcs sr_heart_dis_ever, row ci
+
+svy, subpop(keep): tab anyadl sr_htn_ever, row ci
+svy, subpop(keep): tab anylcs sr_htn_ever, row ci
+
+svy, subpop(keep): tab anyadl sr_stroke_ever, row ci
+svy, subpop(keep): tab anylcs sr_stroke_ever, row ci
+
+svy, subpop(keep): tab anyadl sr_cancer_ever, row ci
+svy, subpop(keep): tab anylcs sr_cancer_ever, row ci
+
+svy, subpop(keep): tab anyadl sr_osteoprs_ever, row ci
+svy, subpop(keep): tab anylcs sr_osteoprs_ever, row ci
+
+svy, subpop(keep): tab anyadl sr_diabetes_ever, row ci
+svy, subpop(keep): tab anylcs sr_diabetes_ever, row ci
+
+svy, subpop(keep): tab anyadl sr_lung_dis_ever, row ci
+svy, subpop(keep): tab anylcs sr_lung_dis_ever, row ci
+
+svy, subpop(keep): tab anyadl dem_2_cat, row ci
+svy, subpop(keep): tab anylcs dem_2_cat, row ci
+
+svy, subpop(keep): tab anyadl sr_phq2_depressed, row ci
+svy, subpop(keep): tab anylcs sr_phq2_depressed, row ci
+
+svy, subpop(keep): tab anyadl sr_gad2_anxiety, row ci
+svy, subpop(keep): tab anylcs sr_gad2_anxiety, row ci
+
+
+svy, subpop(keep): tab anyadl srh_fp, row ci
+svy, subpop(keep): tab anylcs srh_fp, row ci
+
+svy, subpop(keep): tab anyadl fall_last_month, row ci
+svy, subpop(keep): tab anylcs fall_last_month, row ci
+
+svy, subpop(keep): tab anyadl ind_pain, row ci
+svy, subpop(keep): tab anylcs ind_pain, row ci
+
+
+
 H="Changelog"
 ********************Change Log******************** 
 04/19/19-ebl-added FFS determination to hospitalizations header
