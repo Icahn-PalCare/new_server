@@ -5,12 +5,13 @@ H="First Heading"
 ********************HEADING******************** 
 
 Project Name: P01 Dementia
-Date Started:
 
-Primary Investigator:
+Date Started: 
+
+Primary Investigator: MH
 Funding Source:
 
-Created by: MH
+Created by:
 
 Primary Analyst:
 Secondary Analyst:
@@ -48,559 +49,161 @@ global logpath "E:\nhats\data\Projects\..."
 //libname logpath "E:\nhats\data\Projects\..."
 
 
-H="set libraries"
-/*HRS variables are processed in file HRS_Processing.txt
-1998-2012 Core interviews
-2002-2012 Exit interviews
-Restricted data received in March 2015
+H="Generic template"
+global medi "D:\HRS\Shared\raw\CMS\CMS_DUA_51675_2014\Merged\Stata"
 
-Note elixhauser comorbidities diagnosis lists are modified for the 
-purposes of this project, do not copy and paste this Elixhauser code 
-for use in other projects!!
+use bid_hrs_22 start_dt ab_mo_cnt hmo_mo using "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2015.dta" if year(start_dt)==2014 | year(start_dt)==2013 | year(start_dt)==2015 | year(start_dt)==2012, clear
+gen ffs=ab_mo_cnt>=1 & hmo_mo==0
+drop *mo*
+tempfile bqsf
+save `bqsf'
 
-******************************************************************
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta" if core_year==2014, clear
 
-/*nhats cleaned path*/
-libname nhats 'D:\nhats\shared\base_data\nhats cleaned';
+gen c_ivw_date_new=c_ivw_date
+replace c_ivw_date_new=td("01Oct2015") if c_ivw_date<=td("31Dec2015")
+replace c_ivw_date_new=td("01Jul2015") if c_ivw_date<=td("30Sep2015")
+replace c_ivw_date_new=td("01Apr2015") if c_ivw_date<=td("30Jun2015")
+replace c_ivw_date_new=td("01Jan2015") if c_ivw_date<=td("31Mar2015")
+replace c_ivw_date_new=td("01Oct2014") if c_ivw_date<=td("31Dec2014")
+replace c_ivw_date_new=td("01Jul2014") if c_ivw_date<=td("30Sep2014")
+replace c_ivw_date_new=td("01Apr2014") if c_ivw_date<=td("30Jun2014")
+replace c_ivw_date_new=td("01Jan2014") if c_ivw_date<=td("31Mar2014")
+format c_ivw_date_new %td
 
-/*medicare xwalk and claims path*/
-libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS';
+merge 1:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keep(match) nogen force
 
-/*project data paths*/
-libname proj_int 'D:\NHATS\Projects\exploratory\ask_dementia_P01\int_data';
-libname proj_fin 'D:\NHATS\Projects\exploratory\ask_dementia_P01\final_data';
-libname proj_ref 'D:\NHATS\Projects\exploratory\ask_dementia_P01\ref_data';
-
-
-
-
-
-H="index date"
-proc import datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" out=proj_int.nhats replace; run;
-
-
-data index1;
-set proj_int.nhats (keep=spid ivw_date ivw_month ivw_year);
-index_date=ivw_date;
-index_month=ivw_month;
-index_year=ivw_year;
-run;
-
-proc import out=xwalk
-	    datafile = "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" replace;
-run;
-
- 
-proc sql;
-create table index as select a.spid, a.ivw_date as index_date, a.ivw_month as index_month, a.ivw_year as index_year, b.bene_id
-from index1 a left join
-xwalk b 
-on a.spid=b.spid;
-quit;
-
-proc sort data=index out=proj_int.index nodupkey;
-by spid bene_id index_year;
-run;
-
-H="ffs before"
-
-
-/*sort claims denominator file*/
-
-proc sort data=medi.mbsf_06_17 out=mbsf  nodupkey;
-by bene_id year;
-run;
-
-proc sort data=proj_int.index out=index1 nodupkey;
-by bene_id index_year;
-run;
-
-/*get mbsf just for interview year*/
-
-proc sql; 
-create table mbsf_index_year as select
-a.*,b.buyin12,b.year,b.hmoind12
-from index1 a inner join
-mbsf b
-on trim(left(a.bene_id))=trim(left(b.bene_id)) 
-and a.index_year=b.year;
-quit;
-
-
-proc sql;
-select count(distinct bene_id) from mbsf_index_year;
-quit;
-
-
-
-data mbsf_index_year2;
-set mbsf_index_year;
-if length(trim(left(buyin12)))=12 and index_month>0 then do;
-buyin_iy=substr(trim(left(buyin12)),1,index_month);
-hmo_iy=substr(trim(left(HMOIND12)),1,index_month);
-end;
-else do;
-buyin_iy=trim(left(buyin12));
-hmo_iy=trim(left(HMOIND12));
-end;
-format index_date date9.;
-run;
-proc means n;
-var index_month;
-run;
-
-proc sql;
-create table mbsf_index_year_bef as select
-a.bene_id,a.year as index_year,
-b.year as index_year_bef,
-b.year, b.buyin12,b.HMOIND12
-from mbsf_index_year a inner join
-mbsf b
-on trim(left(a.bene_id))=trim(left(b.bene_id))
-and 0<a.year-b.year<=1 order by bene_id,year;
-quit;
-
-
-/* and the year before... 1922 have the -2 year dn file*/
-proc sql;
-create table mbsf_index_year_2bef as select
-a.bene_id,a.bene_id,a.index_year,a.index_year_bef,
-b.year as index_year_2bef,
-b.year,b.buyin12,b.HMOIND12
-from mbsf_index_year_bef a inner join
-mbsf b
-on trim(left(a.bene_id))=trim(left(b.bene_id))
-and 0<a.index_year_bef-b.year<=1 order by bene_id,year;
-quit;
-
-/*merge the insurance data for death year, -1 and -2 years into single dataset*/
-proc sql;
-create table all_insurance as select a.*,b.buyin12 as buyin_bef,b.HMOIND12 as hmo_bef from
-mbsf_index_year2 a
-left join
-mbsf_index_year_bef b
-on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year;
-quit;
-
-proc sql;
-create table all_insurance2 as select a.*,b.buyin12 as buyin_2bef,b.HMOIND12 as hmo_2bef from
-all_insurance a
-left join
-mbsf_index_year_2bef b
-on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year; 
-quit;
-
-
-/*merge death year and year before death buy-in and hmo variables
-Trim so the final variable _6m is 6 months pre-death
-Note: indicator variables for parts a and b and hmo are null if don't
-have information for full 6 months pre-death*/
-data all_insurance3;
-set all_insurance2;
-buyin_2y=trimn(left(buyin_2bef))||trimn(left(buyin_bef))||trimn(left(buyin_iy));
-hmo_2y=trimn(left(hmo_2bef))||trimn(left(hmo_bef))||trimn(left(hmo_iy));
-
-buyin_2y_r=reverse(trim(buyin_2y));
-hmo_2y_r=reverse(trim(hmo_2y));
-
-
-/*create length of continous a&b and non-hmo coverage vars*/
-if indexc(buyin_2y_r,"0","1","2","A","B")=0 then part_ab_n_mos=length(buyin_2y_r)-1;
-if indexc(buyin_2y_r,"0","1","2","A","B") then part_ab_n_mos=indexc(buyin_2y_r,"0","1","2","A","B")-1;
-if indexc(hmo_2y_r,"1","2","4","A","B","C")=0 then non_hmo_d_n_mos=length(hmo_2y_r)-1;
-if indexc(hmo_2y_r,"1","2","4","A","B","C") then non_hmo_d_n_mos=indexc(hmo_2y_r,"1","2","4","A","B","C")-1;
-if part_ab_n_mos<=non_hmo_d_n_mos then cont_ffs_n_mos=part_ab_n_mos;
-if non_hmo_d_n_mos<part_ab_n_mos then cont_ffs_n_mos=non_hmo_d_n_mos;
-run;
-
-
-data proj_int.ffs_before;
-set all_insurance3;
-run;
-
-
-H="claims before"
-/*Get claims 1 year and 2 year before each interview*/
-/*Step 2: pull claims lists using xwalk and ivw date*/
-
-proc sort data=proj_int.index out=index1 nodupkey;
-by bene_id index_year;
-run;
-
-/****************************************************************************/
-/* Macro to pull claims lists, saves lists to int_data folder               */
-/****************************************************************************/
-%macro claims_pre(days_start=,days_bef_index=,yrs=,source=);
-
-proc sql;
-create table &source._meet_&days_bef_index. as select a.index_date,a.index_year,b.*
-from proj_int.index a inner join
-medi.&source._&yrs. b 
-on trim(left(a.bene_id))=trim(left(b.bene_id))
-and &days_start<=a.index_date-b.disch_date<=&days_bef_index;
-quit;
-
-%mend;
-
-/*run to get claims list 6 mo pre-ivw for ip*/
-%claims_pre(days_start=0,days_bef_index=183,yrs=06_17,source=ip);
-
-/*1yr*/
-%claims_pre(days_start=0,days_bef_index=365,yrs=06_17,source=ip);
-%claims_pre(days_start=0,days_bef_index=365,yrs=09_17,source=snf);
-%claims_pre(days_start=0,days_bef_index=365,yrs=09_17,source=op);
-%claims_pre(days_start=0,days_bef_index=365,yrs=09_17,source=pb);
-%claims_pre(days_start=0,days_bef_index=365,yrs=09_17,source=hh);
-%claims_pre(days_start=0,days_bef_index=365,yrs=09_17,source=hs);
-%claims_pre(days_start=0,days_bef_index=365,yrs=09_17,source=dm);
-
-/*2yrs*/
-%claims_pre(days_start=0,days_bef_index=730,yrs=06_17,source=ip);
-%claims_pre(days_start=0,days_bef_index=730,yrs=09_17,source=snf);
-%claims_pre(days_start=0,days_bef_index=730,yrs=09_17,source=op);
-%claims_pre(days_start=0,days_bef_index=730,yrs=09_17,source=pb);
-%claims_pre(days_start=0,days_bef_index=730,yrs=09_17,source=hh);
-%claims_pre(days_start=0,days_bef_index=730,yrs=09_17,source=hs);
-%claims_pre(days_start=0,days_bef_index=730,yrs=09_17,source=dm);
-
-%macro ip_drop(days_bef_index=);
-data proj_int.ip_meet_&days_bef_index.;
-set ip_meet_&days_bef_index.(keep=bene_id index_year index_date admit_date disch_date 
-  ADMTG_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 ICD_PRCDR_CD1-ICD_PRCDR_CD25 icarecnt crnrydaycnt erdaycnt clm_ip_admsn_type_cd
-  PRCDR_DT1-PRCDR_DT25 hcpcscd1-hcpcscd49);
-run;
-%mend ip_drop;
-
-%macro snf_drop(days_bef_index=);
-data proj_int.snf_meet_&days_bef_index.;
-set snf_meet_&days_bef_index.(keep=bene_id index_year index_date admit_date disch_date 
-  ADMTG_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 ICD_PRCDR_CD1-ICD_PRCDR_CD25 
- PRCDR_DT1-PRCDR_DT25 );
-run;
-%mend snf_drop;
-
-
-/*hh*/
-%macro hh_drop(days_bef_index=);
-data proj_int.hh_meet_&days_bef_index.;
-set hh_meet_&days_bef_index.(keep=bene_id index_year index_date admit_date PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 );
-run;
-%mend hh_drop;
-
-/*hs*/
-%macro hs_drop(days_bef_index=);
-data proj_int.hs_meet_&days_bef_index.;
-set hs_meet_&days_bef_index.(keep=bene_id index_year index_date admit_date PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25);
-run;
-%mend hs_drop;
-
-/*dme*/
-%macro dm_drop(days_bef_index=);
-data proj_int.dm_meet_&days_bef_index.;
-set dm_meet_&days_bef_index.(keep=bene_id index_year index_date admit_date 
-PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD12 h_o2);
-run;
-%mend dm_drop;
-
-/*op*/
-%macro op_drop(days_bef_index=);
-data proj_int.op_meet_&days_bef_index.;
-set op_meet_&days_bef_index.(keep=bene_id index_year index_date admit_date disch_date
-PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 erdaycnt obs_stay);
-run;
-%mend op_drop;
-
-/*carrier*/
-%macro pb_drop(days_bef_index=);
-data proj_int.pb_meet_&days_bef_index.;
-set pb_meet_&days_bef_index.(keep=bene_id index_year index_date admit_date disch_date
-PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD12 hcpcscd1-hcpcscd13);
-run;
-%mend pb_drop;
-
-%ip_drop(days_bef_index=183);
-%ip_drop(days_bef_index=365);
-%ip_drop(days_bef_index=730);
-%snf_drop(days_bef_index=365);
-%snf_drop(days_bef_index=730);
-%hh_drop(days_bef_index=365);
-%hh_drop(days_bef_index=730);
-%hs_drop(days_bef_index=365);
-%hs_drop(days_bef_index=730);
-%dm_drop(days_bef_index=365);
-%dm_drop(days_bef_index=730);
-%op_drop(days_bef_index=365);
-%op_drop(days_bef_index=730);
-%pb_drop(days_bef_index=365);
-%pb_drop(days_bef_index=730);
-
-
-
-/****************************************************************************/
-/****************************************************************************/
-/* Macro to pull dx from claims lists, saves dx lists to int_data folder    */
-/****************************************************************************/
-
-%macro dx_time_range(range1=, range2=, days_bef_core=);
-
-/*Process carrier medicare claims to pull out dx codes
-Multiple lines per each BID*/
-data pb_last_&range2._dx(keep=bene_id index_year diag);
-set proj_int.pb_meet_&days_bef_core.(keep=bene_id index_year PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD12 hcpcscd1-hcpcscd13);
-array dx PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD12;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-/*check for and remove duplicates, note this doesn't remove blanks*/
-proc sort data=pb_last_&range2._dx out=pb_last_&range2._dx2 nodupkey;
-by bene_id index_year diag;
-run;
-
-
-/*Process outpatient medicare claims to pull out dx codes
-Dataset being created: op_last_&range2._dx2*/
-data op_last_&range2._dx(keep=bene_id index_year diag);
-set proj_int.op_meet_&days_bef_core.(keep=bene_id index_year PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25  );
-array dx PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=op_last_&range2._dx out=op_last_&range2._dx2 nodupkey;
-by bene_id index_year diag;
-run;
-
-proc contents data=proj_int.ip_meet_365; run;
-
-
-/*Dataset being created: ip_last_&range2._dx2*/
-data ip_last_&range2._dx(keep=bene_id index_year diag);
-set proj_int.ip_meet_&days_bef_core.(keep=bene_id index_year ADMTG_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 hcpcscd1-hcpcscd49);
-array dx ADMTG_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=ip_last_&range2._dx out=ip_last_&range2._dx2 nodupkey;
-by bene_id index_year diag;
-run;
-
-/*Dataset being created: snf_last_&range2._dx2*/
-data snf_last_&range2._dx(keep=bene_id index_year diag);
-set proj_int.snf_meet_&days_bef_core.(keep=bene_id index_year ADMTG_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 );
-array dx ADMTG_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=snf_last_&range2._dx out=snf_last_&range2._dx2 nodupkey;
-by bene_id index_year diag;
-run;
-
-/*Process dme medicare claims to pull out dx codes
-Dataset being created: dm_last_&range2._dx2*/
-data dm_last_&range2._dx(keep=bene_id index_year diag);
-set proj_int.dm_meet_&days_bef_core.(keep=bene_id index_year PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD12 );
-array dx PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD12 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=dm_last_&range2._dx out=dm_last_&range2._dx2 nodupkey;
-by bene_id index_year diag;
-run;
-
-/*Process hh medicare claims to pull out dx codes
-Dataset being created: dm_last_&range2._dx2*/
-data hh_last_&range2._dx(keep=bene_id index_year diag);
-set proj_int.hh_meet_&days_bef_core.(keep=bene_id index_year PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 );
-array dx PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=hh_last_&range2._dx out=hh_last_&range2._dx2 nodupkey;
-by bene_id index_year diag;
-run;
-
-/*Process hs medicare claims to pull out dx codes
-Dataset being created: dm_last_&range2._dx2*/
-data hs_last_&range2._dx(keep=bene_id index_year diag);
-set proj_int.hs_meet_&days_bef_core.(keep=bene_id index_year PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 );
-array dx PRNCPAL_DGNS_CD ICD_DGNS_CD1-ICD_DGNS_CD25 ;
-do over dx;
-diag=dx ;
-output;
-end;
-run;
-proc sort data=hs_last_&range2._dx out=hs_last_&range2._dx2 nodupkey;
-by bene_id index_year diag;
-run;
-
-
-/*set diag variable length = 7 chars since that's the max length from the mc claims
-Need to do this because length varies across the different mc claim types*/
-data hs_last_&range2._dx3;
-length diag $7;
-set hs_last_&range2._dx2;
-run;
-data hh_last_&range2._dx3;
-length diag $7;
-set hh_last_&range2._dx2;
-run;
-data ip_last_&range2._dx3;
-length diag $7;
-set ip_last_&range2._dx2;
-run;
-data snf_last_&range2._dx3;
-length diag $7;
-set snf_last_&range2._dx2;
-run;
-data dm_last_&range2._dx3;
-length diag $7;
-set dm_last_&range2._dx2;
-run;
-data op_last_&range2._dx3;
-length diag $7;
-set op_last_&range2._dx2;
-run;
-data pb_last_&range2._dx3;
-length diag $7;
-set pb_last_&range2._dx2;
-run;
-
-
-/*merge diagnoses from each claim type into single dataset*/
-data dx_all_last_1&range2.;
-set hs_last_&range2._dx3
-hh_last_&range2._dx3
-ip_last_&range2._dx3
-snf_last_&range2._dx3
-dm_last_&range2._dx3
-op_last_&range2._dx3
-pb_last_&range2._dx3;
-run;
-
-proc sql;
-create table dx_all_last_&range2. as select * from
-proj_int.index a 
-left join 
-dx_all_last_1&range2. b
-on a.bene_id=b.bene_id and a.index_year=b.index_year;
-quit; 
-
-proc sort data=dx_all_last_&range2.(where=(diag~="")) out=proj_int.dx_&range1._&range2 nodupkey;
-by bene_id index_year diag;
-run;
-
-
-%mend;
-
-/*1 and 2 years pre-interview: proj_int.dx_0_1yr, proj_int.dx_0_2yr */
-%dx_time_range(range1=0, range2=1yr, days_bef_core=365);
-%dx_time_range(range1=0, range2=2yr, days_bef_core=730);
-
-
-
-data dx_all_last_1yr_w_dups;
-set hs_last_1yr_dx
-hh_last_1yr_dx
-ip_last_1yr_dx
-snf_last_1yr_dx
-dm_last_1yr_dx
-op_last_1yr_dx
-pb_last_1yr_dx;
-if diag~='.';
-run;
-
-proc sort data=dx_all_last_1yr_w_dups;
-by bene_id index_year diag;
-run;
-
-/*****************************************/
-/*check dementia diagnosis frequencies, need to pull this into main dataset
-dx list is from Elixhauser code*/
-data proj_int.dem_dx_freq;
-set dx_all_last_1yr_w_dups;
-	dementia=0;
-	dem_icd10=0;
-	if (substr(diag,1,4) in ('3310','3311','3312','2900','2901',
-             '2902','2903','2912','2948','2949') or
-		substr(diag,1,5) in ('29410','29411','29040','29041','29042','29043'))
-		and dementia=0 
-          then dementia=1;
-/*ICD-10*/		
-
-if (substr(diag,1,5)='F0150'
-or substr(diag,1,5)='F0151'
-or substr(diag,1,5)='F0280'
-or substr(diag,1,5)='F0281'
-or substr(diag,1,5)='F0390'
-or substr(diag,1,5)='F0391'
-or substr(diag,1,4)='F051'
-or substr(diag,1,5)='F1027'
-or substr(diag,1,5)='F1097'
-or substr(diag,1,4)='G300'
-or substr(diag,1,4)='G301'
-or substr(diag,1,4)='G308'
-or substr(diag,1,4)='G309'
-or substr(diag,1,5)='G3101'
-or substr(diag,1,5)='G3109'
-or substr(diag,1,4)='G311'
-or substr(diag,1,5)='G3183'
-or substr(diag,1,4)='A811'
-or substr(diag,1,4)='A812'
-or substr(diag,1,4)='A818'
-or substr(diag,1,5)='A8100'
-or substr(diag,1,5)='A8101'
-or substr(diag,1,5)='A8109'
-or substr(diag,1,5)='A8181'
-or substr(diag,1,5)='A8182'
-or substr(diag,1,5)='A8183'
-) 
-		and dem_icd10=0 
-          then dem_icd10=1;
-if dem_icd10=1 then dementia=1;
-run;
-
-
-
-H="merge ffs and claims"
-proc sql;
-create table merge as select * from
-proj_int.ffs_before a left join
-proj_int.dem_dx_freq b 
-on a.bene_id=b.bene_id and a.index_year=b.index_year;
-quit;
-
-
-proc export data=merge outfile="D:\NHATS\Projects\exploratory\ask_dementia_P01\int_data\merge.dta" replace; run;
-
-H="dementia sample"
-use "D:\NHATS\Projects\exploratory\ask_dementia_P01\int_data\merge.dta", clear
-
-keep if year==2014
-
-keep if cont_ffs_n_mos>=12
-
-gen wave=4
-
-
-bys spid: egen dem=max(dementia)
-duplicates drop spid, force
-
-merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match) nogen
-
-label var dem "Claims Dementia dx"
-
-tab dem_3_cat dem, row
+merge 1:m bid using `bqsf', keep(match) nogen 
+
+keep if c_ivw_date-start_dt>=0 & c_ivw_date-start_dt<=730
+
+
+
+gsort id -start_dt
+by id: gen num=_n
+drop start_dt
+reshape wide ffs, i(id) j(num)
+
+gen cont_ffs_n_mos=0
+forvalues y=1/8 {
+	replace cont_ffs_n_mos=cont_ffs_n_mos+3 if ffs`y'==1 & cont_ffs_n_mos==`y'*3-3
+}
+
+keep if cont_ffs_n_mos==24
+
+tempfile ffs
+save `ffs'
+
+
+foreach x in ip snf hh hs op pb dm {
+	di "`x'"
+	use bid_hrs_22 admit_date dgnscd* using "${medi}/`x'_1998_2015.dta" if year(admit_date)>=2012, clear
+duplicates drop
+merge m:1 bid using "`ffs'", keep(match) nogen
+keep if inrange(admit_date, c_ivw_date-730, c_ivw_date)
+
+if _N>0 {
+			rename dgnscd0* dgnscd*
+			gen num=_n
+			reshape long dgnscd, i(num) j(obs)
+			drop num obs admit
+			drop if missing(dgnscd)
+			duplicates drop
+		}
+tempfile `x'
+save ``x''
+
+}
+
+use `ip', clear
+append using `snf'
+append using `hh'
+append using `hs'
+append using `op'
+append using `pb'
+append using `dm'
+
+keep hhid pn id core_year c_ivw_year c_ivw_date c_ivw_date_new bid_hrs_22 dgnscd cont_ffs_n_mos 
+duplicates drop
+
+
+gen dem=1 if inlist(substr(dgnscd,1,5),"F0150","F0151","F0280","F0281","F0390", "F0391", "F1027", "F1027", "F1097") | inlist(substr(dgnscd,1,5),"G3101", "G3109", "G3183", "A8100", "A8101", "A8109", "A8181", "A8182", "A8183") |  inlist(substr(dgnscd,1,4), "F051", "G300", "G301", "G308", "G309", "G311", "A811", "A812", "A818")
+
+replace dem=1 if inlist(substr(dgnscd,1,4),"3310","3311","3312","2900","2901", "2902","2903") | inlist(substr(dgnscd,1,4),"2912","2948","2949") | inlist(substr(dgnscd,1,5),"29410","29411","29040","29041","29042","29043")
+
+bys bid_hrs_22: egen dementia=max(dem)
+duplicates drop bid_hrs_22, force
+
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", keep(match) nogen
+
+replace dementia=0 if dementia==.
+
+egen pdem_cat=cut(pdem), group(10)
+
+egen pdem_cat1=cut(pdem), at(0(.1)1) icodes
+replace pdem_cat1=9 if pdem==1
+
+tab pdem_cat dementia
+
+label var pdem_cat1 "HRS Dementia (pdem)"
+label var dementia "Claims Dementia dx"
+label define pdem_cat1 0 "[0-.1)" 1 "[.1-.2)" 2 "[.2-.3)" 3 "[.3-.4)" 4 "[.4-.5)" 5 "[.5-.6)" 6 "[.6-.7)" 7 "[.7-.8)" 8 "[.8-.9)" 9 "[.9-1]" 
+label value pdem_cat1 pdem_cat1
+tab pdem_cat1 dementia, row
+
+
+mat tab=J(22,3,.)
+local r=1 
+local c=1
+
+forvalues i=0/9{
+	sum dementia if pdem_cat1==`i'
+	local a=`r(N)'
+	sum dementia if dementia==0 & pdem_cat1==`i'
+	local b=`r(N)'
+	mat tab[`r',`c']=`b'
+	mat tab[`r'+1,`c']=(`b'/`a')*100
+	local r=`r'+2
+}
+local r=1 
+local c=2
+
+forvalues i=0/9{
+	sum dementia if pdem_cat1==`i'
+	local a=`r(N)'
+	sum dementia if dementia==1 & pdem_cat1==`i'
+	local b=`r(N)'
+	mat tab[`r',`c']=`b'
+	mat tab[`r'+1,`c']=(`b'/`a')*100
+	local r=`r'+2
+}
+
+local r=1 
+local c=3
+
+forvalues i=0/9{
+	sum dementia if pdem_cat1==`i'
+	local a=`r(N)'
+	sum dementia if dementia!=. & pdem_cat1==`i'
+	local b=`r(N)'
+	mat tab[`r',`c']=`b'
+	mat tab[`r'+1,`c']=(`b'/`a')*100
+	local r=`r'+2
+}
+
+mat tab[21,3]=tab[1,3]+tab[3,3]+tab[5,3]+tab[7,3]+tab[9,3]+tab[11,3]+tab[13,3]+tab[15,3]+tab[17,3]+tab[19,3]
+mat tab[22,3]=(tab[21,3]/tab[21,3])*100 
+
+mat tab[21,2]=tab[1,2]+tab[3,2]+tab[5,2]+tab[7,2]+tab[9,2]+tab[11,2]+tab[13,2]+tab[15,2]+tab[17,2]+tab[19,2]
+mat tab[22,2]=(tab[21,2]/tab[21,3])*100 
+
+mat tab[21,1]=tab[1,1]+tab[3,1]+tab[5,1]+tab[7,1]+tab[9,1]+tab[11,1]+tab[13,1]+tab[15,1]+tab[17,1]+tab[19,1]
+mat tab[22,1]=(tab[21,1]/tab[21,3])*100 
+mat list tab
+
+
+frmttable using "D:\HRS\Projects\exploratory\ask_dementia_P01\int\hrs_p01_dem.rtf", statmat(tab) varlabels title("HRS Dementia") ctitles("" "Claims- Dementia No" "Claims- Dementia Yes" "Total") rtitles( "HRS- [0-.1) (N)" \ "HRS- [0-.1) (%)" \ "HRS- [.1-.2) (N)" \ "HRS- [.1-.2) (%)" \ "HRS- [.2-.3) (N)" \ "HRS- [.2-.3) (%)" \ "HRS- [.3-.4) (N)" \ "HRS- [.3-.4) (%)" \ "HRS- [.4-.5) (N)" \ "HRS- [.4-.5) (%)" \ "HRS- [.5-.6) (N)" \ "HRS- [.5-.6) (%)" \ "HRS- [.6-.7) (N)" \ "HRS- [.6-.7) (%)" \ "HRS- [.7-.8) (N)" \ "HRS- [.7-.8) (%)" \ "HRS- [.8-.9) (N)" \ "HRS- [.8-.9) (%)" \ "HRS- [.9-1] (N)" \ "HRS- [.9-1] (%)" \ "Total (N)" \ "Total (%)") note("Using 2014 HRS interview, 1 year FFS and dementia diagnosis" \ "Last category is inclusive of 1" ) replace
+
 
 H="Change log"
 
@@ -615,7 +218,7 @@ Updates:
 
 12/24/2019 MH
 ------------
-NHATS P01 sample estimate. Look at claims vs. dem_cat3 category. 
+HRS P01 sample estimate. Look at claims vs. pdem (decile). 
 
 
 */
