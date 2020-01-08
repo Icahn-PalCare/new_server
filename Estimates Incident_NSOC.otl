@@ -1109,6 +1109,10 @@ data test; set nhats3; keep spid sample yrdx replenishment; run;
 		proc freq data=test(where=(sample=1)); tables replenishment*yrdx; run;
 
 
+proc freq data=nhats3 (where=(sample=1 and n1_int_wave=wave)); 
+tables replenishment*wave*eligible_nsoc; run;
+
+
 data test; set nhats3(where=(wave=n1_int_wave and sample=1)); run;
 
 proc freq data=test; tables yrdx*n1_int_wave; run;
@@ -1337,21 +1341,129 @@ tables (eligible_nsoc completed_nsoc)*(wave replenishment)/missing; run;
 
 proc means n nmiss min median max data=cancerdx(where=(n1_int_wave=wave and sample=1)); var dxt0; run;
 
-/*list of incident cancer patients*/
-/*keep pre-cancer interview,
-diagnosis date, Medicaid, education,
-marital status, race, self-reported health, lives alone, dementia, count of medical conditions,
-pain, depression, anxiety, help with ADLS, receiving paid help*/
+/*pre cancer interview values for SP*/
 data pre_interview; set cancerdx (where=(n1_int_wave=wave and sample=1));
 keep spid wave n1_int_wave sample dxt0 medicaid education maritalstat race_cat
 srh srh_fp livealone dem_2_cat dem_3_cat sr_numconditions1 ind_pain sr_phq2_depressed
-sr_gad2_anxiety adl_impair iadl_impair ind_paid_helper; 
+sr_gad2_anxiety adl_impair iadl_impair ind_paid_helper replenishment; 
 run;
 
+proc print data=pre_interview (obs=20); run;
+
+/*read in NSOC*/
 proc import out=nsoc2011 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1.dta"
 dbms=dta replace;
 run;
 
-proc contents data=nsoc2011; run;
+proc import out=nsoc2015 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_5.dta"
+dbms=dta replace;
+run;
 
-proc freq data=nsoc2011; tables cg_ivw_year; run;
+proc import out=nsoc2017 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_7.dta"
+dbms=dta replace;
+run;
+
+proc contents data=nsoc2017; run;
+
+proc freq data=nsoc2017; tables cg_ivw_year; run;
+
+/*stack NSOC datasets and reduce variables*/
+data nsoc; set nsoc2011 nsoc2015 nsoc2017;
+weight_revised=cgfinwgt/3; label weight_revised="Reweight across 3 years";
+
+/*create unique caregiver ID by combining SPID and OPID*/
+cgid=strip(spid)||strip(opid);
+label cgid=" Unique Caregiver ID";
+run;
+
+proc print data=nsoc(obs=10); var cgid spid opid; run;
+
+data test; set nsoc; keep cgid; run;
+	proc sort data=test nodup out=test; by cgid; run; /*5542 unique caregivers*/
+
+
+/*Select observations with an SPID with cancer, and interview before diagnosis*/
+/*assign those without a connection to a SP with cancer as sample 0 and those 
+interviews with multiple interviews as 0 if not the latest pre cancer interview*/
+
+proc sort data=pre_interview; by spid; run;
+proc sort data=nsoc; by spid; run;
+
+data nsoc_cancer; merge nsoc (in=a) pre_interview (in=b);by spid; 
+if a=1;
+if b=0 then cg_sample=0;
+if b=1 and cg_ivw_date>=dxt0 then cg_sample=0;
+run; 
+
+proc freq data=nsoc_cancer; tables cg_sample*cg_ivw_year/missing; run; /*398 potentially in sample*/
+proc print data=nsoc_cancer(where=(cg_sample=.)); var cg_sample spid opid cgid dxt0 n1_int_wave cg_ivw_date; run;
+
+/*select the latest interview for those caregivers with multiple interviews*/
+proc sort data=nsoc_cancer; by cgid cg_ivw_year; run;
+
+proc print data=nsoc_cancer (where=(cg_sample=.)); var cgid spid opid cg_ivw_year dxt0; run;
+
+data nsoc_cancer; set nsoc_cancer; by cgid;
+if cg_sample=. and last.cgid then cg_sample=1;
+if cg_sample=. then cg_sample=0;
+run;
+
+proc freq data=nsoc_cancer; tables cg_sample*(cg_ivw_year replenishment)/missing; run;
+
+data test; set nsoc_cancer(where=(cg_sample=1)); keep cgid; run;
+	proc sort data=test nodup out=test; by cgid; run; /*282 unique caregiver interviews*/
+
+
+data test; set nsoc_cancer(where=(cg_sample=1)); keep spid cg_ivw_year;
+	proc sort data=test nodup out=test; by spid; run; /*204 unique cancer patients*/
+
+	proc freq data=test; tables cg_ivw_year; run;
+
+proc contents data=nsoc_cancer; run;
+
+data nsoc_cancer_reduced; set nsoc_cancer;
+keep spid wave n1_int_wave sample dxt0 medicaid education maritalstat race_cat
+srh srh_fp livealone dem_2_cat dem_3_cat sr_numconditions1 ind_pain sr_phq2_depressed
+sr_gad2_anxiety adl_impair iadl_impair ind_paid_helper replenishment
+cg_age cg_age_cat cg_educ cg_female cg_gad2_anxiety cg_gad2_score cg_gt_hs
+cg_ivw_date cg_ivw_month cg_ivw_year cg_lives_with_sp  cg_living_children cg_marital_status
+cg_marr_part_ind  cg_medicaid cg_medicare cg_phq2_depressed cg_phq2_score cg_primary_nsoc
+cg_primary_source cg_relationship_cat1 cg_relationship_cat cg_sample
+cg_spouse cg_srh cg_srh_pf cg_total_in_hh cgfinwgt weight_revised cgid  cgvarstrat
+cgvarunit  daughter diff_emotional_lv diff_emotional_lv_di diff_financial_lv diff_financial_lv_di
+diff_physical_lv  diff_physical_lv_di disab ever_pain enrgy_lim_act enrgy_lim_act_di
+ever_arthritis ever_breath_prob ever_cancer ever_diabetes ever_diff_hearing ever_diff_seeing
+ever_heart_attack ever_heart_disease ever_high_bp ever_low_enrgy ever_lung_dis
+ever_osteoperosis felt_depressed felt_lit_interest felt_nervous felt_worry 
+help_bills help_chores help_chores_di help_diet help_exercise help_foot help_get_around
+help_get_around_di  help_home_safe help_insurance help_insurance_any help_insurance_oth
+help_longer_than_yr help_make_appts help_medical_task help_mob_dev help_order_med
+help_paid_helpr help_personal_care help_personal_care_di help_regular_sched help_shopping
+help_shopping_di help_shots_injection help_skin help_speak_doc help_teeth help_track_meds
+max_hrs_helped n_helpers n_family_helpers n_paid_helpers op_adl_bath op_adl_bed
+op_adl_dres op_adl_eat op_adl_insd op_adl_toil op_age op_doc_help op_family
+op_hrsmth_i op_hrswk_i op_iadl_bank op_iadl_laun op_iadl_meal op_iadl_meds
+op_iadl_shop op_nonadl_out op_nonadl_tkpl op_relationship_cat op_sn opid opishelper_allw
+oth_fam other_flag otherrel paid paid_hours paid_hours_cat paid_last_week
+pain_lim_act pain_lim_act_di self_health self_health_di solo_cg
+solo_cg_fam solo_cg_informal son spouse;
+run;
+
+/*save NSOC cohort*/
+data inter.NSOC_precancer_cohort; set nsoc_cancer_reduced; run;
+
+H="Descriptives of Pre-Cancer Caregivers"
+/**Descriptives**/
+data nsoc_cancer_reduced; set nsoc_cancer_reduced;
+cg_ivw_dx=(dxt0-cg_ivw_date)/365; 
+run;
+
+proc surveyfreq data=nsoc_cancer_reduced missing; 
+weight weight_revised; stratum cgvarstrat; cluster cgvarunit;
+tables cg_sample*(cg_age_cat cg_female cg_marital_status cg_educ cg_gt_hs
+cg_phq2_depressed cg_gad2_anxiety cg_srh)/row col; run;
+
+proc surveymeans data=nsoc_cancer_reduced nobs mean stderr;
+weight weight_revised; stratum cgvarstrat; cluster cgvarunit;
+domain cg_sample;
+var cg_age cg_ivw_dx; run;
