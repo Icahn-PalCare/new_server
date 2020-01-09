@@ -1093,6 +1093,18 @@ proc surveyfreq data=prostate;
 weight anfinwgt; strata varstrat; cluster varunit;
 tables sample_prostate*dem_3_cat*screening_PSA/row col; run;
 
+proc contents data=prostate; run;
+proc print data=prostate(obs=20); var spid age; run;
+
+proc surveylogistic data=prostate;
+weight anfinwgt; strata varstrat; cluster varunit; domain sample_prostate;
+class screening_PSA(ref="0") dem_3_cat(ref="No dementia")/param=ref;
+model screening_PSA=dem_3_cat age;
+run;
+
+/*save prostate screened cohort*/
+data inter.prostate_screened; set prostate; run;
+
 
 H="Breast Exclusions-Medicare"
 proc import out=nhats1_8 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"

@@ -1345,7 +1345,9 @@ proc means n nmiss min median max data=cancerdx(where=(n1_int_wave=wave and samp
 data pre_interview; set cancerdx (where=(n1_int_wave=wave and sample=1));
 keep spid wave n1_int_wave sample dxt0 medicaid education maritalstat race_cat
 srh srh_fp livealone dem_2_cat dem_3_cat sr_numconditions1 ind_pain sr_phq2_depressed
-sr_gad2_anxiety adl_impair iadl_impair ind_paid_helper replenishment; 
+sr_gad2_anxiety adl_impair iadl_impair ind_paid_helper replenishment adl_diff_index 
+adverse age age_dx agecat anfinwgt varstrat varunit female iadl_diff_index
+income_cat; 
 run;
 
 proc print data=pre_interview (obs=20); run;
@@ -1369,11 +1371,34 @@ proc freq data=nsoc2017; tables cg_ivw_year; run;
 
 /*stack NSOC datasets and reduce variables*/
 data nsoc; set nsoc2011 nsoc2015 nsoc2017;
-weight_revised=cgfinwgt/3; label weight_revised="Reweight across 3 years";
+weight_revised=cgfinwgt/3; label weight_revised="CG Reweight across 3 years";
 
 /*create unique caregiver ID by combining SPID and OPID*/
 cgid=strip(spid)||strip(opid);
 label cgid=" Unique Caregiver ID";
+
+keep spid cg_age cg_age_cat cg_educ cg_female cg_gad2_anxiety cg_gad2_score cg_gt_hs
+cg_ivw_date cg_ivw_month cg_ivw_year cg_lives_with_sp  cg_living_children cg_marital_status
+cg_marr_part_ind  cg_medicaid cg_medicare cg_phq2_depressed cg_phq2_score cg_primary_nsoc
+cg_primary_source cg_relationship_cat1 cg_relationship_cat
+cg_spouse cg_srh cg_srh_pf cg_total_in_hh cgfinwgt weight_revised cgid  cgvarstrat
+cgvarunit  daughter diff_emotional_lv diff_emotional_lv_di diff_financial_lv diff_financial_lv_di
+diff_physical_lv  diff_physical_lv_di disab ever_pain enrgy_lim_act enrgy_lim_act_di
+ever_arthritis ever_breath_prob ever_cancer ever_diabetes ever_diff_hearing ever_diff_seeing
+ever_heart_attack ever_heart_disease ever_high_bp ever_low_enrgy ever_lung_dis
+ever_osteoperosis felt_depressed felt_lit_interest felt_nervous felt_worry 
+help_bills help_chores help_chores_di help_diet help_exercise help_foot help_get_around
+help_get_around_di  help_home_safe help_insurance help_insurance_any help_insurance_oth
+help_longer_than_yr help_make_appts help_medical_task help_mob_dev help_order_med
+help_paid_helpr help_personal_care help_personal_care_di help_regular_sched help_shopping
+help_shopping_di help_shots_injection help_skin help_speak_doc help_teeth help_track_meds
+max_hrs_helped n_helpers n_family_helpers n_paid_helpers op_adl_bath op_adl_bed
+op_adl_dres op_adl_eat op_adl_insd op_adl_toil op_age op_doc_help op_family
+op_hrsmth_i op_hrswk_i op_iadl_bank op_iadl_laun op_iadl_meal op_iadl_meds
+op_iadl_shop op_nonadl_out op_nonadl_tkpl op_relationship_cat op_sn opid opishelper_allw
+oth_fam other_flag otherrel paid paid_hours paid_hours_cat paid_last_week
+pain_lim_act pain_lim_act_di self_health self_health_di solo_cg
+solo_cg_fam solo_cg_informal son spouse;
 run;
 
 proc print data=nsoc(obs=10); var cgid spid opid; run;
@@ -1421,49 +1446,36 @@ data test; set nsoc_cancer(where=(cg_sample=1)); keep spid cg_ivw_year;
 
 proc contents data=nsoc_cancer; run;
 
-data nsoc_cancer_reduced; set nsoc_cancer;
-keep spid wave n1_int_wave sample dxt0 medicaid education maritalstat race_cat
-srh srh_fp livealone dem_2_cat dem_3_cat sr_numconditions1 ind_pain sr_phq2_depressed
-sr_gad2_anxiety adl_impair iadl_impair ind_paid_helper replenishment
-cg_age cg_age_cat cg_educ cg_female cg_gad2_anxiety cg_gad2_score cg_gt_hs
-cg_ivw_date cg_ivw_month cg_ivw_year cg_lives_with_sp  cg_living_children cg_marital_status
-cg_marr_part_ind  cg_medicaid cg_medicare cg_phq2_depressed cg_phq2_score cg_primary_nsoc
-cg_primary_source cg_relationship_cat1 cg_relationship_cat cg_sample
-cg_spouse cg_srh cg_srh_pf cg_total_in_hh cgfinwgt weight_revised cgid  cgvarstrat
-cgvarunit  daughter diff_emotional_lv diff_emotional_lv_di diff_financial_lv diff_financial_lv_di
-diff_physical_lv  diff_physical_lv_di disab ever_pain enrgy_lim_act enrgy_lim_act_di
-ever_arthritis ever_breath_prob ever_cancer ever_diabetes ever_diff_hearing ever_diff_seeing
-ever_heart_attack ever_heart_disease ever_high_bp ever_low_enrgy ever_lung_dis
-ever_osteoperosis felt_depressed felt_lit_interest felt_nervous felt_worry 
-help_bills help_chores help_chores_di help_diet help_exercise help_foot help_get_around
-help_get_around_di  help_home_safe help_insurance help_insurance_any help_insurance_oth
-help_longer_than_yr help_make_appts help_medical_task help_mob_dev help_order_med
-help_paid_helpr help_personal_care help_personal_care_di help_regular_sched help_shopping
-help_shopping_di help_shots_injection help_skin help_speak_doc help_teeth help_track_meds
-max_hrs_helped n_helpers n_family_helpers n_paid_helpers op_adl_bath op_adl_bed
-op_adl_dres op_adl_eat op_adl_insd op_adl_toil op_age op_doc_help op_family
-op_hrsmth_i op_hrswk_i op_iadl_bank op_iadl_laun op_iadl_meal op_iadl_meds
-op_iadl_shop op_nonadl_out op_nonadl_tkpl op_relationship_cat op_sn opid opishelper_allw
-oth_fam other_flag otherrel paid paid_hours paid_hours_cat paid_last_week
-pain_lim_act pain_lim_act_di self_health self_health_di solo_cg
-solo_cg_fam solo_cg_informal son spouse;
-run;
+proc freq data=nsoc_cancer(where=(cg_sample=1)); tables cg_female*female; run;
 
 /*save NSOC cohort*/
-data inter.NSOC_precancer_cohort; set nsoc_cancer_reduced; run;
+data inter.NSOC_precancer_cohort; set nsoc_cancer; run;
+
 
 H="Descriptives of Pre-Cancer Caregivers"
 /**Descriptives**/
-data nsoc_cancer_reduced; set nsoc_cancer_reduced;
+data nsoc_cancer; set inter.NSOC_precancer_cohort; run;
+
+
+proc contents data=nsoc_cancer; run;
+
+data nsoc_cancer; set nsoc_cancer;
 cg_ivw_dx=(dxt0-cg_ivw_date)/365; 
 run;
 
-proc surveyfreq data=nsoc_cancer_reduced missing; 
-weight weight_revised; stratum cgvarstrat; cluster cgvarunit;
-tables cg_sample*(cg_age_cat cg_female cg_marital_status cg_educ cg_gt_hs
-cg_phq2_depressed cg_gad2_anxiety cg_srh)/row col; run;
+proc freq data=nsoc_cancer(where=(cg_sample=1)); tables cg_relationship_cat*(cg_spouse spouse
+daughter son)/missing; run;
 
-proc surveymeans data=nsoc_cancer_reduced nobs mean stderr;
+proc surveyfreq data=nsoc_cancer missing; 
+weight weight_revised; stratum cgvarstrat; cluster cgvarunit;
+tables cg_sample*(/*cg characteristics*/cg_age_cat cg_female cg_marital_status cg_educ cg_gt_hs
+/*cg health burdens*/cg_phq2_depressed cg_gad2_anxiety cg_srh 
+/*cg burden*/cg_primary_nsoc solo_cg
+/*cg relationship to SP*/ cg_lives_with_sp cg_relationship_cat cg_spouse op_relationship_cat
+/*characteristics of SP*/female race_cat medicaid ADL_impair IADL_impair
+dem_3_cat)/row col; run;
+
+proc surveymeans data=nsoc_cancer nobs mean stderr;
 weight weight_revised; stratum cgvarstrat; cluster cgvarunit;
 domain cg_sample;
-var cg_age cg_ivw_dx; run;
+var cg_age cg_ivw_dx age age_dx; run;
