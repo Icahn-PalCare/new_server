@@ -19328,7 +19328,16 @@ H="changelog"
 
 
 H="Burdensome transitions using days"
-proc sort data=proj_int.index out=index1 nodupkey;
+
+
+data index;
+set clean.death_date_2015;
+index_date=death_all;
+run; 
+
+
+
+proc sort data=index out=index1 nodupkey;
 by bid_hrs_22 id index_date;
 run;
 
@@ -19469,7 +19478,7 @@ table snf_pb;
 run;
 */
 
-/*making it into a by date format */
+/*making it into a by date format, then checking if they transitioned to a different NPI in the IP, SNF... file. */
 
 %macro dates(source=,suf=, npi=);
 
@@ -19618,7 +19627,7 @@ proc freq data=hosp_check; tables rcode*year / missprint; run;
 /* */
 
 
-proc import out=proj_int.mds datafile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta";
+proc import out=proj_int.mds datafile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta" replace; 
 run;
 
 
@@ -19628,7 +19637,7 @@ create table mds_meet_1 as select a.*,b.index_date,b.id
 from proj_int.mds a inner join
 index1 b
 on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and 0<=b.index_date-a.admission<=120 ;
+and 0<=b.index_date-a.admit<=120 ;
 quit;
 
 /*claims that start earlier than x time but span into x time before death*/
@@ -19637,29 +19646,27 @@ create table mds_meet_2 as select a.*,b.index_date,b.id
 from proj_int.mds a inner join
 index1 b
 on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and b.index_date-a.admission>120 and b.index_date-a.discharge<=0;
+and b.index_date-a.admit>120 and b.index_date-a.discharge<=0;
 quit;
 
-data mds_meet_3m (compress=yes);
+data mds_meet_4m (compress=yes);
 set mds_meet_1 mds_meet_2;
 run;
 
 
-data mds_meet_3m_d;
-set mds_meet_3m;
+data mds_meet_4m_d;
+set mds_meet_4m;
 format index_date date9.;
-format admit_date date9.;
-format disch_date date9.;
-day_a=index_date-admission;
+day_a=index_date-admit;
 day_d=index_date-discharge;
 days=120-day_d;
 rename date=date_1;
 run;
 
 
-data mds_meet_3m_dates;
-set mds_meet_3m_d;
-do i=admission to discharge;
+data mds_meet_4m_dates;
+set mds_meet_4m_d;
+do i=admit to discharge;
 date=i;
 output;
 end;
@@ -19667,18 +19674,18 @@ format date date9.;
 run;
 
 
-data mds_3m; 
-set mds_meet_3m_dates;
+data mds_4m; 
+set mds_meet_4m_dates;
 where 0<=index_date-date<=120;
 mds=1;
 run;
 
-proc sort data=mds_3m out=mds_3m ;
+proc sort data=mds_4m out=mds_4m ;
 by bid_hrs_22 date ;
 run;
 
 data mds_dup (keep= bid_hrs_22 target date admission discharge index_date day_a day_d date_1 mds flag) ;
-set mds_3m;
+set mds_4m;
 if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and fac_int_id~=lag(fac_int_id) then flag=1;
 run;
 
@@ -19700,27 +19707,28 @@ set all_test;
 if index_date-date<=90 then days_90=1;
 run;
 
-
-proc freq data=hs_dup;
-table hs_npi;
-run;
-
-
-
-proc freq data=test;
-table op_er*op_obs;
+data all_test_90;
+set all_test;
+where days_90=1;
 run;
 
 
 data test_order;
-set test;
+set all_test_90;
 order=. ;
-if ip=1 then order=1;
-if (op_er=1 or op_obs=1) and order~=. then order=2;
-if sn=1 and order~=. then order=3;
-if hh=1 and order~=. then order=4;
-if hs=1 and order~=. then order=5;
-if mds=1 and order~=. then order=6;
+npi=.;
+if (ip=1 or ip_er=1 or ip_obs=1) then order=1;
+if ip_npi~=. or ip_er_npi~=. or ip_obs_npi~=. then npi=ip_npi;
+if (op_er=1 or op_obs=1) and order=. then order=2;
+if  op_er_npi~=. and npi=. then npi=op_er_npi;
+if  op_obs_npi~=. and npi=. then npi=op_obs_npi;
+if sn=1 and order=. then order=3;
+if  sn_npi~=. and npi=. then npi=sn_npi;
+if hh=1 and order=. then order=4;
+if  hh_npi~=. and npi=. then npi=hh_npi;
+if hs=1 and order=. then order=5;
+if  hs_npi~=. and npi=. then npi=hs_npi;
+if mds=1 and order=. then order=6;
 if order=. then order=0;
 run;
 
@@ -19731,7 +19739,7 @@ run;
 data test_order_1;
 set test_order;
 transition=0;
-if bid_hrs_22=lag(bid_hrs_22) and order~=lag(order) then transition=1;
+if bid_hrs_22=lag(bid_hrs_22) and (order~=lag(order) or (order=lag(order) and npi~=lag(npi))) then transition=1;
 run;
 
 data test_order_2;
@@ -19741,8 +19749,12 @@ if first.bid_hrs_22 then t_count=0;
 if transition=1 then t_count+1;
 run;
 
-proc sort data=test_order_2  ;
-by bid_hrs_22 descending t_count ;
+proc freq data=test_order_2;
+table t_count;
+run;
+
+proc sort data=test_order_2;
+by bid_hrs_22 descending t_count;
 run;
 
 data test_order_3;
@@ -19768,13 +19780,14 @@ proc sort data=test_order_4 nodupkey;
 by bid_hrs_22 ;
 run;
 
-proc freq data=test_order;
-table order;
+proc freq data=test_order_4;
+table flag_burd;
 run;
 
-data test_order;
-set test_order;
 
+
+proc export data=test_order_4 outfile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta" replace; 
+run;
 
 
 
@@ -19903,7 +19916,7 @@ if PLCRVC01='13' then as_liv=1;
 if PLCRVC01='13' then as_liv=1;
 run;
 
-H="mds section"
+H="xxmds section"
 use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta", clear
 
 keep bid_hrs_22 fac_int_id aa8a_pri_rfa trgt_dt ab1_entry_dt r4_discharge_dt a4a_reentry_dt 
@@ -20063,4 +20076,252 @@ rename a admission
 rename d discharge
 
 saveold "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta", version(12) replace
+
+
+
+H="mds section new"
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta", clear
+
+keep bid_hrs_22 fac_int_id aa8a_pri_rfa trgt_dt 
+
+gen target=date(trgt_dt, "YMD")
+format %td target
+
+//keep if inlist(aa8a, "01","00","06","07","08", "09")
+
+gen date=target
+format %td date
+
+
+sort bid_hrs_22 fac_int_id date
+////
+gen type_cd=.
+replace type_cd=1 if aa8a=="09" | aa8a=="01"
+replace type_cd=2 if aa8a=="06" | aa8a=="07"
+//replace type_cd=1 if  year(admit)<1999
+
+gen fail=1 if aa8a=="08"
+
+
+drop if type_cd==.
+
+sort bid_hrs_22 fac_int_id date type_cd
+/*
+drop if type_cd==.
+sort bid_hrs_22 date type_cd
+bys bid_hrs_22 date type_cd: keep if _n==1 
+*/
+sort bid_hrs_22 fac_int_id date type_cd
+gen a=1 if bid_hrs_22==bid_hrs_22[_n+1] & type_cd==2 & type_cd[_n+1]==2 & fac_int_id==fac_int_id[_n+1]
+gen b=1 if bid_hrs_22==bid_hrs_22[_n-1] & type_cd==1 & type_cd[_n-1]==1 & fac_int_id==fac_int_id[_n-1]
+
+//taking a more conservative approach where if there are multiple admits or discharges in a row the first admit is kept and the last discharege is kept. 
+
+//drop if a==1 | b==1 not taking out becuase of readmissions
+
+tempfile a
+save "`a'"
+
+
+
+/*
+gen type_cd1=.
+replace type_cd1=1 if admit!=. | reentry!=.
+replace type_cd1=2 if disch!=.
+
+tab type_cd type_cd1, m
+
+gen flag=1 if type_cd!=type_cd1
+tab flag
+*/
+
+
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_15.dta", clear
+sort bid_hrs_22
+keep bid_hrs_22 a0310a_fed_obra_cd a0310f_entry_dschrg_cd a0310e_first_since_admsn_cd fac_prvdr_intrnl trgt_dt    
+
+
+destring fac_prvdr_intrnl, replace
+
+
+gen target=date(trgt_dt, "YMD")
+format %td target
+
+// assessment reference date is the same as the target date unless it is missing. 
+gen date=target
+
+format %td date
+
+
+sort bid_hrs_22 fac_prvdr_intrnl date
+////
+gen type_cd=.
+replace type_cd=1 if a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01" 
+replace type_cd=2 if inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
+
+gen same_day=1 if a0310a_fed_obra_cd=="01" & inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
+replace type_cd=3 if same_day==1
+
+drop if type_cd==.
+
+gen a=1 if type_cd[_n-1]==1 & type_cd==1 & bid_hrs_22[_n-1]==bid_hrs_22 & fac_prvdr_intrnl[_n-1]==fac_prvdr_intrnl 
+
+gen b=1 if type_cd[_n+1]==2 & type_cd==2 & bid_hrs_22[_n+1]==bid_hrs_22 & fac_prvdr_intrnl[_n+1]==fac_prvdr_intrnl
+
+
+
+tempfile b
+save "`b'"
+
+use "`a'", clear
+append using "`b'" 
+
+replace fac_int_id=fac_prvdr_intrnl if fac_int_id==.
+
+drop a b fac_prvdr_intrnl
+
+sort bid_hrs_22 fac_int_id date
+
+gen admit=date if type_cd==1
+gen discharge=date if type_cd==2
+
+replace discharge=date[_n+1] if type_cd[_n+1]==2 & bid_hrs_22==bid_hrs_22[_n+1] & fac_int_id==fac_int_id[_n+1]
+
+replace admit=date[_n-1] if type_cd[_n-1]==1 & bid_hrs_22==bid_hrs_22[_n-1] & fac_int_id==fac_int_id[_n-1]
+
+format admit %td
+format discharge %td
+
+
+//sort bid_hrs_22 a d fac_int_id
+bys bid_hrs_22 fac_int_id admit discharge: keep if _n==1 
+
+
+replace admit=discharge if admit==.
+replace discharge=admit if discharge==.
+
+saveold "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta", version(12) replace
+
+
+
+H="JAGS revision"
+
+
+
+
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress"
+
+gen educ_3_cat=1 if !degree
+replace educ_3_cat=2 if inrange(degree,1,3)
+replace educ_3_cat=3 if degree>3
+
+gen age_cat=1 if age_at_death<=75
+replace age_cat=2 if inrange(age_at_death,76,80)
+replace age_cat=3 if inrange(age_at_death,81,85)
+replace age_cat=4 if inrange(age_at_death,86,90)
+replace age_cat=5 if age_at_death>=91
+label define age_cat 1 "72-75" 2 "76-80" 3 "81-85" 4 "86-90" 5 ">90"
+label values age_cat age_cat
+
+sort id nflag
+by id: replace married=married[_n+1] if nflag==0
+by id: replace female=female[_n+1] if nflag==0
+by id: replace adl_dependent=adl_dependent[_n+1] if nflag==0
+by id, sort: egen nh_n1=max(cond(nflag==1,nhres,.))
+
+foreach x in stroke dm heart htn lung cancer psych arth {
+		by id: replace `x'_hrs=`x'_hrs[_n+1] if missing(`x'_hrs)
+		replace `x'_hrs=`x'_hrs[_n+1] if nflag==0
+		rename `x'_hrs `x'
+
+}
+
+
+keep if nflag==0
+keep if ffs_84==1
+keep if final_7yr==1
+
+keep id tot_paid_by_mc_y* tot_paid_maid_y* oop_y* informal_y* dem_cohort  ///
+imputed_nh_costs_b_y* age_at_death female hisp_eth black other stroke dm ///
+heart htn lung cancer psych arth age_cat educ_3_cat married adl_dependent nh_n1
+
+rename tot_paid_by_mc_y* mc*
+rename tot_paid_maid_y* mcaid*
+
+foreach x of varlist mcaid* {
+	replace `x'=0 if missing(`x')
+}
+
+rename (oop_y* informal_y* imputed_nh_costs_b_y*) (oop* informal* nh*)
+
+foreach x in mc mcaid oop informal nh {
+	forvalues i=1/7 {
+		replace `x'`i'=`x'`i'/1000
+}
+	gen cum`x'7=`x'7
+	forvalues i=6(-1)1 {
+		gen cum`x'`i'=cum`x'`=`i'+1'+`x'`i'
+}
+}
+
+keep id mc* mcaid* oop* informal* cum* dem_cohort nh* female hisp_eth black other stroke dm ///
+heart htn lung cancer psych arth age_cat educ_3_cat married adl_dependent nh_n1
+
+
+reshape long mc mcaid oop informal cummc cummcaid cumoop cuminformal nh cumnh, ///
+i(id) j(year_before_death)
+
+replace year=-year+8
+
+label define year 1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1"
+label values year year
+
+foreach x in "" cum {
+	egen `x'all=rowtotal(`x'mc `x'mcaid `x'oop `x'informal `x'nh)
+}
+
+global xvars i.age_cat married female hisp_eth black other i.educ_3_cat ///
+stroke dm heart htn lung cancer psych arth
+
+
+foreach y in all {
+	glm cum`y' i.dem_cohort##nh_n1##i.year, link(log) fam(gamma) cluster(id)
+	qui margins year#nh_n1#dem_cohort
+	marginsplot, title(unadjusted) nodraw
+	graph save v1, replace
+
+	qui glm cum`y' i.dem_cohort##nh_n1##i.year $xvars , link(log) fam(gamma) cluster(id)
+	margins year#nh_n1#dem_cohort
+	marginsplot, title(adjusted) nodraw
+	graph save v2, replace
+	graph combine v1.gph v2.gph, ycommon rows(1) ysize(4) xsize(8) saving(cum`y', replace)
+	graph export cum`y'_modeled.pdf, replace
+}
+
+
+foreach y in all oop informal {
+
+	foreach x in 0 1 {
+	qui glm cum`y' i.dem_cohort##nh_n1##i.year if adl_dependent==`x', link(log) fam(gamma) cluster(id)
+	margins year#nh_n1#dem_cohort
+	marginsplot, title(ADL=`x') nodraw
+	graph save v3`x', replace
+}
+	graph combine v30.gph v31.gph, ycommon rows(1) ysize(4) xsize(8) saving(cum`y'adl, replace)
+	graph export cum`y'adl.pdf, replace
+}
+
+foreach y in all oop informal {
+
+	foreach x in 0 1 {
+	qui glm cum`y' i.dem_cohort##nh_n1##i.year $xvars if adl_dependent==`x', link(log) fam(gamma) cluster(id)
+	margins year#nh_n1#dem_cohort
+	marginsplot, title(ADL=`x') nodraw
+	graph save v3`x', replace
+}
+	graph combine v30.gph v31.gph, ycommon rows(1) ysize(4) xsize(8) saving(cum`y'adl, replace)
+	graph export cum`y'adl_adj.pdf, replace
+}
 
