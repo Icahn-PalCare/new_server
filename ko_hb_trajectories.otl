@@ -802,6 +802,225 @@ exit
 
 
 
+H="Follow wave 2 incident hb"
+//Part 1
+
+clear all
+set more off
+capture log close
+
+
+cd "D:\NHATS\Projects\homebound\ko_homebound_income\output\logs"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" if lml==0, clear
+
+
+//cpi inflation
+gen income_adj=0
+replace income_adj= (251.107/224.939)*aveincome if wave==1
+replace income_adj= (251.107/229.594)*aveincome if wave==2
+replace income_adj= (251.107/232.957)*aveincome if wave==3
+replace income_adj= (251.107/236.736)*aveincome if wave==4
+replace income_adj= (251.107/237.017)*aveincome if wave==5
+replace income_adj= (251.107/240.007)*aveincome if wave==6
+replace income_adj= (251.107/245.120)*aveincome if wave==7
+replace income_adj=aveincome if wave==8
+
+//replacing analytic weights to use only weights for origianl cohort. 
+//only using original cohort (decision made based off of prior analysis with replenishment cohort. 
+gen orig_weight=anfinw
+replace anfinw=an2011wgt if (year==2011 & wave==5) | (year==2011 & wave==6) | (year==2011 & wave==7) | (year==2011 & wave==8)
+drop if yearsample==2015
+
+
+//VARIABLE CREATION/CLEANUP
+gen ind_noone=n_social==0
+label var ind_noone "SR nobody in social network"
+
+sort spid wave
+by spid: egen firstdem=min(cond(prob_dem==1,wave,.))
+
+xtset spid wave
+replace homebound_cat=. if nhres==1
+gen homebound=homebound==1 if !missing(homebound) & !nhres
+gen status=1 if sp_ivw==1 & !missing(homebound)
+replace status=2 if homebound==1
+replace status=3 if inlist(homebound_cat,2,3)
+replace status=4 if nhres==1
+label define status 1 "Community, not HB" 2 "Homebound" 3 "Semi-Homebound" 4 "NH resident" 5 "Community, previously HB or NH resident"
+label values status status
+label var status "Status this wave"
+
+//checking individuals who have a missing status. 
+by spid: gen mstat=1 if status==.
+by spid: carryforward mstat, replace
+
+//checking individuals who have missing wave and flagging them.
+capture drop misw
+by spid: gen misw=1 if wave[_n-1]!=wave-1 & wave!=1
+capture drop misw1
+gen misw1=misw
+by spid: carryforward misw1, replace
+
+
+//Dropping individuals with a missing status or a missing wave.
+drop if mstat==1 
+drop if misw1==1 
+
+
+gen hb2=0
+replace hb2=1 if status==2 & wave==2
+
+gen nothbw1=.
+replace nothbw1=1 if wave==1 & status!=2
+sort spid wave
+by spid: carryforward nothbw1, replace
+
+//incident hb in wave 2 
+gen sample=.
+replace sample=1 if nothbw1==1 & hb2==1 & wave==2
+sort spid wave
+by spid: carryforward sample, replace 
+
+drop if sample==.
+
+
+
+sort spid wave
+gen comw=wave if status==1
+gen hbw=wave if homebound==1 //homebound at what wave
+gen nhw=wave if nhres==1 // NH at what wave
+gen shbw=wave if inlist(homebound_cat,2,3)
+by spid, sort: egen firsthb=min(hbw) //first homebound wave for an individual
+by spid, sort: egen firstnh=min(nhw) //first NH wave for an individual
+by spid, sort: egen firstshb=min(shbw)
+by spid, sort: egen firstcom=min(comw)
+
+
+gen everhb=!missing(firsthb) //if an individual was ever homebound
+gen evernh=!missing(firstnh) //if an individual was ever NH
+gen evershb=!missing(firstshb)
+gen evercom=!missing(firstcom)
+label var everhb "Ever HB"
+label var evernh "Ever NH"
+label var evershb "Ever SHB"
+label var evercom "Ever Com"
+*drop if firsthb==1 | missing(homebou)
+sort spid wave
+by spid: gen hbnextwave=homebound[_n+1] //flag next wave being homebound
+by spid: gen nhnextwave=nhres[_n+1] //flag next wave being NH
+by spid: gen comnextwave=status[_n+1]==1
+by spid: gen shbnextwave=status[_n+1]==3
+gen inchbnextwave=firsthb==wave+1 & homebound==0 //flag incident homebound next wave
+gen incnhnextwave=firstnh==wave+1 & nhres==0 //flag incident NH next wave
+gen inccomnextwave=firstcom==wave+1 & status!=1
+gen incshbnextwave=firstshb==wave+1 & status!=3
+
+//Dropping waves after first community/NH/SHB
+sort spid wave
+by spid: drop if firstnh<wave
+by spid: drop if firstshb<wave
+by spid: drop if firstcom<wave
+
+//ever* var needs to be changed because later waves are dropped. 
+replace evershb=0 if firstshb>firstnh & firstshb>firstcom
+replace evernh=0 if firstshb<firstnh & firstcom<firstnh
+replace evercom=0 if firstshb<firstcom & firstshb<firstcom 
+
+//finding next wave status 
+gen nwstatus=.
+forvalues i=1/7 {
+replace nwstatus=r`=`i'+1'status if wave==`i'
+}
+tab nwstat
+tab r2status
+replace nwstatus=1 if inlist(nwstatus,60,63) & !missing(hbne)
+replace nwstatus=6 if inlist(nwstatus,61)
+replace nwstatus=8 if inlist(nwstatus,62,86)
+replace nwstatus=9 if nwstatus>7
+replace nwstatus=8 if died_12==1 & nwstatus==9
+label define nwstatus 1 "Community, not homebound" 2 "Homebound, not incident" ///
+3 "Incident homebound" 4 "Semi-Homebound, not incident" 5 "Incident Semi-Homebound" 6 "NH Resident, not incident" ///
+7 "Incident NH" 8 "Died" 9 "LFU"
+label values nwstatus nwstatus
+replace nwstatus=2 if hbne==1
+replace nwstatus=3 if inchb==1
+replace nwstatus=4 if shbne==1
+replace nwstatus=5 if incshbne==1
+replace nwstat=6 if nhne==1
+replace nwstat=7 if incnhne==1
+label var nwstat "Status next wave"
+replace died_12=0 if nwstatus<=7
+label var died_12 "Died prior to next wave"
+
+//generating everdied, but since we don't follow people after wave 6 we don't 
+// know if they died based off NHATS data.
+sort spid wave
+capture drop everdied
+gen everdied=1 if nwstatus==8 
+gsort spid -wave
+by spid: carryforward everdied, replace 
+replace everdied=0 if missing(everdied)
+
+//same as above explanation
+capture drop everlfu
+gen everlfu=1 if nwstatus==9 & wave!=8
+by spid: carryforward everlfu, replace 
+
+
+sort spid wave
+
+gen a=1 if wave+1!=wave[_n+1] & spid==spid[_n+1]
+
+sort spid wave
+by spid: gen time=_n 
+
+bys spid: egen lw=max(wave)
+
+replace lw=lw+1 if inlist(nwstatus, 8,9) & status==2
+
+by spid: egen fix=max(lw)
+
+replace lw=fix 
+
+drop fix
+
+gen f_stat=.
+replace f_stat=1 if lw==wave & status==1
+replace f_stat=2 if lw==wave & status==3
+replace f_stat=3 if lw==wave & status==4
+replace f_stat=4 if nwstatus==8 & lw-1==wave & status==2
+replace f_stat=0 if nwstatus==9 & lw-1==wave & status==2
+
+gsort spid -wave
+
+by spid: carryforward f_stat, replace
+
+replace lw=lw-2
+
+keep if wave==2
+
+stset lw [pw=anfinw], failure(f_stat==1) id(spid)
+
+sts graph, note(fail=community dwelling)
+
+stset lw [pw=anfinw], failure(f_stat==2) id(spid)
+
+sts graph, note(fail=semi-homebound)
+
+stset lw [pw=anfinw], failure(f_stat==3) id(spid)
+
+sts graph, note(fail=nhres)
+
+stset lw [pw=anfinw], failure(f_stat==4) id(spid)
+
+sts graph, note(fail=death)
+
+stset lw [pw=anfinw], failure(f_stat==1 2 3 4) id(spid)
+
+sts graph, note(fail=all)
+
+
+
 H="Change log"
 
 
@@ -810,6 +1029,10 @@ H="Change log"
 
 
 Updates:
+
+01/13/2020 MH
+------------
+Adding in code to follow people who were incident homebound in wave 2 and then running KM curves. 
 
 01/06/2020 MH
 ------------

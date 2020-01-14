@@ -16517,7 +16517,7 @@ tab kidcat married if !dem_cohort, row chi2
 tab kidcat married if dem_cohort, row chi2
 
 gen helpcat=married==1
-replace helpcat=2 if !married & living_kids==1
+replace helpcat=2 if !married & (living_kids==1 | missing(living_kids_ind))
 replace helpcat=3 if !married & !living_kids_ind
 label define helpcat 1 "Married" 2 "Unmarried with living Children" 3 "Unmarried w/o living Children"
 label values helpcat helpcat
@@ -16570,6 +16570,7 @@ nh cumnh {
 
 
 foreach x in annu {
+
 preserve
 collapse (mean) hlp* cumhlp* ///
 nh cumnh (semean) `se', by(dem_cohort year_before_death)
@@ -16802,11 +16803,13 @@ restore
 
 
 H="changelog"
+1/13/20-Changed helpcat to include unmarried-but-missing-living-children-status in the unmarried with kids based on help reported. Evan
+
 11/21/19-Finished the new approach that extends to 10-years
 
-10/4/19-Updated the "7 year graphs of informal care to include the NH residents and to export the data to excel.
+10/4/19-Updated the "7 year graphs of informal care to include the NH residents and to export the data to excel. Evan
 
-08/22/19 - Cleaned up some of the excess headers that were holovers from the original paper.  Updated sample to include all Medicare decedents 72+. Added table 1 and graphs by marital and child status (married, unmarried with kids, unmarried no kids) and graph of paid caregiving and nursing home status.
+08/22/19 - Cleaned up some of the excess headers that were holovers from the original paper.  Updated sample to include all Medicare decedents 72+. Added table 1 and graphs by marital and child status (married, unmarried with kids, unmarried no kids) and graph of paid caregiving and nursing home status. Evan
 
 08/07/19 - Created new graphs for Jenny based on different specifications. Mohammed 
 
