@@ -160,6 +160,10 @@ recode keepmin (0=0)(1/6=1), gen(keep_firstobs)
 tab keep_firstobs
 drop keepmin
 
+*now keep for just wave 1
+gen keepw1=keep
+replace keepw1=0 if wave!=1 
+
 *COVARIATES
 recode n_social_network (0=0 "0_none") (1=1 "1_one")(2/5=2 "2_ 2+ people"), gen(networkcat)
 
@@ -168,6 +172,10 @@ recode n_social_network (0=0 "0_none") (1=1 "1_one")(2/5=2 "2_ 2+ people"), gen(
 *replace new_srhosp_oneyear=1 if ind_ip_admit_p12m==1
 
 recode age (min/74=1 "1_ 65-74")(75/84=2 "2_75-84")(85/max=3 "3_85+"),gen(agecat2)
+
+
+
+
 
 
 H="analysis"
@@ -425,46 +433,46 @@ tab freqout adl_3cat if keep_firstobs==1, column
 tab freqout adl_3cat if keep_firstobs==1, row
 
 
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==1 & adl_3cat==0
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==1 & adl_3cat==1
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==1 & adl_3cat==2
+svy, subpop(keep_firstobs): tab died_12 if freqout==1 & adl_3cat==0
+svy, subpop(keep_firstobs): tab died_12 if freqout==1 & adl_3cat==1
+svy, subpop(keep_firstobs): tab died_12 if freqout==1 & adl_3cat==2
 
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==2 & adl_3cat==0
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==2 & adl_3cat==1
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==2 & adl_3cat==2
+svy, subpop(keep_firstobs): tab died_12 if freqout==2 & adl_3cat==0
+svy, subpop(keep_firstobs): tab died_12 if freqout==2 & adl_3cat==1
+svy, subpop(keep_firstobs): tab died_12 if freqout==2 & adl_3cat==2
 
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==3 & adl_3cat==0
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==3 & adl_3cat==1
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==3 & adl_3cat==2
+svy, subpop(keep_firstobs): tab died_12 if freqout==3 & adl_3cat==0
+svy, subpop(keep_firstobs): tab died_12 if freqout==3 & adl_3cat==1
+svy, subpop(keep_firstobs): tab died_12 if freqout==3 & adl_3cat==2
 
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==4 & adl_3cat==0
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==4 & adl_3cat==1
-svy, subpop(keep_firstobs): tab nhats_died_12 if freqout==4 & adl_3cat==2
+svy, subpop(keep_firstobs): tab died_12 if freqout==4 & adl_3cat==0
+svy, subpop(keep_firstobs): tab died_12 if freqout==4 & adl_3cat==1
+svy, subpop(keep_firstobs): tab died_12 if freqout==4 & adl_3cat==2
 
-svy, subpop(keep_firstobs): tab nhats_died_12 freqout, column
-svy, subpop(keep_firstobs): tab nhats_died_12 adl_3cat, column
+svy, subpop(keep_firstobs): tab died_12 freqout, column
+svy, subpop(keep_firstobs): tab died_12 adl_3cat, column
 
 
 *table 3
 *died*
-logistic nhats_died_12 female age if keep_firstobs==1
+logistic died_12 female age if keep_firstobs==1
 lroc, nograph
 predict c1, xb
 
-qui logistic nhats_died_12 female age adl_index if keep_firstobs==1
+qui logistic died_12 female age adl_index if keep_firstobs==1
 lroc, nograph
 predict c2, xb
-roccomp nhats_died_12 c1 c2, graph summary
+roccomp died_12 c1 c2, graph summary
 
-qui logistic nhats_died_12 female age freqout if keep_firstobs==1
+qui logistic died_12 female age freqout if keep_firstobs==1
 lroc, nograph
 predict c4, xb
-roccomp nhats_died_12 c2 c4, graph summary
+roccomp died_12 c2 c4, graph summary
 
-qui logistic nhats_died_12 female age freqout adl_index if keep_firstobs==1
+qui logistic died_12 female age freqout adl_index if keep_firstobs==1
 lroc, nograph
 predict c6, xb
-roccomp nhats_died_12 c2 c6, graph summary
+roccomp died_12 c2 c6, graph summary
 
 *hospitalized*
 logistic srhosp_oneyear female age if keep_firstobs==1
