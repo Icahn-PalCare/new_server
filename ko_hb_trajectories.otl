@@ -1022,14 +1022,44 @@ sts graph, note(fail=all)
 */
 
 stset lw [pw=anfinw], failure(f_stat==1) id(spid)
-sts gen s2=s 
-stset lw [pw=anfinw], failure(f_stat==2) id(spid)
+sts gen s2=s
+stset lw [pw=anfinw], failure(f_stat==4) id(spid)
 sts gen s3=s
 stset lw [pw=anfinw], failure(f_stat==3) id(spid)
 sts gen s4=s 
-stset lw [pw=anfinw], failure(f_stat==4) id(spid)
-sts graph, addplot((line s2 lw, sort c(J) legend( order( 1 "Died" 2 "Community" 3 "Semi-Homebound" 4 "NH")))(line s3 lw, sort c(J)) (line s4 lw, sort c(J)))
+sts graph 
 
+stset lw [pw=anfinw], failure(f_stat==2) id(spid)
+sts gen s5=s
+
+sts graph, addplot((line s2 lw, sort c(J) legend( order( 1 "Semi-Homebound" 2 "Community" 3 "Died" 4 "NH"))) (line s3 lw, sort c(J)) (line s4 lw, sort c(J)))
+
+
+stset lw [pw=anfinw], failure(f_stat==1 2 3 4) id(spid)
+
+sts graph, addplot((line s2 lw, sort c(J) legend( order( 1 "All" 2 "Community" 3 "Died" 4 "NH" 5 "Semi-Homebound"))) (line s3 lw, sort c(J)) (line s4 lw, sort c(J)) (line s5 lw, sort c(J)))
+
+
+
+stset lw [pw=anfinw], failure(f_stat==4) id(spid)
+
+local vars `age' ib4.income_quart /*fin_strain anydebt govtasst finhlpfam meals_wheels */ ///
+female black hisp married ind_noone educ_hs_ind  ///
+medicaid prob_dem `cond' adl_diff_ind srh_fp sr_cond_cat2 sr_cond_cat3 ///
+ind_paid_helper metro_ind northeast midwest south
+
+stset lw [pw=anfinw], failure(f_stat==4) id(spid)
+
+ stcox age female black hisp married ind_noone educ_hs_ind  ///
+medicaid prob_dem adl_diff_ind srh_fp ///
+ind_paid_helper metro_ind northeast midwest south i.income_quart
+ 
+ 
+ 
+ 
+ 
+ /*
+ 
 drop a
 gen sample_full=.
 replace sample_full=1 if sample==1 & status==2
@@ -1124,6 +1154,10 @@ H="Change log"
 
 
 Updates:
+
+01/16/2020 MH
+------------
+Overlaying KM curves. 
 
 01/13/2020 MH
 ------------

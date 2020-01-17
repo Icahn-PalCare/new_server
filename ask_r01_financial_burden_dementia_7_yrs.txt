@@ -15330,7 +15330,717 @@ title(Cost and Hours by Year from Death) sdec(2) note("Each column is a year fro
 H="********************************"
 
 
-H="Burdensome transitions "
+H="burdensome transitions using days"
+/* Burdensome Transitions code
+This is tailored to the definiton for ASK's R01, where burdensome transitions occur in the last 90 days of life. 
+
+Initially we start off by using the death date and are interested in days 120 days prior to death. 
+
+/* Starting with death date as index and look 120 days back. */
+
+data index;
+set clean.death_date_2015;
+index_date=death_all;
+run; 
+
+proc sort data=index out=index1 nodupkey;
+by bid_hrs_22 id index_date;
+run;
+
+data index_120 (keep= id bid_hrs_22 date index_date index_120 death_year) ;
+set index1;
+index_120=index_date-120;
+do i=index_120 to index_date;
+date=i;
+output;
+end;
+format date date9.;
+format index_date date9.;
+format index_120 date9.;
+run;
+run;
+
+/**************************************************************************/
+/* ************** Claims Before Death  ******************************/
+/**************************************************************************/
+/*macro to get claims before death
+saves datasets for each claim type / time window to the spo_mc_i directory*/
+%macro claimspre(days_start=,days_bef_index=,source=,suf=);
+
+/*claims fully within x time of death date*/
+proc sql;
+create table &source._meet_1 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table &source._meet_2 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
+quit;
+
+data &source._meet_&suf.(compress=yes);
+set &source._meet_1 &source._meet_2;
+run;
+
+
+%mend;
+
+/*4m before death*/
+%claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m); /*home health*/
+/*%claimspre(days_start=0,days_bef_index=120,source=hs,suf=4m); /*hospice*/
+%claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m); /*dme*/
+%claimspre(days_start=0,days_bef_index=120,source=op,suf=4m); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m); /*carrier*/
+%claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m); /*snf*/
+
+/* Hospice file a little different format than the rest 
+Doing the same as above */
+
+data hs_1998_2015 (keep= hspcstrt hs_start admit_date disch_date bid_hrs_22 provider) ;
+set medi.hs_1998_2015;
+hs_start=input(put(hspcstrt, 8.), yymmdd8.);
+format hs_start date9.;
+format admit_date date9.;
+run;
+
+/*claims fully within x time of death date*/
+proc sql;
+create table hs_meet_1 as select a.*,b.index_date,b.id 
+from hs_1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and 0<=b.index_date-a.hs_start<=120;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table hs_meet_2 as select a.*,b.index_date,b.id 
+from hs_1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.hs_start>120 and b.index_date-a.disch_date<=120;
+quit;
+
+data hs_meet_4m(compress=yes);
+set hs_meet_1 hs_meet_2;
+run;
+
+/*emergency and observation stays identified from the inpatient and outpatient file. */
+
+%macro er_obs(source=);
+
+data &source._meet_4m_er_obs;
+set &source._meet_4m;
+er_flag = 0;
+obs_flag = 0;
+array rvcntr rvcntr01-rvcntr45;
+array hcpcs hcpscd01-hcpscd45;
+array rvunt rvunt01-rvunt45;
+do over rvcntr;
+do over hcpcs;
+do over rvunt;
+if strip(rvcntr) in:("0450", "0451", "0452", "0456", "0459", "0981") then er_flag = 1;
+if strip(rvcntr) in:("0762") then obs_flag =1;
+/*if strip(rvcntr) in:("0760") and strip(hcpcs) in: ("G0378") and rvunt>=8 then obs_flag =1;*/
+end;
+end;
+end;
+run;
+
+data &source._er_meet_4m;
+set &source._meet_4m_er_obs;
+if er_flag=1;
+run;
+
+data &source._obs_meet_4m;
+set &source._meet_4m_er_obs;
+if obs_flag=1;
+run;
+
+%mend;
+
+/*4m before death*/
+%er_obs(source=ip); /*inpatient file*/
+%er_obs(source=op); /*outpatient file*/
+
+
+/* Putting stays into 1 observation per day format. Flagging if they go to a different facility, but are still IP.*/
+
+%macro dates(source=,suf=, npi=);
+
+data &source._meet_&suf._d;
+set &source._meet_&suf.;
+format index_date date9.;
+format admit_date date9.;
+format disch_date date9.;
+day_a=index_date-admit_date;
+day_d=index_date-disch_date;
+run;
+
+
+data &source._meet_&suf._dates;
+set &source._meet_&suf._d;
+do i=admit_date to disch_date;
+date=i;
+output;
+end;
+format date date9.;
+run;
+
+data &source._&suf.; 
+set &source._meet_&suf._dates;
+where 0<=index_date-date<=120;
+&source.=1;
+&source._npi=&npi.;
+run;
+
+proc sort data=&source._&suf. out=&source._&suf. ;
+by bid_hrs_22 date ;
+run;
+
+data &source._dup (keep= bid_hrs_22 bid_n hhidpn index_date flag date admit_date disch_date days_a days_d &source. fac_type provider &source._npi at_upin) ;
+set &source._&suf.;
+if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and (provider~=lag(provider) or &npi.~=lag(&npi.)) then flag=1;
+run;
+
+proc sort data=&source._dup nodupkey;
+by bid_hrs_22 date &source. &source._npi;
+run;
+
+%mend;
+
+%dates(source=ip,suf=4m,npi=ORGNPINM);
+%dates(source=op_er,suf=4m,npi=ORGNPINM);
+%dates(source=op_obs,suf=4m,npi=ORGNPINM);
+%dates(source=ip_er,suf=4m,npi=ORGNPINM);
+%dates(source=ip_obs,suf=4m,npi=ORGNPINM);
+/*%dates(source=pb_plc,suf=4m,npi=rfr_npi);*/
+%dates(source=sn,suf=4m,npi=ORGNPINM);
+%dates(source=hh,suf=4m,npi=ORGNPINM);
+%dates(source=hs,suf=4m,npi=ORGNPINM);
+
+/* Bringing in MDS section*/
+
+
+proc import out=proj_int.mds datafile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta" replace; 
+run;
+
+
+/*claims fully within x time of death date*/
+proc sql;
+create table mds_meet_1 as select a.*,b.index_date,b.id 
+from proj_int.mds a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and 0<=b.index_date-a.admit<=120 ;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table mds_meet_2 as select a.*,b.index_date,b.id 
+from proj_int.mds a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.admit>120 and b.index_date-a.discharge<=0;
+quit;
+
+data mds_meet_4m (compress=yes);
+set mds_meet_1 mds_meet_2;
+run;
+
+
+data mds_meet_4m_d;
+set mds_meet_4m;
+format index_date date9.;
+day_a=index_date-admit;
+day_d=index_date-discharge;
+rename date=date_1;
+run;
+
+
+data mds_meet_4m_dates;
+set mds_meet_4m_d;
+do i=admit to discharge;
+date=i;
+output;
+end;
+format date date9.;
+run;
+
+
+data mds_4m; 
+set mds_meet_4m_dates;
+where 0<=index_date-date<=120;
+mds=1;
+run;
+
+proc sort data=mds_4m out=mds_4m ;
+by bid_hrs_22 date ;
+run;
+
+data mds_dup (keep= bid_hrs_22 target date admission discharge index_date day_a day_d date_1 mds flag) ;
+set mds_4m;
+if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and fac_int_id~=lag(fac_int_id) then flag=1;
+run;
+
+proc freq data=mds_dup;
+table flag;
+run;
+
+proc sort data=index_120;
+by bid_hrs_22 date;
+run;
+/* merging all files together*/
+
+data all_claims;
+merge index_120 ip_dup ip_er_dup ip_obs_dup op_er_dup op_obs_dup sn_dup hh_dup hs_dup mds_dup;
+by bid_hrs_22 date;
+run;
+
+
+data all_claims;
+set all_claims;
+if index_date-date<=90 then days_90=1;
+run;
+
+data all_claims_90;
+set all_claims;
+where days_90=1;
+run;
+
+proc freq data=all_claims_90;
+table flag;
+run;
+
+/* Creating order for which claims are of higher order */
+data all_claims_90_order;
+set all_claims_90;
+order=. ;
+npi=.;
+if (ip=1 or ip_er=1 or ip_obs=1) then order=1;
+if ip_npi~=. or ip_er_npi~=. or ip_obs_npi~=. then npi=ip_npi;
+if (op_er=1 or op_obs=1) and order=. then order=2;
+if  op_er_npi~=. and npi=. then npi=op_er_npi;
+if  op_obs_npi~=. and npi=. then npi=op_obs_npi;
+if sn=1 and order=. then order=3;
+if  sn_npi~=. and npi=. then npi=sn_npi;
+if hh=1 and order=. then order=4;
+if  hh_npi~=. and npi=. then npi=hh_npi;
+if hs=1 and order=. then order=5;
+if  hs_npi~=. and npi=. then npi=hs_npi;
+if mds=1 and order=. then order=6;
+if order=. then order=0;
+run;
+
+proc sort data=all_claims_90_order out=all_claims_90_order ;
+by bid_hrs_22 date ;
+run;
+
+/* Creating transitions */
+data transit_90;
+set all_claims_90_order;
+transition=0;
+if bid_hrs_22=lag(bid_hrs_22) and (order~=lag(order) or (order=lag(order) and (npi~=lag(npi) or flag~=lag(flag)))) then transition=1;
+run;
+
+data transit_90_cnt;
+set transit_90;
+by bid_hrs_22;
+if first.bid_hrs_22 then t_count=0;
+if transition=1 then t_count+1;
+run;
+
+proc freq data=transit_90_cnt;
+table t_count;
+run;
+
+proc sort data=transit_90_cnt;
+by bid_hrs_22 descending t_count;
+run;
+
+/* Finding if there are enough transitions to be budensome */
+data transit_90_cnt_1;
+set transit_90_cnt;
+by bid_hrs_22;
+retain burd_t;
+if first.bid_hrs_22 then burd_t=t_count;
+run;
+
+proc sort data=transit_90_cnt_1  ;
+by bid_hrs_22 date ;
+run;
+
+
+data burd_90;
+set transit_90_cnt_1;
+flag_burd=0;
+if burd_t>=3 then flag_burd=1 ;
+run;
+
+
+proc sort data=burd_90 nodupkey;
+by bid_hrs_22 ;
+run;
+
+proc freq data=burd_90;
+table flag_burd;
+run;
+
+
+proc export data=burd_90 outfile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta" replace; 
+run;
+
+
+
+
+
+
+
+H="mds section"
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta", clear
+
+keep bid_hrs_22 fac_int_id aa8a_pri_rfa trgt_dt ab1_entry_dt r4_discharge_dt a4a_reentry_dt 
+
+gen admit1=ab1_entry_dt
+
+
+gen disch1=r4_discharge_dt
+
+gen reentry1=a4a_reentry_dt
+
+gen admit=date(admit1, "YMD") 
+format %td admit
+
+gen target=date(trgt_dt, "YMD")
+format %td target
+
+gen disch=date(disch1, "YMD")
+format %td disch
+
+gen reentry=date(reentry1, "YMD")
+format %td reentry
+
+sort bid_hrs_22 target fac_int_id
+
+gen date=.
+replace date=admit if admit<=target & aa8a_pri_rfa=="01"
+replace date=reentry if reentry<=target & reentry!=. & aa8a_pri_rfa=="09"
+replace date=disch if disch!=. & disch>=target & inlist(aa8a_pri_rfa, "06", "07", "08")
+replace date=target if date==.
+format %td date
+
+sort bid_hrs_22 fac_int_id date
+
+gen type_cd=.
+replace type_cd=1 if aa8a=="09" | aa8a=="01"
+replace type_cd=2 if aa8a=="06" | aa8a=="07"
+replace type_cd=1 if admit!=. & year(admit)<1999
+
+gen fail=1 if aa8a=="08"
+
+replace type_cd=1 if year(admit)<1999 & type_cd==0 & admit!=.
+replace date=admit if type_cd==1 & year(admit)<1999 & admit!=.
+replace type_cd=1 if aa8a_pri_rfa=="00" & admit!=.
+replace type_cd=2 if aa8a_pri_rfa=="08" & disch!=.
+
+label var type_cd "Date type"
+label define type_cd 1 "Admission" 2 "Discharge"
+label values type_cd type_cd
+
+drop if type_cd==.
+
+sort bid_hrs_22 fac_int_id date type_cd
+/*
+drop if type_cd==.
+sort bid_hrs_22 date type_cd
+bys bid_hrs_22 date type_cd: keep if _n==1 
+*/
+sort bid_hrs_22 fac_int_id date type_cd
+gen a=1 if bid_hrs_22==bid_hrs_22[_n+1] & type_cd==2 & type_cd[_n+1]==2 & fac_int_id==fac_int_id[_n+1]
+gen b=1 if bid_hrs_22==bid_hrs_22[_n-1] & type_cd==1 & type_cd[_n-1]==1 & fac_int_id==fac_int_id[_n-1]
+
+//taking a more conservative approach where if there are multiple admits or discharges in a row the first admit is kept and the last discharege is kept. 
+
+drop if a==1 | b==1
+
+
+tempfile a
+save "`a'"
+
+
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_15.dta", clear
+sort bid_hrs_22 trgt_dt fac_prvdr_intrnl 
+
+keep bid_hrs_22 a0310a_fed_obra_cd a0310f_entry_dschrg_cd a0310e_first_since_admsn_cd a2300_asmt_rfrnc_dt a2400b_mdcr_stay_strt_dt fac_prvdr_intrnl trgt_dt submsn_dt a1900_admsn_dt a2000_dschrg_dt a0310b_pps_cd 
+
+gen admit1=a1900_admsn_dt
+
+gen disch1=a2000_dschrg_dt
+
+destring fac_prvdr_intrnl, replace
+
+gen admit=date(admit1, "YMD") 
+format %td admit
+
+gen target=date(trgt_dt, "YMD")
+format %td target
+
+gen disch=date(disch1, "YMD")
+format %td disch
+
+// assessment reference date is the same as the target date unless it is missing. 
+gen date=target
+replace date=admit if admit<=target & (a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01") & admit!=.
+replace date=disch if disch>=target & inlist(a0310f_entry_dschrg_cd, "10", "11", "12") & disch!=.
+format %td date
+
+
+sort bid_hrs_22 date fac_prvdr_intrnl
+////
+gen type_cd=.
+replace type_cd=1 if a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01" 
+replace type_cd=2 if inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
+
+gen same_day=1 if a0310a_fed_obra_cd=="01" & inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
+replace type_cd=3 if same_day==1
+
+drop if type_cd==.
+
+drop if type_cd[_n-1]==1 & type_cd==1 & bid_hrs_22[_n-1]==bid_hrs_22 & fac_prvdr_intrnl[_n-1]==fac_prvdr_intrnl 
+
+drop if type_cd[_n+1]==2 & type_cd==2 & bid_hrs_22[_n+1]==bid_hrs_22 & fac_prvdr_intrnl[_n+1]==fac_prvdr_intrnl
+
+
+tempfile b
+save "`b'"
+
+use "`a'", clear
+append using "`b'" 
+
+replace fac_int_id=fac_prvdr_intrnl if fac_int_id==.
+
+drop a b fac_prvdr_intrnl
+
+sort bid_hrs_22 date fac_int_id
+
+gen a=date if type_cd==1
+gen d=date if type_cd==2
+
+replace d=date[_n+1] if type_cd[_n+1]==2 & bid_hrs_22==bid_hrs_22[_n+1] & fac_int_id==fac_int_id[_n+1]
+
+replace a=date[_n-1] if type_cd[_n-1]==1 & bid_hrs_22==bid_hrs_22[_n-1] & fac_int_id==fac_int_id[_n-1]
+
+format a %td
+format d %td
+
+replace a=date if same==1
+replace d=date if same==1
+
+replace a=admit if fail==1
+replace d=disch if fail==1
+replace d=target if d==. & target>=date
+replace a=target if a==. & target<=date
+
+//sort bid_hrs_22 a d fac_int_id
+bys bid_hrs_22 a d fac_int_id: keep if _n==1 
+
+rename a admission
+rename d discharge
+
+drop admit1 disch1 reentry1 reentry fail 
+
+saveold "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta", version(12) replace
+
+
+H="Burdensome transitions tables"
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
+
+
+merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", force keep(matched) nogen
+
+sort hhid pn c_ivw_year
+by hhid pn: keep if _n==_N
+merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta", nogen keep(matched)
+
+keep if death_any==1
+
+gen death_n1=death_date-c_ivw_date
+
+merge 1:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", nogen force keep(matched)
+
+merge 1:1 bid_hrs_22 using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(master matched) nogen
+
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", keep(master matched)
+
+gen prob_dem=.
+replace prob_dem=0 if pdem<.5 & !missing(pdem)
+replace prob_dem=1 if pdem>=.5 & !missing(pdem)
+label var prob_dem "Probable Dementia"
+
+tab flag_burd 
+
+gen t_bet=index_date-c_ivw_date
+
+keep if inrange(t_bet,0,730)
+
+gen ind_hs_educ=degree>=2 if !inlist(degree,9,.)
+label var ind_hs_educ "Education: HS+ (excl. GED)"
+
+drop race
+gen race=1 if hisp_e==1
+replace race=2 if black==1
+replace race=3 if white==1
+replace white=3 if missing(race)
+label define race 1 "Hispanic" 2 "Non-Hispanic Black" 3 "Non-Hispanic White/Other"
+label values race race
+
+gen age=floor((c_ivw_date-birth_date)/365.25)
+
+drop if death_n1<0
+
+gen death_n1_90=0
+replace death_n1_90=1 if inrange(death_n1, 0, 90)
+
+drop if death_n1<0 & death_n1>730
+
+//number of transitons
+gen transitions_3=0 if burd_t==0
+replace transitions_3=1 if inrange(burd_t,1,2)
+replace transitions_3=2 if burd_t>2
+
+label var death_n1 "Days between Death and N1 interview"
+label var death_n1_90 "Interview 90 days before death"
+
+drop if death_n1==.
+
+gen n=1
+
+local cvar1 age death_n1
+local ivar1 death_n1_90 female white black ind_hs_educ married medicaid adl_independent_core iadl_independent_core srh_pf nhres hosp_last_2yr prob_dem 
+
+local rn: word count `cvar1' `ivar1'  1 
+
+mat tab=J(`rn', 4,.)
+mat stars=J(`rn', 4, 0)
+
+local r=1 
+local c=1 
+foreach x in `cvar1'{
+local c=1 
+	forvalues i=0/1{
+		sum `x' if flag_burd==`i'
+		mat tab[`r',`c']=`r(N)'
+		mat tab[`r',`c'+1]=`r(mean)'
+		local c=`c'+2
+		}
+	local c=1
+	reg `x' flag_burd 
+	test flag_burd
+	mat stars[`r',`c'+1]=(r(p)<.01) + (r(p)<.05)
+	local r=`r'+1
+}
+
+foreach x in `ivar1' {
+local c=1
+	forvalues i=0/1{
+		sum `x' if flag_burd==`i'
+		mat tab[`r',`c']=`r(N)'*`r(mean)'
+		mat tab[`r',`c'+1]=`r(mean)'*100
+		local c=`c'+2
+		}
+	local c=1
+	tab `x' flag_burd, chi2
+	mat stars[`r',`c'+1]=(r(p)<.01) + (r(p)<.05)
+	local r=`r'+1
+}
+
+local c=1
+forvalues i=0/1{
+sum n if flag_burd==`i'
+mat tab[`r',`c']=`r(N)'
+local c=`c'+2
+}
+
+mat rownames tab = `cvar1' `ivar1'  "N" 
+mat colnames tab = "No Burdensome Transition, N" "No Burdensome Transition, mean/%" "Burdensome Transition, N" "Burdensome Transition, mean/%"
+mat list tab
+mat list stars
+
+
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\logs\burd_transitions.rtf", statmat(tab) title("N1 Characteristics of people who have Burdensome Transitions in last 3 months of life 1998-2014") annotate(stars) asymbol(*,**) replace varlabels sdec(0,2,0,2) note( "p-value: *<.05, **<.01" "Age and Days between Death and N1 variables show non-missing N's")
+
+
+
+local cvar1 age death_n1
+local ivar1 death_n1_90 female white black ind_hs_educ married medicaid adl_independent_core iadl_independent_core srh_pf nhres hosp_last_2yr prob_dem 
+
+local rn: word count `cvar1' `ivar1'  1 
+
+mat tab=J(`rn', 6,.)
+mat stars=J(`rn', 6, 0)
+
+local r=1 
+local c=1 
+foreach x in `cvar1'{
+local c=1 
+	forvalues i=0/2{
+		sum `x' if transitions_3==`i'
+		mat tab[`r',`c']=`r(N)'
+		mat tab[`r',`c'+1]=`r(mean)'
+		local c=`c'+2
+		}
+	local c=1
+	forvalues i=0/2{
+		reg `x' transitions_3 if inlist(transitions_3,`i',2)
+		test transitions_3 if inlist(transitions_3,`i',2)
+		mat stars[`r',`c'+1]=(r(p)<.01) + (r(p)<.05)
+		local c=`c'+2
+		}
+	local r=`r'+1
+}
+
+foreach x in `ivar1' {
+local c=1
+	forvalues i=0/2{
+		sum `x' if transitions_3==`i'
+		mat tab[`r',`c']=`r(N)'*`r(mean)'
+		mat tab[`r',`c'+1]=`r(mean)'*100
+		local c=`c'+2
+		}
+		local c=1
+	forvalues i=0/2{	
+		tab `x' transitions_3 if inlist(transitions_3,`i',2), chi2
+		mat stars[`r',`c'+1]=(r(p)<.01) + (r(p)<.05)
+		local c=`c'+2
+		}
+	local r=`r'+1
+	}
+
+local c=1
+forvalues i=0/2{
+sum n if transitions_3==`i'
+mat tab[`r',`c']=`r(N)'
+local c=`c'+2
+}
+
+mat rownames tab = `cvar1' `ivar1'  "N" 
+mat colnames tab = "0 Transition, N" "0 Transition, mean/%" "1-2  Transition, N" "1-2  Transition,mean/%" "3+  Transition, N" "3+  Transition, mean/%"
+mat list tab
+mat list stars
+
+
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\logs\burd_transitions.rtf", statmat(tab) title("N1 Characteristics of people by Transitions in last 3 months of life 1998-2014") annotate(stars) asymbol(*,**) replace varlabels addtable sdec(0,2,0,2,0,2) note("T-tests/chi2 compared to 3+ Transitons group" \ "p-value: *<.05, **<.01 " \" Age and Days between Death and N1 variables show non-missing N's")
+
+
+H="xBurdensome transitions--Omari's Method"
                                                                                                                                                                                                                                                                                                                                                                   libname hrs 'D:\HRS\Shared\base_data\hrs_cleaned';
 libname medicare 'D:\HRS\Shared\base_data\hrs_cms\SAS';
 
@@ -19237,6 +19947,8 @@ save "`fdpath'/burden_dementia_sample_long.dta", replace
 
 
 H="changelog"
+1/16/20 - Burdensome Transitions Code added. MH.
+
 1/13/20 - JAGS revision.  Evan
 
 8/29/19 - More updates to the code for burdensome transitions. OKR.
@@ -19323,536 +20035,6 @@ H="changelog"
 12/20/18-finished update for 2015 claims and worked on 7-years.
 
 
-
-
-H="burdensome transitions using days"
-/* Burdensome Transitions code
-This is tailored to the definiton for ASK's R01, where burdensome transitions occur in the last 90 days of life. 
-
-Initially we start off by using the death date and are interested in days 120 days prior to death. 
-
-/* Starting with death date as index and look 120 days back. */
-
-data index;
-set clean.death_date_2015;
-index_date=death_all;
-run; 
-
-proc sort data=index out=index1 nodupkey;
-by bid_hrs_22 id index_date;
-run;
-
-data index_120 (keep= id bid_hrs_22 date index_date index_120 death_year) ;
-set index1;
-index_120=index_date-120;
-do i=index_120 to index_date;
-date=i;
-output;
-end;
-format date date9.;
-format index_date date9.;
-format index_120 date9.;
-run;
-run;
-
-/**************************************************************************/
-/* ************** Claims Before Death  ******************************/
-/**************************************************************************/
-/*macro to get claims before death
-saves datasets for each claim type / time window to the spo_mc_i directory*/
-%macro claimspre(days_start=,days_bef_index=,source=,suf=);
-
-/*claims fully within x time of death date*/
-proc sql;
-create table &source._meet_1 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
-quit;
-
-/*claims that start earlier than x time but span into x time before death*/
-proc sql;
-create table &source._meet_2 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
-quit;
-
-data &source._meet_&suf.(compress=yes);
-set &source._meet_1 &source._meet_2;
-run;
-
-
-%mend;
-
-/*4m before death*/
-%claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m); /*home health*/
-/*%claimspre(days_start=0,days_bef_index=120,source=hs,suf=4m); /*hospice*/
-%claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m); /*inpatient*/
-%claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m); /*dme*/
-%claimspre(days_start=0,days_bef_index=120,source=op,suf=4m); /*outpatient*/
-%claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m); /*carrier*/
-%claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m); /*snf*/
-
-/* Hospice file a little different format than the rest 
-Doing the same as above */
-
-data hs_1998_2015 (keep= hspcstrt hs_start admit_date disch_date bid_hrs_22 provider) ;
-set medi.hs_1998_2015;
-hs_start=input(put(hspcstrt, 8.), yymmdd8.);
-format hs_start date9.;
-format admit_date date9.;
-run;
-
-/*claims fully within x time of death date*/
-proc sql;
-create table hs_meet_1 as select a.*,b.index_date,b.id 
-from hs_1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and 0<=b.index_date-a.hs_start<=120;
-quit;
-
-/*claims that start earlier than x time but span into x time before death*/
-proc sql;
-create table hs_meet_2 as select a.*,b.index_date,b.id 
-from hs_1998_2015 a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and b.index_date-a.hs_start>120 and b.index_date-a.disch_date<=120;
-quit;
-
-data hs_meet_4m(compress=yes);
-set hs_meet_1 hs_meet_2;
-run;
-
-/*emergency and observation stays identified from the inpatient and outpatient file. */
-
-%macro er_obs(source=);
-
-data &source._meet_4m_er_obs;
-set &source._meet_4m;
-er_flag = 0;
-obs_flag = 0;
-array rvcntr rvcntr01-rvcntr45;
-array hcpcs hcpscd01-hcpscd45;
-array rvunt rvunt01-rvunt45;
-do over rvcntr;
-do over hcpcs;
-do over rvunt;
-if strip(rvcntr) in:("0450", "0451", "0452", "0456", "0459", "0981") then er_flag = 1;
-if strip(rvcntr) in:("0762") then obs_flag =1;
-/*if strip(rvcntr) in:("0760") and strip(hcpcs) in: ("G0378") and rvunt>=8 then obs_flag =1;*/
-end;
-end;
-end;
-run;
-
-data &source._er_meet_4m;
-set &source._meet_4m_er_obs;
-if er_flag=1;
-run;
-
-data &source._obs_meet_4m;
-set &source._meet_4m_er_obs;
-if obs_flag=1;
-run;
-
-%mend;
-
-/*4m before death*/
-%er_obs(source=ip); /*inpatient file*/
-%er_obs(source=op); /*outpatient file*/
-
-
-/* Putting stays into 1 observation per day format. Flagging if they go to a different facility, but are still IP.*/
-
-%macro dates(source=,suf=, npi=);
-
-data &source._meet_&suf._d;
-set &source._meet_&suf.;
-format index_date date9.;
-format admit_date date9.;
-format disch_date date9.;
-day_a=index_date-admit_date;
-day_d=index_date-disch_date;
-run;
-
-
-data &source._meet_&suf._dates;
-set &source._meet_&suf._d;
-do i=admit_date to disch_date;
-date=i;
-output;
-end;
-format date date9.;
-run;
-
-data &source._&suf.; 
-set &source._meet_&suf._dates;
-where 0<=index_date-date<=120;
-&source.=1;
-&source._npi=&npi.;
-run;
-
-proc sort data=&source._&suf. out=&source._&suf. ;
-by bid_hrs_22 date ;
-run;
-
-data &source._dup (keep= bid_hrs_22 bid_n hhidpn index_date flag date admit_date disch_date days_a days_d &source. fac_type provider &source._npi at_upin) ;
-set &source._&suf.;
-if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and (provider~=lag(provider) or &npi.~=lag(&npi.)) then flag=1;
-run;
-
-proc sort data=&source._dup nodupkey;
-by bid_hrs_22 date &source. &source._npi;
-run;
-
-%mend;
-
-%dates(source=ip,suf=4m,npi=ORGNPINM);
-%dates(source=op_er,suf=4m,npi=ORGNPINM);
-%dates(source=op_obs,suf=4m,npi=ORGNPINM);
-%dates(source=ip_er,suf=4m,npi=ORGNPINM);
-%dates(source=ip_obs,suf=4m,npi=ORGNPINM);
-/*%dates(source=pb_plc,suf=4m,npi=rfr_npi);*/
-%dates(source=sn,suf=4m,npi=ORGNPINM);
-%dates(source=hh,suf=4m,npi=ORGNPINM);
-%dates(source=hs,suf=4m,npi=ORGNPINM);
-
-/* Bringing in MDS section*/
-
-
-proc import out=proj_int.mds datafile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta" replace; 
-run;
-
-
-/*claims fully within x time of death date*/
-proc sql;
-create table mds_meet_1 as select a.*,b.index_date,b.id 
-from proj_int.mds a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and 0<=b.index_date-a.admit<=120 ;
-quit;
-
-/*claims that start earlier than x time but span into x time before death*/
-proc sql;
-create table mds_meet_2 as select a.*,b.index_date,b.id 
-from proj_int.mds a inner join
-index1 b
-on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
-and b.index_date-a.admit>120 and b.index_date-a.discharge<=0;
-quit;
-
-data mds_meet_4m (compress=yes);
-set mds_meet_1 mds_meet_2;
-run;
-
-
-data mds_meet_4m_d;
-set mds_meet_4m;
-format index_date date9.;
-day_a=index_date-admit;
-day_d=index_date-discharge;
-rename date=date_1;
-run;
-
-
-data mds_meet_4m_dates;
-set mds_meet_4m_d;
-do i=admit to discharge;
-date=i;
-output;
-end;
-format date date9.;
-run;
-
-
-data mds_4m; 
-set mds_meet_4m_dates;
-where 0<=index_date-date<=120;
-mds=1;
-run;
-
-proc sort data=mds_4m out=mds_4m ;
-by bid_hrs_22 date ;
-run;
-
-data mds_dup (keep= bid_hrs_22 target date admission discharge index_date day_a day_d date_1 mds flag) ;
-set mds_4m;
-if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and fac_int_id~=lag(fac_int_id) then flag=1;
-run;
-
-proc freq data=mds_dup;
-table flag;
-run;
-
-proc sort data=index_120;
-by bid_hrs_22 date;
-run;
-/* merging all files together*/
-
-data all_claims;
-merge index_120 ip_dup ip_er_dup ip_obs_dup op_er_dup op_obs_dup sn_dup hh_dup hs_dup mds_dup;
-by bid_hrs_22 date;
-run;
-
-
-data all_claims;
-set all_claims;
-if index_date-date<=90 then days_90=1;
-run;
-
-data all_claims_90;
-set all_claims;
-where days_90=1;
-run;
-
-proc freq data=all_claims_90;
-table flag;
-run;
-
-/* Creating order for which claims are of higher order */
-data all_claims_90_order;
-set all_claims_90;
-order=. ;
-npi=.;
-if (ip=1 or ip_er=1 or ip_obs=1) then order=1;
-if ip_npi~=. or ip_er_npi~=. or ip_obs_npi~=. then npi=ip_npi;
-if (op_er=1 or op_obs=1) and order=. then order=2;
-if  op_er_npi~=. and npi=. then npi=op_er_npi;
-if  op_obs_npi~=. and npi=. then npi=op_obs_npi;
-if sn=1 and order=. then order=3;
-if  sn_npi~=. and npi=. then npi=sn_npi;
-if hh=1 and order=. then order=4;
-if  hh_npi~=. and npi=. then npi=hh_npi;
-if hs=1 and order=. then order=5;
-if  hs_npi~=. and npi=. then npi=hs_npi;
-if mds=1 and order=. then order=6;
-if order=. then order=0;
-run;
-
-proc sort data=all_claims_90_order out=all_claims_90_order ;
-by bid_hrs_22 date ;
-run;
-
-/* Creating transitions */
-data transit_90;
-set all_claims_90_order;
-transition=0;
-if bid_hrs_22=lag(bid_hrs_22) and (order~=lag(order) or (order=lag(order) and (npi~=lag(npi) or flag~=lag(flag)))) then transition=1;
-run;
-
-data transit_90_cnt;
-set transit_90;
-by bid_hrs_22;
-if first.bid_hrs_22 then t_count=0;
-if transition=1 then t_count+1;
-run;
-
-proc freq data=transit_90_cnt;
-table t_count;
-run;
-
-proc sort data=transit_90_cnt;
-by bid_hrs_22 descending t_count;
-run;
-
-/* Finding if there are enough transitions to be budensome */
-data transit_90_cnt_1;
-set transit_90_cnt;
-by bid_hrs_22;
-retain burd_t;
-if first.bid_hrs_22 then burd_t=t_count;
-run;
-
-proc sort data=transit_90_cnt_1  ;
-by bid_hrs_22 date ;
-run;
-
-
-data burd_90;
-set transit_90_cnt_1;
-flag_burd=0;
-if burd_t>=3 then flag_burd=1 ;
-run;
-
-
-proc sort data=burd_90 nodupkey;
-by bid_hrs_22 ;
-run;
-
-proc freq data=burd_90;
-table flag_burd;
-run;
-
-
-proc export data=burd_90 outfile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta" replace; 
-run;
-
-
-
-
-
-
-
-H="mds section"
-use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta", clear
-
-keep bid_hrs_22 fac_int_id aa8a_pri_rfa trgt_dt ab1_entry_dt r4_discharge_dt a4a_reentry_dt 
-
-gen admit1=ab1_entry_dt
-
-
-gen disch1=r4_discharge_dt
-
-gen reentry1=a4a_reentry_dt
-
-gen admit=date(admit1, "YMD") 
-format %td admit
-
-gen target=date(trgt_dt, "YMD")
-format %td target
-
-gen disch=date(disch1, "YMD")
-format %td disch
-
-gen reentry=date(reentry1, "YMD")
-format %td reentry
-
-sort bid_hrs_22 target fac_int_id
-
-gen date=.
-replace date=admit if admit<=target & aa8a_pri_rfa=="01"
-replace date=reentry if reentry<=target & reentry!=. & aa8a_pri_rfa=="09"
-replace date=disch if disch!=. & disch>=target & inlist(aa8a_pri_rfa, "06", "07", "08")
-replace date=target if date==.
-format %td date
-
-sort bid_hrs_22 fac_int_id date
-
-gen type_cd=.
-replace type_cd=1 if aa8a=="09" | aa8a=="01"
-replace type_cd=2 if aa8a=="06" | aa8a=="07"
-replace type_cd=1 if admit!=. & year(admit)<1999
-
-gen fail=1 if aa8a=="08"
-
-replace type_cd=1 if year(admit)<1999 & type_cd==0 & admit!=.
-replace date=admit if type_cd==1 & year(admit)<1999 & admit!=.
-replace type_cd=1 if aa8a_pri_rfa=="00" & admit!=.
-replace type_cd=2 if aa8a_pri_rfa=="08" & disch!=.
-
-label var type_cd "Date type"
-label define type_cd 1 "Admission" 2 "Discharge"
-label values type_cd type_cd
-
-drop if type_cd==.
-
-sort bid_hrs_22 fac_int_id date type_cd
-/*
-drop if type_cd==.
-sort bid_hrs_22 date type_cd
-bys bid_hrs_22 date type_cd: keep if _n==1 
-*/
-sort bid_hrs_22 fac_int_id date type_cd
-gen a=1 if bid_hrs_22==bid_hrs_22[_n+1] & type_cd==2 & type_cd[_n+1]==2 & fac_int_id==fac_int_id[_n+1]
-gen b=1 if bid_hrs_22==bid_hrs_22[_n-1] & type_cd==1 & type_cd[_n-1]==1 & fac_int_id==fac_int_id[_n-1]
-
-//taking a more conservative approach where if there are multiple admits or discharges in a row the first admit is kept and the last discharege is kept. 
-
-drop if a==1 | b==1
-
-
-tempfile a
-save "`a'"
-
-
-use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_15.dta", clear
-sort bid_hrs_22 trgt_dt fac_prvdr_intrnl 
-
-keep bid_hrs_22 a0310a_fed_obra_cd a0310f_entry_dschrg_cd a0310e_first_since_admsn_cd a2300_asmt_rfrnc_dt a2400b_mdcr_stay_strt_dt fac_prvdr_intrnl trgt_dt submsn_dt a1900_admsn_dt a2000_dschrg_dt a0310b_pps_cd 
-
-gen admit1=a1900_admsn_dt
-
-gen disch1=a2000_dschrg_dt
-
-destring fac_prvdr_intrnl, replace
-
-gen admit=date(admit1, "YMD") 
-format %td admit
-
-gen target=date(trgt_dt, "YMD")
-format %td target
-
-gen disch=date(disch1, "YMD")
-format %td disch
-
-// assessment reference date is the same as the target date unless it is missing. 
-gen date=target
-replace date=admit if admit<=target & (a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01") & admit!=.
-replace date=disch if disch>=target & inlist(a0310f_entry_dschrg_cd, "10", "11", "12") & disch!=.
-format %td date
-
-
-sort bid_hrs_22 date fac_prvdr_intrnl
-////
-gen type_cd=.
-replace type_cd=1 if a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01" 
-replace type_cd=2 if inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
-
-gen same_day=1 if a0310a_fed_obra_cd=="01" & inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
-replace type_cd=3 if same_day==1
-
-drop if type_cd==.
-
-drop if type_cd[_n-1]==1 & type_cd==1 & bid_hrs_22[_n-1]==bid_hrs_22 & fac_prvdr_intrnl[_n-1]==fac_prvdr_intrnl 
-
-drop if type_cd[_n+1]==2 & type_cd==2 & bid_hrs_22[_n+1]==bid_hrs_22 & fac_prvdr_intrnl[_n+1]==fac_prvdr_intrnl
-
-
-tempfile b
-save "`b'"
-
-use "`a'", clear
-append using "`b'" 
-
-replace fac_int_id=fac_prvdr_intrnl if fac_int_id==.
-
-drop a b fac_prvdr_intrnl
-
-sort bid_hrs_22 date fac_int_id
-
-gen a=date if type_cd==1
-gen d=date if type_cd==2
-
-replace d=date[_n+1] if type_cd[_n+1]==2 & bid_hrs_22==bid_hrs_22[_n+1] & fac_int_id==fac_int_id[_n+1]
-
-replace a=date[_n-1] if type_cd[_n-1]==1 & bid_hrs_22==bid_hrs_22[_n-1] & fac_int_id==fac_int_id[_n-1]
-
-format a %td
-format d %td
-
-replace a=date if same==1
-replace d=date if same==1
-
-replace a=admit if fail==1
-replace d=disch if fail==1
-replace d=target if d==. & target>=date
-replace a=target if a==. & target<=date
-
-//sort bid_hrs_22 a d fac_int_id
-bys bid_hrs_22 a d fac_int_id: keep if _n==1 
-
-rename a admission
-rename d discharge
-
-drop admit1 disch1 reentry1 reentry fail 
-
-saveold "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta", version(12) replace
 
 
 H="JAGS Revision"
