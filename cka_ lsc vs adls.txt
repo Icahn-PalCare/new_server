@@ -116,7 +116,7 @@ tempfile ffsall
 save `ffsall'
 
 
-use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7_public_sens_only.dta", clear 
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", clear 
 merge 1:1 spid wave using `tempall', nogen
 merge 1:1 spid wave using `ffsall', nogen
 
@@ -158,11 +158,18 @@ egen keepmin= min(cond(keep==1,pid,.)), by(spid)
 replace keepmin=0 if keepmin!=pid
 recode keepmin (0=0)(1/6=1), gen(keep_firstobs)
 tab keep_firstobs
-drop keepmin
 
 *now keep for just wave 1
 gen keepw1=keep
 replace keepw1=0 if wave!=1 
+
+*keep if enter in 2011
+gen keep2011=keep
+replace keep2011=0 if yearsample!=2011
+
+*keep if first obs and enter in 2011
+gen keep2011firstobs=keep2011
+replace keep2011firstobs=0 if keepmin!=pid
 
 *COVARIATES
 recode n_social_network (0=0 "0_none") (1=1 "1_one")(2/5=2 "2_ 2+ people"), gen(networkcat)
@@ -296,6 +303,17 @@ qui logistic died_12 female age freqout adl_index if keep==1
 lroc, nograph
 predict c4, xb
 roccomp died_12 c2 c4, graph summary
+
+*try with svy commands
+svyset varunit [pweight=anfinwgt], strata(varstrat)
+
+ 
+svy, subpop(keep): logistic died_12 female age freqout adl_index 
+predict phat
+somersd died_12 phat [pweight=anfinwgt], tr(c)
+matrix b = e(b)
+local auc =b[1,1]
+di "area under the curve: " %6.5f `auc'
 
 *hospitalized*
 logistic srhosp_oneyear female age if keep==1
