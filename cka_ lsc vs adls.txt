@@ -171,6 +171,13 @@ replace keep2011=0 if yearsample!=2011
 gen keep2011firstobs=keep2011
 replace keep2011firstobs=0 if keepmin!=pid
 
+
+
+*make a cohort2011 weight variable
+gen cohort2011=anfinwgt if wave<5
+replace cohort2011=an2011wgt if wave>=5
+
+
 *COVARIATES
 recode n_social_network (0=0 "0_none") (1=1 "1_one")(2/5=2 "2_ 2+ people"), gen(networkcat)
 
@@ -187,59 +194,59 @@ recode age (min/74=1 "1_ 65-74")(75/84=2 "2_75-84")(85/max=3 "3_85+"),gen(agecat
 
 H="analysis"
 *ANALYSIS
-svyset varunit [pweight=anfinwgt], strata(varstrat)
+svyset spid [pweight=cohort2011], strata(varstrat)
 
 *table 1
 
-svy, subpop(keep): tab female
-svy, subpop(keep): mean age
-svy, subpop(keep): tab race_cat
-svy, subpop(keep): tab proxy_ivw
-svy, subpop(keep): tab livealone
-svy, subpop(keep): tab networkcat
-svy, subpop(keep): tab nopaymed
-svy, subpop(keep): tab nopayutil
-svy, subpop(keep): tab medicaid
-svy, subpop(keep): tab sr_heart_dis_ever
-svy, subpop(keep): tab sr_htn_ever
-svy, subpop(keep): tab sr_stroke_ever 
-svy, subpop(keep): tab sr_cancer_ever 
-svy, subpop(keep): tab sr_osteoprs_ever 
-svy, subpop(keep): tab sr_diabetes_ever 
-svy, subpop(keep): tab sr_lung_dis_ever 
-svy, subpop(keep): tab dem_2_cat
-svy, subpop(keep): tab sr_phq2_depressed 
-svy, subpop(keep): tab sr_gad2_anxiety
-svy, subpop(keep): mean sr_numconditions1
-svy, subpop(keep): tab srh_fp
-svy, subpop(keep): tab fall_last_month
-svy, subpop(keep): tab ind_pain
+svy, subpop(keep2011): tab female
+svy, subpop(keep2011): mean age
+svy, subpop(keep2011): tab race_cat
+svy, subpop(keep2011): tab proxy_ivw
+svy, subpop(keep2011): tab livealone
+svy, subpop(keep2011): tab networkcat
+svy, subpop(keep2011): tab nopaymed
+svy, subpop(keep2011): tab nopayutil
+svy, subpop(keep2011): tab medicaid
+svy, subpop(keep2011): tab sr_heart_dis_ever
+svy, subpop(keep2011): tab sr_htn_ever
+svy, subpop(keep2011): tab sr_stroke_ever 
+svy, subpop(keep2011): tab sr_cancer_ever 
+svy, subpop(keep2011): tab sr_osteoprs_ever 
+svy, subpop(keep2011): tab sr_diabetes_ever 
+svy, subpop(keep2011): tab sr_lung_dis_ever 
+svy, subpop(keep2011): tab dem_2_cat
+svy, subpop(keep2011): tab sr_phq2_depressed 
+svy, subpop(keep2011): tab sr_gad2_anxiety
+svy, subpop(keep2011): mean sr_numconditions1
+svy, subpop(keep2011): tab srh_fp
+svy, subpop(keep2011): tab fall_last_month
+svy, subpop(keep2011): tab ind_pain
 
 *figure
 *NEW FIGURE 2
 
-tab freqout adl_3cat if keep==1, column
-tab freqout adl_3cat if keep==1, row
+tab freqout adl_3cat if keep2011==1, column
+tab freqout adl_3cat if keep2011==1, row
 
 
-svy, subpop(keep): tab died_12 if freqout==1 & adl_3cat==0
-svy, subpop(keep): tab died_12 if freqout==1 & adl_3cat==1
-svy, subpop(keep): tab died_12 if freqout==1 & adl_3cat==2
+svy, subpop(keep2011): tab died_12 if freqout==1 & adl_3cat==0
+svy, subpop(keep2011): tab died_12 if freqout==1 & adl_3cat==1
+svy, subpop(keep2011): tab died_12 if freqout==1 & adl_3cat==2
 
-svy, subpop(keep): tab died_12 if freqout==2 & adl_3cat==0
-svy, subpop(keep): tab died_12 if freqout==2 & adl_3cat==1
-svy, subpop(keep): tab died_12 if freqout==2 & adl_3cat==2
+svy, subpop(keep2011): tab died_12 if freqout==2 & adl_3cat==0
+svy, subpop(keep2011): tab died_12 if freqout==2 & adl_3cat==1
+svy, subpop(keep2011): tab died_12 if freqout==2 & adl_3cat==2
 
-svy, subpop(keep): tab died_12 if freqout==3 & adl_3cat==0
-svy, subpop(keep): tab died_12 if freqout==3 & adl_3cat==1
-svy, subpop(keep): tab died_12 if freqout==3 & adl_3cat==2
+svy, subpop(keep2011): tab died_12 if freqout==3 & adl_3cat==0
+svy, subpop(keep2011): tab died_12 if freqout==3 & adl_3cat==1
+svy, subpop(keep2011): tab died_12 if freqout==3 & adl_3cat==2
 
-svy, subpop(keep): tab died_12 if freqout==4 & adl_3cat==0
-svy, subpop(keep): tab died_12 if freqout==4 & adl_3cat==1
-svy, subpop(keep): tab died_12 if freqout==4 & adl_3cat==2
+svy, subpop(keep2011): tab died_12 if freqout==4 & adl_3cat==0
+svy, subpop(keep2011): tab died_12 if freqout==4 & adl_3cat==1
+svy, subpop(keep2011): tab died_12 if freqout==4 & adl_3cat==2
 
-svy, subpop(keep): tab died_12 freqout, column
-svy, subpop(keep): tab died_12 adl_3cat, column
+svy, subpop(keep2011): tab died_12 freqout, column
+svy, subpop(keep2011): tab died_12 adl_3cat, column
 
 /*hospitalization
 svy, subpop(keep): tab new_srhosp_oneyear if freqout==1 & adl_3cat==0
@@ -263,76 +270,131 @@ svy, subpop(keep): tab new_srhosp_oneyear adl_3cat, column
 */
 
 *hospitalization- no claims
-svy, subpop(keep): tab srhosp_oneyear if freqout==1 & adl_3cat==0
-svy, subpop(keep): tab srhosp_oneyear if freqout==1 & adl_3cat==1
-svy, subpop(keep): tab srhosp_oneyear if freqout==1 & adl_3cat==2
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==1 & adl_3cat==0
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==1 & adl_3cat==1
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==1 & adl_3cat==2
 
-svy, subpop(keep): tab srhosp_oneyear if freqout==2 & adl_3cat==0
-svy, subpop(keep): tab srhosp_oneyear if freqout==2 & adl_3cat==1
-svy, subpop(keep): tab srhosp_oneyear if freqout==2 & adl_3cat==2
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==2 & adl_3cat==0
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==2 & adl_3cat==1
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==2 & adl_3cat==2
 
-svy, subpop(keep): tab srhosp_oneyear if freqout==3 & adl_3cat==0
-svy, subpop(keep): tab srhosp_oneyear if freqout==3 & adl_3cat==1
-svy, subpop(keep): tab srhosp_oneyear if freqout==3 & adl_3cat==2
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==3 & adl_3cat==0
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==3 & adl_3cat==1
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==3 & adl_3cat==2
 
-svy, subpop(keep): tab srhosp_oneyear if freqout==4 & adl_3cat==0
-svy, subpop(keep): tab srhosp_oneyear if freqout==4 & adl_3cat==1
-svy, subpop(keep): tab srhosp_oneyear if freqout==4 & adl_3cat==2
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==4 & adl_3cat==0
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==4 & adl_3cat==1
+svy, subpop(keep2011): tab srhosp_oneyear if freqout==4 & adl_3cat==2
 
-svy, subpop(keep): tab srhosp_oneyear freqout, column
-svy, subpop(keep): tab srhosp_oneyear adl_3cat, column
+svy, subpop(keep2011): tab srhosp_oneyear freqout, column
+svy, subpop(keep2011): tab srhosp_oneyear adl_3cat, column
 
 
 *table 3
 *died*
+*baseline model: died
 logistic died_12 female age if keep==1
 lroc, nograph
 predict c1, xb
 
+svy, subpop(keep2011): logistic died_12 female age 
+predict phat1
+somersd died_12 phat [pweight=cohort2011]  if keep2011==1, tr(c) cluster(spid)
+matrix b = e(b)
+local auc =b[1,1]
+di "area under the curve: " %6.5f `auc'
+
+*baseline model+adl
 qui logistic died_12 female age adl_index if keep==1
 lroc, nograph
 predict c2, xb
 roccomp died_12 c1 c2, graph summary
 
+svy, subpop(keep2011): logistic died_12 female age adl_index
+predict phat2
+somersd died_12 phat2 [pweight=cohort2011]  if keep2011==1, tr(c) cluster(spid)
+matrix b = e(b)
+local auc =b[1,1]
+di "area under the curve: " %6.5f `auc'
+
+
+*baseline + lsc
 qui logistic died_12 female age freqout if keep==1
 lroc, nograph
 predict c3, xb
 roccomp died_12 c2 c3, graph summary
+
+svy, subpop(keep2011): logistic died_12 female age freqout
+predict phat3
+somersd died_12 phat3 [pweight=cohort2011]  if keep2011==1, tr(c) cluster(spid)
+matrix b = e(b)
+local auc =b[1,1]
+di "area under the curve: " %6.5f `auc'
+
+*baseline + adl + lsc
 
 qui logistic died_12 female age freqout adl_index if keep==1
 lroc, nograph
 predict c4, xb
 roccomp died_12 c2 c4, graph summary
 
-*try with svy commands
-svyset varunit [pweight=anfinwgt], strata(varstrat)
-
- 
-svy, subpop(keep): logistic died_12 female age freqout adl_index 
-predict phat
-somersd died_12 phat [pweight=anfinwgt], tr(c)
+svy, subpop(keep2011): logistic died_12 female age freqout adl_index
+predict phat4
+somersd died_12 phat4 [pweight=cohort2011]  if keep2011==1, tr(c) cluster(spid)
 matrix b = e(b)
 local auc =b[1,1]
 di "area under the curve: " %6.5f `auc'
 
+
 *hospitalized*
+*baseline model
 logistic srhosp_oneyear female age if keep==1
 lroc, nograph
 predict nh1, xb
 
+svy, subpop(keep2011): logistic srhosp_oneyear female age 
+predict phat5
+somersd srhosp_oneyear phat5 [pweight=cohort2011]  if keep2011==1, tr(c) cluster(spid)
+matrix b = e(b)
+local auc =b[1,1]
+di "area under the curve: " %6.5f `auc'
+
+*baseline+ adl
 qui logistic srhosp_oneyear female age adl_index if keep==1
 lroc, nograph
 predict no2, xb
 
+svy, subpop(keep2011): logistic srhosp_oneyear female age adl_index
+predict phat6
+somersd srhosp_oneyear phat6 [pweight=cohort2011]  if keep2011==1, tr(c) cluster(spid)
+matrix b = e(b)
+local auc =b[1,1]
+di "area under the curve: " %6.5f `auc'
+
+*baseline + lsc
 qui logistic srhosp_oneyear female age freqout if keep==1 
 lroc, nograph
 predict h3, xb
 
+svy, subpop(keep2011): logistic srhosp_oneyear female age freqout
+predict phat7
+somersd srhosp_oneyear phat7 [pweight=cohort2011]  if keep2011==1, tr(c) cluster(spid)
+matrix b = e(b)
+local auc =b[1,1]
+di "area under the curve: " %6.5f `auc'
+
+*baseline + lsc+ adl
 qui logistic srhosp_oneyear female age freqout adl_index if keep==1
 lroc, nograph
 predict no4, xb
 roccomp srhosp_oneyear no2 no4, graph summary
 
+svy, subpop(keep2011): logistic srhosp_oneyear female age freqout adl_index
+predict phat8
+somersd srhosp_oneyear phat8 [pweight=cohort2011]  if keep2011==1, tr(c) cluster(spid)
+matrix b = e(b)
+local auc =b[1,1]
+di "area under the curve: " %6.5f `auc'
 
 
 *NEW TABLE 4
