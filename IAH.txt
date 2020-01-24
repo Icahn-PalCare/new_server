@@ -5070,7 +5070,7 @@ label var homebound_3 "Leaves home but needs help/has difficulty"
 
 gen homebound_4 = 0 if homebound_cat!=.
 replace homebound_4 = 1 if homebound_cat==4
-label var homebound_4 "Not homebound"2
+label var homebound_4 "Not homebound"
 
 gen cp_hb = 0
 replace cp_hb = 1 if homebound_cat<4

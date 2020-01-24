@@ -2095,3 +2095,43 @@ mat list tab
 
 frmttable using "${outpath}\table_5.rtf", statmat(tab) varlabels sdec(2) title("Preliminary Sample Data for Aim 2") ///
 ctitles("" "Mean/%" "SD") replace
+
+H="quick tabs/histograms of time to/from surg"
+//table
+use "${intpath}\ser_ill_surg_sample2.dta", clear
+
+replace hisp_eth=0 if hisp_eth==.
+replace black=0 if black==.
+replace white=0 if white==.
+
+gen mivwsurg=ceil(time2surg2/30.4)
+rename mivwsu mivw2surg
+sum mivw2
+replace mivw2=28 if inrange(mivw2,28,30)
+replace mivw2=31 if inrange(mivw2,31,36)
+replace mivw2=37 if mivw2>=37
+tab mivw2
+label define mivw2surg 28 "28-30" 31 "31-36" 37 "37+"
+tab mivw2surg
+label values mivw2surg mivw2surg
+tab mivw2surg
+label var mivw2surg "Months from proximate preceding interview to first surgery"
+tab mivw2surg
+hist mivw2
+
+gen s2next=timesur-(index_date2_p1-death_date) if index_date2_p1>death_date
+replace s2next=timesur if missing(s2ne)
+sum s2n
+sum timesu
+replace s2ne=timesur if s2ne<0
+gen msurg2next=ceil(s2ne/30.4)
+sum msu
+replace msur=28 if msur==29
+replace msur=31 if inrange(msur,31,36)
+replace msur=37 if inrange(msur,37,42)
+replace msur=43 if inrange(msur,43,48)
+replace msur=43 if msur>48
+replace msur=1 if !msur
+label var msu "Months first surgery to next HRS interview (or death if next interview is exit)"
+
+tab msu hist mivw2
