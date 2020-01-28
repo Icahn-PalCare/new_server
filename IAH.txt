@@ -6291,6 +6291,24 @@ keep if inrange(ipdi,index_date-180, index_date+180) | inrange(ipadm,index_date-
 tempfile ip
 save `ip'
 
+//need rev center to get obs stays
+
+import sas BENE_ID CLM_ID REV_CNTR HCPCS_CD REV_CNTR_UNIT_CNT using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Cumulative\outpatient_rev_center_j_09_17.sas7bdat", case(lower) clear
+gen obs_stay=inlist(rev_cntr,"0762") | (inlist(rev_cntr,"0760") & inlist(hcpcs_cd,"G0378") & rev_cntr_unit_cnt>=8)
+gsort clm_id -obs_stay
+by clm_id: keep if _n==1
+tempfile obs
+save `obs'
+
+use bene_id admit_date disch_date erdayc clm_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\op_09_17.dta", clear
+merge 1:1 bene_id clm_id using `obs', keep(match master) nogen
+keep if obs_stay==1
+keep bene_id admit_date disch_date
+rename admit obsadm
+rename disch obsdis
+tempfile obs
+save `obs'
+ 
 use bene_id admit_date erdayc using "D:\NHATS\Shared\base_data\CMS_claims\Stata\op_09_17.dta", clear
 keep if !missing(erday)
 drop erday
@@ -6302,6 +6320,9 @@ use `pb', clear
 merge 1:1 bene_id admit_date using `er', keep(master) nogen
 joinby bene_id using `ip', unmatched(master)
 drop if inrange(admit_date,ipadm,ipdi) & _m==3
+drop _m
+joinby bene_id using `obs', unmatched(master)
+drop if inrange(admit_date,obsadm,obsdi) & _m==3
 keep bene_id admit_date
 duplicates drop
 tempfile pb 
@@ -6328,7 +6349,7 @@ forvalues i=1/3 {
 }
 
 
-drop admit_date inr*
+drop admit_date inr* 
 duplicates drop
 tempfile pb
 save `pb'
@@ -6396,6 +6417,8 @@ forvalues k=1/3 {
 frmttable, statmat(tab) ctitles("" "" "Count(mean)" "" "" "2 or more(%)"\ "" "No HBMC" "HBMC" "P-value" "No HBMC" "HBMC" "P-value") rtitles("Visits 180-91 days pre-ivw"\"Non-homebound"\ "Completely/Partially HB"\	"Visits 90 days +/- ivw"\"Non-homebound"\ "Completely/Partially HB"\	"Visits 91-180 days post-ivw"\"Non-homebound"\ "Completely/Partially HB") annotate(stars) asymbol(*,**) note("Visits max 1 per day, from Carrier File" "Excludes claims with ER/IP visit on same day or ER/IP hospital indicated on Place of Service code" "P-values for count of visits from Mann-Whitney, binary from Chi2") title("Non-Inpatient, Non-ER Visits")
 
 H="Changelog"
+1/27/2020 - Amended the "Pull OP use" to include obs stays. EBL
+
 12/3/2019 - Added "things for Bruce" and "looking 12m after" headers. EBL
 
 9/18/2019 - Updated 2 column table. OKR

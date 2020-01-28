@@ -15361,10 +15361,10 @@ run;
 run;
 
 /**************************************************************************/
-/* ************** Claims Before Death  ******************************/
+/**************** Claims Before Death  ******************************/
 /**************************************************************************/
-/*macro to get claims before death
-saves datasets for each claim type / time window to the spo_mc_i directory*/
+/*macro to get claims 120 days before death
+saves datasets for each claim type */
 %macro claimspre(days_start=,days_bef_index=,source=,suf=);
 
 /*claims fully within x time of death date*/
@@ -15389,20 +15389,17 @@ data &source._meet_&suf.(compress=yes);
 set &source._meet_1 &source._meet_2;
 run;
 
-
 %mend;
 
 /*4m before death*/
 %claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m); /*home health*/
-/*%claimspre(days_start=0,days_bef_index=120,source=hs,suf=4m); /*hospice*/
 %claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m); /*inpatient*/
 %claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m); /*dme*/
 %claimspre(days_start=0,days_bef_index=120,source=op,suf=4m); /*outpatient*/
 %claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m); /*carrier*/
 %claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m); /*snf*/
 
-/* Hospice file a little different format than the rest 
-Doing the same as above */
+/* Hospice file a little different format than the rest, but does the same as above */
 
 data hs_1998_2015 (keep= hspcstrt hs_start admit_date disch_date bid_hrs_22 provider) ;
 set medi.hs_1998_2015;
@@ -15485,7 +15482,6 @@ day_a=index_date-admit_date;
 day_d=index_date-disch_date;
 run;
 
-
 data &source._meet_&suf._dates;
 set &source._meet_&suf._d;
 do i=admit_date to disch_date;
@@ -15522,19 +15518,18 @@ run;
 %dates(source=op_obs,suf=4m,npi=ORGNPINM);
 %dates(source=ip_er,suf=4m,npi=ORGNPINM);
 %dates(source=ip_obs,suf=4m,npi=ORGNPINM);
-/*%dates(source=pb_plc,suf=4m,npi=rfr_npi);*/
 %dates(source=sn,suf=4m,npi=ORGNPINM);
 %dates(source=hh,suf=4m,npi=ORGNPINM);
 %dates(source=hs,suf=4m,npi=ORGNPINM);
 
-/* Bringing in MDS section*/
 
+/* Bringing in MDS section*/
 
 proc import out=proj_int.mds datafile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta" replace; 
 run;
 
 
-/*claims fully within x time of death date*/
+/*MDS claims fully within x time of death date*/
 proc sql;
 create table mds_meet_1 as select a.*,b.index_date,b.id 
 from proj_int.mds a inner join
@@ -15543,7 +15538,7 @@ on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
 and 0<=b.index_date-a.admit<=120 ;
 quit;
 
-/*claims that start earlier than x time but span into x time before death*/
+/*MDS claims that start earlier than x time but span into x time before death*/
 proc sql;
 create table mds_meet_2 as select a.*,b.index_date,b.id 
 from proj_int.mds a inner join
@@ -15598,6 +15593,7 @@ run;
 proc sort data=index_120;
 by bid_hrs_22 date;
 run;
+
 /* merging all files together*/
 
 data all_claims;
@@ -15605,7 +15601,7 @@ merge index_120 ip_dup ip_er_dup ip_obs_dup op_er_dup op_obs_dup sn_dup hh_dup h
 by bid_hrs_22 date;
 run;
 
-
+/* keeping only 90 days before index(death) date). */
 data all_claims;
 set all_claims;
 if index_date-date<=90 then days_90=1;
@@ -15620,7 +15616,7 @@ proc freq data=all_claims_90;
 table flag;
 run;
 
-/* Creating order for which claims are of higher order */
+/* Creating order based off of RHF paper, dictating which claims if overlap should be primary. */
 data all_claims_90_order;
 set all_claims_90;
 order=. ;
@@ -15678,7 +15674,7 @@ proc sort data=transit_90_cnt_1  ;
 by bid_hrs_22 date ;
 run;
 
-
+/* Using burden transitions definition of 3 or more transitions to flag for a burdensome transition, as per burdensome transition definition */
 data burd_90;
 set transit_90_cnt_1;
 flag_burd=0;
@@ -15694,8 +15690,15 @@ proc freq data=burd_90;
 table flag_burd;
 run;
 
+data burd_90_label (keep=id bid_hrs_22 death_year index_date days_90 burd_t flag_burd)  ;
+set burd_90;
+label	days_90 = "90 days bef. index"
+	  	flag_burd = "burdensome transition"
+		burd_t = "# of burdensome transitions" ;
+run;
 
-proc export data=burd_90 outfile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta" replace; 
+
+proc export data=burd_90_label outfile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta" replace; 
 run;
 
 
@@ -15707,53 +15710,24 @@ run;
 H="mds section"
 use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta", clear
 
-keep bid_hrs_22 fac_int_id aa8a_pri_rfa trgt_dt ab1_entry_dt r4_discharge_dt a4a_reentry_dt 
-
-gen admit1=ab1_entry_dt
-
-
-gen disch1=r4_discharge_dt
-
-gen reentry1=a4a_reentry_dt
-
-gen admit=date(admit1, "YMD") 
-format %td admit
+keep bid_hrs_22 fac_int_id aa8a_pri_rfa trgt_dt 
 
 gen target=date(trgt_dt, "YMD")
 format %td target
 
-gen disch=date(disch1, "YMD")
-format %td disch
 
-gen reentry=date(reentry1, "YMD")
-format %td reentry
-
-sort bid_hrs_22 target fac_int_id
-
-gen date=.
-replace date=admit if admit<=target & aa8a_pri_rfa=="01"
-replace date=reentry if reentry<=target & reentry!=. & aa8a_pri_rfa=="09"
-replace date=disch if disch!=. & disch>=target & inlist(aa8a_pri_rfa, "06", "07", "08")
-replace date=target if date==.
+gen date=target
 format %td date
 
-sort bid_hrs_22 fac_int_id date
 
+sort bid_hrs_22 fac_int_id date
+////
 gen type_cd=.
 replace type_cd=1 if aa8a=="09" | aa8a=="01"
-replace type_cd=2 if aa8a=="06" | aa8a=="07"
-replace type_cd=1 if admit!=. & year(admit)<1999
+replace type_cd=2 if aa8a=="06" | aa8a=="07" | aa8a=="08"
+//replace type_cd=1 if  year(admit)<1999
 
-gen fail=1 if aa8a=="08"
 
-replace type_cd=1 if year(admit)<1999 & type_cd==0 & admit!=.
-replace date=admit if type_cd==1 & year(admit)<1999 & admit!=.
-replace type_cd=1 if aa8a_pri_rfa=="00" & admit!=.
-replace type_cd=2 if aa8a_pri_rfa=="08" & disch!=.
-
-label var type_cd "Date type"
-label define type_cd 1 "Admission" 2 "Discharge"
-label values type_cd type_cd
 
 drop if type_cd==.
 
@@ -15767,43 +15741,31 @@ sort bid_hrs_22 fac_int_id date type_cd
 gen a=1 if bid_hrs_22==bid_hrs_22[_n+1] & type_cd==2 & type_cd[_n+1]==2 & fac_int_id==fac_int_id[_n+1]
 gen b=1 if bid_hrs_22==bid_hrs_22[_n-1] & type_cd==1 & type_cd[_n-1]==1 & fac_int_id==fac_int_id[_n-1]
 
-//taking a more conservative approach where if there are multiple admits or discharges in a row the first admit is kept and the last discharege is kept. 
 
-drop if a==1 | b==1
-
+//drop if a==1 | b==1 not taking out becuase of readmissions
 
 tempfile a
 save "`a'"
 
 
 use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_15.dta", clear
-sort bid_hrs_22 trgt_dt fac_prvdr_intrnl 
+sort bid_hrs_22
+keep bid_hrs_22 a0310a_fed_obra_cd a0310f_entry_dschrg_cd a0310e_first_since_admsn_cd fac_prvdr_intrnl trgt_dt    
 
-keep bid_hrs_22 a0310a_fed_obra_cd a0310f_entry_dschrg_cd a0310e_first_since_admsn_cd a2300_asmt_rfrnc_dt a2400b_mdcr_stay_strt_dt fac_prvdr_intrnl trgt_dt submsn_dt a1900_admsn_dt a2000_dschrg_dt a0310b_pps_cd 
-
-gen admit1=a1900_admsn_dt
-
-gen disch1=a2000_dschrg_dt
 
 destring fac_prvdr_intrnl, replace
 
-gen admit=date(admit1, "YMD") 
-format %td admit
 
 gen target=date(trgt_dt, "YMD")
 format %td target
 
-gen disch=date(disch1, "YMD")
-format %td disch
-
 // assessment reference date is the same as the target date unless it is missing. 
 gen date=target
-replace date=admit if admit<=target & (a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01") & admit!=.
-replace date=disch if disch>=target & inlist(a0310f_entry_dschrg_cd, "10", "11", "12") & disch!=.
+
 format %td date
 
 
-sort bid_hrs_22 date fac_prvdr_intrnl
+sort bid_hrs_22 fac_prvdr_intrnl date
 ////
 gen type_cd=.
 replace type_cd=1 if a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01" 
@@ -15814,9 +15776,10 @@ replace type_cd=3 if same_day==1
 
 drop if type_cd==.
 
-drop if type_cd[_n-1]==1 & type_cd==1 & bid_hrs_22[_n-1]==bid_hrs_22 & fac_prvdr_intrnl[_n-1]==fac_prvdr_intrnl 
+gen a=1 if type_cd[_n-1]==1 & type_cd==1 & bid_hrs_22[_n-1]==bid_hrs_22 & fac_prvdr_intrnl[_n-1]==fac_prvdr_intrnl 
 
-drop if type_cd[_n+1]==2 & type_cd==2 & bid_hrs_22[_n+1]==bid_hrs_22 & fac_prvdr_intrnl[_n+1]==fac_prvdr_intrnl
+gen b=1 if type_cd[_n+1]==2 & type_cd==2 & bid_hrs_22[_n+1]==bid_hrs_22 & fac_prvdr_intrnl[_n+1]==fac_prvdr_intrnl
+
 
 
 tempfile b
@@ -15829,35 +15792,28 @@ replace fac_int_id=fac_prvdr_intrnl if fac_int_id==.
 
 drop a b fac_prvdr_intrnl
 
-sort bid_hrs_22 date fac_int_id
+sort bid_hrs_22 fac_int_id date
 
-gen a=date if type_cd==1
-gen d=date if type_cd==2
+gen admit=date if type_cd==1
+gen discharge=date if type_cd==2
 
-replace d=date[_n+1] if type_cd[_n+1]==2 & bid_hrs_22==bid_hrs_22[_n+1] & fac_int_id==fac_int_id[_n+1]
+replace admit=date[_n-1] if type_cd[_n-1]==1 & bid_hrs_22==bid_hrs_22[_n-1] & fac_int_id==fac_int_id[_n-1]
 
-replace a=date[_n-1] if type_cd[_n-1]==1 & bid_hrs_22==bid_hrs_22[_n-1] & fac_int_id==fac_int_id[_n-1]
+replace discharge=date[_n+1] if type_cd[_n+1]==2 & bid_hrs_22==bid_hrs_22[_n+1] & fac_int_id==fac_int_id[_n+1]
 
-format a %td
-format d %td
+format admit %td
+format discharge %td
 
-replace a=date if same==1
-replace d=date if same==1
-
-replace a=admit if fail==1
-replace d=disch if fail==1
-replace d=target if d==. & target>=date
-replace a=target if a==. & target<=date
 
 //sort bid_hrs_22 a d fac_int_id
-bys bid_hrs_22 a d fac_int_id: keep if _n==1 
+bys bid_hrs_22 fac_int_id admit discharge: keep if _n==1 
 
-rename a admission
-rename d discharge
 
-drop admit1 disch1 reentry1 reentry fail 
+replace admit=discharge if admit==.
+replace discharge=admit if discharge==.
 
 saveold "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta", version(12) replace
+
 
 
 H="Burdensome transitions tables"
