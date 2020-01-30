@@ -6273,7 +6273,7 @@ logit hcalls age female married livealone rcfres adl_2plus prob_dem ind_hosp_adm
 outreg, varlabels stats(e_b e_ci p)
 
 H="pull OP use "
-use bene_id admit_date pos* using "D:\NHATS\Shared\base_data\CMS_claims\Stata\pb_09_17.dta", clear
+use bene_id admit_date pos* clm_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\pb_09_17.dta", clear
 
 forvalues i=1/13 {
 	drop if inlist(pos`i',"21","23")
@@ -6291,7 +6291,23 @@ keep if inrange(ipdi,index_date-180, index_date+180) | inrange(ipadm,index_date-
 tempfile ip
 save `ip'
 
-//need rev center to get obs stays
+//need rev center to get obs stays & carrier line to get specialties
+
+import sas BENE_ID CLM_ID PRVDR_SPCLTY using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Cumulative\bcarrier_line_j_09_17.sas7bdat", clear case(lower)
+gen yes=0
+replace yes=1 if inlist(prvdr`i',"01","08","11","38","50")
+keep if yes 
+keep bene clm
+duplicates drop 
+tempfile pb2
+save `pb2'
+
+use `pb', clear
+merge 1:1 bene_id clm_id using `pb2', keep(match) nogen
+drop clm_id 
+duplicates drop
+tempfile pb
+save `pb'
 
 import sas BENE_ID CLM_ID REV_CNTR HCPCS_CD REV_CNTR_UNIT_CNT using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Cumulative\outpatient_rev_center_j_09_17.sas7bdat", case(lower) clear
 gen obs_stay=inlist(rev_cntr,"0762") | (inlist(rev_cntr,"0760") & inlist(hcpcs_cd,"G0378") & rev_cntr_unit_cnt>=8)
@@ -6344,8 +6360,7 @@ forvalues i=1/3 {
 	by spid: egen n_pb_vis_``i''=total(inr`i')
 	gen ind_pb_vis_``i''=n_pb_vis_``i''>=1
 	gen ind_2_``i''=n_pb_vis_``i''>=2
-	gen pbcat``i''=ind_pb_vis_``i''+1
-	replace pbcat``i''=3 if ind_2_``i''==1
+
 }
 
 
@@ -6364,6 +6379,8 @@ use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\housecalls.dta", cl
 drop metro_ind
 merge 1:1 spid wave using `t1', nogen keep(match master) 
 merge 1:1 spid using `pb', nogen keep(match master)
+*replace ind_2_n9=2 if n_pb_vis_n9==1 & hcalls==1
+	
 local logpath "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
 local date=subinstr("$S_DATE"," ","_",.)
 
@@ -6387,7 +6404,7 @@ gen cp_hb = 0
 replace cp_hb = 1 if homebound_cat<4
 
 gen adl_2plus=adl_index>=2
-replace ind_2_n9=1 if hcalls==1
+*replace ind_2_n9=1 if hcalls==1
 mat tab=J(9,9,.)
 mat stars=J(9,9,0)
 local r=2
@@ -6414,7 +6431,299 @@ forvalues k=1/3 {
 	local r=`r'+1
 }
 
-frmttable, statmat(tab) ctitles("" "" "Count(mean)" "" "" "2 or more(%)"\ "" "No HBMC" "HBMC" "P-value" "No HBMC" "HBMC" "P-value") rtitles("Visits 180-91 days pre-ivw"\"Non-homebound"\ "Completely/Partially HB"\	"Visits 90 days +/- ivw"\"Non-homebound"\ "Completely/Partially HB"\	"Visits 91-180 days post-ivw"\"Non-homebound"\ "Completely/Partially HB") annotate(stars) asymbol(*,**) note("Visits max 1 per day, from Carrier File" "Excludes claims with ER/IP visit on same day or ER/IP hospital indicated on Place of Service code" "P-values for count of visits from Mann-Whitney, binary from Chi2") title("Non-Inpatient, Non-ER Visits")
+
+gen viscat=n_pb_vis_n9==0
+replace viscat=2 if n_pb_vis_n9==1
+replace viscat=3 if n_pb_vis_n9>=2
+
+label define viscat 1 "No visits" 2 "1 visit" 3 "2+ visits"
+label values viscat viscat
+
+local title "Visits max 1 per day, from Carrier File with specialty code: 01,08,11,38,50.  Excludes claims with ER/IP/Obs visit on same day or ER/IP hospital indicated on Place of Service code" 
+di "`title'"
+log using $output\multiple_visits_hb, replace
+di "`title'"
+
+tab hcalls viscat if cp_hb==1, row chi2 nokey
+
+
+frmttable using $output\multiple_visits_hb_table.rtf, statmat(tab) ctitles("" "" "Count(mean)" "" "" "2 or more(%)"\ "" "No HBMC" "HBMC" "P-value" "No HBMC" "HBMC" "P-value") rtitles("Visits 180-91 days pre-ivw"\"Non-homebound"\ "Completely/Partially HB"\	"Visits 90 days +/- ivw"\"Non-homebound"\ "Completely/Partially HB"\	"Visits 91-180 days post-ivw"\"Non-homebound"\ "Completely/Partially HB") annotate(stars) asymbol(*,**) note("Visits max 1 per day, from Carrier File with specialty code: 01,08,11,38,50" "Excludes claims with ER/IP/Obs visit on same day or ER/IP hospital indicated on Place of Service code" "P-values for count of visits from Mann-Whitney, binary from Chi2") title("Non-Inpatient, Non-ER, Non-Observation Visits") replace
+
+log close 
+translate $output\multiple_visits_hb.smcl $output\multiple_visits_hb.pdf, replace
+
+H="Weighted years tables and graph"
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\iah_wave1-7.dta", clear
+
+global output "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+local date=subinstr("$S_DATE"," ","_",.)
+
+gen homebound_part = 0
+replace homebound_part = 1 if inrange(homebound_cat,2,3)
+label var homebound_part "Partially Homebound"
+label var homebound "Completely Homebound"
+
+gen homebound_not = 0
+replace homebound_not = 1 if homebound_cat>=4
+label var homebound_not "Indepent"
+
+gen homebound_3cat = .
+replace homebound_3cat = 1 if homebound==1
+replace homebound_3cat = 2 if homebound_part==1
+replace homebound_3cat = 3 if homebound_3cat==.
+la define hblbl 1"Complete HB"2"Partial HB"3"Independent"
+la values homebound_3cat hblbl
+
+gen anyhcall = 0
+replace anyhcall = 1 if housecalls_count>=2 & housecalls_count!=.
+
+svyset spid [pw=anfinwgt], strata(varstrat)
+
+gen all = 1
+
+mat tab1=J(7,6,.)
+
+local r = 1
+local c = 1
+
+forvalues i=1/7 {
+
+svy: mean hcalls if wave==`i'
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: mean anyhcall if wave==`i'
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: total all if wave==`i'
+mat tab1[`r',`c'] = (e(N_pop))
+
+local ++c
+svy: mean hcalls if wave==`i' & homebound_3cat<3
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: mean anyhcall if wave==`i' & homebound_3cat<3
+mat tab1[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+svy: total all if wave==`i' & homebound_3cat<3
+mat tab1[`r',`c'] = (e(N_pop))
+
+local c = 1
+local ++r
+}
+
+mat rownames tab1 = "2011" "2012" "2013" "2014" "2015" "2016" "2017"
+mat list tab1
+
+frmttable using $output\table2_pop_estimates`date'.doc, replace statmat(tab1) ///
+varlabels title("Table 1: Weighted Population Estimates NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
+ctitles("", "", "All", "", "", "Complete/Partial HB" \ "Years", "Weighted % - 2+ Hcalls (or 1+NH/Death)", "Weighted % - 2+ Hcall in calendar year", "Total CD+FFS Population Estimates", "Weighted % - 2+ Hcalls (or 1+NH/Death)", "Weighted % - 2+ Hcall in calendar year", "Total CD+FFS+HB Population Estimates") sdec(2) ///
+note("Population Estimates is the total (weighted) number of 6mFFS + CD people in the NHATS year")
+
+////////
+
+mat tab2=J(7,8,.)
+
+local r = 1
+local c = 1
+
+forvalues i=1/7 {
+
+svy: mean anyhcall if wave==`i'
+mat tab2[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+mat tab2[`r',`c'] = (r(table)[1,1]*e(N_pop)) // population estimate
+
+local ++c
+mat tab2[`r',`c'] = (r(table)[5,1]*e(N_pop)) // lower bound
+
+local ++c
+mat tab2[`r',`c'] = (r(table)[6,1]*e(N_pop)) // upper bound
+
+local ++c
+svy: mean anyhcall if wave==`i' & homebound_3cat<3
+mat tab2[`r',`c'] = (r(table)[1,1]*100)
+
+local ++c
+mat tab2[`r',`c'] = (r(table)[1,1]*e(N_pop)) // population estimate
+
+local ++c
+mat tab2[`r',`c'] = (r(table)[5,1]*e(N_pop)) // lower bound
+
+local ++c
+mat tab2[`r',`c'] = (r(table)[6,1]*e(N_pop)) // upper bound
+
+local c = 1
+local ++r
+}
+
+mat rownames tab2 = "2011" "2012" "2013" "2014" "2015" "2016" "2017"
+mat list tab2
+
+frmttable using $output\table2_pop_estimates`date'.doc, addtable statmat(tab2) ///
+varlabels title("Table 2: Weighted Population Estimates NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
+ctitles("", "", "All", "", "", "Complete/Partial HB" \ "Years", "Weighted % - 2+ Hcalls in calendar year", "2+ Hcalls Population Estimate", "95% Lower Bound", "95% Upper Bound", "Weighted % - 2+ Hcalls in calendar year", "2+ Hcalls + HB Population Estimate", "95% Lower Bound", "95% Upper Bound") sdec(2) ///
+note("Population Estimates is the total (weighted) number of 6mFFS + CD people in the NHATS year")
+
+log using $output\annual_hbmc_hb_log, replace
+svy, subpop(if homebound_cat<4): logit hcalls year
+margins, dydx(year)
+svy, subpop(if homebound_cat<4): logit hcalls i.year
+margins year
+marginsplot, recastci(rarea) ciopts(color(blue%50)) recast(line) saving($output\annual_hbmc_homebound, replace)
+graph export $output\annual_hbmc_homebound.pdf, replace
+
+log close
+
+translate $output\annual_hbmc_hb_log.smcl $output\annual_hbmc_hb_log.pdf, replace
+
+
+H="table 2"
+
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", clear
+sort spid wave
+by spid: replace metro_ind=metro_ind[_n-1] if missing(metro_ind)
+tempfile t1
+save `t1'
+
+
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\housecalls.dta", clear 
+
+drop metro_ind
+merge 1:1 spid wave using `t1', nogen keep(match master) 
+
+
+local logpath "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress"
+local date=subinstr("$S_DATE"," ","_",.)
+
+
+replace homebound_cat = 4 if homebound_cat==.
+label var homebound "Never/Rarely leaves home"
+
+gen homebound_2 = 0 if homebound_cat!=.
+replace homebound_2 = 1 if homebound_cat==2
+label var homebound_2 "Leaves home but never by self"
+
+gen homebound_3 = 0 if homebound_cat!=.
+replace homebound_3 = 1 if homebound_cat==3
+label var homebound_3 "Leaves home but needs help/has difficulty"
+
+gen homebound_4 = 0 if homebound_cat!=.
+replace homebound_4 = 1 if homebound_cat==4
+label var homebound_4 "Not homebound"
+
+gen cp_hb = 0
+replace cp_hb = 1 if homebound_cat<4
+
+
+gen adl_2plus=adl_index>=2 if !missing(adl_index)
+
+local cvars1 age
+local ivars1 income_cat_1 female white 
+local catvars1 
+local ivars2 married livealone rcfres educ_hs_ind medicaid metro_ind 
+local catvars2 region
+local ivars3  iah_adl adl_ins_diff iah_chronic prob_dem ind_hosp_adm_12m mc_hh
+
+//replace race=3 if race==4
+//label define race_cat 3 "Hispanic or other", modify
+
+forvalues i=1/6 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		local catrows`i' `catrows`i'' `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+		local catrows`i' `catrows`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+forvalues i=1/6 {
+	local countvars `countvars' `cvars`i''  `ivars`i'' `catrows`i''
+}
+
+local rn : word count `countvars' 1
+di `rn'
+
+
+mat tab1 = J(`rn',6,.)
+mat stars = J(`rn',6,0)
+
+local r = 1
+local c = 1
+
+foreach z in 1 0 {
+	foreach y in 1 0 {
+		forvalues i=1/6 {
+			foreach x of local cvars`i' {
+				sum `x' if cp_hb==`z' & hcalls==`y'
+				if !inrange(r(N)-r(sum),1,10) & !inrange(r(sum),1,10) mat tab1[`r',`c']=r(mean)
+				if `y'==0 {
+					ttest `x' if cp_hb==`z', by(hcalls)
+					mat tab1[`r',`c'+1]=r(p)
+					mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+				local r=`r'+1
+}
+			foreach x of local ivars`i' {
+				sum `x' if cp_hb==`z' & hcalls==`y'
+				if !inrange(r(N)-r(sum),1,10) & !inrange(r(sum),1,10) mat tab1[`r',`c']=r(mean)*100
+				if `y'==0 {
+					tab `x' hcalls if cp_hb==`z', chi2
+					mat tab1[`r',`c'+1]=r(p)
+					mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+				local r=`r'+1
+}
+		foreach x of local catvars`i' {
+			if `y'==0 {
+				tab `x' hcalls if cp_hb==`z', chi2
+				mat tab1[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+			foreach q of local `x' {
+				sum `q' if cp_hb==`z' & hcalls==`y'
+				if !inrange(r(N)-r(sum),1,10) & !inrange(r(sum),1,10) mat tab1[`r',`c']=r(mean)*100
+
+				local r=`r'+1
+}
+}
+
+
+}
+		sum hcalls if cp_hb==`z' & hcalls==`y'
+		mat tab1[`r',`c']=r(N)
+		local r=1
+		local c=`c'+1
+		if `y'==0 local c=`c'+1
+}
+}
+
+
+
+mat rownames tab1= `countvars' N
+
+frmttable using ${output}\table_2.rtf, replace statmat(tab1) ///
+varlabels title("Table 1: Housecalls Unique persons per NHATS Waves 1-7 Community Dwelling + 6m FFS") ///
+ctitles("", "", "Complete/Partial HB", "", "", "Not HB", \"", "No Housecalls", "Housecalls", "No Housecalls", "Housecalls") sdec(2) annotate(stars) asymbol(*,**) landscape ///
+note("These are unique people, and only survey data from their most recent NHATS interview was used. Housecalls are +/- 90 days of ivw date. *p<0.05, **p<0.01")
+
 
 H="Changelog"
 1/27/2020 - Amended the "Pull OP use" to include obs stays. EBL

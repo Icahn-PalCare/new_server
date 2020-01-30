@@ -16470,7 +16470,125 @@ restore
 save "`fdpath'/burden_dementia_sample_long.dta", replace
 
 
+H="Adding burden dementia table"
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
+
+
+merge m:1 id using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(matched)
+
+
+keep if nflag==0
+
+gen no_ind_hs=0 if ind_hs==1
+replace no_ind_hs=1 if ind_hs==0
+label var no_ind_hs "No hospice use"
+
+foreach x in ind_start_ltc ind_hs_suboptimal no_ind_hs ind_hs_gt6m ind_hs_lt3d ind_hs_live_disch loc_hosp_exit {
+tab `x'
+}
+
+
+
+tab dementia flag_burd
+
+gen n=1
+
+gen ind_hs_gt6m_1=0 if ind_hs_gt6m==0 & ind_hs==1
+replace ind_hs_gt6m_1=1 if ind_hs_gt6m==1 & ind_hs==1
+label var ind_hs_gt6m_1 ">183 days on hospice"
+
+gen ind_hs_suboptimal_1=0 if  ind_hs_gt6m_1==0 & ind_hs_lt3d==0 & ind_hs==1
+replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lt3d==1) & ind_hs==1
+label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
+
+local ivars ind_start_ltc ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',4,0)
+
+foreach x in `ivars' {
+sum `x'
+mat tab[`r',`c']=`r(mean)'*100
+local r=`r'+1
+}
+
+sum n 
+mat tab[`r',`c']=`r(N)'
+
+local c=2
+forvalues i=0/1{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if dem_cohort==`i'
+		mat tab[`r',`c']=`r(mean)'*100
+		ttest `x', by(dem_cohort)
+		mat tab[`r',4]=r(p)
+		mat stars[`r',4]=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+}
+
+	sum n if dem_cohort==`i'
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+}
+
+mat list tab
+mat list stars
+mat rownames tab=`ivars' "N"
+frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Demetia status") annotate(stars) asymbol(*,**) ctitles( "" "Full Sample" "Non-Dementia" "Dementia" "P-Value") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)")  replace
+
+
+
+local ivars ind_start_ltc ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+local z=3
+mat tab=J(`rn',6,.)
+mat stars=J(`rn',6,0)
+
+foreach d in ind_nw_remaining ind_fw_remaining{
+forvalues i=0/1{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if `d'==`i'
+		mat tab[`r',`c']=`r(mean)'*100
+		ttest `x', by(`d')
+		mat tab[`r',`z']=r(p)
+		mat stars[`r',`z']=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+}
+
+	sum n if `d'==`i'
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+}
+
+local z=`z'+3
+local c=`c'+1
+}
+
+mat list tab
+mat list stars
+mat rownames tab=`ivars' "N"
+frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Wealth status") annotate(stars) asymbol(*,**) ctitles( "" "No NW Remaining" "NW Remaining" "P-Value" "No FW Remaining" "FW Remaining" "P-Value") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "Exhaustion of wealth defined as baseline wealth<total discounted OOP up to the start of the final year of life") addtable replace
+
+
+
+
+
+
+
+
+
 H="changelog"
+01/29/20 - Burdensome Transitions added to Table 1. 
+
 08/22/19 - Cleaned up some of the excess headers that were holovers from the original paper.  Updated sample to include all Medicare decedents 72+. Added table 1 and graphs by marital and child status (married, unmarried with kids, unmarried no kids) and graph of paid caregiving and nursing home status.
 
 08/07/19 - Created new graphs for Jenny based on different specifications. Mohammed 
