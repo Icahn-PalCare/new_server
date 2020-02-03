@@ -1,0 +1,250 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="First Heading"
+/* 
+********************HEADING******************** 
+
+Project Name: Home health use at the end of life	
+
+Date Started: Feb 1 2020
+
+Primary Investigator: Claire Ankuda
+Funding Source: NPCRC
+
+Created by: Claire Ankuda
+
+Primary Analyst: cka
+Secondary Analyst:
+
+Datasets Used: Beeson
+
+Simple Outline:
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+
+//Intermediate Data Path
+global intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+global datapath "E:\nhats\data\Projects\..."
+
+//Log files path
+global logpath "E:\nhats\data\Projects\..."
+
+
+global int "D:\NHATS\Projects\home health policy\cka_hh at eol\data\"
+global final "D:\NHATS\Projects\home health policy\cka_hh at eol\data\"
+global output "D:\NHATS\Projects\home health policy\cka_hh at eol\output\"
+global logs "D:\NHATS\Projects\home health policy\cka_hh at eol\output\"
+
+
+
+
+//SAS 
+/*SAS */
+
+
+libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS'; 
+libname merged 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS';
+libname proj_int 'D:\NHATS\Projects\home health policy\cka_hh at eol\data'; 
+libname sas 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Extracted';
+
+
+//Intermediate Data Path
+//libname intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+//libname datapath "E:\nhats\data\Projects\..."
+
+//Log files path
+//libname logpath "E:\nhats\data\Projects\..."
+
+
+H="Generic template"
+/*
+
+Created by: 
+Date Created:
+
+Updated by:
+Date Updated:
+
+Description: What is going on in this section of the code? 
+i.e. defining variables, labeling variables. Creating new quartiles for income based off of something....
+
+
+
+**************************************************
+*/
+local date = subinstr("$S_DATE"," ","_",.) 
+local name @INSERTNAME_`date'
+di "`name'"
+
+capture log close 
+clear all
+
+set more off
+version 12
+set linesize 80
+
+
+cd `datapath'
+log using `name'.smcl, text replace
+
+
+.
+.
+.
+.
+.
+.
+.
+.
+
+
+
+
+log close
+translate `name'.smcl `name'.pdf
+exit
+
+
+
+H="get visits from rev center file"
+
+proc contents data=sas.hha_revenue_center_j_13; run;
+
+
+data rev_cntr;
+set sas.hha_revenue_center_j_09-sas.hha_revenue_center_j_14 sas.hha_revenue_center_15-sas.hha_revenue_center_16 sas.hha_revenue_center_k_17;
+run;
+
+proc contents data=rev_cntr; run;
+
+data rev_cntr; keep bene_id clm_id clm_thru_dt rev_cntr_dt rev_cntr hcpcs_cd rev_cntr_unit_cnt;
+set rev_cntr;
+run;
+
+proc export data= rev_cntr outfile="D:\NHATS\Projects\home health policy\cka_hh at eol\data\rev_cntr.dta" dbms=stata replace; run; 
+
+
+H="death date"
+ use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+ gen all_death_date=death_date
+ replace all_death_date=nhats_death_date if death_date==. & nhats_death_date!=.
+ replace all_death_date=nhats_death_date if nhats_death_date!=. & nhats_death_date>death_date
+ keep spid all_death_date
+ rename all_death_date death_date
+
+by spid: egen deathdate= max(death_date)
+by spid, sort: gen pid= _n
+keep if pid==1
+drop death_date
+
+rename deathdate death_date
+
+
+  save "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\death date.dta", replace
+
+H="Dataset construction"
+use "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\rev_cntr.dta" 
+
+
+*DROP IF NOT MEANINGFUL CLAIM LINE
+drop if rev_cntr== "0001" | rev_cntr== "0023" | rev_cntr== "0270" | rev_cntr== "0623"| hcpcs_cd== "G0457" | hcpcs_cd== "Q5001" | hcpcs_cd== "Q5002" | hcpcs_cd== "Q5009"
+gen servicetype=.
+*RN
+replace servicetype=1 if hcpcs_cd== "G0154" | hcpcs_cd== "G0299" |  hcpcs_cd== "G0300" |  hcpcs_cd== "G0493" |  hcpcs_cd== "G0494" | hcpcs_cd== "G0495" | hcpcs_cd== "G0496" | hcpcs_cd== "G0162" | hcpcs_cd== "G0163" | hcpcs_cd== "G0164" 
+*PT
+replace servicetype=2 if hcpcs_cd== "G0151" | hcpcs_cd== "G0157" | hcpcs_cd== "G0159"
+*ot
+replace servicetype=3 if hcpcs_cd== "G0152" |  hcpcs_cd== "G0158" |  hcpcs_cd== "G0160"
+*SLP
+replace servicetype=4 if hcpcs_cd== "G0153" | hcpcs_cd== "G0161"
+*CSW
+replace servicetype=5 if hcpcs_cd== "G0155"
+*HHA
+replace servicetype=6 if hcpcs_cd== "G0156"
+
+drop if servicetype==.
+
+*merge to bene_id
+merge m:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" , keepusing(spid)
+rename _merge claimsnhatsmerge
+*merge to death date
+merge m:1 spid using "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\death date.dta"
+keep if _merge==3
+
+
+*limit to those with claims merge
+*keep if claimsnhatsmerge==3
+
+*drop if didn't die
+drop if death_date==.
+gen hh_dth_days= death_date-rev_cntr_dt if death_date!=.
+drop if servicetype!=. & hh_dth_days>365
+drop if servicetype!=. & hh_dth_days<-90
+
+
+
+
+*now make a per-decedent summary measure with count of hh visits
+sort spid rev_cntr_dt
+gen nurse=1 if servicetype==1
+gen therapist=1 if servicetype==2 |servicetype==3 |servicetype==4
+gen sw=1 if servicetype==5
+gen hha=1 if servicetype==6
+by spid: egen nursevisits= total (nurse)
+by spid: egen therapyvisits= total (therapist )
+by spid: egen swvisits=total (sw)
+by spid: egen hhavisits=total (hha)
+
+
+histogram hh_dth_days if servicetype==1
+histogram hh_dth_days if servicetype==2 | servicetype==3 | servicetype==4
+histogram hh_dth_days if servicetype==6
+
+*NOW LIMIT TO ONE OBSERVATION/PERSON
+drop pid
+sort spid rev_cntr_dt
+by spid, sort: gen pid=_n
+keep if pid==1
+
+
+
+H="variable cleaning"
+*VARIABLE CLEANING
+
+*count of any visits (binary) by category
+egen totalvisits=rowtotal(nursevisits therapyvisits swvisits hhavisits)
+recode totalvisits (0=0)(1/716=1), gen(anyvisits)
+recode nursevisits (0=0)(1/716=1), gen(anynurse)
+recode therapyvisits (0=0)(1/716=1), gen(anytherapy)
+recode swvisits (0=0)(1/716=1), gen(anysw)
+recode hhavisits (0=0)(1/716=1), gen(anyhha)
+
+H="Change log"
+
+
+********************Change Log******************** 
+
+
+
+Updates:
+
+
+
+12/17/2018 MH
+------------
+A formal template in Notetab was created with different headings. 
+
+12/13/2018 MH
+-------------
+Change log conception was first introduced.
+
+
+*/

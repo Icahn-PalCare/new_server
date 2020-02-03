@@ -1,0 +1,181 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="First Heading"
+/* 
+********************HEADING******************** 
+
+Project Name:
+
+Date Started:
+
+Primary Investigator:
+Funding Source:
+
+Created by:
+
+Primary Analyst:
+Secondary Analyst:
+
+Datasets Used:
+
+Simple Outline:
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+
+//Intermediate Data Path
+global intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+gloabl datapath "E:\nhats\data\Projects\..."
+
+//Log files path
+gloabl logpath "E:\nhats\data\Projects\..."
+
+
+//SAS 
+
+
+//Intermediate Data Path
+//libname intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+//libname datapath "E:\nhats\data\Projects\..."
+
+//Log files path
+//libname logpath "E:\nhats\data\Projects\..."
+
+
+H="making anxiety files from leave behind"
+use "D:\HRS\Shared\raw\HRS\hrs_fat_file\all_rand_fat_files\fat2012.dta" 
+gen core_year=2012
+rename hhidpn id
+ 
+ keep core_year id nlb041a nlb041b nlb041c nlb041d nlb041e
+ rename nlb041a wrsthpn
+  rename nlb041b nervous
+    rename nlb041c trembling
+	    rename nlb041d feardying
+		    rename nlb041e faint
+ save "D:\HRS\Projects\psych_sxs_decedents\cka_traj anx before death\data\inter data\anxvars2012.dta", replace
+			
+use "D:\HRS\Shared\raw\HRS\hrs_fat_file\all_rand_fat_files\fat2010.dta" 
+gen core_year=2010
+rename hhidpn id
+ keep core_year id mlb041a mlb041b mlb041c mlb041d mlb041e
+ rename mlb041a wrsthpn
+  rename mlb041b nervous
+    rename mlb041c trembling
+	    rename mlb041d feardying
+		    rename mlb041e faint
+ save "D:\HRS\Projects\psych_sxs_decedents\cka_traj anx before death\data\inter data\anxvars2010.dta", replace
+ 
+ 
+ use "D:\HRS\Shared\raw\HRS\hrs_fat_file\all_rand_fat_files\fat2008.dta" 
+gen core_year=2008
+rename hhidpn id
+ keep core_year id llb041a llb041b llb041c llb041d llb041e
+ rename llb041a wrsthpn
+  rename llb041b nervous
+    rename llb041c trembling
+	    rename llb041d feardying
+		    rename llb041e faint
+ save "D:\HRS\Projects\psych_sxs_decedents\cka_traj anx before death\data\inter data\anxvars2008.dta", replace
+
+H="making dataset"
+*Making dataset
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta"
+
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta" , keepusing (death_all)
+gen keep=0
+replace keep=1 if _merge==3
+
+drop _merge
+merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", keepusing(stratum secu race birth_date)
+replace keep=0 if _merge!=3
+drop if id==""
+
+drop _merge
+destring id, replace
+merge 1:1 id core_year using "D:\HRS\Projects\psych_sxs_decedents\cka_traj anx before death\data\inter data\anxvars2008.dta"
+drop _merge
+merge 1:1 id core_year using "D:\HRS\Projects\psych_sxs_decedents\cka_traj anx before death\data\inter data\anxvars2010.dta"
+drop if _merge==2
+drop _merge
+merge 1:1 id core_year using "D:\HRS\Projects\psych_sxs_decedents\cka_traj anx before death\data\inter data\anxvars2012.dta"
+
+H="cleaning variables"
+*VARIABLE CLEANING
+
+
+gen days_ivw_death= death_all-c_ivw_date
+gen mnths_ivw_death= ceil(days_ivw_death/30)
+replace mnths_ivw_death=. if mnths_ivw_death<0
+
+*make a variable for least months to death for each person, and limit dataset to those within 24 months of death
+egen minttd=min(mnths_ivw_death), by(id)
+replace keep=0 if minttd!=mnths_ivw_death
+tab mnths_ivw_death
+replace mnths_ivw_death=1 if mnths_ivw_death==0
+replace keep=0 if mnths_ivw_death>12 | mnths_ivw_death==.
+replace mnths_ivw_death=. if mnths_ivw_death>12
+
+*depression variables
+rename cesd1 depressed
+rename cesd2 effort
+rename cesd3 restless
+rename cesd4 unhappy
+rename cesd5 lonely
+rename cesd6 notenjoy
+rename cesd7 sad
+rename cesd8 unmotivated
+
+*anxiety variables
+egen beck=rowtotal(wrsthpn nervous trembling feardying faint)
+replace beck=. if beck==0
+recode beck (1/11=0)(12/21=1),gen(beckcut12pt)
+
+replace keep=0 if beck==.
+
+*cleaning covariates
+gen age= floor((c_ivw_date-birth_date)/365)
+recode age (min/65=1 "</=65")(66/75=2 "66-75")(76/85=3 "76-85")(86/max=4 "86+"), gen(age_cat)
+
+*recode race 
+recode race (0=.)(1=0 "0_white")(2/9=1 "1_nonwhite"),gen(nonwhite)
+
+H="analysis"
+*ANALYSIS
+
+*defining cohort 
+tab mnths_ivw_death if keep==1 
+tab mnths_ivw_death if keep==1 & proxy==0
+tab mnths_ivw_death if keep==1 & proxy==0 & cesd_tot!=.
+
+
+tabstat beck, by(mnths_ivw_death)
+
+H="Change log"
+
+
+********************Change Log******************** 
+
+
+
+Updates:
+
+
+
+12/17/2018 MH
+------------
+A formal template in Notetab was created with different headings. 
+
+12/13/2018 MH
+-------------
+Change log conception was first introduced.
+
+
+*/
