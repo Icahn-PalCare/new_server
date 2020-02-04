@@ -16489,7 +16489,6 @@ tab `x'
 }
 
 
-
 tab dementia flag_burd
 
 gen n=1
@@ -16580,10 +16579,411 @@ frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care 
 
 
 
+// Marital status
+gen a=0 if dem_cohort==0
+replace a=1 if dem_cohort==1 & married_baseline==0
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+
+
+forvalues i=0/1{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if married_baseline==`i' & dem_cohort==1
+		mat tab[`r',`c']=`r(mean)'*100
+		ttest `x' if dem_cohort==1, by(married_baseline)
+		mat tab[`r',3]=r(p)
+		mat stars[`r',3]=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+}
+
+	sum n if married_baseline==`i' & dem_cohort==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+}
+
+local c=4
+local r=1
+foreach x in `ivars' {
+	sum `x' if dem_cohort==0
+	mat tab[`r',`c']=`r(mean)'*100
+	ttest `x', by(a)
+	mat tab[`r',5]=r(p)
+	mat stars[`r',5]=(r(p)<.05)+(r(p)<.01)
+	local r=`r'+1
+}
+
+sum n if dem_cohort==0
+mat tab[`r',`c']=`r(N)'
+
+
+mat list tab
+mat list stars
+mat rownames tab=`ivars' "N"
+mat colnames tab="Unmarried/dem" "Married/dem" "P-value" "No Dementia" "P-value"
+mat list tab
+
+frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Marital Status") annotate(stars) asymbol(*,**) varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "P-value comparisons are bet. Unmarried/dem and Married/dem;" "Unmarried/dem and no dementia") addtable replace
+
+
+//Black 
+drop a
+gen a=0 if dem_cohort==0
+replace a=1 if dem_cohort==1 & black==0
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+
+
+forvalues i=0/1{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if black==`i' & dem_cohort==1
+		mat tab[`r',`c']=`r(mean)'*100
+		ttest `x' if dem_cohort==1, by(black)
+		mat tab[`r',3]=r(p)
+		mat stars[`r',3]=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+}
+
+	sum n if black==`i' & dem_cohort==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+}
+
+local c=4
+local r=1
+foreach x in `ivars' {
+	sum `x' if dem_cohort==0
+	mat tab[`r',`c']=`r(mean)'*100
+	ttest `x', by(a)
+	mat tab[`r',5]=r(p)
+	mat stars[`r',5]=(r(p)<.05)+(r(p)<.01)
+	local r=`r'+1
+}
+
+sum n if dem_cohort==0
+mat tab[`r',`c']=`r(N)'
+
+
+mat list tab
+mat list stars
+mat rownames tab=`ivars' "N"
+mat colnames tab="Not Black/dem" "Black/dem" "P-value" "No Dementia" "P-value"
+mat list tab
+
+frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Black") annotate(stars) asymbol(*,**) varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "P-value comparisons are bet. Not Black/dem and Married/dem;" "Not Black/dem and no dementia") addtable replace
+
+
+//hispanic ethnicity 
+drop a
+gen a=0 if dem_cohort==0
+replace a=1 if dem_cohort==1 & hisp_eth==0
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+
+
+forvalues i=0/1{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if hisp_eth==`i' & dem_cohort==1
+		mat tab[`r',`c']=`r(mean)'*100
+		ttest `x' if dem_cohort==1, by(hisp_eth)
+		mat tab[`r',3]=r(p)
+		mat stars[`r',3]=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+}
+
+	sum n if hisp_eth==`i' & dem_cohort==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+}
+
+local c=4
+local r=1
+foreach x in `ivars' {
+	sum `x' if dem_cohort==0
+	mat tab[`r',`c']=`r(mean)'*100
+	ttest `x', by(a)
+	mat tab[`r',5]=r(p)
+	mat stars[`r',5]=(r(p)<.05)+(r(p)<.01)
+	local r=`r'+1
+}
+
+sum n if dem_cohort==0
+mat tab[`r',`c']=`r(N)'
+
+
+mat list tab
+mat list stars
+mat rownames tab=`ivars' "N"
+mat colnames tab="No Hispanic Eth./dem" "Hispanic Eth./dem" "P-value" "No Dementia" "P-value"
+mat list tab
+
+frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Hispanic Eth.") annotate(stars) asymbol(*,**) varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "P-value comparisons are bet. Not Hispanic/dem and Hispanic/dem;" "Not Hispanic/dem and no dementia") addtable replace
+
+  
+//Hospice
+drop a
+gen a=0 if dem_cohort==0
+replace a=1 if dem_cohort==1 & ind_hs==0
+
+
+local ivars ind_start_ltc nhres_exit loc_hosp_exit flag_burd
+
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+
+
+forvalues i=0/1{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if ind_hs==`i' & dem_cohort==1
+		mat tab[`r',`c']=`r(mean)'*100
+		ttest `x' if dem_cohort==1, by(ind_hs)
+		mat tab[`r',3]=r(p)
+		mat stars[`r',3]=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+}
+
+	sum n if ind_hs==`i' & dem_cohort==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+}
+
+local c=4
+local r=1
+foreach x in `ivars' {
+	sum `x' if dem_cohort==0
+	mat tab[`r',`c']=`r(mean)'*100
+	ttest `x', by(a)
+	mat tab[`r',5]=r(p)
+	mat stars[`r',5]=(r(p)<.05)+(r(p)<.01)
+	local r=`r'+1
+}
+
+sum n if dem_cohort==0
+mat tab[`r',`c']=`r(N)'
+
+
+mat list tab
+mat list stars
+mat rownames tab=`ivars' "N"
+mat colnames tab="No Hospice/dem" "Hospice/dem" "P-value" "No Dementia" "P-value"
+mat list tab
+
+frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Hospice") annotate(stars) asymbol(*,**) varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "P-value comparisons are bet. Not Hospice/dem and Hospice/dem;" "Not Hospice/dem and no dementia") addtable replace
+
+
+//vulnerable population
+
+gen vulnerable=0
+replace vulnerable=1 if black==1 | hisp_eth==1 | degree==0 | married_baseline==0
+drop a
+gen a=0 if dem_cohort==0
+replace a=1 if dem_cohort==1 & vulnerable==0
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+
+
+forvalues i=0/1{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if vulnerable==`i' & dem_cohort==1
+		mat tab[`r',`c']=`r(mean)'*100
+		ttest `x' if dem_cohort==1, by(vulnerable)
+		mat tab[`r',3]=r(p)
+		mat stars[`r',3]=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+}
+
+	sum n if vulnerable==`i' & dem_cohort==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+}
+
+local c=4
+local r=1
+foreach x in `ivars' {
+	sum `x' if dem_cohort==0
+	mat tab[`r',`c']=`r(mean)'*100
+	ttest `x', by(a)
+	mat tab[`r',5]=r(p)
+	mat stars[`r',5]=(r(p)<.05)+(r(p)<.01)
+	local r=`r'+1
+}
+
+sum n if dem_cohort==0
+mat tab[`r',`c']=`r(N)'
+
+
+mat list tab
+mat list stars
+mat rownames tab=`ivars' "N"
+mat colnames tab="No Vulnerable/dem" "Vulnerable/dem" "P-value" "No Dementia" "P-value"
+mat list tab
+
+frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Vulnerable") annotate(stars) asymbol(*,**) varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "P-value comparisons are bet. Not Vulnerable/dem and Vulnerable/dem;" "Not Vulnerable/dem and no dementia") addtable replace
+
+
+
+//Net worth
+
+drop a
+gen a=0 if dem_cohort==0
+replace a=1 if dem_cohort==1 & ind_nw_remaining==0
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+
+
+forvalues i=0/1{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if ind_nw_remaining==`i' & dem_cohort==1
+		mat tab[`r',`c']=`r(mean)'*100
+		ttest `x' if dem_cohort==1, by(ind_nw_remaining)
+		mat tab[`r',3]=r(p)
+		mat stars[`r',3]=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+}
+
+	sum n if ind_nw_remaining==`i' & dem_cohort==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+}
+
+local c=4
+local r=1
+foreach x in `ivars' {
+	sum `x' if dem_cohort==0
+	mat tab[`r',`c']=`r(mean)'*100
+	ttest `x', by(a)
+	mat tab[`r',5]=r(p)
+	mat stars[`r',5]=(r(p)<.05)+(r(p)<.01)
+	local r=`r'+1
+}
+
+sum n if dem_cohort==0
+mat tab[`r',`c']=`r(N)'
+
+
+mat list tab
+mat list stars
+mat rownames tab=`ivars' "N"
+mat colnames tab="Exhausted Net Worth/dem" "Net Worth Remaining/dem" "P-value" "No Dementia" "P-value"
+mat list tab
+
+frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Net Worth") annotate(stars) asymbol(*,**) varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "P-value comparisons are bet. Exhausted Net Worth/dem and Net Worth Remaining/dem;" "Exhausted Net Worth/dem and no dementia") addtable replace
 
 
 
 
+
+//Financial Wealth
+
+drop a
+gen a=0 if dem_cohort==0
+replace a=1 if dem_cohort==1 & ind_fw_remaining==0
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+
+
+forvalues i=0/1{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if ind_fw_remaining==`i' & dem_cohort==1
+		mat tab[`r',`c']=`r(mean)'*100
+		ttest `x' if dem_cohort==1, by(ind_fw_remaining)
+		mat tab[`r',3]=r(p)
+		mat stars[`r',3]=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+}
+
+	sum n if ind_fw_remaining==`i' & dem_cohort==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+}
+
+local c=4
+local r=1
+foreach x in `ivars' {
+	sum `x' if dem_cohort==0
+	mat tab[`r',`c']=`r(mean)'*100
+	ttest `x', by(a)
+	mat tab[`r',5]=r(p)
+	mat stars[`r',5]=(r(p)<.05)+(r(p)<.01)
+	local r=`r'+1
+}
+
+sum n if dem_cohort==0
+mat tab[`r',`c']=`r(N)'
+
+
+mat list tab
+mat list stars
+mat rownames tab=`ivars' "N"
+mat colnames tab="Exhausted Financial Wealth/dem" "Financial Wealth Remaining/dem" "P-value" "No Dementia" "P-value"
+mat list tab
+
+frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Financial Wealth") annotate(stars) asymbol(*,**) varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "P-value comparisons are bet. Exhausted Financial Wealth/dem and Financial Wealth Remaining/dem;" "Exhausted Financial Wealth/dem and no dementia") addtable replace
 
 
 H="changelog"
