@@ -1520,3 +1520,143 @@ Working on trajectories and creating varaibles to see what happens to a person a
 
 
 */
+
+H="incident homebound anytime"
+/*
+
+Created by: MH
+Date Created: 12/19/2019
+
+Updated by:
+Date Updated:
+
+Description: Inital data setup for homebound trajectories we are following people 
+homebound status. 
+
+
+
+**************************************************
+*/
+local date = subinstr("$S_DATE"," ","_",.) 
+local name ko_hb_traj_`date'
+di "`name'"
+
+capture log close 
+clear all
+
+set more off
+
+set linesize 80
+
+
+cd ${logpath}
+log using `name'.smcl, text replace
+
+********
+
+use "${datapath}\sp_round_1_8.dta" if lml==0, clear
+
+//cpi inflation
+gen income_adj=0
+replace income_adj= (251.107/224.939)*aveincome if wave==1
+replace income_adj= (251.107/229.594)*aveincome if wave==2
+replace income_adj= (251.107/232.957)*aveincome if wave==3
+replace income_adj= (251.107/236.736)*aveincome if wave==4
+replace income_adj= (251.107/237.017)*aveincome if wave==5
+replace income_adj= (251.107/240.007)*aveincome if wave==6
+replace income_adj= (251.107/245.120)*aveincome if wave==7
+replace income_adj=aveincome if wave==8
+
+//replacing analytic weights to use only weights for origianl cohort. 
+//only using original cohort (decision made based off of prior analysis with replenishment cohort. 
+gen orig_weight=anfinw
+replace anfinw=an2011wgt if (year==2011 & wave==5) | (year==2011 & wave==6) | (year==2011 & wave==7) | (year==2011 & wave==8)
+drop if yearsample==2015
+
+
+
+//VARIABLE CREATION/CLEANUP
+gen ind_noone=n_social==0
+label var ind_noone "SR nobody in social network"
+
+bys spid wave: egen tot_hlp_hrs=sum(tot_hrswk_help_i) 
+
+
+sort spid wave
+by spid: egen firstdem=min(cond(prob_dem==1,wave,.))
+
+xtset spid wave
+replace homebound_cat=. if nhres==1
+gen homebound=homebound==1 if !missing(homebound) & !nhres
+
+gen homebound_semi=0 if !missing(homebound_cat) & !nhres
+replace homebound_semi=1 if inlist(homebound_cat, 2, 3) & !nhres
+
+gen status=1 if sp_ivw==1 & !missing(homebound)
+replace status=2 if homebound==1 
+replace status=3 if inlist(homebound_cat,2,3)
+replace status=4 if nhres==1
+label define status 1 "Community, not HB" 2 "Homebound" 3 "Semi-Homebound" 4 "NH resident" 
+label values status status
+label var status "Status this wave"
+
+//checking to make sure everyone has a status at wave 1
+sort spid wave
+by spid: gen start=1 if wave==1 & status!=.
+by spid: carryforward start, replace
+
+//checking individuals who have a missing status. 
+by spid: gen mstat=1 if status==.
+by spid: carryforward mstat, replace
+
+drop if mstat==1
+
+
+sort spid wave
+by spid: egen lw=max(wave)
+label var lw "Last Time observed"
+
+
+sort spid wave
+gen status_nw=1 if spid==spid[_n+1] & wave+1==wave[_n+1] & sp_ivw[_n+1]==1 & !missing(homebound[_n+1])
+replace status_nw=2 if spid==spid[_n+1] & wave+1==wave[_n+1] & homebound_cat[_n+1]==1
+replace status_nw=3 if spid==spid[_n+1] & wave+1==wave[_n+1] & inlist(homebound_cat[_n+1],2,3)
+replace status_nw=4 if spid==spid[_n+1] & wave+1==wave[_n+1] & nhres[_n+1]==1
+replace status_nw=5 if spid!=spid[_n+1] & wave+1!=wave[_n+1] & died_12==1 & lw==wave
+replace status_nw=6 if spid!=spid[_n+1] & wave+1!=wave[_n+1] & died_12==0 & lw==wave
+label define status_nw 1 "Community, not HB" 2 "Homebound" 3 "Semi-Homebound" 4 "NH Resident" 5 "Died" 6 "LFU"
+label values status_nw status_nw
+label var status_nw "Status next wave"
+
+sort spid wave
+by spid: egen hb_min=min(wave) if homebound==1
+gen inchb=0
+replace inchb=1 if hb_min==wave 
+
+by spid: egen ever_hb=max(hb)
+
+gen inchb2=1 if inchb==1 & wave!=1
+// 859 people who are incident homebound wave 2 and after. 
+
+gen inchb3=1 if inchb2==1
+sort spid wave
+bys spid: carryforward inchb3 , replace
+
+keep if inchb3==1
+
+by spid: egen minw=min(wave) if status!=2
+
+keep if wave<=minw
+
+sort spid wave
+by spid: gen n=_n
+
+sort spid wave
+by spid: egen lw_test=max(n)
+replace lw_test=lw_test-1
+replace lw_test=lw_test+1 if status_nw==5
+
+by spid: egen lw_final=max(lw_test)
+  
+
+

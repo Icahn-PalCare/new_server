@@ -1,4 +1,4 @@
-= V7 Outline MultiLine NoSorting TabWidth=30
+= V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Project outline"
 The Burden of Care for Adults with Dementia: Impact on Care Quality and Family Outcomes
@@ -19446,553 +19446,6 @@ save "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs
 H="*********************************"
 
 
-H="long form dataset"
-/******************
-things from the exit, need to figure this out
--death date, adls/iadls, location of death, hospice medicaid/gap/va, value estate
-	
-things that are t:
--MC expenditures
--i
-
-things that are in waves, need to be converted to annual:
--fixed characteristics
-    -gender, birth date, death date, race, education
--mutable
-	-age (computed at each year, from birth date above, rather than filled)
-	-net worth, financial wealth, adl/iadls, srh, medicaid, champus, medigap, married or partnered
-	-nursing home resident
-	-dementia
-	-region
-	-family vars-resident children, transfers, help from kids 
-	-out of pocket spending
-	-number of helpers, helper hours, any helpers, imputed social costs
-
-******************/
-clear all
-set more off
-capture log close
-
-local datapath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data"
-local fdpath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data"
-local logpath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs"
-local ooppath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\oopdata"
-
-cd `datapath'
-
-/*first pull an index file from the decedent dataset*/
-use id index_date index_year cont_ffs_n_mos using decedent_dataset.dta if inrange(index_year,2006,2014), clear
-gen ffs_yrs=floor(cont_ffs_n_mos/12)
-*keep if ffs_y==5
-tempfile index
-save `index'
-
-
-/*2nd, connect decedent dataset to exit*/
-local vars female married_or_ medicaid champus medigap nhres hospice ///
-e_ivw* *year loc_hosp adl_independent iadl_independent reschil_d livealone ///
-comor_c_hrs 
-
-use id `vars' using "E:\data\hrs_cleaned\exit_02_to_14_dt.dta" if !missing(e_ivw_date)
-foreach x in married_o medicaid champus medigap nhres hospice loc_hosp ///
-adl_independent iadl_independent reschil_d livealone {
-rename `x' `x'_x
-}
-tempfile exit1
-save `exit1'
-
-merge 1:1 id using `index', nogen keep(match)
-//set time=0 so it can be appended to the core
-gen t2=0
-drop if e_ivw_date<index_date
-tempfile exit
-save `exit'
-
-/*3rd, save tracker, oop, dementia, rand family, and helpers*/
-
-
-use "E:\data\hrs_public_2014\dementia\pdem_withvarnames_ebl.dta", clear
-gsort id -core_year 
-replace pdem=prob_hurd if !missing(prob_hurd)
-by id: egen firstdem=min(cond(inrange(pdem,0.5,1),core_year,.))
-by id: keep if _n<5
-tempfile dem
-save `dem'
-
-use "E:\data\hrs_cleaned\restr_tracker_v2014.dta", clear
-drop id
-gen id=hhid+pn
-tempfile track
-save `track'
-
-
-use `ooppath'\oopme_final_2014.dta, clear
-rename *, l
-gen id=hhid+pn
-/*gsort id -year
-by id: gen n=_n
-keep if n<5
-by id: gen lastyear=year[1]
-keep id lastyear total_oop n year
-rename year core_year
-*reshape wide total_oop year, i(id) j(n)*/
-tempfile oop
-save `oop'
-
-
-use "E:\data\hrs_cleaned\helper_hours_2014.dta", clear
-gen id=hhid+pn 
-//cap number of hours at 720 (24 hrs for 30 days) for spouses and other informal
-foreach x in s u {
-replace hlphrs_`x'=720 if hlphrs_`x'>720
-}
-replace hlphrs_i=hlphrs_s+hlphrs_u
-tempfile help
-save `help'
-
-
-/*5th, connect decedent dataset to core
-	1) merge 1:m to restrict to decedents
-	2) flag those that have two+ cores within 5 years
-	3) keep all within 5 years and the one before for baseline
-	4) merge by core year with dementia prob, rand fam, helpers, oop datasets
-	5) reset so that it's in annual long format
-*/
-
-use `index', clear
-merge 1:m id using "E:\data\hrs_cleaned\core_00_to_14.dta", nogen ///
-keep(match master)
-sort id core_year
-replace wgthh=. if wgthh==0
-carryforward wgthh, replace
-gsort id -core_year
-carryforward wgthh, replace
-by id: gen n=_n
-gen time=(index_date-c_ivw_date)/365.25
-gen t2=ceil(time)
-by id: egen yes=min(time)
-gen y1=inrange(yes,0,5)
-gen inn=n if time<=7
-gen outn=n if time>7
-by id: egen y2=max(inn)
-//get the first interview outside the window
-by id: egen y3=min(outn)
-
-/*keep all ivws within 5 years and a baseline for those who have at least one 
-ivw w/in 5 years*/
-keep if y1 & (inrange(time,0.00001,7) | y3==n)
-
-/*drop baselines if >9 years out*/
-drop if time>9
-
-//locals to keep relevant vars
-local corevars networth_adj2012 finwealth_adj2012 medicaid champus medigap srh_pf adl_independent_core ///
-iadl_independent_core nhres reschil_d wgthh comor_c smoke_ever smoke_curr
-local helpvars n_hp hlphrs_i n_i hlphrs_u hlphrs_s
-local famvars resd_kid_ind help_adls_kid_adult help_iadls_kid_adult ///
-transf_from_kid_adult_ind
-local oopvars total_oop
-local trackvars birth_date hisp_eth white black other_na_api cause_death degree
-local demvars pdem ldem firstdem prob_hurd
-keep id `corevars' core_year c_ivw_* index_date t2 time
-
-append using `exit'
-
-//keep only those with an exit
-sort id t2
-by id: egen min=min(t2)
-keep if min==0
-drop min
-
-//keep only those with at least one core
-by id: gen n=_n
-by id: gen obs=_N
-by id: drop if _N==1
-
-//gen year to merge with oop & helper
-gen year=core_year
-replace year=exit_year if missing(year)
-
-merge 1:1 id year using `oop', gen(oopmerge) keep(match master)  ///
-keepusing(`oopvars')
-merge 1:1 id year using `help', gen(helpmerge) keep(match master) ///
-keepusing(`helpvars')
-merge 1:1 id core_year using `dem', gen(demmerge) keep(match master) ///
-keepusing(`demvars')
-merge m:1 id core_year using ///
-"E:\data\hrs_public_2014\rand2014\family\family_r_clean_98_12.dta", ///
-gen(randfammerge) keep(match master) keepusing(`famvars')
-merge m:1 id using `track', nogen keep(match) keepusing(`trackvars')
-
-//hs+ (including ged)
-gen hseduc=degree>0
-label var hseduc "HS Degree+ (including GED)"
-
-replace t2=8 if t2>8
-gsort id -year
-by id: replace pdem=pdem[_n+1] if t2==0
-gen no=0
-by id: replace no=1 if year>year[_n+1]+2 & _n!=_N
-by id: replace no=1 if _n==_N & t2<4
-by id: egen anyno=max(no)
-*drop if anyno==1 | obs==3
-/*
-foreach x of varlist * {
-	if !inlist("`x'","id","t2") local allvars `allvars' `x'
-}
-
-reshape wide `allvars', i(id) j(t2)
-*/
-
-foreach x in `helpvars' {
-	replace `x'=0 if missing(`x')
-}
-drop year
-gen yearfromdeath=t2
-tempfile t1
-save `t1'
-
-keep id t2 time *oop c_ivw_date n hlphrs_*
-replace time=0 if t2==0
-sort id t2 
-by id: gen timetonext=time[_n+1]-time
-by id: replace timetonext=7-time if missing(timetonext) & time<3
-by id: replace timetonext=2 if missing(timetonext) & time>=3
-replace timetonext=0 if t2==8
-gen wave_oop=total_oop
-gen og=wave_oop
-//convert total oop to annual measure
-replace total_oop=total_oop/timetonext
-by id: gen timefromlast=time-time[_n-1]
-by id: gen yearnext=t2[_n+1]
-by id: gen lastoop=total_oop[_n-1]
-by id: replace lastoop=lastoop[_n-1] if missing(lastoop)
-replace total_oop=0 if t2==6
-/*helper hours--get previous and do the same as oop, but avg between two
-from OOP code--use 4 months if previous wave there was no help, otherwise use 4 
-months at current and rest between*/
-
-foreach x in _u _s {
-by id: gen last`x'=hlphrs`x'[_n-1]
-by id: gen next`x'=hlphrs`x'[_n+1]
-replace next`x'=0 if missing(next`x')
-replace last`x'=hlphrs`x' if missing(last`x')
-replace last`x'=0 if missing(last`x')
-gen avg`x'=(hlphrs`x'+next`x')/2
-}
-gen hlphrs_ann=(avg_u+avg_s)*12
-by id: gen lasthelp=hlphrs_ann[_n-1]
-replace lasthelp=hlphrs_ann if t2==0
-by id: gen nexthelp=hlphrs_ann[_n+1]
-replace hlphrs_ann=0 if missing(nexthelp)
-replace nexthelp=hlphrs_ann if missing(nexthelp)
-reshape wide og time total_oop c_ivw_date hlphrs_ann hlphrs_i hlphrs_u hlphrs_s last_u last_s next_u next_s ///
-avg_u avg_s lasthelp nexthelp timetonext timefromlast yearnext lastoop wave_oop n, i(id) j(t2)
-reshape long time og total_oop c_ivw_date hlphrs_ann hlphrs_i hlphrs_u hlphrs_s last_u last_s next_u next_s ///
-avg_u avg_s l lasthelp nexthelp timetonext timefromlast yearnext lastoop wave_oop n, i(id) j(year)
-
-sort id year
-*by id: carryforward total_oop, gen(annual_oop)
-by id: carryforward time, gen(antime)
-by id: replace lastoop=total_oop[_n-1] if missing(lastoop)
-by id: replace lastoop=lastoop[_n-1] if missing(lastoop)
-by id: carryforward timetonext timefromlast lasthelp hlphrs_ann, replace
-gsort id -year
-by id: carryforward nexthelp, replace
-sort id year
-gen pct1=(year-time) if year<6
-gen pct2=1-(year-time) if year<6
-by id: replace pct2=1 if missing(time) & year<6
-
-
-gen annual_oop=pct2*lastoop if inrange(year,1,5)
-replace annual_oop=annual_oop+pct1*total_oop if !missing(pct1)
-/*for annual helper hours 
--4 months at current
--if any at previous, 4 months at current and 8 months at avg current and former*/
-gen annual_hlphrs=hlphrs_ann*2/3 + hlphrs_i*12/3
-replace annual_hlphrs=hlphrs_ann if missing(annual_hlphrs) 
-replace annual_hlphrs=. if inlist(year,0,6)
-/*gen annual_hlphrs=hlphrs_ann/3+(hlphrs_ann+nexthelp)/3
-replace annual_hlphrs=(lasthelp+nexthelp)/2 if missing(n)
-gen annual_hlphrs=(nexthelp) if inrange(year,1,5) & missing(n)
-replace annual_hlphrs=pct2*lasthelp if  missing(annual_h) & inrange(year,1,5)
-replace annual_hlphrs=annual_h+pct1*hlphrs_a if !missing(pct1)*/
-replace wave_oop=wave_oop*timetonext/(time[_n+1]-time) if time[_n+1]>5 & ///
-!missing(time[_n+1])
-replace wave_oop=wave_oop*(5-time)/2 if missing(time[_n+1]) & time>=3
-replace wave_oop=0 if time>5
-
-by id: egen all=total(wave)
-by id: egen a2=total(annual_oop)
-sum all a2
-sum all a2 if year==0
-keep id all a2 year annual_* hlphrs*
-
-rename (year ) (yearfromdeath )
-tempfile t2
-save `t2'
-
-use decedent_dataset.dta if inrange(index_year,2001,2012), clear
-drop *bef
-
-gen ffs_yrs=floor(cont_ffs_n_mos/12)
-foreach x in 12 24 36 48 60 {
-rename tot_paid_by_mc_`x'm tot_paid_by_mc`=`x'/12'
-}
-
-forvalues i=1/5 {
-replace tot_paid_by_mc`i'=. if ffs_yrs<`i'
-}
-
-reshape long tot_paid_by_mc, i(id) j(yearfromdeath)
-keep id tot* yearfr
-tempfile t3
-save `t3'
-/*
-merge 1:1 id yearfromdeath using `t2', gen(oopme2) keep(match using)
-merge 1:1 id yearfromdeath using `t1', gen(fullmerge)
-*/
-use `t1', clear
-merge 1:1 id yearfromdeath using `t2', gen(oopme2) keep(match using)
-merge 1:1 id yearfromdeath using `t3', gen(mcmerge) keep(match master)
-sort id yearf
-
-by id: replace ffs_y=ffs_y[_n+1] if missing(ffs_y)
-by id: replace pdem=pdem[_n+1] if n==1 & missing(pdem)
-gen likely_dem=inrange(pdem,.5,1) if !missing(pdem)
-by id: egen pdem_gt50_n1=max(cond(n==2,likely_dem,.))
-drop if missing(pdem_g) 
-gen age_at_death=floor((index_dat-birth_date)/365.25)
-drop if age_<70
-label var age_ "Age at death"
-foreach x of varlist `helpvars' {
-replace `x'=0 if missing(`x')
-}
-gen ind_hp=n_hp>0
-label var ind_hp "any helpers"
-gen comorb_modsev=comor_c>=2 if !missing(comor_c)
-label var comorb_modsev "4+ SR conditions"
-label var likely_dem "Probable demntia (Pr>.5)"
-label var time "Time from ivw to death, years"
-foreach x in pdem likely_dem medicaid adl_independent_core iadl_independent_core ///
-smoke_curr comorb_modsev time ind_hp `helpvars' networth_adj2012 finwealth_adj2012 {
-gen `x'_ba=`x' if n==obs
-by id: egen `x'_b=max(`x'_ba)
-drop `x'_ba
-local lab : var label `x'
-label var `x'_b "`lab' at baseline"
-}
-replace networth_adj2012_b=1 if networth_adj2012_b<=0
-//discounting--why?
-forvalues i=1/5 {
-	foreach x in tot_paid_by_mc annual_oop annual_hlp {
-		*replace `x'=`x'/1.03^`=`i'-1' if year==`i'
-}
-}
-by id: egen tottot=total(tot_paid_by_mc)
-by id: egen alloop=total(annual_oop)
-by id: egen allhelp=total(annual_hlp)
-replace allhelp=allhelp*20
-label var allhelp "Imputed informal help over 5 years (at $20/hr)"
-label var tottot "Total paid by MC over 5 years"
-label var alloop "Total paid OOP over 5 years"
-gen time_x=(e_ivw_date-index_date)/365.25
-label var time_x "Time from death to exit, years"
-gen baseline_out=time_b>=5
-label var baseline_out "% with a baseline outside the 5 year window"
-
-replace likely_dem=pdem_g if year==0
-
-
-
-gen oopsofar=0
-forvalues i=7(-1)1 {
-by id: replace oopsofar=annual_oop+oopsofar[_n+1] if year==`i'
-}
-replace oopsofar=alloop if year==0
-gen oop_gt_nw=oopsofar>=networth_adj2012_b
-gen nw_remaining=100*(networth_adj2012_b-oopsofar)/networth_adj2012_b
-replace nw_r=0 if nw_r<0
-replace nw_r=0 if networth_adj2012_b<0
-//table
-local cvars1 time_x time_b 
-local ivars1 baseline_out
-local cvars2 age_at_death
-local cvars3 n_i n_i_b pdem pdem_b
-local ivars2 white black hisp_eth other_na_api_race female married_o_x hseduc medicaid_x medicaid_b ///
-medigap_x champus_x ind_hp ind_hp_b 
-local ivars3 likely_dem likely_dem_b ///
-adl_independent_x adl_independent_core_b iadl_independent_x ///
-iadl_independent_core_b smoke_curr_b comorb_modsev comorb_modsev_b
-local coutcomes3 tottot alloop allhelp
-local rn : word count `cvars1' `cvars2' `ivars1' `ivars2' `cvars3' `ivars3' `coutcomes3' 1
-
-mat tab=J(`rn',4,.)
-local r=1
-local c=1
-gsort id -year
-by id: carryforward wgthh, replace
-sort id year
-preserve
-
-keep if n==1
-foreach group in "0,1" 0 1 {
-	sum likely_dem if inlist(likely_dem,`group')
-	local denom=r(N)
-	foreach round in 1 2 3 {
-		foreach x of local cvars`round' {
-			sum `x' if inlist(likely_dem,`group') [aw=wgthh]
-			if !inrange(r(N),1,10) mat tab[`r',`c']=r(mean)
-			if "`group'"=="0,1" & !inrange(`denom'-r(N),1,10) mat tab[`r',`c'+3]=`denom'-r(N)
-			local r=`r'+1
-}
-		foreach x of local ivars`round' {
-			sum `x' if inlist(likely_dem,`group') [aw=wgthh]
-			if !inrange(r(mean)*r(N),1,10) mat tab[`r',`c']=r(mean)*100
-			if "`group'"=="0,1" & !inrange(`denom'-r(N),1,10) mat tab[`r',`c'+3]=`denom'-r(N)
-			local r=`r'+1
-}
-		foreach x of local coutcomes`round' {
-			sum `x' if inlist(likely_dem,`group') [aw=wgthh]
-			if !inrange(r(N),1,10) mat tab[`r',`c']=r(mean)
-			if "`group'"=="0,1" & !inrange(`denom'-r(N),1,10) mat tab[`r',`c'+3]=`denom'-r(N)
-			local r=`r'+1
-}
-
-
-}	
-	mat tab[`r',`c']=`denom'
-	local r=1
-	local c=`c'+1
-}
-mat rownames tab=`cvars1' `ivars1'  `cvars2' `ivars2' `cvars3' `ivars3' `coutcomes3' N
-
-frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\table_baseline_death.rtf", replace ///
-statmat(tab) title("Sample Characteristics by dementia status at n1 ivw") ///
-ctitles("" "Full Sample" "No dementia" "Dementia" "N missing") sdec(2,2,2,0) ///
-varlabels note("Decedents 2006-2012 with 60m continuous FFS pre-death, an exit and all core ivws" ///
-"Household weights applied")
-
-restore
-preserve
-
-egen totalpaid=rowtotal(tot_paid_by_mc total_oop annual_hlp)
-collapse tot_paid_by_mc total_oop annual_hlp pdem likely_dem totalpaid networth_adj2012_b ///
-oopsofar oop_gt_nw nw_remaining [pw=wgthh], by(pdem_gt50_n1 year)
-replace year=-year+6
-
-label define year 0 "Baseline" 6 "Death"
-label values year year
-
-twoway (line pdem year if pdem_g==1) (line pdem year if pdem_g==0) ///
-(line likely_dem year if pdem_g==1) (line likely_dem year if pdem_g==0) if year<6, ///
-xlabel(0.1 "Baseline" 1 2 3 4  5 "Death") xtitle("")
-graph save "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\dementia_prob_over_time", replace
-graph export "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\dementia_prob_over_time.pdf", replace
-
-twoway (line nw_remaining yearfromdeath if pdem_g==1)(line nw_remaining yearfromdeath if pdem_g==0) ///
-(line oop_gt yearfromdeath if pdem_g==1 , yaxis(2)) (line oop_gt yearfromdeath if pdem_g==0, yaxis(2)) ///
-if year<6, xlabel(0.1 "Baseline" 1 2 3 4  5 "Death") xtitle("") ///
-legend(label(1 "% NW remaining, demented") label(2 "% remaining, nondemented") ///
-label(3 "% OOP>NW, demented") label(4 "% OOP>NW, nondemented"))
-graph save "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\networth_oop_over_time", replace
-graph export "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\networth_oop_over_time.pdf", replace
-restore
-save "`fdpath'/burden_dementia_sample_long.dta", replace
-
-
-H="changelog"
-1/16/20 - Burdensome Transitions Code added. MH.
-
-1/13/20 - JAGS revision.  Evan
-
-8/29/19 - More updates to the code for burdensome transitions. OKR.
-
-8/28/19 - Began working on code for burdensome transitions. OKR.
-
-06/24/19 - Added proxy and nursing home residence to table 1 and baseline.  Evan
-
-05/31/19 - Brought back in the helper hours by type that I'd overwritten and added code in 7 year graphs of informal care to export mean hours to excel for Amy. Evan
-
-05/29/19 - Changed filepaths and structure to run on new server.  Changed name of code file:  
-	old name-R-02_burden_dementia_2015_claims.txt
-	new name-ask_r01_financial_burden_dementia_7_yrs.txt 
-	Evan
-
-05/28/19 - Cut dataset for Jon, in dataset for Jon Skinner header. Evan
-
-05/17/19 - Fixed issue with percent net worth remaining due to allowing negatives at baseline.  Added in financial wealth as well and created wealth/financial tables header. Evan
-
-05/15/19 - Brought in the helpers by type as hours rather than costs. Evan
-
-05/06/19 - Finished the CCW CCs and added them to the final dataset.  Evan
-
-05/03/19 - Added CCW CCs in Stata to the dataset, which has (I think complete--it's running now) chronic conditions using the actual CCW definitions, including claim types, diagnosis positions, and time frame.  Evan
-
-05/02/19 - Updated the sample derivation.  Evan
-
-04/29/19 - Updated Table 1 header to include Medians and wealth info; updated Final Sample & Table 1 header to include baseline net worth and OOP v networth variables. Evan
-
-04/26/19 - Added spouse/kid informal care to the updated dataset (in the Annual Calculations and Final Sample headers) and reran graphs (added the 7 year graphs of informal care header). Evan
-
-04/18/19 - Added baseline values to Table 1 and Final Sample headers. Evan
-
-04/16/19 - Added "Table 1" header. Evan
-
-04/12/19 - Added "annual diagnoses before" and Elishuaser headers. Evan
-
-04/11/19 - Added table with p-values. Evan 
-
-03/12/19 - Also adjusted CPI for NH costs from Genworth. Evan
-
-03/12/19 - Removed CPI and HR rate adjustments for informal costs in years prior to 2009, and also scrapped "months-at-risk" approach in favor of sticking to calendar year. Omari
-
-03/06/19 - Corrected a merge where the Genworth and CPI weren't merging correctly with the exit in "Annual Calculations" header. Evan
-
-03/05/19 - Altered formula for helpers to reflect times when months<4, because it was resulting in a few negatives, and changed Genworth rates to Medians in 2016 where state was missing. Evan
-
-02/28/19 - Added model of Medicaid Nursing Home nights into the Model and Calculate Medicaid headers and removed mean imputation from the Final sample header. Evan
-
-02/27/19 - Added 4th bucket (SR nights is gold standard) to unattributed NH costs in Final Sample & Table 1 header and updated 7 year graphs to run for all 4. Evan
-
-02/26/19 - Updated 7 year graphs to include nursing home imputations and CIs. Evan
-
-02/26/19 - Fixed SNF days error and improved nursing home bucketing in Final Sample header.  Evan
-
-02/25/19 - Added SNF days and Nursing home nights buckets in Cleaning/Merging, Annual Calculations, and Final Sample headers. Evan
-
-02/13/19 - Corrected "MC Spending" header by pulling for 84 months of claims instead of 60. Evan
-
-02/08/19 - Added header "Charlson comorbodities" for comorbidities in the last year of life and amended "Model Medicaid spending" to bring in the predictions from the two-part model instead of the linear random effects model.  Evan
-
-02/05/19 - Added header "Comparison table 5 v 7 yrs." Evan
-
-01/29/19 - Brought the predicted Medicaid into the sample.  Evan
-
-01/22/19 - Updated the graphs and added graph of Medicaid over time. Evan
-
-01/17/19 - Added the predicted Medicaid. Evan
-
-01/16/2019 - Calculating annualized costs for the 7 years prior to death. Omari
-
-01/15/2019 - Inflation adjusted all figures 2016 and correct sample derivation. Omari
-
-01/11/2019 - Updated Sample to include death dates to 2015, Exit 2016 and 7 year lookback. Omari
-
-01/04/19 - Continued working on separating the Dataset construction from Sample Derivation. Omari
-
-01/03/19 - Continued working on separating the Dataset construction from Sample Derivation. Omari
-
-01/02/19 - Continued working on separating the Dataset construction from Sample Derivation. Omari
-
-12/31/18 - Worked on separating the Dataset construction from Sample Derivation. Omari
-
-12/20/18-finished update for 2015 claims and worked on 7-years.
-
-
-
-
 H="JAGS Revision"
 
 
@@ -21100,3 +20553,717 @@ annotate(stars) asymbol(*,**) replace
 }
 
 }
+
+H="Table 1 w/o imputed Medicaid"
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress"
+
+/*for table 1
+
+age, race, hs education, female, married, medicaid, dementia, ADL  dependence, 
+SRH, smoke currently, 4+ health conditions
+*/
+*rename informal_i_* informal_*
+drop if ind_mcaid_imp==1
+keep if ffs_84==1
+keep if final_7yr==1
+*gen adl_dependent=!adl_independent_core
+label var adl_dependent "ADL dependent"
+label var age_at_death "Age at death"
+label var prob_dem_baseline "% Probable dementia at baseline ivw"
+replace prob_dem_y1=0 if !dem_cohort
+replace ltc_ins=ltc_ins==1
+sort id nflag
+foreach x in ltc_ins champus {
+	by id: egen `x'_baseline=max(cond(ind_baseline==1),`x',0)
+}
+
+gen n=1
+drop race
+gen race=1 if hisp_e==1
+replace race=2 if black==1
+replace race=3 if white==1
+replace white=3 if missing(race)
+label define race 1 "Hispanic" 2 "Non-Hispanic Black" 3 "Non-Hispanic White/Other"
+label values race race
+
+preserve
+
+tokenize tot_paid_by_mc_y tot_paid_maid_y informal_y oop_y imputed_nh_costs_b_y
+
+forvalues i=1/5 {
+	di "``i''"
+	egen cum`i'=rowtotal(``i''*)
+	replace cum`i'=. if nflag!=0
+}
+
+egen cumall=rowtotal(cum1-cum5)
+replace cumall=. if nflag!=0
+
+label var cumall "Total Social Spending over 7 years pre-death"
+label var cum1 "Medicare Expenditures"
+label var cum2 "Medicaid Expenditures"
+label var cum3 "Social Cost of Informal Care"
+label var cum4 "OOP"
+label var cum5 "Otherwise Unattributed NH Costs"
+label var pdem_baseline "Mean probability of dementia at baseline"
+gsort id nflag
+carryforward age_at_death female married hseduc smoke_curr medicaid adl_dependent ///
+srh_pf prob_dem_baseline pdem_baseline cum* race comorb* ccw* networth_adj2016* *nw_remaining, replace
+
+gsort id -nflag
+carryforward age_at_death female married hseduc smoke_curr medicaid adl_dependent ///
+srh_pf prob_dem_baseline pdem_baseline cum* race comorb* ccw* networth_adj2016* *nw_remaining, replace
+
+
+
+
+
+keep if nflag==1
+local cvars1 age_at_death
+local ivars1 female married married_baseline
+local ivars2 hseduc smoke_curr smoke_curr_baseline medicaid medicaid_baseline ///
+ind_buyin_y1 ind_buyin_y7 ltc_ins ltc_ins_baseline champus champus_baseline ///
+adl_dependent adl_dependent_baseline srh_pf srh_pf_baseline ccw_ge4_y1 ///
+ccw_ge4_y7 prob_dem prob_dem_baseline proxy_core
+local cvars3 pdem pdem_baseline cumall cum1 cum2 cum3 cum4 cum5 networth_adj2016_baseline ///
+pct_nw_remaining
+local ivars3 ind_nw_remaining
+local catvars1 race
+local catvars2 //comor_c_hrs
+
+forvalues i=1/3 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+local rn : word count `cvars1' `ivars1' `cativars1' `ivars2' `cativars2' `cvars3' `cvars3' `ivars3' 1
+local r=1
+local c=1
+
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',4,0)
+
+foreach y in "0,1" 0 1 {
+	forvalues i=1/3 {
+		foreach x of local cvars`i' {
+			sum `x' if inlist(dem_cohort,`y'), d
+			mat tab[`r',`c']=r(mean)
+			mat tab [`r'+1,`c']=r(p50)
+			if "`y'"=="1" {
+				ttest `x', by(dem_cohort)
+				mat tab[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+			if `i'==3 local r=`r'+1
+			
+}
+		foreach x of local ivars`i' {
+			sum `x' if inlist(dem_cohort,`y')
+			mat tab[`r',`c']=r(mean)*100
+			if "`y'"=="1" {
+				tab `x' dem_cohort, chi2
+				mat tab[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+}
+		foreach x of local catvars`i' {
+			if "`y'"=="1" {
+				tab `x' dem_cohort, chi2
+				mat tab[`r',4]=r(p)
+				mat stars[`r',4]=(r(p)<.05)+(r(p)<.01)
+}
+			foreach z of local `x' {
+				sum `z' if inlist(dem_cohort,`y')
+				mat tab[`r',`c']=r(mean)*100
+				local r=`r'+1
+}
+}
+}
+	sum n if inlist(dem_cohort,`y')
+	mat tab[`r',`c']=r(N)
+	
+	local r=1
+	local c=`c'+1
+}
+
+mat rownames tab=`cvars1' `ivars1' `cativars1' `ivars2' `cativars2' ///
+pdem Median pdem_baseline Median cumall Median cum1 Median cum2 Median ///
+cum3 Median cum4 Median cum5 Median networth_adj2016_baseline Median  ///
+pct_nw_remaining Median `ivars3' N
+
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress\table_1_`c(current_date)'_wo_imp_mcaid.rtf", ///
+statmat(tab) title("Characteristics of Decedents, by Dementia Status") ///
+ctitles("" "Full Sample" "No Dementia" "Dementia" "P-value") varlabels ///
+sdec(2) note("Values except for age at death, expenditures, and baseline values taken from N1 interview" \ ///
+"Baseline status taken at interview closest to 7 years prior to death" \ ///
+"OOP discounted at 3%/year for comparison to baseline net worth only") ///
+annotate(stars) asymbol(*,**) replace
+
+
+
+
+H="changelog"
+2/3/20 - Added more under the JAGS revision, details findable in email to Amy dated 2/3/20. Evan
+
+1/16/20 - Burdensome Transitions Code added. MH.
+
+1/13/20 - JAGS revision.  Evan
+
+8/29/19 - More updates to the code for burdensome transitions. OKR.
+
+8/28/19 - Began working on code for burdensome transitions. OKR.
+
+06/24/19 - Added proxy and nursing home residence to table 1 and baseline.  Evan
+
+05/31/19 - Brought back in the helper hours by type that I'd overwritten and added code in 7 year graphs of informal care to export mean hours to excel for Amy. Evan
+
+05/29/19 - Changed filepaths and structure to run on new server.  Changed name of code file:  
+	old name-R-02_burden_dementia_2015_claims.txt
+	new name-ask_r01_financial_burden_dementia_7_yrs.txt 
+	Evan
+
+05/28/19 - Cut dataset for Jon, in dataset for Jon Skinner header. Evan
+
+05/17/19 - Fixed issue with percent net worth remaining due to allowing negatives at baseline.  Added in financial wealth as well and created wealth/financial tables header. Evan
+
+05/15/19 - Brought in the helpers by type as hours rather than costs. Evan
+
+05/06/19 - Finished the CCW CCs and added them to the final dataset.  Evan
+
+05/03/19 - Added CCW CCs in Stata to the dataset, which has (I think complete--it's running now) chronic conditions using the actual CCW definitions, including claim types, diagnosis positions, and time frame.  Evan
+
+05/02/19 - Updated the sample derivation.  Evan
+
+04/29/19 - Updated Table 1 header to include Medians and wealth info; updated Final Sample & Table 1 header to include baseline net worth and OOP v networth variables. Evan
+
+04/26/19 - Added spouse/kid informal care to the updated dataset (in the Annual Calculations and Final Sample headers) and reran graphs (added the 7 year graphs of informal care header). Evan
+
+04/18/19 - Added baseline values to Table 1 and Final Sample headers. Evan
+
+04/16/19 - Added "Table 1" header. Evan
+
+04/12/19 - Added "annual diagnoses before" and Elishuaser headers. Evan
+
+04/11/19 - Added table with p-values. Evan 
+
+03/12/19 - Also adjusted CPI for NH costs from Genworth. Evan
+
+03/12/19 - Removed CPI and HR rate adjustments for informal costs in years prior to 2009, and also scrapped "months-at-risk" approach in favor of sticking to calendar year. Omari
+
+03/06/19 - Corrected a merge where the Genworth and CPI weren't merging correctly with the exit in "Annual Calculations" header. Evan
+
+03/05/19 - Altered formula for helpers to reflect times when months<4, because it was resulting in a few negatives, and changed Genworth rates to Medians in 2016 where state was missing. Evan
+
+02/28/19 - Added model of Medicaid Nursing Home nights into the Model and Calculate Medicaid headers and removed mean imputation from the Final sample header. Evan
+
+02/27/19 - Added 4th bucket (SR nights is gold standard) to unattributed NH costs in Final Sample & Table 1 header and updated 7 year graphs to run for all 4. Evan
+
+02/26/19 - Updated 7 year graphs to include nursing home imputations and CIs. Evan
+
+02/26/19 - Fixed SNF days error and improved nursing home bucketing in Final Sample header.  Evan
+
+02/25/19 - Added SNF days and Nursing home nights buckets in Cleaning/Merging, Annual Calculations, and Final Sample headers. Evan
+
+02/13/19 - Corrected "MC Spending" header by pulling for 84 months of claims instead of 60. Evan
+
+02/08/19 - Added header "Charlson comorbodities" for comorbidities in the last year of life and amended "Model Medicaid spending" to bring in the predictions from the two-part model instead of the linear random effects model.  Evan
+
+02/05/19 - Added header "Comparison table 5 v 7 yrs." Evan
+
+01/29/19 - Brought the predicted Medicaid into the sample.  Evan
+
+01/22/19 - Updated the graphs and added graph of Medicaid over time. Evan
+
+01/17/19 - Added the predicted Medicaid. Evan
+
+01/16/2019 - Calculating annualized costs for the 7 years prior to death. Omari
+
+01/15/2019 - Inflation adjusted all figures 2016 and correct sample derivation. Omari
+
+01/11/2019 - Updated Sample to include death dates to 2015, Exit 2016 and 7 year lookback. Omari
+
+01/04/19 - Continued working on separating the Dataset construction from Sample Derivation. Omari
+
+01/03/19 - Continued working on separating the Dataset construction from Sample Derivation. Omari
+
+01/02/19 - Continued working on separating the Dataset construction from Sample Derivation. Omari
+
+12/31/18 - Worked on separating the Dataset construction from Sample Derivation. Omari
+
+12/20/18-finished update for 2015 claims and worked on 7-years.
+
+
+
+
+H="long form dataset"
+/******************
+things from the exit, need to figure this out
+-death date, adls/iadls, location of death, hospice medicaid/gap/va, value estate
+	
+things that are t:
+-MC expenditures
+-i
+
+things that are in waves, need to be converted to annual:
+-fixed characteristics
+    -gender, birth date, death date, race, education
+-mutable
+	-age (computed at each year, from birth date above, rather than filled)
+	-net worth, financial wealth, adl/iadls, srh, medicaid, champus, medigap, married or partnered
+	-nursing home resident
+	-dementia
+	-region
+	-family vars-resident children, transfers, help from kids 
+	-out of pocket spending
+	-number of helpers, helper hours, any helpers, imputed social costs
+
+******************/
+clear all
+set more off
+capture log close
+
+local datapath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data"
+local fdpath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data"
+local logpath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs"
+local ooppath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\oopdata"
+
+cd `datapath'
+
+/*first pull an index file from the decedent dataset*/
+use id index_date index_year cont_ffs_n_mos using decedent_dataset.dta if inrange(index_year,2006,2014), clear
+gen ffs_yrs=floor(cont_ffs_n_mos/12)
+*keep if ffs_y==5
+tempfile index
+save `index'
+
+
+/*2nd, connect decedent dataset to exit*/
+local vars female married_or_ medicaid champus medigap nhres hospice ///
+e_ivw* *year loc_hosp adl_independent iadl_independent reschil_d livealone ///
+comor_c_hrs 
+
+use id `vars' using "E:\data\hrs_cleaned\exit_02_to_14_dt.dta" if !missing(e_ivw_date)
+foreach x in married_o medicaid champus medigap nhres hospice loc_hosp ///
+adl_independent iadl_independent reschil_d livealone {
+rename `x' `x'_x
+}
+tempfile exit1
+save `exit1'
+
+merge 1:1 id using `index', nogen keep(match)
+//set time=0 so it can be appended to the core
+gen t2=0
+drop if e_ivw_date<index_date
+tempfile exit
+save `exit'
+
+/*3rd, save tracker, oop, dementia, rand family, and helpers*/
+
+
+use "E:\data\hrs_public_2014\dementia\pdem_withvarnames_ebl.dta", clear
+gsort id -core_year 
+replace pdem=prob_hurd if !missing(prob_hurd)
+by id: egen firstdem=min(cond(inrange(pdem,0.5,1),core_year,.))
+by id: keep if _n<5
+tempfile dem
+save `dem'
+
+use "E:\data\hrs_cleaned\restr_tracker_v2014.dta", clear
+drop id
+gen id=hhid+pn
+tempfile track
+save `track'
+
+
+use `ooppath'\oopme_final_2014.dta, clear
+rename *, l
+gen id=hhid+pn
+/*gsort id -year
+by id: gen n=_n
+keep if n<5
+by id: gen lastyear=year[1]
+keep id lastyear total_oop n year
+rename year core_year
+*reshape wide total_oop year, i(id) j(n)*/
+tempfile oop
+save `oop'
+
+
+use "E:\data\hrs_cleaned\helper_hours_2014.dta", clear
+gen id=hhid+pn 
+//cap number of hours at 720 (24 hrs for 30 days) for spouses and other informal
+foreach x in s u {
+replace hlphrs_`x'=720 if hlphrs_`x'>720
+}
+replace hlphrs_i=hlphrs_s+hlphrs_u
+tempfile help
+save `help'
+
+
+/*5th, connect decedent dataset to core
+	1) merge 1:m to restrict to decedents
+	2) flag those that have two+ cores within 5 years
+	3) keep all within 5 years and the one before for baseline
+	4) merge by core year with dementia prob, rand fam, helpers, oop datasets
+	5) reset so that it's in annual long format
+*/
+
+use `index', clear
+merge 1:m id using "E:\data\hrs_cleaned\core_00_to_14.dta", nogen ///
+keep(match master)
+sort id core_year
+replace wgthh=. if wgthh==0
+carryforward wgthh, replace
+gsort id -core_year
+carryforward wgthh, replace
+by id: gen n=_n
+gen time=(index_date-c_ivw_date)/365.25
+gen t2=ceil(time)
+by id: egen yes=min(time)
+gen y1=inrange(yes,0,5)
+gen inn=n if time<=7
+gen outn=n if time>7
+by id: egen y2=max(inn)
+//get the first interview outside the window
+by id: egen y3=min(outn)
+
+/*keep all ivws within 5 years and a baseline for those who have at least one 
+ivw w/in 5 years*/
+keep if y1 & (inrange(time,0.00001,7) | y3==n)
+
+/*drop baselines if >9 years out*/
+drop if time>9
+
+//locals to keep relevant vars
+local corevars networth_adj2012 finwealth_adj2012 medicaid champus medigap srh_pf adl_independent_core ///
+iadl_independent_core nhres reschil_d wgthh comor_c smoke_ever smoke_curr
+local helpvars n_hp hlphrs_i n_i hlphrs_u hlphrs_s
+local famvars resd_kid_ind help_adls_kid_adult help_iadls_kid_adult ///
+transf_from_kid_adult_ind
+local oopvars total_oop
+local trackvars birth_date hisp_eth white black other_na_api cause_death degree
+local demvars pdem ldem firstdem prob_hurd
+keep id `corevars' core_year c_ivw_* index_date t2 time
+
+append using `exit'
+
+//keep only those with an exit
+sort id t2
+by id: egen min=min(t2)
+keep if min==0
+drop min
+
+//keep only those with at least one core
+by id: gen n=_n
+by id: gen obs=_N
+by id: drop if _N==1
+
+//gen year to merge with oop & helper
+gen year=core_year
+replace year=exit_year if missing(year)
+
+merge 1:1 id year using `oop', gen(oopmerge) keep(match master)  ///
+keepusing(`oopvars')
+merge 1:1 id year using `help', gen(helpmerge) keep(match master) ///
+keepusing(`helpvars')
+merge 1:1 id core_year using `dem', gen(demmerge) keep(match master) ///
+keepusing(`demvars')
+merge m:1 id core_year using ///
+"E:\data\hrs_public_2014\rand2014\family\family_r_clean_98_12.dta", ///
+gen(randfammerge) keep(match master) keepusing(`famvars')
+merge m:1 id using `track', nogen keep(match) keepusing(`trackvars')
+
+//hs+ (including ged)
+gen hseduc=degree>0
+label var hseduc "HS Degree+ (including GED)"
+
+replace t2=8 if t2>8
+gsort id -year
+by id: replace pdem=pdem[_n+1] if t2==0
+gen no=0
+by id: replace no=1 if year>year[_n+1]+2 & _n!=_N
+by id: replace no=1 if _n==_N & t2<4
+by id: egen anyno=max(no)
+*drop if anyno==1 | obs==3
+/*
+foreach x of varlist * {
+	if !inlist("`x'","id","t2") local allvars `allvars' `x'
+}
+
+reshape wide `allvars', i(id) j(t2)
+*/
+
+foreach x in `helpvars' {
+	replace `x'=0 if missing(`x')
+}
+drop year
+gen yearfromdeath=t2
+tempfile t1
+save `t1'
+
+keep id t2 time *oop c_ivw_date n hlphrs_*
+replace time=0 if t2==0
+sort id t2 
+by id: gen timetonext=time[_n+1]-time
+by id: replace timetonext=7-time if missing(timetonext) & time<3
+by id: replace timetonext=2 if missing(timetonext) & time>=3
+replace timetonext=0 if t2==8
+gen wave_oop=total_oop
+gen og=wave_oop
+//convert total oop to annual measure
+replace total_oop=total_oop/timetonext
+by id: gen timefromlast=time-time[_n-1]
+by id: gen yearnext=t2[_n+1]
+by id: gen lastoop=total_oop[_n-1]
+by id: replace lastoop=lastoop[_n-1] if missing(lastoop)
+replace total_oop=0 if t2==6
+/*helper hours--get previous and do the same as oop, but avg between two
+from OOP code--use 4 months if previous wave there was no help, otherwise use 4 
+months at current and rest between*/
+
+foreach x in _u _s {
+by id: gen last`x'=hlphrs`x'[_n-1]
+by id: gen next`x'=hlphrs`x'[_n+1]
+replace next`x'=0 if missing(next`x')
+replace last`x'=hlphrs`x' if missing(last`x')
+replace last`x'=0 if missing(last`x')
+gen avg`x'=(hlphrs`x'+next`x')/2
+}
+gen hlphrs_ann=(avg_u+avg_s)*12
+by id: gen lasthelp=hlphrs_ann[_n-1]
+replace lasthelp=hlphrs_ann if t2==0
+by id: gen nexthelp=hlphrs_ann[_n+1]
+replace hlphrs_ann=0 if missing(nexthelp)
+replace nexthelp=hlphrs_ann if missing(nexthelp)
+reshape wide og time total_oop c_ivw_date hlphrs_ann hlphrs_i hlphrs_u hlphrs_s last_u last_s next_u next_s ///
+avg_u avg_s lasthelp nexthelp timetonext timefromlast yearnext lastoop wave_oop n, i(id) j(t2)
+reshape long time og total_oop c_ivw_date hlphrs_ann hlphrs_i hlphrs_u hlphrs_s last_u last_s next_u next_s ///
+avg_u avg_s l lasthelp nexthelp timetonext timefromlast yearnext lastoop wave_oop n, i(id) j(year)
+
+sort id year
+*by id: carryforward total_oop, gen(annual_oop)
+by id: carryforward time, gen(antime)
+by id: replace lastoop=total_oop[_n-1] if missing(lastoop)
+by id: replace lastoop=lastoop[_n-1] if missing(lastoop)
+by id: carryforward timetonext timefromlast lasthelp hlphrs_ann, replace
+gsort id -year
+by id: carryforward nexthelp, replace
+sort id year
+gen pct1=(year-time) if year<6
+gen pct2=1-(year-time) if year<6
+by id: replace pct2=1 if missing(time) & year<6
+
+
+gen annual_oop=pct2*lastoop if inrange(year,1,5)
+replace annual_oop=annual_oop+pct1*total_oop if !missing(pct1)
+/*for annual helper hours 
+-4 months at current
+-if any at previous, 4 months at current and 8 months at avg current and former*/
+gen annual_hlphrs=hlphrs_ann*2/3 + hlphrs_i*12/3
+replace annual_hlphrs=hlphrs_ann if missing(annual_hlphrs) 
+replace annual_hlphrs=. if inlist(year,0,6)
+/*gen annual_hlphrs=hlphrs_ann/3+(hlphrs_ann+nexthelp)/3
+replace annual_hlphrs=(lasthelp+nexthelp)/2 if missing(n)
+gen annual_hlphrs=(nexthelp) if inrange(year,1,5) & missing(n)
+replace annual_hlphrs=pct2*lasthelp if  missing(annual_h) & inrange(year,1,5)
+replace annual_hlphrs=annual_h+pct1*hlphrs_a if !missing(pct1)*/
+replace wave_oop=wave_oop*timetonext/(time[_n+1]-time) if time[_n+1]>5 & ///
+!missing(time[_n+1])
+replace wave_oop=wave_oop*(5-time)/2 if missing(time[_n+1]) & time>=3
+replace wave_oop=0 if time>5
+
+by id: egen all=total(wave)
+by id: egen a2=total(annual_oop)
+sum all a2
+sum all a2 if year==0
+keep id all a2 year annual_* hlphrs*
+
+rename (year ) (yearfromdeath )
+tempfile t2
+save `t2'
+
+use decedent_dataset.dta if inrange(index_year,2001,2012), clear
+drop *bef
+
+gen ffs_yrs=floor(cont_ffs_n_mos/12)
+foreach x in 12 24 36 48 60 {
+rename tot_paid_by_mc_`x'm tot_paid_by_mc`=`x'/12'
+}
+
+forvalues i=1/5 {
+replace tot_paid_by_mc`i'=. if ffs_yrs<`i'
+}
+
+reshape long tot_paid_by_mc, i(id) j(yearfromdeath)
+keep id tot* yearfr
+tempfile t3
+save `t3'
+/*
+merge 1:1 id yearfromdeath using `t2', gen(oopme2) keep(match using)
+merge 1:1 id yearfromdeath using `t1', gen(fullmerge)
+*/
+use `t1', clear
+merge 1:1 id yearfromdeath using `t2', gen(oopme2) keep(match using)
+merge 1:1 id yearfromdeath using `t3', gen(mcmerge) keep(match master)
+sort id yearf
+
+by id: replace ffs_y=ffs_y[_n+1] if missing(ffs_y)
+by id: replace pdem=pdem[_n+1] if n==1 & missing(pdem)
+gen likely_dem=inrange(pdem,.5,1) if !missing(pdem)
+by id: egen pdem_gt50_n1=max(cond(n==2,likely_dem,.))
+drop if missing(pdem_g) 
+gen age_at_death=floor((index_dat-birth_date)/365.25)
+drop if age_<70
+label var age_ "Age at death"
+foreach x of varlist `helpvars' {
+replace `x'=0 if missing(`x')
+}
+gen ind_hp=n_hp>0
+label var ind_hp "any helpers"
+gen comorb_modsev=comor_c>=2 if !missing(comor_c)
+label var comorb_modsev "4+ SR conditions"
+label var likely_dem "Probable demntia (Pr>.5)"
+label var time "Time from ivw to death, years"
+foreach x in pdem likely_dem medicaid adl_independent_core iadl_independent_core ///
+smoke_curr comorb_modsev time ind_hp `helpvars' networth_adj2012 finwealth_adj2012 {
+gen `x'_ba=`x' if n==obs
+by id: egen `x'_b=max(`x'_ba)
+drop `x'_ba
+local lab : var label `x'
+label var `x'_b "`lab' at baseline"
+}
+replace networth_adj2012_b=1 if networth_adj2012_b<=0
+//discounting--why?
+forvalues i=1/5 {
+	foreach x in tot_paid_by_mc annual_oop annual_hlp {
+		*replace `x'=`x'/1.03^`=`i'-1' if year==`i'
+}
+}
+by id: egen tottot=total(tot_paid_by_mc)
+by id: egen alloop=total(annual_oop)
+by id: egen allhelp=total(annual_hlp)
+replace allhelp=allhelp*20
+label var allhelp "Imputed informal help over 5 years (at $20/hr)"
+label var tottot "Total paid by MC over 5 years"
+label var alloop "Total paid OOP over 5 years"
+gen time_x=(e_ivw_date-index_date)/365.25
+label var time_x "Time from death to exit, years"
+gen baseline_out=time_b>=5
+label var baseline_out "% with a baseline outside the 5 year window"
+
+replace likely_dem=pdem_g if year==0
+
+
+
+gen oopsofar=0
+forvalues i=7(-1)1 {
+by id: replace oopsofar=annual_oop+oopsofar[_n+1] if year==`i'
+}
+replace oopsofar=alloop if year==0
+gen oop_gt_nw=oopsofar>=networth_adj2012_b
+gen nw_remaining=100*(networth_adj2012_b-oopsofar)/networth_adj2012_b
+replace nw_r=0 if nw_r<0
+replace nw_r=0 if networth_adj2012_b<0
+//table
+local cvars1 time_x time_b 
+local ivars1 baseline_out
+local cvars2 age_at_death
+local cvars3 n_i n_i_b pdem pdem_b
+local ivars2 white black hisp_eth other_na_api_race female married_o_x hseduc medicaid_x medicaid_b ///
+medigap_x champus_x ind_hp ind_hp_b 
+local ivars3 likely_dem likely_dem_b ///
+adl_independent_x adl_independent_core_b iadl_independent_x ///
+iadl_independent_core_b smoke_curr_b comorb_modsev comorb_modsev_b
+local coutcomes3 tottot alloop allhelp
+local rn : word count `cvars1' `cvars2' `ivars1' `ivars2' `cvars3' `ivars3' `coutcomes3' 1
+
+mat tab=J(`rn',4,.)
+local r=1
+local c=1
+gsort id -year
+by id: carryforward wgthh, replace
+sort id year
+preserve
+
+keep if n==1
+foreach group in "0,1" 0 1 {
+	sum likely_dem if inlist(likely_dem,`group')
+	local denom=r(N)
+	foreach round in 1 2 3 {
+		foreach x of local cvars`round' {
+			sum `x' if inlist(likely_dem,`group') [aw=wgthh]
+			if !inrange(r(N),1,10) mat tab[`r',`c']=r(mean)
+			if "`group'"=="0,1" & !inrange(`denom'-r(N),1,10) mat tab[`r',`c'+3]=`denom'-r(N)
+			local r=`r'+1
+}
+		foreach x of local ivars`round' {
+			sum `x' if inlist(likely_dem,`group') [aw=wgthh]
+			if !inrange(r(mean)*r(N),1,10) mat tab[`r',`c']=r(mean)*100
+			if "`group'"=="0,1" & !inrange(`denom'-r(N),1,10) mat tab[`r',`c'+3]=`denom'-r(N)
+			local r=`r'+1
+}
+		foreach x of local coutcomes`round' {
+			sum `x' if inlist(likely_dem,`group') [aw=wgthh]
+			if !inrange(r(N),1,10) mat tab[`r',`c']=r(mean)
+			if "`group'"=="0,1" & !inrange(`denom'-r(N),1,10) mat tab[`r',`c'+3]=`denom'-r(N)
+			local r=`r'+1
+}
+
+
+}	
+	mat tab[`r',`c']=`denom'
+	local r=1
+	local c=`c'+1
+}
+mat rownames tab=`cvars1' `ivars1'  `cvars2' `ivars2' `cvars3' `ivars3' `coutcomes3' N
+
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\table_baseline_death.rtf", replace ///
+statmat(tab) title("Sample Characteristics by dementia status at n1 ivw") ///
+ctitles("" "Full Sample" "No dementia" "Dementia" "N missing") sdec(2,2,2,0) ///
+varlabels note("Decedents 2006-2012 with 60m continuous FFS pre-death, an exit and all core ivws" ///
+"Household weights applied")
+
+restore
+preserve
+
+egen totalpaid=rowtotal(tot_paid_by_mc total_oop annual_hlp)
+collapse tot_paid_by_mc total_oop annual_hlp pdem likely_dem totalpaid networth_adj2012_b ///
+oopsofar oop_gt_nw nw_remaining [pw=wgthh], by(pdem_gt50_n1 year)
+replace year=-year+6
+
+label define year 0 "Baseline" 6 "Death"
+label values year year
+
+twoway (line pdem year if pdem_g==1) (line pdem year if pdem_g==0) ///
+(line likely_dem year if pdem_g==1) (line likely_dem year if pdem_g==0) if year<6, ///
+xlabel(0.1 "Baseline" 1 2 3 4  5 "Death") xtitle("")
+graph save "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\dementia_prob_over_time", replace
+graph export "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\dementia_prob_over_time.pdf", replace
+
+twoway (line nw_remaining yearfromdeath if pdem_g==1)(line nw_remaining yearfromdeath if pdem_g==0) ///
+(line oop_gt yearfromdeath if pdem_g==1 , yaxis(2)) (line oop_gt yearfromdeath if pdem_g==0, yaxis(2)) ///
+if year<6, xlabel(0.1 "Baseline" 1 2 3 4  5 "Death") xtitle("") ///
+legend(label(1 "% NW remaining, demented") label(2 "% remaining, nondemented") ///
+label(3 "% OOP>NW, demented") label(4 "% OOP>NW, nondemented"))
+graph save "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\networth_oop_over_time", replace
+graph export "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs\networth_oop_over_time.pdf", replace
+restore
+save "`fdpath'/burden_dementia_sample_long.dta", replace

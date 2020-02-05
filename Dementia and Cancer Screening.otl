@@ -1106,6 +1106,84 @@ run;
 data inter.prostate_screened; set prostate; run;
 
 
+H="Prostate Analysis"
+/*Run preliminary prostate analysis for feasibility*/
+data prostate; set inter.prostate_screened; run;
+
+/*Logistic Regression for Screening, adjust for age*/
+proc surveylogistic data=prostate;
+weight anfinwgt; strata varstrat; cluster varunit; domain sample_prostate;
+class screening_PSA(ref="0") dem_3_cat(ref="No dementia")/param=ref;
+model screening_PSA=dem_3_cat age;
+run;
+
+/*Logistic Regression for Screening, dementia 2 categories*/
+
+/*2 categories of dementia*/
+proc surveylogistic data=prostate;
+weight anfinwgt; strata varstrat; cluster varunit; domain sample_prostate;
+class screening_PSA(ref="0") dem_2_cat(ref="0")/param=ref;
+model screening_PSA=dem_2_cat age;
+run;
+
+proc freq data=prostate(where=(sample_prostate=1)); tables dem_2_cat*dem_3_cat/missing; run;
+
+/*include age squared*/
+data prostate; set prostate;
+agesq=age**2;
+run;
+
+proc print data=prostate(where=(sample_prostate=1)obs=20); var age agesq; run;
+
+proc surveylogistic data=prostate;
+weight anfinwgt; strata varstrat; cluster varunit; domain sample_prostate;
+class screening_PSA(ref="0") dem_3_cat(ref="No dementia")/param=ref;
+model screening_PSA=dem_3_cat age agesq;
+run;
+
+/*categorize age*/
+proc means data=prostate(where=(sample_prostate=1)) min max; var age; run;
+proc contents data=prostate; run;
+
+data prostate; set prostate;
+if 65<=age<=74 then agecat=1;
+if 75<=age<=84 then agecat=2;
+if 85<=age then agecat=3;
+run;
+
+/*categorized age*/
+proc surveylogistic data=prostate;
+weight anfinwgt; strata varstrat; cluster varunit; domain sample_prostate;
+class screening_PSA(ref="0") dem_3_cat(ref="No dementia") agecat(ref="1")/param=ref;
+model screening_PSA=dem_3_cat agecat;
+run;
+
+/*Check ages of those with dementia*/
+proc surveymeans data=prostate nobs  median q1 q3 mean clm;
+domain sample_prostate*dem_3_cat; var age;
+weight anfinwgt; strata varstrat; cluster varunit;
+run;
+
+/*Cross dementia algorithm with self reported dementia*/
+proc freq data=prostate (where=(sample_prostate=1));
+tables sr_dementia_ever*dem_3_cat/missing;
+run;
+
+/*try other variables*/
+proc freq data=prostate(where=(sample_prostate=1)); 
+tables race_cat SRH/missing; run;
+
+
+proc surveylogistic data=prostate;
+weight anfinwgt; strata varstrat; cluster varunit; domain sample_prostate;
+class screening_PSA(ref="0") dem_3_cat(ref="No dementia") agecat(ref="1") race_cat (ref="White Non-His")
+ medicaid(ref="0") adl_impair(ref="0") srh_fp(ref="0")/param=ref;
+model screening_PSA=dem_3_cat agecat race_cat  medicaid BMI adl_impair
+sr_numconditions1 srh_fp;
+run;
+
+proc freq data=prostate(where=(sample_prostate=1));tables female; run;
+
 H="Breast Exclusions-Medicare"
 proc import out=nhats1_8 datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
 dbms=dta replace;
