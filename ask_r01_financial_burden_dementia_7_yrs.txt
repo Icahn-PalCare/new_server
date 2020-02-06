@@ -19804,6 +19804,241 @@ annotate(stars) asymbol(*,**) replace
 
 }
 
+H="non-NH"
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+sort id nflag
+by id: carryforward bid, replace
+keep if nflag==1
+keep id bid_ index_date c_ivw_date
+
+merge 1:m bid using "D:\HRS\Shared\base_data\hrs_cms\Stata\snf_1998_2015.dta", keep(match master) keepusing(admit_date disch_date)
+
+gen ind_snf_n12m=inrange(c_ivw_date,admit_date,disch_date)
+replace ind_snf=1 if inrange(disch_date,c_ivw_date-365,c_ivw_date)
+replace ind_snf=0 if _m==1
+drop admit disch _m
+gsort id -ind_snf
+by id: keep if _n==1
+tempfile snf
+save `snf'
+
+forvalues i=2002(2)2014 {
+use hhid pn *h101 using "D:\HRS\Shared\raw\HRS\hrs_fat_file\all_rand_fat_files\fat`i'.dta", clear
+rename *h101 ind_retirement_com
+gen id=hhid+pn 
+gen core_year=`i'
+tempfile t`i'
+save `t`i''
+}
+
+clear 
+
+forvalues i=2002(2)2014 {
+	append using `t`i''
+}
+
+tempfile rcfres
+save `rcfres'
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress"
+merge 1:1 id core_year using `rcfres', keep(match master)
+//pull snf use past 12m 
+merge m:1 id using `snf', nogen
+
+replace ind_retirement_com=0 if inlist(ind_retirement_com,5)
+replace ind_retirement_com=1 if inlist(ind_retirement_com,2,7)
+label var ind_retirement_com "Retirement/senior complex resident"
+label var ind_snf_n12m "SNF use 12m prior to N1 interview"
+label var nhres_exit "Nursing home at death (from exit)"
+
+/*for table 1
+
+age, race, hs education, female, married, medicaid, dementia, ADL  dependence, 
+SRH, smoke currently, 4+ health conditions
+*/
+*rename informal_i_* informal_*
+
+keep if ffs_84==1
+keep if final_7yr==1
+*gen adl_dependent=!adl_independent_core
+label var adl_dependent "ADL dependent"
+label var age_at_death "Age at death"
+label var prob_dem_baseline "% Probable dementia at baseline ivw"
+replace prob_dem_y1=0 if !dem_cohort
+gen n=1
+drop race
+gen race=1 if hisp_e==1
+replace race=2 if black==1
+replace race=3 if white==1
+replace white=3 if missing(race)
+label define race 1 "Hispanic" 2 "Non-Hispanic Black" 3 "Non-Hispanic White/Other"
+label values race race
+
+gen ind_hs_educ=degree>=2 if !inlist(degree,9,.)
+label var ind_hs_educ "Education: HS+ (excl. GED)"
+
+tokenize tot_paid_by_mc_y tot_paid_maid_y informal_y oop_y imputed_nh_costs_b_y
+
+forvalues i=1/5 {
+	di "``i''"
+	egen cum`i'=rowtotal(``i''*)
+	replace cum`i'=. if nflag!=0
+}
+
+egen cumall=rowtotal(cum1-cum5)
+replace cumall=. if nflag!=0
+
+label var cumall "Total Social Spending over 7 years pre-death"
+label var cum1 "Medicare Expenditures"
+label var cum2 "Medicaid Expenditures"
+label var cum3 "Social Cost of Informal Care"
+label var cum4 "OOP"
+label var cum5 "Otherwise Unattributed NH Costs"
+label var pdem_baseline "Mean probability of dementia at baseline"
+gsort id nflag
+carryforward age_at_death female married ind_hs_educ smoke_curr medicaid adl_dependent ///
+srh_pf prob_dem_baseline pdem_baseline cum* race comorb* ccw* networth_adj2016* nhres_exit *nw_remaining ind_retirement_com, replace
+
+gsort id -nflag
+carryforward age_at_death female married ind_hs_educ smoke_curr medicaid adl_dependent ///
+srh_pf prob_dem_baseline pdem_baseline cum* race comorb* ccw* networth_adj2016* *nw_remaining ind_retirement_com, replace
+
+
+
+gen ind_no_nh=!ind_snf_n12m & !nhres_exit
+label var ind_no_nh "Neither SNF use pre-ivw nor NH resident at death"
+
+
+
+
+
+keep if nflag==1
+
+local cvars1 age_at_death
+local ivars1 female ind_hs_educ married married_baseline
+local ivars2  smoke_curr smoke_curr_baseline medicaid medicaid_baseline ///
+///ind_buyin_y1 ind_buyin_y7 ///
+adl_dependent adl_dependent_baseline srh_pf srh_pf_baseline ccw_ge4_y1 ///
+ccw_ge4_y7 prob_dem prob_dem_baseline proxy_core
+local cvars3 pdem pdem_baseline cumall cum1 cum2 cum3 cum4 cum5 networth_adj2016_baseline ///
+pct_nw_remaining
+local ivars3 ind_nw_remaining ind_retirement_com nhres nhres_exit ind_snf_n12m ind_no_nh
+local catvars1 race
+local catvars2 //comor_c_hrs
+
+forvalues i=1/3 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+foreach time in 0 1 {
+preserve
+keep if (nhres==0 /*| ind_reti==1*/) & adl_dependent==`time'
+
+local rn : word count `cvars1' `ivars1' `cativars1' `ivars2' `cativars2' `cvars3' `cvars3' `ivars3' 1
+local r=1
+local c=1
+
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',4,0)
+
+foreach y in "0,1" 0 1 {
+	forvalues i=1/3 {
+		foreach x of local cvars`i' {
+			qui sum `x' if inlist(dem_cohort,`y'), d
+			mat tab[`r',`c']=r(mean)
+			mat tab [`r'+1,`c']=r(p50)
+			if "`y'"=="1" {
+				qui ttest `x', by(dem_cohort)
+				mat tab[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+			if `i'==3 local r=`r'+1
+			
+}
+		foreach x of local ivars`i' {
+			qui sum `x' if inlist(dem_cohort,`y')
+			if r(sum)==0 | r(sum)==r(N) | (r(sum)>=11 & r(sum)<=r(N)-11) mat tab[`r',`c']=r(mean)*100
+			if "`y'"=="1" {
+				qui tab `x' dem_cohort, chi2
+				mat tab[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+}
+		foreach x of local catvars`i' {
+			if "`y'"=="1" {
+				qui tab `x' dem_cohort, chi2
+				mat tab[`r',4]=r(p)
+				mat stars[`r',4]=(r(p)<.05)+(r(p)<.01)
+}
+			foreach z of local `x' {
+				qui sum `z' if inlist(dem_cohort,`y')
+			if r(sum)==0 | r(sum)==r(N) | (r(sum)>=11 & r(sum)<=r(N)-11) mat tab[`r',`c']=r(mean)*100
+				local r=`r'+1
+}
+}
+}
+	qui sum n if inlist(dem_cohort,`y')
+	mat tab[`r',`c']=r(N)
+	
+	local r=1
+	local c=`c'+1
+}
+
+forvalues r=1/`rn' {
+	local t=tab[`r',2]
+	if `t'==. mat tab[`r',3]=.
+	local t=tab[`r',3]
+	if `t'==. mat tab[`r',2]=.
+}
+
+mat rownames tab=`cvars1' `ivars1' `cativars1' `ivars2' `cativars2' ///
+pdem Median pdem_baseline Median cumall Median cum1 Median cum2 Median ///
+cum3 Median cum4 Median cum5 Median networth_adj2016_baseline Median  ///
+pct_nw_remaining Median `ivars3' N
+
+if `time'==0 {
+
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress\table_1_`c(current_date)'non_ADL_nonNH.rtf", ///
+statmat(tab) title("Characteristics of Decedents, by Dementia Status, ADL Independent") ///
+ctitles("" "Full Sample" "No Dementia" "Dementia" "P-value") varlabels ///
+sdec(2) note("Values except for age at death, expenditures, and baseline values taken from N1 interview" \ ///
+"Baseline status taken at interview closest to 7 years prior to death" \ ///
+"OOP discounted at 3%/year for comparison to baseline net worth only") ///
+annotate(stars) asymbol(*,**) replace
+
+restore
+}
+else {
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress\table_1_`c(current_date)'ADL_nonNH.rtf", ///
+statmat(tab) title("Characteristics of Decedents, by Dementia Status, ADL Dependent") ///
+ctitles("" "Full Sample" "No Dementia" "Dementia" "P-value") varlabels ///
+sdec(2) note("Values except for age at death, expenditures, and baseline values taken from N1 interview" \ ///
+"Baseline status taken at interview closest to 7 years prior to death" \ ///
+"OOP discounted at 3%/year for comparison to baseline net worth only") ///
+annotate(stars) asymbol(*,**) replace
+
+}
+
+}
+
 H="Sensitivity for imputed Medicaid"
 set more off
 capture log close
@@ -20215,14 +20450,15 @@ gsort id -nflag
 carryforward age_at_death female married hseduc smoke_curr medicaid adl_dependent ///
 srh_pf prob_dem_baseline pdem_baseline cum* race comorb* ccw* networth_adj2016* *nw_remaining, replace
 
-
+gen ind_hs_educ=degree>=2 if !inlist(degree,9,.)
+label var ind_hs_educ "Education: HS+ (excl. GED)"
 
 
 
 keep if nflag==1
 local cvars1 age_at_death
 local ivars1 female married married_baseline
-local ivars2 hseduc smoke_curr smoke_curr_baseline medicaid medicaid_baseline ///
+local ivars2 ind_hs_educ smoke_curr smoke_curr_baseline medicaid medicaid_baseline ///
 ind_buyin_y1 ind_buyin_y7 ltc_ins ltc_ins_baseline champus champus_baseline ///
 adl_dependent adl_dependent_baseline srh_pf srh_pf_baseline ccw_ge4_y1 ///
 ccw_ge4_y7 prob_dem prob_dem_baseline proxy_core
@@ -20623,7 +20859,7 @@ srh_pf prob_dem_baseline pdem_baseline cum* race comorb* ccw* networth_adj2016* 
 keep if nflag==1
 local cvars1 age_at_death
 local ivars1 female married married_baseline
-local ivars2 hseduc smoke_curr smoke_curr_baseline medicaid medicaid_baseline ///
+local ivars2 ind_hs_educ smoke_curr smoke_curr_baseline medicaid medicaid_baseline ///
 ind_buyin_y1 ind_buyin_y7 ltc_ins ltc_ins_baseline champus champus_baseline ///
 adl_dependent adl_dependent_baseline srh_pf srh_pf_baseline ccw_ge4_y1 ///
 ccw_ge4_y7 prob_dem prob_dem_baseline proxy_core
@@ -20720,7 +20956,351 @@ annotate(stars) asymbol(*,**) replace
 
 
 
+H="regressions with imputed Medicaid"
+
+
+
+
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress"
+
+gen educ_3_cat=1 if !degree
+replace educ_3_cat=2 if inrange(degree,1,3)
+replace educ_3_cat=3 if degree>3
+
+gen age_cat=1 if age_at_death<=75
+replace age_cat=2 if inrange(age_at_death,76,80)
+replace age_cat=3 if inrange(age_at_death,81,85)
+replace age_cat=4 if inrange(age_at_death,86,90)
+replace age_cat=5 if age_at_death>=91
+label define age_cat 1 "72-75" 2 "76-80" 3 "81-85" 4 "86-90" 5 ">90"
+label values age_cat age_cat
+
+sort id nflag
+by id: replace married=married[_n+1] if nflag==0
+by id: replace female=female[_n+1] if nflag==0
+by id: replace adl_dependent=adl_dependent[_n+1] if nflag==0
+by id, sort: egen nh_n1=max(cond(nflag==1,nhres,.))
+
+foreach x in stroke dm heart htn lung cancer psych arth {
+		by id: replace `x'_hrs=`x'_hrs[_n+1] if missing(`x'_hrs)
+		replace `x'_hrs=`x'_hrs[_n+1] if nflag==0
+		rename `x'_hrs `x'
+
+}
+
+sort id nflag
+by id: replace medicaid=medicaid[_n+1] if nflag==0
+by id: replace nh_nights=nh_nights[_n+1] if nflag==0
+by id: replace ind_mcaid=ind_mcaid[_n+1] if nflag==0
+keep if nflag==0
+keep if ffs_84==1
+keep if final_7yr==1
+
+keep id tot_paid_by_mc_y* tot_paid_maid_y* oop_y* informal_y* dem_cohort  ///
+imputed_nh_costs_b_y* age_at_death female hisp_eth black other stroke dm ///
+heart htn lung cancer psych arth age_cat educ_3_cat married adl_dependent nh_n1 ind_mcaid medicaid nh_nights
+
+
+rename tot_paid_by_mc_y* mc*
+rename tot_paid_maid_y* mcaid*
+
+foreach x of varlist mcaid* {
+	replace `x'=0 if missing(`x')
+}
+
+rename (oop_y* informal_y* imputed_nh_costs_b_y*) (oop* informal* nh*)
+
+foreach x in mc mcaid oop informal nh {
+	forvalues i=1/7 {
+		replace `x'`i'=`x'`i'/1000
+}
+	gen cum`x'7=`x'7
+	forvalues i=6(-1)1 {
+		gen cum`x'`i'=cum`x'`=`i'+1'+`x'`i'
+}
+}
+
+keep id mc* mcaid* oop* informal* cum* dem_cohort nh* female hisp_eth black other stroke dm ///
+heart htn lung cancer psych arth age_cat educ_3_cat married adl_dependent nh_n1 ind_mcaid medicaid nh_nights
+
+
+reshape long mc mcaid oop informal cummc cummcaid cumoop cuminformal nh cumnh, ///
+i(id) j(year_before_death)
+
+replace year=-year+8
+
+label define year 1 "6-7" 2 "5-6" 3 "4-5" 4 "3-4" 5 "2-3" 6 "1-2" 7 "0-1"
+label values year year
+
+foreach x in "" cum {
+	egen `x'all=rowtotal(`x'mc `x'mcaid `x'oop `x'informal `x'nh)
+}
+
+global xvars i.age_cat married female hisp_eth black other i.educ_3_cat ///
+stroke dm heart htn lung cancer psych arth
+
+
+foreach y in mcaid {
+	glm cum`y' i.dem_cohort##nh_n1##i.year $xvars if ind_mcaid_==0, link(log) fam(gamma) cluster(id)
+	qui margins year#nh_n1#dem_cohort
+	marginsplot, title(medicaid present not imputed) nodraw
+	graph save v1, replace
+
+		glm cum`y' i.dem_cohort##nh_n1##i.year $xvars if ind_mcaid_==1, link(log) fam(gamma) cluster(id)
+	qui margins year#nh_n1#dem_cohort
+	marginsplot, title(medicaid imputed) nodraw
+	graph save v2, replace
+
+	
+/*	qui glm cum`y' i.dem_cohort##nh_n1##i.year $xvars , link(log) fam(gamma) cluster(id)
+	margins year#nh_n1#dem_cohort
+	marginsplot, title(adjusted) nodraw*/
+	graph save v2, replace
+	graph combine v1.gph v2.gph, ycommon rows(1) ysize(4) xsize(8) saving(cum`y', replace)
+	graph export cum`y'_imp.pdf, replace
+}
+
+
+foreach y in mcaid {
+	glm cum`y' i.dem_cohort##i.ind_mcaid_imputed##i.year $xvars if nh_n1==0, link(log) fam(gamma) cluster(id)
+	qui margins year#ind_mcaid_imputed#dem_cohort
+	marginsplot, title(Non Nursing Home) nodraw
+	graph save v1, replace
+
+		glm cum`y' i.dem_cohort##i.ind_mcaid_imputed##i.year $xvars if nh_n1==1, link(log) fam(gamma) cluster(id)
+	qui margins year#ind_mcaid_imputed#dem_cohort
+	marginsplot, title(Nursing Home) nodraw
+	graph save v2, replace
+
+	
+/*	qui glm cum`y' i.dem_cohort##nh_n1##i.year $xvars , link(log) fam(gamma) cluster(id)
+	margins year#nh_n1#dem_cohort
+	marginsplot, title(adjusted) nodraw*/
+	graph combine v1.gph v2.gph, ycommon rows(1) ysize(4) xsize(8) saving(cum`y', replace)
+	graph export cum`y'_imp.pdf, replace
+}
+
+global xvars i.age_cat married female black i.educ_3_cat medicaid nh_nights
+
+
+global xvars i.age_cat married female hisp_eth black other i.educ_3_cat ///
+stroke dm heart htn lung cancer psych arth medicaid nh_nights
+
+	glm cummcaid i.dem_cohort##i.ind_mcaid_imputed##i.year##i.nh_n1 $xvars cummc, link(log) fam(gamma) cluster(id)
+
+glm cummcaid i.dem_cohort##i.ind_mcaid_imputed##i.nh_n1 cummc cuminf cumoop if year==7, link(log) fam(gamma) cluster(id)
+
+
+H="compare non-FFS"
+clear all
+capture log close
+
+global datapath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data"
+local logpath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\logs"
+global ooppath "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\oopdata"
+global output "E:\projects\burden_dementia\archive logs"
+
+*log using `logpath'\sample_derivation.txt, text replace
+cd $datapath
+
+use R01_i.dta, clear
+*preserve
+
+gen ffs_lt_60m = 0
+replace ffs_lt_60m = 1 if ffs_60m==0
+
+gen ffs_lt_84m = 0
+replace ffs_lt_84m = 1 if ffs_84m==0
+
+local deri age_lt_70 no_exit miss_core no_core nocore4yr hrs_lt_60m death_b4_core ffs_lt_60m
+
+
+gen final = 1
+label var final "5yr Sample Size, includes decedents w/imputed core"
+
+foreach x of local deri {
+replace final = 0 if `x'==1
+}
+
+gen final_7yr = 1 if final==1
+label var final_7yr "7yr Sample Size, includes decedents w/imputed core"
+
+
+foreach x of varlist age_lt_72 hrs_lt_84m ffs_lt_84m {
+replace final_7yr = 0 if `x'==1
+}
+
+
+label var ffs_lt_60m "<60m continuous FFS prior to death"
+label var ffs_lt_84m "<84m continuous FFS prior to death"
+
+
+gen dropped_7yr = 0
+replace dropped_7yr = 1 if final_7yr==0 & final==1
+
+
+gen all = 1
+label var all "All HRS respondents Deceased 2004-2015"
+/*
+local full all age_lt_72 no_exit miss_core no_core nocore4yr death_b4_core hrs_lt_84m final final_noimp final_ffs final_noimp_ffs
+
+local rd: word count `full'
+
+mat tab1 = J(`rd',3,.)
+
+local r = 1
+
+foreach x of local full {
+
+sum `x'
+mat tab1[`r',1] = r(sum)
+
+sum `x' if dem_cohort==1
+mat tab1[`r',2] = r(sum)
+
+sum `x' if dem_cohort==0
+mat tab1[`r',3] = r(sum)
+
+local ++r
+}
+
+mat rownames tab1 = `full'
+
+
+frmttable using `logpath'\Sample_Derivation.doc, replace statmat(tab1) ///
+varlabels title("Sample Derivation for R01 (Deceased 2004-2015, Age 72+)") ctitles("Reason for Exclusion" "All" "Dementia" "Non-Dementia") sdec(0) ///
+annotate(stars) asymbol(*,**)note("Death Date was determined by NDI, Medicare MBSF or HRS Exit in that order. Reasons for exclusion are NOT mutally exclusive.")
+
+
+ */
+
+keep if nflag<=1
+gen nolink=missing(bid_hrs_22)
+
+foreach x in age_lt_72 nolink final_7 {
+	replace `x'=. if nflag==1
+	by id, sort: egen a=max(`x')
+	replace `x'=a
+	drop a
+}
+drop if age_lt_72
+drop if nolink
+keep if final_7==1 | ffs_lt_84==1
+
+gen white = 0
+replace white = 1 if race==1 & hisp_eth==0
+
+gen black = 0
+replace black = 1 if race==2 & hisp_eth==0
+
+gen other = 0 
+replace other = 1 if white==0 & black==0 & hisp_eth==0
+
+label var white "Non-Hispanic White"
+label var black "Non-Hispanic Black"
+label var other "Non-Hispanic Other"
+
+
+foreach x in networth  {
+by id: egen a=max(`x')
+replace `x'=a
+drop a
+}
+
+keep if nflag==0
+gen n=1
+gen ind_hs_educ=degree>=2 if !inlist(degree,9,.)
+label var ind_hs_educ "Education: HS+ (excl. GED)"
+
+gen nh_time=year(death_date)-nhres_start_yr_exit
+replace nh_time=nh_time-1 if nhres_start_mo_exit>month(death_date) & !missing(nhres_start_mo_exit)
+ads
+replace nh_time=0 if nh_time<0
+local cvars1 age_at_death
+local ivars1 female_exit married_exit black hisp_eth ind_hs_educ 
+local ivars2 medicaid_exit ///
+champus_exit adl_independent_exit dem_cohort 
+local cvars2 networth
+
+
+forvalues i=1/3 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+local rn : word count `cvars1' `ivars1' `cvars2' `ivars2'  1 
+local r=1
+local c=1
+
+mat tab=J(`rn',3,.)
+mat stars=J(`rn',3,0)
+
+di `rn'
+
+mat tab=J(`rn',3,.)
+mat stars=J(`rn',3,0)
+
+foreach y in  0 1 {
+	forvalues i=1/3 {
+		foreach x of local cvars`i' {
+			sum `x' if inlist(final_7,`y'), d
+			mat tab[`r',`c']=r(mean)
+			if "`y'"=="1" {
+				ttest `x', by(final_7)
+				mat tab[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+			
+}
+		foreach x of local ivars`i' {
+			sum `x' if inlist(final_7,`y')
+			mat tab[`r',`c']=r(mean)*100
+			if "`y'"=="1" {
+				tab `x' final_7, chi2
+				mat tab[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+}
+}
+	sum n if inlist(final_7,`y')
+	mat tab[`r',`c']=r(N)
+	
+	local r=1
+	local c=`c'+1
+}
+
+mat rownames tab=`cvars1' `ivars1' `cvars2' `ivars2' `cativars2' N
+
+frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress\non_ffs_`c(current_date)'.rtf", ///
+statmat(tab) title("Characteristics of Decedents, by FFS Status") ///
+ctitles("" "<84m of FFS" "Full FFS" "P-value") varlabels ///
+sdec(2)  ///
+annotate(stars) asymbol(*,**) replace
+
+
+
+
 H="changelog"
+2/5/20 - Added more under the Jags revision, comparing non-FFS and non-NH folk.Evan
+
 2/3/20 - Added more under the JAGS revision, details findable in email to Amy dated 2/3/20. Evan
 
 1/16/20 - Burdensome Transitions Code added. MH.

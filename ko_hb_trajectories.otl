@@ -1657,6 +1657,11 @@ replace lw_test=lw_test-1
 replace lw_test=lw_test+1 if status_nw==5
 
 by spid: egen lw_final=max(lw_test)
-  
+
+
+sort spid wave
+by spid: keep if _n==1
+
+
 
 

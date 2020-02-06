@@ -16986,6 +16986,129 @@ mat list tab
 frmttable using wealth_burden_table.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Financial Wealth") annotate(stars) asymbol(*,**) varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "P-value comparisons are bet. Exhausted Financial Wealth/dem and Financial Wealth Remaining/dem;" "Exhausted Financial Wealth/dem and no dementia") addtable replace
 
 
+H="new tables"
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
+
+
+merge m:1 id using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(matched)
+
+
+keep if nflag==0
+
+gen no_ind_hs=0 if ind_hs==1
+replace no_ind_hs=1 if ind_hs==0
+label var no_ind_hs "No hospice use"
+
+foreach x in ind_start_ltc ind_hs_suboptimal no_ind_hs ind_hs_gt6m ind_hs_lt3d ind_hs_live_disch loc_hosp_exit {
+tab `x'
+}
+
+
+tab dementia flag_burd
+
+gen n=1
+
+gen ind_hs_gt6m_1=0 if ind_hs_gt6m==0 & ind_hs==1
+replace ind_hs_gt6m_1=1 if ind_hs_gt6m==1 & ind_hs==1
+label var ind_hs_gt6m_1 ">183 days on hospice"
+
+gen ind_hs_suboptimal_1=0 if  ind_hs_gt6m_1==0 & ind_hs_lt3d==0 & ind_hs==1
+replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lt3d==1) & ind_hs==1
+label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
+
+gen unmarried_baseline=0 if married_baseline==1
+replace unmarried_baseline=1 if married_baseline==0
+
+capture drop a b c d
+
+gen a=0 if dem_cohort==1 & married_baseline==0
+replace a=1 if dem_cohort==1 & married_baseline==1
+
+gen b=0 if dem_cohort==1 & married_baseline==1
+replace b=1 if dem_cohort==1 & married_baseline==0
+
+gen c=0 if dem_cohort==0 & married_baseline==0
+replace c=1 if dem_cohort==0 & married_baseline==1
+
+gen d=0 if dem_cohort==0 & married_baseline==1
+replace d=1 if dem_cohort==0 & married_baseline==0
+
+gen inter=dem_cohort*unmarried_baseline
+
+gen e=0 if dem_cohort==1 & married_baseline==1
+replace e=1 if dem_cohort==0 & married_baseline==1
+
+gen f=0 if dem_cohort==1 & married_baseline==0
+replace f=1 if dem_cohort==0 & married_baseline==0
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+
+foreach i in a b c d{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if `i'==1
+		mat tab[`r',`c']=`r(mean)'*100
+		
+		local r=`r'+1
+}
+	sum n if `i'==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+
+}
+
+mat rownames tab=`ivars' "N"
+mat colnames tab="Married/dem" "Unmarried/dem" "Married/no dem" "Unmarried/no dem" "Unmarried/dem"
+mat list tab
+
+frmttable using burd_tables.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Marital Status") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)") replace
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+foreach i in a c e f {
+	local r=1
+	foreach x in `ivars' {
+		ttest `x', by(`i')
+		mat tab[`r',`c']=r(p)
+		mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+	}
+	local c=`c'+1
+}
+
+local r=1
+foreach x in `ivars' {
+	reg inter `x'
+	local t=_b[`x']/_se[`x']
+	mat tab[`r',`c']=2*ttail(e(df_r),abs(`t'))
+	local r=`r'+1
+}
+
+mat list tab
+
+
+mat rownames tab=`ivars'
+mat colnames tab="Dem/Mar vs Dem/Unmar" "Non Dem/Mar vs Non Dem/Unmar" "Dem/Mar vs Non Dem/Mar" "Dem/Unmar vs Non Dem/Unmar" "Dem/Unmar vs Other"
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Marital Status") varlabels sdec(2) note() replace
+
+
 H="changelog"
 01/29/20 - Burdensome Transitions added to Table 1. 
 

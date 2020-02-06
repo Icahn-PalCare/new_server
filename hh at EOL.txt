@@ -134,23 +134,18 @@ proc export data= rev_cntr outfile="D:\NHATS\Projects\home health policy\cka_hh 
 
 H="death date"
  use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
- gen all_death_date=death_date
- replace all_death_date=nhats_death_date if death_date==. & nhats_death_date!=.
- replace all_death_date=nhats_death_date if nhats_death_date!=. & nhats_death_date>death_date
- keep spid all_death_date
- rename all_death_date death_date
 
-by spid: egen deathdate= max(death_date)
+ keep spid death_date
 by spid, sort: gen pid= _n
 keep if pid==1
-drop death_date
 
-rename deathdate death_date
 
 
   save "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\death date.dta", replace
 
-H="Dataset construction"
+H="making file of hh visits last year of life"
+*GOAL IS TO END WITH A FILE OF HH VISITS WITHIN A YEAR OF DEATH- not for full cohort, just those who are alive
+
 use "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\rev_cntr.dta" 
 
 
@@ -174,39 +169,35 @@ drop if servicetype==.
 
 *merge to bene_id
 merge m:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" , keepusing(spid)
-rename _merge claimsnhatsmerge
+keep if _merge==3
+drop _merge
 *merge to death date
 merge m:1 spid using "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\death date.dta"
+
 keep if _merge==3
-
-
-*limit to those with claims merge
-*keep if claimsnhatsmerge==3
-
-*drop if didn't die
 drop if death_date==.
-gen hh_dth_days= death_date-rev_cntr_dt if death_date!=.
-drop if servicetype!=. & hh_dth_days>365
-drop if servicetype!=. & hh_dth_days<-90
 
 
+*make an indicator for a HH claim that is within a year of death
+gen hh_dth_days= death_date-rev_cntr_dt
+keep if hh_dth_days<365 & hh_dth_days>-90
 
+*drop if duplicate claim lines per service per day for the same service type
+by spid rev_cntr_dt servicetype, sort: gen sid=_n
+keep if sid==1
+drop sid
 
 *now make a per-decedent summary measure with count of hh visits
 sort spid rev_cntr_dt
-gen nurse=1 if servicetype==1
-gen therapist=1 if servicetype==2 |servicetype==3 |servicetype==4
-gen sw=1 if servicetype==5
-gen hha=1 if servicetype==6
+gen nurse=1 if servicetype==1 
+gen therapist=1 if servicetype==2 |servicetype==3 |servicetype==4 
+gen sw=1 if servicetype==5 
+gen hha=1 if servicetype==6 
 by spid: egen nursevisits= total (nurse)
 by spid: egen therapyvisits= total (therapist )
 by spid: egen swvisits=total (sw)
 by spid: egen hhavisits=total (hha)
 
-
-histogram hh_dth_days if servicetype==1
-histogram hh_dth_days if servicetype==2 | servicetype==3 | servicetype==4
-histogram hh_dth_days if servicetype==6
 
 *NOW LIMIT TO ONE OBSERVATION/PERSON
 drop pid
@@ -214,7 +205,9 @@ sort spid rev_cntr_dt
 by spid, sort: gen pid=_n
 keep if pid==1
 
+keep spid nursevisits therapyvisits swvisits hhavisits
 
+ save "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\hh visits EOL.dta", replace
 
 H="variable cleaning"
 *VARIABLE CLEANING
@@ -226,6 +219,23 @@ recode nursevisits (0=0)(1/716=1), gen(anynurse)
 recode therapyvisits (0=0)(1/716=1), gen(anytherapy)
 recode swvisits (0=0)(1/716=1), gen(anysw)
 recode hhavisits (0=0)(1/716=1), gen(anyhha)
+
+H="putting dataset together"
+ use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+ merge m:1 spid using "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\hh visits EOL.dta"
+ 
+ 
+ *define cohort as those who die
+ gen keep=0
+ 
+ gen ivwdeathdays= death_date-ivw_date
+ sort spid wave
+ by spid: egen closedth=min(ivwdeathdays) if ivwdeathdays>0
+ replace keep
+ 
+ drop closedth
+ 
+ replace keep=1 if closedth==ivwdeathdays & closedth!=.
 
 H="Change log"
 

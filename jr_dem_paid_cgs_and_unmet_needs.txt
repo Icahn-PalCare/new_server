@@ -663,10 +663,24 @@ mi impute logit medicaid c.aveincome##i.income_quart i.educ_ i.race meals_wheels
 *replace medicaid=pmcaid>=.5 if missing(medicaid) & !missing(pmcaid)
 
 log using "${outpath}\model", replace
-mi estimate: svy, subpop(pop): logit adverse_toil adl_toil_help ind_gt40hrs age female married white medicaid ind_no_help, or
+mi estimate: svy, subpop(pop): logit adverse_toil adl_toil_help ind_gt40hrs ind_gt3_helpers age female married white medicaid sr_hosp_ind, or
+mi estimate, or
 log close
 translate "${outpath}\model.smcl" "${outpath}\model_`c(current_date)'.pdf", replace
 
+
+gen group=!toil_match & !ind_gt40hrs & !ind_gt3_helpers
+replace group=2 if toil_match & !ind_gt40hrs & !ind_gt3_helpers
+replace group=3 if !toil_match & ind_gt40hrs & !ind_gt3_helpers
+replace group=4 if !toil_match & !ind_gt40hrs & ind_gt3_helpers
+replace group=5 if toil_match & ind_gt40hrs & !ind_gt3_helpers
+replace group=6 if toil_match & !ind_gt40hrs & ind_gt3_helpers
+replace group=7 if !toil_match & ind_gt40hrs & ind_gt3_helpers
+replace group=8 if toil_match & ind_gt40hrs & ind_gt3_helpers
+label define group 1 "None of them" 2 "Toileting match only" 3 ">40 hrs only" 4 ">3 helpers only" 5 "Toileting & hours only" 6 "Toileting & helpers only" 7 "Hours and helpers only" 8 "All of them"
+label values group group
+keep if pop==1
+tab group
 
 H="***************************"
 
@@ -1164,7 +1178,9 @@ H="look at mismatch in domains"
 
 
 H="changelog"
-12/16/19-Updated so thre's only one obs per person
+2/4/20-Updated the model to include >3 helpers and tabbed the venn numbers.
+
+12/16/19-Updated so thre's only one obs per person.
 
 10/4/19-Updated the table to run on adverse consequences of toileting.
 
