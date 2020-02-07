@@ -17109,6 +17109,698 @@ mat list tab
 frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Marital Status") varlabels sdec(2) note() replace
 
 
+H="newer tables"
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
+
+
+merge m:1 id using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(matched)
+
+
+keep if nflag==0
+
+gen no_ind_hs=0 if ind_hs==1
+replace no_ind_hs=1 if ind_hs==0
+label var no_ind_hs "No hospice use"
+
+foreach x in ind_start_ltc ind_hs_suboptimal no_ind_hs ind_hs_gt6m ind_hs_lt3d ind_hs_live_disch loc_hosp_exit {
+tab `x'
+}
+
+
+tab dementia flag_burd
+
+gen n=1
+
+gen ind_hs_gt6m_1=0 if ind_hs_gt6m==0 & ind_hs==1
+replace ind_hs_gt6m_1=1 if ind_hs_gt6m==1 & ind_hs==1
+label var ind_hs_gt6m_1 ">183 days on hospice"
+
+gen ind_hs_suboptimal_1=0 if  ind_hs_gt6m_1==0 & ind_hs_lt3d==0 & ind_hs==1
+replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lt3d==1) & ind_hs==1
+label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
+
+gen unmarried_baseline=0 if married_baseline==1
+replace unmarried_baseline=1 if married_baseline==0
+
+//Unmarried
+
+capture drop a b c d e f inter
+
+gen a=0 if dem_cohort==1 & married_baseline==0
+replace a=1 if dem_cohort==1 & married_baseline==1
+
+gen b=0 if dem_cohort==1 & married_baseline==1
+replace b=1 if dem_cohort==1 & married_baseline==0
+
+gen c=0 if dem_cohort==0 & married_baseline==0
+replace c=1 if dem_cohort==0 & married_baseline==1
+
+gen d=0 if dem_cohort==0 & married_baseline==1
+replace d=1 if dem_cohort==0 & married_baseline==0
+
+gen inter=dem_cohort*unmarried_baseline
+
+gen e=0 if dem_cohort==1 & married_baseline==1
+replace e=1 if dem_cohort==0 & married_baseline==1
+
+gen f=0 if dem_cohort==1 & married_baseline==0
+replace f=1 if dem_cohort==0 & married_baseline==0
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',5,0)
+
+
+foreach i in a b c d{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if `i'==1
+		mat tab[`r',`c']=`r(mean)'*100
+		
+		local r=`r'+1
+}
+	sum n if `i'==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+
+}
+
+mat rownames tab=`ivars' "N"
+mat colnames tab="Dem/Married (A)" "Dem/Unmar (B)" "No Dem/Married (C)" "No Dem/Unmar (D)" 
+mat list tab
+
+frmttable using burd_tables.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Marital Status") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life") replace
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+foreach i in a c e f {
+	local r=1
+	foreach x in `ivars' {
+		ttest `x', by(`i')
+		mat tab[`r',`c']=r(p)
+		mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+	}
+	local c=`c'+1
+}
+
+local r=1
+foreach x in `ivars' {
+	reg `x' dem_cohort unmarried_baseline inter
+	local t=_b[inter]/_se[inter]
+	mat tab[`r',`c']=2*ttail(e(df_r),abs(`t'))
+	mat stars[`r',`c']=((2*ttail(e(df_r),abs(`t')))<.05)+((2*ttail(e(df_r),abs(`t')))<.01)
+	local r=`r'+1 
+}
+
+mat list tab
+
+
+mat rownames tab=`ivars'
+mat colnames tab="A vs B" "C vs D" "A vs C" "B vs D" "Dem/Unmar interaction"
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Marital Status") varlabels sdec(2) note( "Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "P-values shown in columns 1-4 are done by chi2" "P-value shown in column 5 shows the significance of the interaction term when regressed on the variable") annotate(stars) asymbol(*,**) replace
+
+//Black 
+
+capture drop a b c d e f inter
+
+gen a=0 if dem_cohort==1 & black==0 & hisp_eth==0
+replace a=1 if dem_cohort==1 & black==1 & hisp_eth==0
+
+gen b=0 if dem_cohort==1 & black==1 & hisp_eth==0
+replace b=1 if dem_cohort==1 & black==0 & hisp_eth==0
+
+gen c=0 if dem_cohort==0 & black==0 & hisp_eth==0
+replace c=1 if dem_cohort==0 & black==1 & hisp_eth==0
+
+gen d=0 if dem_cohort==0 & black==1 & hisp_eth==0
+replace d=1 if dem_cohort==0 & black==0 & hisp_eth==0
+
+gen inter=dem_cohort*black if hisp_eth==0
+
+gen e=0 if dem_cohort==1 & black==1 & hisp_eth==0
+replace e=1 if dem_cohort==0 & black==1 & hisp_eth==0
+
+gen f=0 if dem_cohort==1 & black==0  & hisp_eth==0
+replace f=1 if dem_cohort==0 & black==0  & hisp_eth==0
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',5,0)
+
+
+foreach i in a b c d{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if `i'==1
+		mat tab[`r',`c']=`r(mean)'*100
+		
+		local r=`r'+1
+}
+	sum n if `i'==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+
+}
+
+mat rownames tab=`ivars' "N"
+mat colnames tab="Dem/Black (A)" "Dem/Non Black (B)" "Non Dem/Black (C)" "Non Dem/Non Black (D)" 
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Black") varlabels sdec(2) note("Excludes Hispanic Ethnicity" "Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life") replace
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+foreach i in a c e f {
+	local r=1
+	foreach x in `ivars' {
+		ttest `x', by(`i')
+		mat tab[`r',`c']=r(p)
+		mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+	}
+	local c=`c'+1
+}
+
+local r=1
+foreach x in `ivars' {
+	reg `x' dem_cohort black inter if hisp_eth==0
+	local t=_b[inter]/_se[inter]
+	mat tab[`r',`c']=2*ttail(e(df_r),abs(`t'))
+	mat stars[`r',`c']=((2*ttail(e(df_r),abs(`t')))<.05)+((2*ttail(e(df_r),abs(`t')))<.01)
+	local r=`r'+1
+}
+
+mat list tab
+
+
+mat rownames tab=`ivars'
+mat colnames tab="A vs B" "C vs D" "A vs C" "B vs D" "Dem/Black interaction"
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Black") varlabels sdec(2) note("Excludes Hispanic Ethnicity" "Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "P-values shown in columns 1-4 are done by chi2" "P-value shown in column 5 shows the significance of the interaction term when regressed on the variable") annotate(stars) asymbol(*,**) replace
+
+
+//hisp_eth 
+
+capture drop a b c d e f inter
+
+gen a=0 if dem_cohort==1 & hisp_eth==0 & black==0
+replace a=1 if dem_cohort==1 & hisp_eth==1 & black==0
+
+gen b=0 if dem_cohort==1 & hisp_eth==1 & black==0
+replace b=1 if dem_cohort==1 & hisp_eth==0 & black==0
+
+gen c=0 if dem_cohort==0 & hisp_eth==0 & black==0
+replace c=1 if dem_cohort==0 & hisp_eth==1 & black==0
+
+gen d=0 if dem_cohort==0 & hisp_eth==1 & black==0
+replace d=1 if dem_cohort==0 & hisp_eth==0 & black==0
+
+gen inter=dem_cohort*hisp_eth if black==0
+
+gen e=0 if dem_cohort==1 & hisp_eth==1 & black==0
+replace e=1 if dem_cohort==0 & hisp_eth==1 & black==0
+
+gen f=0 if dem_cohort==1 & hisp_eth==0  & black==0
+replace f=1 if dem_cohort==0 & hisp_eth==0  & black==0
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',5,0)
+
+
+foreach i in a b c d{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if `i'==1
+		mat tab[`r',`c']=`r(mean)'*100
+		
+		local r=`r'+1
+}
+	sum n if `i'==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+
+}
+
+mat rownames tab=`ivars' "N"
+mat colnames tab="Dem/Hispanic (A)" "Dem/Non Hispanic (B)" "Non Dem/Hispanic (C)" "Non Dem/Non Hispanic (D)" 
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Hispanic Ethnicity") varlabels sdec(2) note("Excludes Black" "Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" ) replace
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+foreach i in a c e f {
+	local r=1
+	foreach x in `ivars' {
+		ttest `x', by(`i')
+		mat tab[`r',`c']=r(p)
+		mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+	}
+	local c=`c'+1
+}
+
+local r=1
+foreach x in `ivars' {
+	reg `x' dem_cohort hisp_eth inter if black==0
+	local t=_b[inter]/_se[inter]
+	mat tab[`r',`c']=2*ttail(e(df_r),abs(`t'))
+	mat stars[`r',`c']=((2*ttail(e(df_r),abs(`t')))<.05)+((2*ttail(e(df_r),abs(`t')))<.01)
+	local r=`r'+1
+}
+
+mat list tab
+
+
+mat rownames tab=`ivars'
+mat colnames tab="A vs B" "C vs D" "A vs C" "B vs D" "Dem/Hisp interaction"
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Hispanic Ethnicity") varlabels sdec(2) note("Excludes Black" "Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "P-values shown in columns 1-4 are done by chi2" "P-value shown in column 5 shows the significance of the interaction term when regressed on the variable") annotate(stars) asymbol(*,**) replace
+
+
+//hs education 
+
+gen hs_educ=0
+replace hs_educ=1 if degree==0
+
+capture drop a b c d e f inter
+
+gen a=0 if dem_cohort==1 & hs_educ==0 
+replace a=1 if dem_cohort==1 & hs_educ==1 
+
+gen b=0 if dem_cohort==1 & hs_educ==1 
+replace b=1 if dem_cohort==1 & hs_educ==0 
+
+gen c=0 if dem_cohort==0 & hs_educ==0 
+replace c=1 if dem_cohort==0 & hs_educ==1
+
+gen d=0 if dem_cohort==0 & hs_educ==1 
+replace d=1 if dem_cohort==0 & hs_educ==0 
+
+gen inter=dem_cohort*hs_educ 
+
+gen e=0 if dem_cohort==1 & hs_educ==1 
+replace e=1 if dem_cohort==0 & hs_educ==1 
+
+gen f=0 if dem_cohort==1 & hs_educ==0
+replace f=1 if dem_cohort==0 & hs_educ==0 
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',5,0)
+
+
+foreach i in a b c d{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if `i'==1
+		mat tab[`r',`c']=`r(mean)'*100
+		
+		local r=`r'+1
+}
+	sum n if `i'==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+
+}
+
+mat rownames tab=`ivars' "N"
+mat colnames tab="Dem/<HS Edu (A)" "Dem/>HS Edu (B)" "Non Dem/<HS Edu (C)" "Non Dem/>HS Edu (D)" 
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and HS Education") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life") replace
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+foreach i in a c e f {
+	local r=1
+	foreach x in `ivars' {
+		ttest `x', by(`i')
+		mat tab[`r',`c']=r(p)
+		mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+	}
+	local c=`c'+1
+}
+
+local r=1
+foreach x in `ivars' {
+	reg `x' dem_cohort hs_educ inter
+	local t=_b[inter]/_se[inter]
+	mat tab[`r',`c']=2*ttail(e(df_r),abs(`t'))
+	mat stars[`r',`c']=((2*ttail(e(df_r),abs(`t')))<.05)+((2*ttail(e(df_r),abs(`t')))<.01)
+	local r=`r'+1
+}
+
+mat list tab
+
+
+mat rownames tab=`ivars'
+mat colnames tab="A vs B" "C vs D" "A vs C" "B vs D" "Dem/<HS Edu inter"
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and HS Education") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "P-values shown in columns 1-4 are done by chi2" "P-value shown in column 5 shows the significance of the interaction term when regressed on the variable") annotate(stars) asymbol(*,**) replace
+
+
+
+//Vulnerable Population
+
+gen vulnerable=0
+replace vulnerable=1 if black==1 | hisp_eth==1 | degree==0 | married_baseline==0
+
+capture drop a b c d e f inter
+
+gen a=0 if dem_cohort==1 & vulnerable==0 
+replace a=1 if dem_cohort==1 & vulnerable==1 
+
+gen b=0 if dem_cohort==1 & vulnerable==1 
+replace b=1 if dem_cohort==1 & vulnerable==0 
+
+gen c=0 if dem_cohort==0 & vulnerable==0 
+replace c=1 if dem_cohort==0 & vulnerable==1
+
+gen d=0 if dem_cohort==0 & vulnerable==1 
+replace d=1 if dem_cohort==0 & vulnerable==0 
+
+gen inter=dem_cohort*vulnerable 
+
+gen e=0 if dem_cohort==1 & vulnerable==1 
+replace e=1 if dem_cohort==0 & vulnerable==1 
+
+gen f=0 if dem_cohort==1 & vulnerable==0
+replace f=1 if dem_cohort==0 & vulnerable==0 
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',5,0)
+
+
+foreach i in a b c d{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if `i'==1
+		mat tab[`r',`c']=`r(mean)'*100
+		
+		local r=`r'+1
+}
+	sum n if `i'==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+
+}
+
+mat rownames tab=`ivars' "N"
+mat colnames tab="Dem/Vulnerable" "Dem/Not Vulnerable" "Non Dem/Vulnerable" "Non Dem/Not Vulnerable" 
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Vulnerable Sample") varlabels sdec(2) note("Vulnerable group is Black, Hispanic, less than HS education, or unmarried" "Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life") replace
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+foreach i in a c e f {
+	local r=1
+	foreach x in `ivars' {
+		ttest `x', by(`i')
+		mat tab[`r',`c']=r(p)
+		mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+	}
+	local c=`c'+1
+}
+
+local r=1
+foreach x in `ivars' {
+	reg inter `x'
+	local t=_b[`x']/_se[`x']
+	mat tab[`r',`c']=2*ttail(e(df_r),abs(`t'))
+	mat stars[`r',`c']=((2*ttail(e(df_r),abs(`t')))<.05)+((2*ttail(e(df_r),abs(`t')))<.01)
+	local r=`r'+1
+}
+
+mat list tab
+
+
+mat rownames tab=`ivars'
+mat colnames tab="Dem/Vul vs Dem/Not Vul" "Non Dem/Vul vs Non Dem/Non Vul" "Dem/Vul vs Non Dem/Vul" "Dem/Non Vul vs Non Dem/Non Vul" "Dem/Vul inter"
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Vulnerable Sample") varlabels sdec(2) note("Vulnerable group is Black, Hispanic, less than HS education, or unmarried" "Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "P-values shown in columns 1-4 are done by chi2" "P-value shown in column 5 shows the significance of the interaction term when regressed on the variable") annotate(stars) asymbol(*,**) replace
+
+
+
+//Net Worth
+
+gen no_ind_nw_remaining=0 if ind_nw_remaining==1
+replace no_ind_nw_remaining=1 if ind_nw_remaining==0
+
+
+capture drop a b c d e f inter
+
+gen a=0 if dem_cohort==1 & no_ind_nw_remaining==0 
+replace a=1 if dem_cohort==1 & no_ind_nw_remaining==1 
+
+gen b=0 if dem_cohort==1 & no_ind_nw_remaining==1 
+replace b=1 if dem_cohort==1 & no_ind_nw_remaining==0 
+
+gen c=0 if dem_cohort==0 & no_ind_nw_remaining==0 
+replace c=1 if dem_cohort==0 & no_ind_nw_remaining==1
+
+gen d=0 if dem_cohort==0 & no_ind_nw_remaining==1 
+replace d=1 if dem_cohort==0 & no_ind_nw_remaining==0 
+
+gen inter=dem_cohort*no_ind_nw_remaining 
+
+gen e=0 if dem_cohort==1 & no_ind_nw_remaining==1 
+replace e=1 if dem_cohort==0 & no_ind_nw_remaining==1 
+
+gen f=0 if dem_cohort==1 & no_ind_nw_remaining==0
+replace f=1 if dem_cohort==0 & no_ind_nw_remaining==0 
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',5,0)
+
+
+foreach i in a b c d{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if `i'==1
+		mat tab[`r',`c']=`r(mean)'*100
+		
+		local r=`r'+1
+}
+	sum n if `i'==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+
+}
+
+mat rownames tab=`ivars' "N"
+mat colnames tab="Dem/Ex NW" "Dem/NW Rem" "Non Dem/Ex NW" "Non Dem/NW Rem" 
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and New Worth") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life") replace
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+foreach i in a c e f {
+	local r=1
+	foreach x in `ivars' {
+		ttest `x', by(`i')
+		mat tab[`r',`c']=r(p)
+		mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+	}
+	local c=`c'+1
+}
+
+local r=1
+foreach x in `ivars' {
+	reg inter `x'
+	local t=_b[`x']/_se[`x']
+	mat tab[`r',`c']=2*ttail(e(df_r),abs(`t'))
+	mat stars[`r',`c']=((2*ttail(e(df_r),abs(`t')))<.05)+((2*ttail(e(df_r),abs(`t')))<.01)
+	local r=`r'+1
+}
+
+mat list tab
+
+
+mat rownames tab=`ivars'
+mat colnames tab="Dem/Ex NW vs Dem/NW Rem" "Non Dem/Ex NW  vs Non Dem/NW Rem" "Dem/EX NW vs Non Dem/Ex NW " "Dem/NW Rem vs Non Dem/NW Rem" "Dem/Ex NW  inter"
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Net Worth") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "P-values shown in columns 1-4 are done by chi2" "P-value shown in column 5 shows the significance of the interaction term when regressed on the variable") annotate(stars) asymbol(*,**) replace
+
+
+//Financial Wealth
+
+gen no_ind_fw_remaining=0 if ind_fw_remaining==1
+replace no_ind_fw_remaining=1 if ind_fw_remaining==0
+
+
+capture drop a b c d e f inter
+
+gen a=0 if dem_cohort==1 & no_ind_fw_remaining==0 
+replace a=1 if dem_cohort==1 & no_ind_fw_remaining==1 
+
+gen b=0 if dem_cohort==1 & no_ind_fw_remaining==1 
+replace b=1 if dem_cohort==1 & no_ind_fw_remaining==0 
+
+gen c=0 if dem_cohort==0 & no_ind_fw_remaining==0 
+replace c=1 if dem_cohort==0 & no_ind_fw_remaining==1
+
+gen d=0 if dem_cohort==0 & no_ind_fw_remaining==1 
+replace d=1 if dem_cohort==0 & no_ind_fw_remaining==0 
+
+gen inter=dem_cohort*no_ind_fw_remaining 
+
+gen e=0 if dem_cohort==1 & no_ind_fw_remaining==1 
+replace e=1 if dem_cohort==0 & no_ind_fw_remaining==1 
+
+gen f=0 if dem_cohort==1 & no_ind_fw_remaining==0
+replace f=1 if dem_cohort==0 & no_ind_fw_remaining==0 
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 1
+local r=1
+local c=1
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',5,0)
+
+
+foreach i in a b c d{
+	local r=1
+	foreach x in `ivars' {
+		sum `x' if `i'==1
+		mat tab[`r',`c']=`r(mean)'*100
+		
+		local r=`r'+1
+}
+	sum n if `i'==1
+	mat tab[`r',`c']=`r(N)'
+	local c=`c'+1
+
+}
+
+mat rownames tab=`ivars' "N"
+mat colnames tab="Dem/Ex FW" "Dem/FW Rem" "Non Dem/Ex FW" "Non Dem/FW Rem" 
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Financial Wealth") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life") replace
+
+
+local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
+
+local rn : word count `ivars' 
+local r=1
+local c=1
+mat tab=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+
+foreach i in a c e f {
+	local r=1
+	foreach x in `ivars' {
+		ttest `x', by(`i')
+		mat tab[`r',`c']=r(p)
+		mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+		local r=`r'+1
+	}
+	local c=`c'+1
+}
+
+local r=1
+foreach x in `ivars' {
+	reg inter `x'
+	local t=_b[`x']/_se[`x']
+	mat tab[`r',`c']=2*ttail(e(df_r),abs(`t'))
+	mat stars[`r',`c']=((2*ttail(e(df_r),abs(`t')))<.05)+((2*ttail(e(df_r),abs(`t')))<.01)
+	local r=`r'+1
+}
+
+mat list tab
+
+
+mat rownames tab=`ivars'
+mat colnames tab="Dem/Ex FW vs Dem/FW Rem" "Non Dem/Ex FW  vs Non Dem/FW Rem" "Dem/Ex FW vs Non Dem/Ex FW " "Dem/FW Rem vs Non Dem/FW Rem" "Dem/Ex FW  inter"
+mat list tab
+
+frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Financial Wealth") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "P-values shown in columns 1-4 are done by chi2" "P-value shown in column 5 shows the significance of the interaction term when regressed on the variable") annotate(stars) asymbol(*,**) replace
+
 H="changelog"
 01/29/20 - Burdensome Transitions added to Table 1. 
 

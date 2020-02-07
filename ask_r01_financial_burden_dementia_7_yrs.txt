@@ -20409,7 +20409,7 @@ label var prob_dem_baseline "% Probable dementia at baseline ivw"
 replace prob_dem_y1=0 if !dem_cohort
 replace ltc_ins=ltc_ins==1
 sort id nflag
-foreach x in ltc_ins champus {
+foreach x in ltc_ins champus medigap {
 	by id: egen `x'_baseline=max(cond(ind_baseline==1),`x',0)
 }
 
@@ -20459,7 +20459,7 @@ keep if nflag==1
 local cvars1 age_at_death
 local ivars1 female married married_baseline
 local ivars2 ind_hs_educ smoke_curr smoke_curr_baseline medicaid medicaid_baseline ///
-ind_buyin_y1 ind_buyin_y7 ltc_ins ltc_ins_baseline champus champus_baseline ///
+ind_buyin_y1 ind_buyin_y7 ltc_ins ltc_ins_baseline champus champus_baseline medigap medigap_baseline ///
 adl_dependent adl_dependent_baseline srh_pf srh_pf_baseline ccw_ge4_y1 ///
 ccw_ge4_y7 prob_dem prob_dem_baseline proxy_core
 local cvars3 pdem pdem_baseline cumall cum1 cum2 cum3 cum4 cum5 networth_adj2016_baseline ///
