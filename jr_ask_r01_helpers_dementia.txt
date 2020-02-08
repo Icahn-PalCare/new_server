@@ -16805,7 +16805,291 @@ restore
 }
 
 
+H="p-values for hours"
+capture log close 
+global datapath "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\int_data"
+global final "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\final_data"
+
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
+sort id core_year
+by id: keep if _n==_N
+keep id reschil_d
+rename reschil_d reschil_d_n1
+tempfile core
+save `core'
+
+set trace off
+
+
+use "${datapath}\informal_cg_10yr_long_and_wide.dta", clear
+
+cd "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress"
+merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", gen(famm) keep(match master)
+drop nhres_n1
+by id, sort: egen nhres_n1=max(cond(nflag==1 & nhres==1),1,0)
+gen kidcat=kid_adult_ind+1
+replace kidcat=3 if kid_adult_nearby==1
+replace kidcat=4 if living_kids_ind==1 & kid_adult_ind==0
+
+label define kidcat 1 "No living kids" 2 "Adult kids w/in 10mi" 3 "Adult kids only >10mi" 4 "Minor living Children only"
+label values kidcat kidcat
+
+tab kidcat married if !dem_cohort, row chi2
+tab kidcat married if dem_cohort, row chi2
+
+gen helpcat=married==1
+replace helpcat=2 if !married & (living_kids==1 | missing(living_kids_ind))
+replace helpcat=3 if !married & !living_kids_ind
+label define helpcat 1 "Married" 2 "Unmarried with living Children" 3 "Unmarried w/o living Children"
+label values helpcat helpcat
+replace helpcat=. if nflag!=1
+by id, sort: egen hc=max(helpcat)
+replace helpcat=hc
+
+keep if nflag==0
+merge 1:1 id using `core', keep(match master) nogen
+
+
+keep id  hlp_*_y* dem_cohort ///
+reschil_d_n1 married_or_part helpcat nhres_n1
+
+drop hlp_f_*
+foreach x in _i _s _ns _k _oth {
+	rename hlp`x'_y* hlp`x'*
+}
+
+foreach x in hlp_i hlp_s hlp_ns hlp_k hlp_oth  {
+	gen cum`x'10=`x'10
+	forvalues i=9(-1)1 {
+		gen cum`x'`i'=cum`x'`=`i'+1'+`x'`i'
+}
+}
+
+keep id  hlp* cum* dem_cohort reschil_d_n1 married_or_part helpcat nhres_n1
+
+rename *hlp_i* *hlp*
+
+reshape long hlp hlp_s hlp_ns hlp_k hlp_f hlp_oth ///
+  cumhlp cumhlp_s cumhlp_ns cumhlp_k cumhlp_oth nh cumnh, ///
+i(id) j(year_before_death)
+
+replace year=-year+11
+
+label define year 1 "9-10" 2 "8-9" 3 "7-8" 4 "6-7" 5 "5-6" 6 "4-5" 7 "3-4" 8 "2-3" 9 "1-2" 10  "0-1"
+label values year year
+
+foreach x in "" cum {
+	egen `x'all=rowtotal( `x'hlp )
+}
+
+local se
+foreach x in hlp cumhlp ///
+nh cumnh {
+	local se `se' se_`x'=`x'
+}
+
+log using "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\pairwise_p_values", replace
+
+
+foreach x in hlp hlp_s hlp_k hlp_oth {
+	qui glm `x' dem_cohort, link(log) fam(gamma)
+	mat tab=r(table)
+	local p=tab[4,1]
+	di "`x', p=`p'
+}
+
+foreach x in hlp hlp_s hlp_k hlp_oth {
+	qui glm `x' dem_cohort##nhres, link(log) fam(gamma)
+	mat tab=r(table)
+	local p=(ceil(tab[4,2]*100000))/100000
+	local p2=(ceil(tab[4,4]*100000))/100000
+	local p3=(ceil(tab[4,8]*100000))/100000
+	di "`x', dem p=`p', nh p=`p2', interact=`p3'
+}
+
+foreach x in hlp hlp_s hlp_k hlp_oth {
+	qui glm `x' dem_cohort##helpcat, link(log) fam(gamma)
+	mat tab=r(table)
+	local p=(ceil(tab[4,2]*100000))/100000
+	local p2=(ceil(tab[4,4]*100000))/100000
+	local p3=(ceil(tab[4,5]*100000))/100000
+	local p4=(ceil(tab[4,10]*100000))/100000
+	local p5=(ceil(tab[4,11]*100000))/100000
+	di "`x', dem p=`p', kids p=`p2', nokids p=`p3', kids#dem p=`p4', nokids#dem p=`p5'"
+}
+
+
+	
+mat tab=J(10,8,.)
+mat stars=J(10,8,0)
+local r=1
+local c=1
+
+forvalues i=10(-1)1 {
+	foreach x in hlp hlp_s hlp_k hlp_oth {
+			qui ttest `x' if year==`i', by(dem_cohort)
+			mat tab[`r',`c']=r(p)
+			mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+			qui ranksum `x' if year==`i', by(dem_cohort)
+			mat tab[`r',`c'+1]=r(p)
+			mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+			local c=`c'+2
+}
+	local c=1
+	local r=`r'+1
+}
+
+frmttable, statmat(tab) title("P-values & year==`i', by dementia status") annotate(stars) asymbol(*,**) ctitles("" "All" "" "Spouses" "" "Kids" "" "Other"\"" "T-test" "ranksum""T-test" "ranksum""T-test" "ranksum") rtitles("1"\"2"\"3"\"4"\"5"\"6"\"7"\"8"\"9"\"10") 
+
+
+foreach x in hlp hlp_s hlp_k hlp_oth {
+
+mat tab=J(10,4,.)
+mat stars=J(10,4,0)
+local r=1
+local c=1
+
+	foreach y in 0 1 {
+		forvalues i=10(-1)1 {
+			qui ttest `x' if nhres==`y' & year==`i', by(dem_cohort)
+			mat tab[`r',`c']=r(p)
+			mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+			qui ranksum `x' if nhres==`y' & year==`i', by(dem_cohort)
+			mat tab[`r',`c'+1]=r(p)
+			mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+			local r=`r'+1
+}
+			local c=3
+			local r=1
+}
+	
+
+
+
+frmttable, statmat(tab) title("P-values & year==`i', by dementia and NH status `x'") /*annotate(stars) asymbol(*,**)*/ ctitles("" "Non NH" "" "NH"\"" "T-test" "ranksum" "T-test" "ranksum") rtitles("1"\"2"\"3"\"4"\"5"\"6"\"7"\"8"\"9"\"10") sdec(3)
+
+}
+
+foreach x in hlp hlp_s hlp_k hlp_oth {
+
+mat tab=J(10,4,.)
+mat stars=J(10,4,0)
+local r=1
+local c=1
+
+	foreach y in 0 1 {
+		forvalues i=10(-1)1 {
+			qui ttest `x' if dem_c==`y' & year==`i', by(nhres)
+			mat tab[`r',`c']=r(p)
+			mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+			qui ranksum `x' if dem_==`y' & year==`i', by(nhres)
+			mat tab[`r',`c'+1]=r(p)
+			mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+			local r=`r'+1
+}
+			local c=3
+			local r=1
+}
+	
+
+
+
+frmttable, statmat(tab) title("P-values & year==`i', by nhres  `x'") /*annotate(stars) asymbol(*,**)*/ ctitles("" "Non Dem" "" "Dem"\"" "T-test" "ranksum" "T-test" "ranksum") rtitles("1"\"2"\"3"\"4"\"5"\"6"\"7"\"8"\"9"\"10") sdec(3)
+
+}
+
+
+foreach x in hlp hlp_s hlp_k hlp_oth {
+
+mat tab=J(10,6,.)
+mat stars=J(10,6,0)
+local r=1
+local c=1
+
+	foreach y in 1 2 3 {
+		forvalues i=10(-1)1 {
+			qui ttest `x' if helpcat==`y' & year==`i', by(dem_cohort)
+			mat tab[`r',`c']=r(p)
+			mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+			qui ranksum `x' if helpcat==`y' & year==`i', by(dem_cohort)
+			mat tab[`r',`c'+1]=r(p)
+			mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+			local r=`r'+1
+}
+			local c=`c'+2
+			local r=1
+}
+	
+
+
+
+frmttable, statmat(tab) title("P-values & year==`i', by dementia and family status `x'") /*annotate(stars) asymbol(*,**)*/ ctitles("" "A" "" "B" "" "C"\"" "T-test" "ranksum" "T-test" "ranksum""T-test" "ranksum") rtitles("1"\"2"\"3"\"4"\"5"\"6"\"7"\"8"\"9"\"10") sdec(3) note("A=Married, B=Unmarried with kids, C=Unmarried no kids")
+
+}
+
+
+foreach x in hlp hlp_s hlp_k hlp_oth {
+
+mat tab=J(10,6,.)
+mat stars=J(10,6,0)
+local r=1
+local c=1
+
+	foreach y in 3 1 2 {
+		forvalues i=10(-1)1 {
+			qui ttest `x' if helpcat!=`y' & dem_cohort==1 & year==`i', by(helpcat)
+			mat tab[`r',`c']=r(p)
+			mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+			qui ranksum `x' if helpcat!=`y' & dem_cohort==1 & year==`i', by(helpcat)
+			mat tab[`r',`c'+1]=r(p)
+			mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+			local r=`r'+1
+}
+			local c=`c'+2
+			local r=1
+}
+	
+
+
+
+frmttable, statmat(tab) title("P-values, without dementia by family status `x'") /*annotate(stars) asymbol(*,**)*/ ctitles("" "AB" "" "BC" "" "AC"\"" "T-test" "ranksum" "T-test" "ranksum""T-test" "ranksum") rtitles("1"\"2"\"3"\"4"\"5"\"6"\"7"\"8"\"9"\"10") sdec(3) note("A=Married, B=Unmarried with kids, C=Unmarried no kids")
+}
+foreach x in hlp hlp_s hlp_k hlp_oth {
+
+mat tab=J(10,6,.)
+mat stars=J(10,6,0)
+local r=1
+local c=1
+
+	foreach y in 3 1 2 {
+		forvalues i=10(-1)1 {
+			qui ttest `x' if helpcat!=`y' & dem_cohort==0 & year==`i', by(helpcat)
+			mat tab[`r',`c']=r(p)
+			mat stars[`r',`c']=(r(p)<.05)+(r(p)<.01)
+			qui ranksum `x' if helpcat!=`y' & dem_cohort==0 & year==`i', by(helpcat)
+			mat tab[`r',`c'+1]=r(p)
+			mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+			local r=`r'+1
+}
+			local c=`c'+2
+			local r=1
+}
+	
+
+
+
+frmttable, statmat(tab) title("P-values, without dementia by family status `x'") /*annotate(stars) asymbol(*,**)*/ ctitles("" "AB" "" "BC" "" "AC"\"" "T-test" "ranksum" "T-test" "ranksum""T-test" "ranksum") rtitles("1"\"2"\"3"\"4"\"5"\"6"\"7"\"8"\"9"\"10") sdec(3) note("A=Married, B=Unmarried with kids, C=Unmarried no kids")
+
+}
+
+
+log close
+translate "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\pairwise_p_values.smcl" "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\pairwise_p_values.pdf", replace
+
+
 H="changelog"
+2/7/20-Ran ranksum tests for p-values for helper hours. Evan
+
 1/13/20-Changed helpcat to include unmarried-but-missing-living-children-status in the unmarried with kids based on help reported. Evan
 
 11/21/19-Finished the new approach that extends to 10-years

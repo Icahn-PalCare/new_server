@@ -48,20 +48,20 @@ global logs "D:\NHATS\Projects\home health policy\cka_hh at eol\output\"
 /*SAS */
 
 
-libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS'; 
-libname merged 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS';
-libname proj_int 'D:\NHATS\Projects\home health policy\cka_hh at eol\data'; 
-libname sas 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Extracted';
+/*nhats cleaned path*/
 
+libname nhats 'D:\nhats\shared\base_data\nhats cleaned';
 
-//Intermediate Data Path
-//libname intpath "E:\nhats\data\Projects\..."
+/*medicare xwalk and claims path*/
+libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS';
 
-// Final Data Path
-//libname datapath "E:\nhats\data\Projects\..."
+/*project data paths*/
+libname proj_int 'D:\nhats\projects\home health policy\cka_hh at EOL\data';
+libname proj_fin "D:\nhats\projects\home health policy\cka_hh at EOL\data";
+libname proj_ref 'D:\NHATS\Projects\home health policy\cka_hh at EOL';
 
-//Log files path
-//libname logpath "E:\nhats\data\Projects\..."
+/*
+
 
 
 H="Generic template"
@@ -139,9 +139,11 @@ H="death date"
 by spid, sort: gen pid= _n
 keep if pid==1
 
+ rename death_date index_date
+ gen index_month=month(index_date)
+gen index_year=year(index_date)
 
-
-  save "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\death date.dta", replace
+  save "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\death_date.dta", replace
 
 H="making file of hh visits last year of life"
 *GOAL IS TO END WITH A FILE OF HH VISITS WITHIN A YEAR OF DEATH- not for full cohort, just those who are alive
@@ -209,16 +211,172 @@ keep spid nursevisits therapyvisits swvisits hhavisits
 
  save "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\hh visits EOL.dta", replace
 
-H="variable cleaning"
-*VARIABLE CLEANING
+H="get index date"
 
-*count of any visits (binary) by category
-egen totalvisits=rowtotal(nursevisits therapyvisits swvisits hhavisits)
-recode totalvisits (0=0)(1/716=1), gen(anyvisits)
-recode nursevisits (0=0)(1/716=1), gen(anynurse)
-recode therapyvisits (0=0)(1/716=1), gen(anytherapy)
-recode swvisits (0=0)(1/716=1), gen(anysw)
-recode hhavisits (0=0)(1/716=1), gen(anyhha)
+/*nhats cleaned path*/
+
+libname nhats 'D:\nhats\shared\base_data\nhats cleaned';
+
+/*medicare xwalk and claims path*/
+libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS';
+
+/*project data paths*/
+libname proj_int 'D:\nhats\projects\home health policy\cka_hh at EOL\data';
+libname proj_fin "D:\nhats\projects\home health policy\cka_hh at EOL\data";
+libname proj_ref 'D:\NHATS\Projects\home health policy\cka_hh at EOL';
+
+/*
+
+
+
+*************************************************
+*/
+
+proc import datafile="D:\nhats\shared\base_data\nhats cleaned\sp_round_1_8.dta" out=proj_int.nhats replace; run;
+
+
+data index1;
+set proj_int.nhats (keep=spid death_date death_month death_year);
+index_date=death_date;
+index_month=death_month;
+index_year=death_year;
+run;
+
+
+proc import out=xwalk
+	    datafile = "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" replace; 
+run;
+
+
+proc sql;
+create table index as select a.*, b.bene_id
+from index1 a left join
+xwalk b 
+on a.spid=b.spid;
+quit;
+
+proc sort data=index out=proj_int.index nodupkey;
+by spid bene_id index_year;
+run;
+
+
+H="get continuous ffs before index"
+**************************************************
+
+
+/*sort claims denominator file*/
+
+proc sort data=medi.mbsf_06_17 out=mbsf  nodupkey;
+by bene_id year;
+run;
+
+proc sort data=proj_int.index out=index1 nodupkey;
+by bene_id index_year;
+run;
+
+/*get mbsf just for interview year*/
+
+proc sql; 
+create table mbsf_index_year as select
+a.*,b.buyin12,b.year,b.hmoind12
+from index1 a inner join
+mbsf b
+on trim(left(a.bene_id))=trim(left(b.bene_id)) 
+and a.index_year=b.year;
+quit;
+
+
+proc sql;
+select count(distinct bene_id) from mbsf_index_year;
+quit;
+
+
+
+data mbsf_index_year2;
+set mbsf_index_year;
+if length(trim(left(buyin12)))=12 and index_month>0 then do;
+buyin_iy=substr(trim(left(buyin12)),1,index_month);
+hmo_iy=substr(trim(left(HMOIND12)),1,index_month);
+end;
+else do;
+buyin_iy=trim(left(buyin12));
+hmo_iy=trim(left(HMOIND12));
+end;
+format index_date date9.;
+run;
+proc means n;
+var index_month;
+run;
+
+proc sql;
+create table mbsf_index_year_bef as select
+a.bene_id,a.year as index_year,
+b.year as index_year_bef,
+b.year, b.buyin12,b.HMOIND12
+from mbsf_index_year a inner join
+mbsf b
+on trim(left(a.bene_id))=trim(left(b.bene_id))
+and 0<a.year-b.year<=1 order by bene_id,year;
+quit;
+
+
+/* and the year before... 1922 have the -2 year dn file*/
+proc sql;
+create table mbsf_index_year_2bef as select
+a.bene_id,a.bene_id,a.index_year,a.index_year_bef,
+b.year as index_year_2bef,
+b.year,b.buyin12,b.HMOIND12
+from mbsf_index_year_bef a inner join
+mbsf b
+on trim(left(a.bene_id))=trim(left(b.bene_id))
+and 0<a.index_year_bef-b.year<=1 order by bene_id,year;
+quit;
+
+/*merge the insurance data for death year, -1 and -2 years into single dataset*/
+proc sql;
+create table all_insurance as select a.*,b.buyin12 as buyin_bef,b.HMOIND12 as hmo_bef from
+mbsf_index_year2 a
+left join
+mbsf_index_year_bef b
+on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year;
+quit;
+
+proc sql;
+create table all_insurance2 as select a.*,b.buyin12 as buyin_2bef,b.HMOIND12 as hmo_2bef from
+all_insurance a
+left join
+mbsf_index_year_2bef b
+on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year; 
+quit;
+
+
+/*merge death year and year before death buy-in and hmo variables
+Trim so the final variable _6m is 6 months pre-death
+Note: indicator variables for parts a and b and hmo are null if don't
+have information for full 6 months pre-death*/
+data all_insurance3;
+set all_insurance2;
+buyin_2y=trimn(left(buyin_2bef))||trimn(left(buyin_bef))||trimn(left(buyin_iy));
+hmo_2y=trimn(left(hmo_2bef))||trimn(left(hmo_bef))||trimn(left(hmo_iy));
+
+buyin_2y_r=reverse(trim(buyin_2y));
+hmo_2y_r=reverse(trim(hmo_2y));
+
+
+/*create length of continous a&b and non-hmo coverage vars*/
+if indexc(buyin_2y_r,"0","1","2","A","B")=0 then part_ab_n_mos=length(buyin_2y_r)-1;
+if indexc(buyin_2y_r,"0","1","2","A","B") then part_ab_n_mos=indexc(buyin_2y_r,"0","1","2","A","B")-1;
+if indexc(hmo_2y_r,"1","2","4","A","B","C")=0 then non_hmo_d_n_mos=length(hmo_2y_r)-1;
+if indexc(hmo_2y_r,"1","2","4","A","B","C") then non_hmo_d_n_mos=indexc(hmo_2y_r,"1","2","4","A","B","C")-1;
+if part_ab_n_mos<=non_hmo_d_n_mos then cont_ffs_n_mos=part_ab_n_mos;
+if non_hmo_d_n_mos<part_ab_n_mos then cont_ffs_n_mos=non_hmo_d_n_mos;
+run;
+
+
+data proj_int.ffs_before;
+set all_insurance3;
+run;
+
 
 H="putting dataset together"
  use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
@@ -232,10 +390,95 @@ H="putting dataset together"
  sort spid wave
  by spid: egen closedth=min(ivwdeathdays) if ivwdeathdays>0
  replace keep
- 
- drop closedth
- 
+  
  replace keep=1 if closedth==ivwdeathdays & closedth!=.
+ 
+ *merge in ffs before
+ drop _merge 
+ merge m:1 spid using  "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\ffs_before.dta", keepusing (cont_ffs_n_mos)
+ recode cont_ffs_n_mos (0/11=0)(12/36=1), gen(ffseol)
+ 
+ *drop if in MA in last 12 months
+ replace keep=0 if ffseol==0
+
+H="variable cleaning"
+*VARIABLE CLEANING
+
+*count of any visits (binary) by category
+egen totalvisits=rowtotal(nursevisits therapyvisits swvisits hhavisits)
+recode totalvisits (0=0)(1/716=1), gen(anyvisits)
+recode nursevisits (0=0)(1/716=1), gen(anynurse)
+replace anynurse=0 if anyvisits==0
+recode therapyvisits (0=0)(1/716=1), gen(anytherapy)
+replace anytherapy=0 if anyvisits==0
+recode swvisits (0=0)(1/716=1), gen(anysw)
+replace anysw=0 if anyvisits==0
+recode hhavisits (0=0)(1/716=1), gen(anyhha)
+replace anyhha=0 if anyvisits==0
+
+*how many visits
+tab anyvisits if keep==1
+tab anynurse if keep==1
+tab anytherapy if keep==1
+tab anysw if keep==1
+tab anyhha if keep==1
+
+
+*living in a NH on nhats ivw before death
+gen nhstatus=0
+replace nhstatus=1 if closedth==ivwdeathdays & closedth!=. & sp_status==3
+replace keep=0 if nhstatus==1 
+
+*keep variable for those receiving hh and hh types
+gen keephh=keep
+replace keephh=0 if anyvisits==0
+
+gen keepnurse=keep
+replace keepnurse=0 if anynurse==0 | anynurse==.
+
+gen keeptherapy=keep
+replace keeptherapy=0 if anytherapy==0 | anytherapy==.
+
+gen keephha=keep
+replace keephha=0 if anyhha==0 | anyhha==.
+
+gen keepsw=keep
+replace keepsw=0 if anysw==0 | anysw==.
+
+*adls
+recode adl_diff_index (0=0 "0")(1/2=1 "1=2")(3/7=2 "3+"), gen(adl_cat)
+
+drop srhospice
+*make hospice for nonmissing val of hospicelml
+sort spid wave
+by spid: egen srhospice= min(hospicelml)
+
+H="analysis"
+*analysis
+
+svyset  varunit [pweight=anfinwgt], strat(varstrat)
+svy, subpop(keep): tab anyvisits
+svy, subpop(keephh): mean totalvisits
+
+svy, subpop(keephh): tab anynurse
+svy, subpop(keepnurse): mean nursevisits
+
+svy, subpop(keephh): tab anytherapy
+svy, subpop(keeptherapy): mean therapyvisits
+
+svy, subpop(keephh): tab anyhha
+svy, subpop(keephha): mean hhavisits
+
+svy, subpop(keephh): tab anysw
+svy, subpop(keepsw): mean swvisits
+
+foreach var of varlist  female   educ_hs_ind livealone metro_ind medicaid  srhospice    sr_lung_dis_ever sr_heart_dis_ever sr_phq2_depressed sr_gad2_anxiety prob_dem {
+svy, subpop(keephh): logistic anyhha `var'
+}
+
+foreach var of varlist agecat  race_cat income_cat homebound_cat adl_cat {
+svy, subpop(keephh): logistic anyhha i.`var'
+}
 
 H="Change log"
 
