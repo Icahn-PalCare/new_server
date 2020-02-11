@@ -4961,8 +4961,8 @@ label var community_dwelling "Community dwelling"
 label var marital_sd "Separated or divorced"
 label var iadl_diff_index "Count of IADL difficulties reported (missing coded as zero)"
 label var iadl_diff_ind "Indicator of any IADL difficulty reported (missing coded as zero)"
-label var adl_diff_index "Count of IADL difficulties reported (missing coded as zero)"
-label var adl_diff_ind "Indicator of any IADL difficulty reported (missing coded as zero)"
+label var adl_diff_index "Count of ADL difficulties reported (missing coded as zero)"
+label var adl_diff_ind "Indicator of any ADL difficulty reported (missing coded as zero)"
 label var nhats_death_day "Sensitive: Day of death from NHATS (Assigned to last day of month)"
 label var nhats_death_month "Sensitive: Month of death from NHATS"
 label var nhats_death_year "Sensitive: Year of death from NHATS"
@@ -7186,7 +7186,7 @@ Added respite use and distance from SP.
 
 12/18/2019 MH
 ----------
-Correction to the NSOC ful file to keep wave variable. 
+Correction to the NSOC full file to keep wave variable. 
 
 12/17/2019 MH
 ----------
