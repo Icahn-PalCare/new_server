@@ -6580,10 +6580,17 @@ note("Population Estimates is the total (weighted) number of 6mFFS + CD people i
 log using $output\annual_hbmc_hb_log, replace
 svy, subpop(if homebound_cat<4): logit hcalls year
 margins, dydx(year)
-svy, subpop(if homebound_cat<4): logit hcalls i.year
+svy, subpop(if homebound_cat<4): logit hcalls ib2016.year
 margins year
 marginsplot, recastci(rarea) ciopts(color(blue%50)) recast(line) saving($output\annual_hbmc_homebound, replace)
 graph export $output\annual_hbmc_homebound.pdf, replace
+log close
+
+log using $output\annual_hbmc_hb_log, replace
+svy, subpop(if homebound_cat<4): reg hcalls year
+svy, subpop(if homebound_cat<4): reg hcalls ib2016.year
+
+
 
 log close
 
