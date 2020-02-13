@@ -1867,6 +1867,9 @@ xtile quart_comm_always=comm_always, nq(4)
 gen low_quart_hosp=0 if ind_hospice==1 
 replace low_quart_hosp=1 if ind_hospice==1 & (quart_symptoms_always==1 | quart_comm_always==1)
 
+*recode race_cat
+recode race_cat (1=1)(2/4=0), gen (whiterace)
+
 		
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
 
@@ -2010,7 +2013,33 @@ svy, subpop(inanal_hosp): mean comp_process_score, over(ma1)
 svy, subpop(inanal): tab late_transition ma1, column
 svy, subpop(inanal): tab placedeath ma1, column
 
-	
+
+*PROPENSITY SCORE MODEL
+*create and assess propensity score
+pscore ma1 deathage_3cat female prob_dem cancer_all   child adl_impair spouse  diff_get_out_bed medicaid_death whiterace income_quart pweight if inanal==1, pscore(mapscore) blockid(mablock)logit	detail
+psgraph, treated(ma1) pscore(mapscore)
+
+
+*weight treatment and comparison by propensity scorey
+qui dr threeplusmsr ma1 deathage_3cat female prob_dem cancer_all chf_all child adl_impair spouse  diff_get_out_bed medicaid_death whiterace income_quart pweight, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen new_pweight= norm_weights*pweight
+
+svyset sunit [pweight=new_pweight], strata (new_strata) vce(linearized) singleunit(missing)
+foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+		recode_care_decision di_recode_informed  threeplusmsr {
+		svy, subpop(inanal): logistic `var' i.ma1, cformat(%4.2f)
+}
+
+
+svy, subpop(inanal): logistic unmet_relig i.ma1, cformat(%4.2f)
+svydescribe if e(sample)
+gen new_strata=strata
+replace new_strata=55 if strata==54
+svy, subpop(inanal): logistic unmet_bre i.ma1, cformat(%4.2f)
+svydescribe if e(sample)
+replace new_strata=53 if strata==52
 
 H="Change log"
 

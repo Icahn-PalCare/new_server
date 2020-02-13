@@ -20388,7 +20388,8 @@ margins,dydx(ind_mcaid)
 log close
 translate "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\logs\Medicaid_imputation_sensitivity.smcl" "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\logs\Medicaid_imputation_sensitivity.pdf", replace
 
-H="Table 1 including VA and LTC"
+H="Table 1 including VA and LTC and 90th %ile spending"
+
 
 use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
 cd "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress"
@@ -20422,7 +20423,7 @@ replace white=3 if missing(race)
 label define race 1 "Hispanic" 2 "Non-Hispanic Black" 3 "Non-Hispanic White/Other"
 label values race race
 
-preserve
+
 
 tokenize tot_paid_by_mc_y tot_paid_maid_y informal_y oop_y imputed_nh_costs_b_y
 
@@ -20442,16 +20443,16 @@ label var cum3 "Social Cost of Informal Care"
 label var cum4 "OOP"
 label var cum5 "Otherwise Unattributed NH Costs"
 label var pdem_baseline "Mean probability of dementia at baseline"
-gsort id nflag
-carryforward age_at_death female married hseduc smoke_curr medicaid adl_dependent ///
-srh_pf prob_dem_baseline pdem_baseline cum* race comorb* ccw* networth_adj2016* *nw_remaining, replace
-
-gsort id -nflag
-carryforward age_at_death female married hseduc smoke_curr medicaid adl_dependent ///
-srh_pf prob_dem_baseline pdem_baseline cum* race comorb* ccw* networth_adj2016* *nw_remaining, replace
 
 gen ind_hs_educ=degree>=2 if !inlist(degree,9,.)
 label var ind_hs_educ "Education: HS+ (excl. GED)"
+gsort id nflag
+carryforward age_at_death female married ind_hs_educ smoke_curr medicaid adl_dependent ///
+srh_pf prob_dem_baseline pdem_baseline cum* race comorb* ccw* networth_adj2016* *nw_remaining, replace
+
+gsort id -nflag
+carryforward age_at_death female married ind_hs_educ smoke_curr medicaid adl_dependent ///
+srh_pf prob_dem_baseline pdem_baseline cum* race comorb* ccw* networth_adj2016* *nw_remaining, replace
 
 
 
@@ -20487,7 +20488,7 @@ forvalues i=1/3 {
 di "`catvars1'"
 di "`cativars1'"
 
-local rn : word count `cvars1' `ivars1' `cativars1' `ivars2' `cativars2' `cvars3' `cvars3' `ivars3' 1
+local rn : word count `cvars1' `ivars1' `cativars1' `ivars2' `cativars2' `cvars3' `cvars3' `ivars3' 1 1 1 1 1 1 1
 local r=1
 local c=1
 
@@ -20500,6 +20501,7 @@ foreach y in "0,1" 0 1 {
 			sum `x' if inlist(dem_cohort,`y'), d
 			mat tab[`r',`c']=r(mean)
 			mat tab [`r'+1,`c']=r(p50)
+			if substr("`x'",1,3)=="cum" mat tab[`r'+2, `c']=r(p90)
 			if "`y'"=="1" {
 				ttest `x', by(dem_cohort)
 				mat tab[`r',`c'+1]=r(p)
@@ -20507,6 +20509,7 @@ foreach y in "0,1" 0 1 {
 }
 			local r=`r'+1
 			if `i'==3 local r=`r'+1
+			if substr("`x'",1,3)=="cum" local r=`r'+1
 			
 }
 		foreach x of local ivars`i' {
@@ -20540,8 +20543,8 @@ foreach y in "0,1" 0 1 {
 }
 
 mat rownames tab=`cvars1' `ivars1' `cativars1' `ivars2' `cativars2' ///
-pdem Median pdem_baseline Median cumall Median cum1 Median cum2 Median ///
-cum3 Median cum4 Median cum5 Median networth_adj2016_baseline Median  ///
+pdem Median pdem_baseline Median cumall Median p90 cum1 Median  p90 cum2 Median  p90 ///
+cum3 Median  p90 cum4 Median  p90 cum5 Median p90 networth_adj2016_baseline Median  ///
 pct_nw_remaining Median `ivars3' N
 
 frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress\table_1_`c(current_date)'.rtf", ///
@@ -21298,7 +21301,161 @@ annotate(stars) asymbol(*,**) replace
 
 
 
+H="7 year tables with p-values"
+/*note--it takes forever to run through the whole thing, but if you don't need
+everything done it's possible to run chunks by selecting imp, commenting out 
+graphs you don't need, and/or dropping anything not needed from the varlist
+*/
+
+/*loop through each type of NH night imputation*/
+
+set trace off
+
+
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\final_data\R01_final.dta", clear
+*merge m:1 id using `t1', nogen keep(match master)
+
+by id, sort: egen a=max(cond(nflag==1,nhres,0))
+replace nhres=a if nflag==0
+
+keep if nflag==0
+keep if ffs_84==1
+keep if final_7yr==1
+
+
+keep id tot_paid_by_mc_y* tot_paid_maid_y* oop_y* informal_y* dem_cohort  ///
+imputed_nh_costs_b_y* nhres
+
+rename tot_paid_by_mc_y* mc*
+rename tot_paid_maid_y* mcaid*
+
+foreach x of varlist mcaid* {
+	replace `x'=0 if missing(`x')
+}
+
+rename (oop_y* informal_y* imputed_nh_costs_b_y*) (oop* informal* nh*)
+
+foreach x in mc mcaid oop informal nh  {
+	forvalues i=1/7 {
+		*replace `x'`i'=`x'`i'/1000
+}
+	gen cum`x'7=`x'7
+	forvalues i=6(-1)1 {
+		gen cum`x'`i'=cum`x'`=`i'+1'+`x'`i'
+}
+}
+
+keep id mc* mcaid* oop* informal* cum* dem_cohort nh* nhres
+
+forvalues i=1/7 {
+	egen all`i'=rowtotal(mc`i' mcaid`i' oop`i' informal`i' nh`i')
+	egen cumall`i'=rowtotal(cum*`i')
+	foreach x in mc mcaid oop informal nh all {
+		gen pct`x'`i'=100*`x'`i'/all`i'
+		gen pctcum`x'`i'=100*cum`x'`i'/cumall`i'
+		replace pctcum`x'`i'=100 if cumall`i'==0
+}
+}
+forvalues i=1/7 {
+	egen cuminfoop`i'=rowtotal(cuminformal`i' cumoop`i')
+	label var cumall`i' "Cum. total, `=`i'-1'-7 yrs pre death"
+	label var cuminformal`i' "Cum. informal, `=`i'-1'-7 yrs pre death"
+	label var cumoop`i' "Cum. OOP, `=`i'-1'-7 yrs pre death"
+	label var cuminfoop`i' "Cum. Household (OOP+informal), `=`i'-1'-7 yrs pre death"
+}
+
+foreach y in cum {
+	local tablevars
+	foreach x in all /*oop*/ informal oop infoop {
+		forvalues i=1/7 {
+			local tablevars `tablevars' `y'`x'`i'
+}
+}
+}		
+
+
+local rn : word count `tablevars' 1
+
+
+
+local title "Annual Expenditures"
+local replace replace
+gen full=1
+local title2 Full Sample
+foreach timethrough in "0,1" 1 0 {
+preserve
+keep if inlist(nhres,`timethrough')
+if "`timethrough'"=="1" local title2 "NH Residents"
+if "`timethrough'"=="0" local title2 "Community Residents"
+
+foreach y in /*""*/ cum /*pct pctcum*/ {
+	mat tab=J(`rn',4,.)
+	mat stars=J(`rn',4,0)
+	local r=1
+	local c=1	
+	if "`y'"=="cum" local title "Cumulative Expenditures"
+	if "`y'"=="pct" local title "Percent of Total Annual Expenditures" 
+	if "`y'"=="pctcum" local title "Percent of Total Cumulative Expenditures"
+	
+	foreach z in "0,1" 0 1 {
+		foreach x in all  informal oop infoop /*mc mcaid nh*/ {	
+			forvalues i=1/7 {
+				qui sum `y'`x'`i' if inlist(dem_cohort,`z')
+				mat tab[`r',`c']=r(mean)
+				if "`z'"=="1" {
+					qui ranksum `y'`x'`i', by(dem_cohort)
+					mat tab[`r',`c'+1]=r(p)
+					*mat tab[`r',`c'+2]=r(p)/*/(`rn'-1)*/
+					mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+					*mat stars[`r',`c'+2]=(r(p)<(.05/(`rn'-1)))+(r(p)<(.01/(`rn'-1)))
+}
+				local r=`r'+1
+}
+}			
+		qui sum dem_cohort if inlist(dem_cohort,`z')
+		mat tab[`r',`c']=r(N)
+		local c=`c'+1
+		local r=1
+
+}
+
+	mat rownames tab=`tablevars' N
+
+	frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress\exp_with_p_value.rtf", statmat(tab) ///
+	title("Total Spending Last 7 Years of Life by Dementia Status:" \"`title', `title2' ") ///
+	ctitles("" "Full Sample" "Non-dementia" "Dementia" "P-value" ) ///
+	sdec(2,2,2,3) annotate(stars) asymbol(*,**) `replace' varlabels ///
+	note("*,** = P significant at <.05,<.01" /*without the Bonferonni correction and <`=0.05/(`rn'-1)', <`=0.01/(`rn'-1)' with*/ ) 
+local replace addtable	
+restore
+}
+}			
+
+
+H="cumulative expenditures across nh status"
+mat tab=J(6,6,.)
+mat stars=J(6,6,0)
+local r=1
+local c=1
+foreach this in 1 0 {
+forvalues i=1/6 {
+sum cum`i' if dem_cohort==`this' & nhres==0
+mat tab[`i',`c']=r(mean)
+sum cum`i' if dem_cohort==`this' & nhres==1
+mat tab[`i',`c'+1]=r(mean)
+ttest cum`i' if dem_cohort==`this', by(nhres)
+mat tab[`i',`c'+2]=r(p)
+mat stars[`i',`c'+2]=(r(p)<.05+r(p)<.01)
+}
+	local c=4
+}
+mat rownames tab=cum1 cum2 cum3 cum4 cum5 cum6
+frmttable, statmat(tab) annotate(stars) asymbol(*,**) ctitles("" ""  "Dementia" "" "" "No Dementia"\"" "No NH" "NH" "P-value""No NH" "NH" "P-value") varlabels sdec(0,0,2,0,0,2)
+
 H="changelog"
+2/12/20 - Added 90th percentile spending by type to table 1 and added year-over-year p-values for expenditures. Evan
+
 2/5/20 - Added more under the Jags revision, comparing non-FFS and non-NH folk.Evan
 
 2/3/20 - Added more under the JAGS revision, details findable in email to Amy dated 2/3/20. Evan

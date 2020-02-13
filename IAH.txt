@@ -6740,7 +6740,237 @@ ctitles("", "", "Complete/Partial HB", "", "", "Not HB", \"", "No Housecalls", "
 note("These are unique people, and only survey data from their most recent NHATS interview was used. Housecalls are +/- 90 days of ivw date. *p<0.05, **p<0.01")
 
 
+H="LTSS numbers for Bruce "
+forvalues i=1/7 {
+use spid bene_id index_date wave using"D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\iah_wave1-7.dta" if wave==`i', clear
+merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\hh_09_17.dta", keep(match) keepusing(admit_date disch_date)
+
+drop if !inrange(admit_date,index_date-90,index_date+90) & !inrange(disch_date,index_date-90,index_date+90) & !inrange(index_date,admit_date,disch_date)
+gen ind_hh=_m==3
+drop admit_date disch_date _m
+duplicates drop
+
+tempfile t`i'
+save `t`i''
+}
+clear
+forvalues i=1/7 {
+append using `t`i''
+}
+
+tempfile hh
+save `hh'
+
+use "D:\NHATS\Projects\homebound\ko_hbmc_iah\data\final_data\iah_wave1-7.dta", clear
+merge 1:1 bene_id index_date using `hh', keep(match master) gen(hhmer)
+replace ind_hh=0 if hhmer!=3
+label var ind_hh "Any HH claim +/-90 days from ivw"
+
+drop if rcfres==1
+gen iah_rehab = 0
+replace iah_rehab = 1 if ip_rehab==1 |snf==1 |hh==1
+
+cap drop iah_all
+
+gen iah_all = 0
+replace iah_all = 1 if iah_adl==1 & iah_chronic==1 & iah_nonelect==1 & iah_rehab==1
+label var iah_all "Meets IAH-Q Criteria"
+svyset varunit [pw=anfinw], strat(varstrat)
+
+gen ind_help=n_helpers>0
+foreach x in help paid {
+	replace tot_hrswk_`x'_i=0 if missing(tot_hrswk_`x'_i)
+}
+gen ind_inf=n_helpers-n_paid>0
+gen tot_hrswk_inf_i=tot_hrswk_help_i-tot_hrswk_paid_i
+foreach x in help paid inf {
+	replace tot_hrswk_`x'_i=. if ind_`x'==0
+	gen hrs_`x'_cond=tot_hrswk_`x'_i
+	replace tot_hrswk_`x'_i=0 if missing(tot_hrswk_`x'_i)
+}
+label var tot_hrswk_inf_i "Hours/week informal help received"
+label var hrs_inf "Hours/week informal help received, conditional on any"
+label var tot_hrswk_paid_i "Hours/week paid help received"
+label var hrs_paid "Hours/week paid help received, conditional on any"
+label var ind_inf "Any informal helper"
+
+drop adl_index
+egen adl_index=rowtotal(adl*help)
+
+forvalues i=3/6 {
+	gen adl`i'=adl_index==`i'
+	label var adl`i' "Dependent in `i' ADLs"
+}
+
+
+local ivars1 ind_paid_helper
+local cvars2 tot_hrswk_paid_i hrs_paid_cond
+local ivars2 //ind_inf
+local cvars3 tot_hrswk_inf_i hrs_inf_cond
+local ivars4 ind_hh
+
+gen male=!female
+label var male "Male"
+
+gen all=1
+label var all "Full FFS Sample NHATS 1-7"
+gen n=1
+local typevars adl3 adl4 adl5 adl6 iah_all male prob_dem medicaid 
+
+/*
+forvalues i=1/6 {
+	local countvars `countvars' `cvars`i''  `ivars`i'' `catvars`i''
+}
+
+local rn : word count `countvars' 
+local r=1
+local c=1
+mat tab=J(`rn',1,.)
+
+
+foreach x of varlist `countvars'{
+	sum n if missing(`x')
+	mat tab[`r',1]=r(N)
+	local r=`r'+1
+}
+
+mat rownames tab=`countvars'
+/*
+frmttable using "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\table_1_`c(current_date)'.rtf", statmat(tab) sdec(0) varlabels ctitles("" "N missing") ///
+title("Missingness in the data") replace
+*/
+local countvars
+forvalues i=1/6 {
+	local countvars `countvars' `cvars`i'' `cvars`i''  `ivars`i'' `cativars`i''
+}
+
+foreach type of local typevars {
+replace `type'=0 if missing(`type')
+local rn : word count `countvars' 1
+local r=1
+local c=1
+
+mat tab=J(`rn',4,.)
+mat stars=J(`rn',4,0)
+
+foreach y in "0,1" 0 1 {
+	forvalues i=1/6 {
+		foreach x of local cvars`i' {
+			qui sum `x' if inlist(`type',`y'), d
+			mat tab[`r',`c']=r(mean)
+
+			if "`y'"=="1" {
+				qui ttest `x', by(`type')
+				mat tab[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+			*if `i'==3 local r=`r'+1
+			
+}
+		foreach x of local ivars`i' {
+			qui sum `x' if inlist(`type',`y')
+	if r(sum)==0 | r(sum)==r(N) | (r(sum)>=11 & r(sum)<=r(N)-11) 			mat tab[`r',`c']=r(mean)*100
+			if "`y'"=="1" {
+				qui tab `x' `type', chi2
+				mat tab[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+}
+		foreach x of local catvars`i' {
+			if "`y'"=="1" {
+				qui tab `x' `type', chi2
+				mat tab[`r',4]=r(p)
+				mat stars[`r',4]=(r(p)<.05)+(r(p)<.01)
+}
+			foreach z of local `x' {
+				qui sum `z' if inlist(`type',`y')
+	if r(sum)==0 | r(sum)==r(N) | (r(sum)>=11 & r(sum)<=r(N)-11) 				mat tab[`r',`c']=r(mean)*100
+				local r=`r'+1
+}
+}
+}
+	qui sum n if inlist(`type',`y')
+	mat tab[`r',`c']=r(N)
+	
+	local r=1
+	local c=`c'+1
+}
+
+mat rownames tab=`countvars' N
+
+local lab : var label `type'
+frmttable, statmat(tab) title("Characteristics, by `lab'") ///
+ctitles("" "Full Sample" "No" "Yes" "P-value") varlabels ///
+sdec(2) note("Sample includes 7,124 NHATS respondents 2011-2017 with 6m FFS not residing in a nursing home or residential care facility") ///
+annotate(stars) asymbol(*,**) 
+}
+*/
+local replace replace
+local countvars
+local typevars iah_all adl3 adl4 adl5 adl6 prob_dem
+local tvars2 all female male medicaid tricare
+forvalues i=1/6 {
+	local countvars `countvars' `cvars`i'' `cvars`i'' `ivars`i'' `cativars`i''
+	foreach x of local cvars`i' {
+			local lab : var label `x'
+	label var `x' "`lab', mean"
+}
+	foreach x of local ivars`i' {
+			local lab : var label `x'
+	label var `x' "`lab', %"
+}
+}
+local rn : word count `countvars' 1
+di "`countvars'"
+foreach type2 of local tvars2 {
+
+local r=1 
+local c=1 
+mat tab=J(`rn',6,.)
+mat stars=J(`rn',6,0)
+foreach type of local typevars {
+	forvalues i=1/6 {
+		foreach x of local cvars`i'{
+			
+			qui sum `x' if `type'==1 & `type2'==1 [aw=anfinw]
+			mat tab[`r',`c']=r(mean)
+			mat tab[`r'+1,`c']=r(sd)
+			local r=`r'+2
+}
+		foreach x of local ivars`i' {
+			qui sum `x' if `type'==1 & `type2'==1
+			if r(sum)==0 | r(sum)==r(N) | (r(sum)>=11 & r(sum)<=r(N)-11) {
+			qui sum `x' if `type'==1 & `type2'==1 [aw=anfinw]
+			mat tab[`r',`c']=r(mean)*100
+}			
+			else mat stars[`r',`c']=1
+			local r=`r'+1
+}	
+
+}
+	qui sum n if `type'==1 & `type2'==1
+	mat tab[`r',`c']=r(sum)
+	local r=1
+	local c=`c'+1
+}
+
+mat rownames tab=ind_paid_helper tot_hrswk_paid_i Median hrs_paid_cond Median tot_hrswk_inf_i Median hrs_inf_cond Median ind_hh N
+mat colnames tab=`typevars'
+
+local lab : var label `type2'
+
+if "`type2'"!="all" local lab `lab' only
+
+frmttable using "D:\NHATS\Projects\homebound\ko_hbmc_iah\output\in_progress\ltss_stratified.rtf", statmat(tab) varlabels title("Care/help/HH, `lab'") `replace' note("Sample includes all interviews from 7,124 NHATS respondents 2011-2017 with 6m FFS not residing in a nursing home or residential care facility" "All measures weighted using per-wave NHATS sampling weights" "NR=Not reportable due to cell size restrictions") annotate(stars) asymbol(NR)
+local replace addtable
+}
+
+
 H="Changelog"
+2/12/2020 - Added "LTSS numbers for Bruce, per email on 2/6/20. EBL
+
 1/27/2020 - Amended the "Pull OP use" to include obs stays. EBL
 
 12/3/2019 - Added "things for Bruce" and "looking 12m after" headers. EBL
