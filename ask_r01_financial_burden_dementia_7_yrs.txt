@@ -21432,6 +21432,71 @@ restore
 }
 }			
 
+foreach y in cum {
+	local tablevars
+	foreach x in all informal oop infoop mc mcaid nh {
+		foreach i in 1 7 {
+			local tablevars `tablevars' `y'`x'`i'
+}
+}
+}		
+
+
+local rn : word count `tablevars' 1
+
+
+foreach timethrough in "0,1" 1 0 {
+preserve
+keep if inlist(nhres,`timethrough')
+if "`timethrough'"=="1" local title2 "NH Residents"
+if "`timethrough'"=="0" local title2 "Community Residents"
+
+foreach y in /*""*/ cum /*pct pctcum*/ {
+	mat tab=J(`rn',4,.)
+	mat stars=J(`rn',4,0)
+	local r=1
+	local c=1	
+	if "`y'"=="cum" local title "Cumulative Expenditures"
+	if "`y'"=="pct" local title "Percent of Total Annual Expenditures" 
+	if "`y'"=="pctcum" local title "Percent of Total Cumulative Expenditures"
+	
+	foreach z in "0,1" 0 1 {
+		foreach x in all  informal oop infoop mc mcaid nh {	
+			foreach i in 1 7 {
+				qui sum `y'`x'`i' if inlist(dem_cohort,`z')
+				mat tab[`r',`c']=r(mean)
+				if "`z'"=="1" {
+					qui ranksum `y'`x'`i', by(dem_cohort)
+					mat tab[`r',`c'+2]=r(p)
+					*mat tab[`r',`c'+2]=r(p)/*/(`rn'-1)*/
+					mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
+					*mat stars[`r',`c'+2]=(r(p)<(.05/(`rn'-1)))+(r(p)<(.01/(`rn'-1)))
+}
+				local r=`r'+1
+}
+}			
+		qui sum dem_cohort if inlist(dem_cohort,`z')
+		mat tab[`r',`c']=r(N)
+		local c=`c'+1
+		local r=1
+
+}
+	forvalues i=1/`tablevars' {
+		mat tab[`i',4]=tab[`i',3]-tab[`i',2]
+}
+
+	mat rownames tab=`tablevars' N
+
+	frmttable using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\output\in_progress\exp_with_p_value.rtf", statmat(tab) ///
+	title("Total Spending Last 7 Years of Life by Dementia Status:" \"`title', `title2' ") ///
+	ctitles("" "Full Sample" "Non-dementia" "Dementia" "Difference" "P-value" ) ///
+	sdec(2,2,2,3) annotate(stars) asymbol(*,**) `replace' varlabels ///
+	note("*,** = P significant at <.05,<.01" /*without the Bonferonni correction and <`=0.05/(`rn'-1)', <`=0.01/(`rn'-1)' with*/ ) 
+local replace addtable	
+restore
+}
+}			
+
 
 H="cumulative expenditures across nh status"
 mat tab=J(6,6,.)

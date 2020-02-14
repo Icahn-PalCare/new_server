@@ -16994,6 +16994,13 @@ cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\outpu
 merge m:1 id using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(matched)
 
 
+
+keep if nflag==0 |nflag==1
+
+gsort id  -nflag
+
+by id: carryforward married, replace
+
 keep if nflag==0
 
 gen no_ind_hs=0 if ind_hs==1
@@ -17017,32 +17024,32 @@ gen ind_hs_suboptimal_1=0 if  ind_hs_gt6m_1==0 & ind_hs_lt3d==0 & ind_hs==1
 replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lt3d==1) & ind_hs==1
 label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
 
-gen unmarried_baseline=0 if married_baseline==1
-replace unmarried_baseline=1 if married_baseline==0
+gen unmarried=0 if married==1
+replace unmarried=1 if married==0
 
 //Unmarried
 
 capture drop a b c d e f inter
 
-gen a=0 if dem_cohort==1 & married_baseline==0
-replace a=1 if dem_cohort==1 & married_baseline==1
+gen a=0 if dem_cohort==1 & married==0
+replace a=1 if dem_cohort==1 & married==1
 
-gen b=0 if dem_cohort==1 & married_baseline==1
-replace b=1 if dem_cohort==1 & married_baseline==0
+gen b=0 if dem_cohort==1 & married==1
+replace b=1 if dem_cohort==1 & married==0
 
-gen c=0 if dem_cohort==0 & married_baseline==0
-replace c=1 if dem_cohort==0 & married_baseline==1
+gen c=0 if dem_cohort==0 & married==0
+replace c=1 if dem_cohort==0 & married==1
 
-gen d=0 if dem_cohort==0 & married_baseline==1
-replace d=1 if dem_cohort==0 & married_baseline==0
+gen d=0 if dem_cohort==0 & married==1
+replace d=1 if dem_cohort==0 & married==0
 
-gen inter=dem_cohort*unmarried_baseline
+gen inter=dem_cohort*unmarried
 
-gen e=0 if dem_cohort==1 & married_baseline==1
-replace e=1 if dem_cohort==0 & married_baseline==1
+gen e=0 if dem_cohort==1 & married==1
+replace e=1 if dem_cohort==0 & married==1
 
-gen f=0 if dem_cohort==1 & married_baseline==0
-replace f=1 if dem_cohort==0 & married_baseline==0
+gen f=0 if dem_cohort==1 & married==0
+replace f=1 if dem_cohort==0 & married==0
 
 local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
 
@@ -17071,7 +17078,7 @@ mat rownames tab=`ivars' "N"
 mat colnames tab="Dem/Married (A)" "Dem/Unmar (B)" "No Dem/Married (C)" "No Dem/Unmar (D)" 
 mat list tab
 
-frmttable using burd_tables.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Marital Status") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life") replace
+frmttable using burd_tables.rtf, statmat(tab) title("Indicators of Care Quality at EOL, by Dementia and Marital Status") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "Married at N1 interview") replace
 
 
 local ivars ind_start_ltc nhres_exit ind_hs_suboptimal_1 no_ind_hs ind_hs_gt6m_1 ind_hs_lt3d ind_hs_live_disch loc_hosp_exit flag_burd
@@ -17096,7 +17103,7 @@ foreach i in a c e f {
 local r=1
 foreach x in `ivars' {
 	rename `x' q
-	logit q dem_cohort unmarried_baseline inter
+	logit q dem_cohort unmarried inter
 	mat rtable=r(table)
 	local t=rtable["pvalue","q:inter"]
 	mat tab[`r',`c']=`t'
@@ -17406,7 +17413,7 @@ frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Demen
 //Vulnerable Population
 
 gen vulnerable=0
-replace vulnerable=1 if black==1 | hisp_eth==1 | degree==0 | married_baseline==0
+replace vulnerable=1 if black==1 | hisp_eth==1 | degree==0 | married==0
 
 capture drop a b c d e f inter
 
