@@ -2016,30 +2016,165 @@ svy, subpop(inanal): tab placedeath ma1, column
 
 *PROPENSITY SCORE MODEL
 *create and assess propensity score
-pscore ma1 deathage_3cat female prob_dem cancer_all   child adl_impair spouse  diff_get_out_bed medicaid_death whiterace income_quart pweight if inanal==1, pscore(mapscore) blockid(mablock)logit	detail
+pscore ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, pscore(mapscore) blockid(mablock)logit	detail
 psgraph, treated(ma1) pscore(mapscore)
 
 
-*weight treatment and comparison by propensity scorey
-qui dr threeplusmsr ma1 deathage_3cat female prob_dem cancer_all chf_all child adl_impair spouse  diff_get_out_bed medicaid_death whiterace income_quart pweight, genvars
+*weight treatment and comparison by propensity score
+
+*outcome 3+ measures
+qui dr threeplusmsr ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
 egen sumofweights=total(iptw)
 gen norm_weights=iptwt/sumofweights
-gen new_pweight= norm_weights*pweight
+gen threeplusmsr_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
 
-svyset sunit [pweight=new_pweight], strata (new_strata) vce(linearized) singleunit(missing)
-foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed  threeplusmsr {
-		svy, subpop(inanal): logistic `var' i.ma1, cformat(%4.2f)
-}
+*outcome not excellent
+qui dr not_excellent ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen not_excellent_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
+
+*outcome unmet pain
+qui dr unmet_pain ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen unmet_pain_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
+
+*outcome unmet breathing
+qui dr unmet_bre ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen unmet_bre_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
+
+*outcome unmet sad
+qui dr unmet_sad ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen unmet_sad_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
+
+*outcome unmet relig
+qui dr unmet_relig ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen unmet_relig_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
+
+*outcome always respect
+qui dr di_recode_always_respect ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen di_recode_always_respect_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
+
+*outcome care not want
+qui dr recode_care_notwant ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen recode_care_notwant_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
+
+*outcome care decision
+qui dr recode_care_decision ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen recode_care_decision_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
+
+*outcome informed
+qui dr di_recode_informed ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen di_recode_informed_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
+
+*count of outcomes
+qui dr sumscore_cat ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, genvars
+egen sumofweights=total(iptw)
+gen norm_weights=iptwt/sumofweights
+gen sumscore_pweight= norm_weights*pweight
+drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
 
 
-svy, subpop(inanal): logistic unmet_relig i.ma1, cformat(%4.2f)
+****logistic models, inverse prob weighted *****
+
+*care is not excellent: weighted model
+svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic not_excellent  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+
+*unmet pain needs: weighted model
+svyset sunit [pweight=unmet_pain_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic unmet_pain  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+
+*unmet breathing needs: weighted model
+svyset sunit [pweight=unmet_bre_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic unmet_bre  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 svydescribe if e(sample)
-gen new_strata=strata
-replace new_strata=55 if strata==54
-svy, subpop(inanal): logistic unmet_bre i.ma1, cformat(%4.2f)
+gen unmet_bre_strata=strata
+replace unmet_bre_strata=53 if strata==52
+svyset sunit [pweight=unmet_bre_pweight], strata (unmet_bre_strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic unmet_bre  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+
+*unmet sad: weighted model
+svyset sunit [pweight=unmet_sad_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic unmet_sad  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+
+*unmet relig
+svyset sunit [pweight=unmet_relig_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic unmet_relig  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 svydescribe if e(sample)
-replace new_strata=53 if strata==52
+gen unmet_relig_strata=strata
+replace unmet_relig_strata=55 if strata==54
+svyset sunit [pweight=unmet_relig_pweight], strata (unmet_relig_strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic unmet_relig  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+
+*not always respect: weighted
+svyset sunit [pweight=di_recode_always_respect_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic di_recode_always_respect  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+
+*care not want
+svyset sunit [pweight=recode_care_notwant_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic recode_care_notwant  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+
+*care_decision
+svyset sunit [pweight=recode_care_decision_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic recode_care_decision  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+
+*informed
+svyset sunit [pweight=di_recode_informed_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic di_recode_informed  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+
+
+**ologit model
+svyset sunit [pweight=sumscore_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): ologit sumscore_cat  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+
+
+***INTERACTIONS
+*care is not excellent: weighted model
+*INTERACTION W HOSPICE
+svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic not_excellent  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1##i.ind_hospice, cformat(%4.2f)
+		  margins, dydx(ma1) over(ind_hospice)
+		  margins ma1#ind_hospice		  
+		  
+*INTERACTION W PLACE OF DEATH
+svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic not_excellent  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1##i.placedeath, cformat(%4.2f)
+		  margins, dydx(ma1) over(placedeath)
+		  margins ma1#placedeath	
+
+*INTERACTION W REGIONAL MA Penetration
+svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic not_excellent  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1##i.avgma_quint, cformat(%4.2f)
+		  margins, dydx(ma1) over(avgma_quint)
+		  margins ma1#avgma_quint	
+		  
+	
 
 H="Change log"
 

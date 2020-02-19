@@ -1,0 +1,364 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Medicaid and caregiving after disability"
+* Project examining MA enrollment after functional disability
+* PI: claire ankuda, buddy coder: evan bollens-lund
+* finished december 16 2018
+
+version 15
+set more off
+set maxvar 120000  
+clear all
+set linesize 80
+macro drop _all
+capture log close
+
+
+
+H="making file for date of first needing help"
+*making a new variable that is wide
+*clean up month of first disability-
+use "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_8\NHATS_Round_8_SP_File.dta"
+keep spid dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr dm8helpstmo dm8helpstyr ds8helpstmo ds8helpstyr
+
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_7\NHATS_Round_7_SP_File.dta", ///
+keepusing (dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_6\NHATS_Round_6_SP_File.dta", ///
+keepusing (dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_5\NHATS_Round_5_SP_File.dta", ///
+keepusing (dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_4\NHATS_Round_4_SP_File.dta", ///
+keepusing (dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_3\NHATS_Round_3_SP_File.dta", ///
+keepusing (dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_2\NHATS_Round_2_SP_File.dta", ///
+keepusing (dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr)
+
+
+
+*make missing if "inapplicable"
+foreach var of varlist dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
+		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
+		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr  dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
+		dm8helpstmo dm8helpstyr ds8helpstmo ds8helpstyr  dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr {
+		replace `var'=. if `var'==-1
+		replace `var'=. if `var'==-9
+		replace `var'=. if `var'==-8
+		replace `var'=. if `var'==90
+		}
+		
+*fix the wave 2 year variables
+replace dm2helpstyr= 2011 if dm2helpstyr==1
+replace dm2helpstyr= 2012 if dm2helpstyr==2
+replace dm2helpendyr= 2011 if dm2helpendyr==1
+replace dm2helpendyr= 2012 if dm2helpendyr==2
+replace ds2helpstyr= 2011 if ds2helpstyr==1
+replace ds2helpstyr= 2012 if ds2helpstyr==2
+replace ds2helpendyr= 2011 if ds2helpendyr==1
+replace ds2helpendyr= 2012 if ds2helpendyr==2
+
+*make an indicator for never needing help
+gen indhelp=0 
+foreach var of varlist dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr ///
+dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr ///
+dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr dm8helpstmo dm8helpstyr ds8helpstmo ds8helpstyr{
+		replace indhelp=1 if `var'!=.
+		}
+		
+*drop people who never report a start date for help
+drop if indhelp==0
+*left with 3,631 observations
+
+*make an indicator for the people with a stop date
+gen indhelpstop=0 
+foreach var of varlist dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
+		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
+		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
+		dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr{
+		replace indhelpstop=1 if `var'!=.
+		}
+		
+*turn the variables for dates of help starting into a date format
+foreach n of numlist 2 3 4 5 6 7 8 {
+gen dm`n'datehelp=mdy(dm`n'helpstmo, 1, dm`n'helpstyr)
+format dm`n'datehelp %td
+}
+
+foreach n of numlist 2 3 4 5 6 7 8 {
+gen ds`n'datehelp=mdy(ds`n'helpstmo, 1, ds`n'helpstyr)
+format ds`n'datehelp %td
+}
+
+*turn the variables for dates of help ending into a date format
+foreach n of numlist 2 3 4 5 6 7 8 {
+gen dm`n'datehelpend=mdy(dm`n'helpendmo, 1, dm`n'helpendyr)
+format dm`n'datehelpend %td
+}
+
+foreach n of numlist 2 3 4 5 6 7 8 {
+gen ds`n'datehelpend=mdy(ds`n'helpendmo, 1, ds`n'helpendyr)
+format ds`n'datehelpend %td
+}
+*drop the other date variables
+drop dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
+		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
+		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
+		dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr
+
+gen datefirsthelp= dm8datehelp 
+	replace datefirsthelp= ds8datehelp if ds8datehelp!=. & ds8datehelp<datefirsthelp
+	
+	replace datefirsthelp= dm7datehelp if dm7datehelp!=. & dm7datehelp<datefirsthelp
+	replace datefirsthelp= ds7datehelp if ds7datehelp!=. & ds7datehelp<datefirsthelp
+	
+	replace datefirsthelp= dm6datehelp if dm6datehelp!=. & dm6datehelp<datefirsthelp
+	replace datefirsthelp= ds6datehelp if ds6datehelp!=. & ds6datehelp<datefirsthelp
+	
+	replace datefirsthelp= dm5datehelp if dm5datehelp!=. & dm5datehelp<datefirsthelp
+	replace datefirsthelp= ds5datehelp if ds5datehelp!=. & ds5datehelp<datefirsthelp
+
+	replace datefirsthelp= dm4datehelp if dm4datehelp!=. & dm4datehelp<datefirsthelp
+	replace datefirsthelp= ds4datehelp if ds4datehelp!=. & ds4datehelp<datefirsthelp
+
+	replace datefirsthelp= dm3datehelp if dm3datehelp!=. & dm3datehelp<datefirsthelp
+	replace datefirsthelp= ds3datehelp if ds3datehelp!=. & ds3datehelp<datefirsthelp
+	
+	replace datefirsthelp= dm2datehelp if dm2datehelp!=. & dm2datehelp<datefirsthelp
+	replace datefirsthelp= ds2datehelp if ds2datehelp!=. & ds2datehelp<datefirsthelp
+format datefirsthelp %td	
+
+drop if datefirsthelp==.
+
+*make a variable called repfirsthelp that is the wave of first reporting help
+gen repfirsthelp=.
+foreach n of numlist 2 3 4 5 6 7 8 {
+	replace repfirsthelp=`n' if datefirsthelp==dm`n'datehelp
+	replace repfirsthelp=`n' if datefirsthelp==ds`n'datehelp
+	}
+
+*make a variable called repsecondhelp that is the wave after the one first reporting help	
+	gen repsecondhelp=repfirsthelp+1
+	replace repsecondhelp=. if repsecondhelp==9
+drop _merge
+save "D:\NHATS\Projects\trajectories and disability\cka_medicaid and help after disability\data\date of first disability.dta", replace
+
+
+H="****THE NEXT 4 HEADINGS MAKES DATA FILE, ONLY DO ONCE***"
+
+
+H="make file for date of death and nh"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
+* make a variable for each person for if they had new nursing home admission
+sort spid wave
+by spid: gen firstnh=(nhres!=nhres[_n-1])
+replace firstnh=0 if nhres==0
+
+by spid: gen numnh=sum(firstnh)
+gen datenh=.
+replace datenh=ivw_date if firstnh==1
+format datenh %td
+
+egen minnh=min(datenh), by(spid)
+format minnh %td
+
+by spid, sort: gen nvals= _n ==1
+keep if nvals==1
+keep spid minnh death_date
+
+save "D:\NHATS\Projects\trajectories and disability\cka_medicaid and help after disability\data\date of death and NH.dta", replace
+
+H="making file for dual status by month"
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\mbsf_06_17.dta"
+
+keep bene_id year dual_stus_cd_01 dual_stus_cd_02 dual_stus_cd_03 dual_stus_cd_04 dual_stus_cd_05 dual_stus_cd_06 dual_stus_cd_07 dual_stus_cd_08 dual_stus_cd_09 dual_stus_cd_10 dual_stus_cd_11 dual_stus_cd_12
+
+
+*categorizing as dual if has full medicaid coverage (for purposes of additional services, not just premium assistance): QMB plus, SLMB plus, and full medicaid
+foreach x in 01 02 03 04 05 06 07 08 09 10 11 12 {
+gen dual_mo_`x'= 0 
+replace dual_mo_`x'= 1 if dual_stus_cd_`x' == "02" | dual_stus_cd_`x' == "04" | dual_stus_cd_`x' == "08" 
+}
+
+count
+
+egen dualind12= concat(dual_mo_01 dual_mo_02 dual_mo_03 dual_mo_04 dual_mo_05 dual_mo_06 dual_mo_07 dual_mo_08 dual_mo_09 dual_mo_10 dual_mo_11 dual_mo_12)
+save "D:\NHATS\Projects\trajectories and disability\cka_medicaid and help after disability\data\dual status by month.dta", replace
+
+
+H="make file for date of hospice entry"
+ use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hs_09_17.dta"
+ sort bene_id admit_date
+ by bene_id, sort: egen first_hs= min(admit_date)
+ merge m:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" 
+ keep first_hs spid
+ sort spid first_hs
+ by spid: gen nvals= _n==1
+ keep if nvals==1
+save "D:\NHATS\Projects\trajectories and disability\cka_medicaid and help after disability\data\bene spid and hospice.dta"
+
+H="make a file for weighting vars"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta"
+keep anfinwgt varstrat varunit spid wave
+ save "D:\NHATS\Projects\MA after functional disability\cka_ma switches disability\data\weighting vars.dta"
+
+H="***** BELOW THIS LINE, RUN EVERY TIME*****"
+
+
+H="making data file"
+/*MAKING DATA FILE
+This file defines the onset of disability and pulls in the indicators for MA enrollment the 12 months prior and 24 months after disability.  It then pulls
+in variables describing 
+
+first, crosswalk mbsf to spid so can merge with nhats data*/
+
+use bene_id year dualind12 using "D:\NHATS\Projects\trajectories and disability\cka_medicaid and help after disability\data\dual status by month.dta", clear
+merge m:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" , ///
+gen(xmerge)
+tempfile mbsf
+save `mbsf'
+
+/*2nd, just pull index year*/
+use "D:\NHATS\Projects\trajectories and disability\cka_medicaid and help after disability\data\date of first disability.dta", clear
+codebook datefirsthelp
+keep spid datefirsthelp
+rename datefirsthelp index_date
+duplicates report spid
+tempfile index
+save `index'
+
+/*pull mbsf index year*/
+gen year=year(index_date)
+
+merge 1:m spid year using `mbsf', keep(match master) gen(mbim)
+rename dualind12 dualind12i 
+tempfile iyear
+save `iyear'
+
+/*want 1 year prior and 2 years post*/
+use `index', clear
+gen year=year(index_date)-1
+merge 1:m spid year using `mbsf', keep(match master) gen(mbn1m)
+rename dualind12 dualind12n1
+tempfile n1year
+save `n1year'
+
+/*want 1 year prior and 2 years post*/
+forvalues i=1/2 {
+	use `index', clear
+	gen year=year(index_date)+`i'
+	merge 1:m spid year using `mbsf', keep(match master) gen(mbp`i'm)
+	rename dualind12 dualind12p`i'
+	tempfile p`i'year
+	save `p`i'year'
+}
+
+/*merge them all*/
+use `iyear', clear
+merge 1:1 spid using `n1year', keep(match master) gen(n1m)
+forvalues i=1/2 {
+	merge 1:1 spid using `p`i'year', keep(match master) gen(p`i'm)
+}
+
+merge 1:1 spid using "D:\NHATS\Projects\trajectories and disability\cka_medicaid and help after disability\data\date of first disability.dta"
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Projects\trajectories and disability\cka_medicaid and help after disability\data\date of death and NH.dta"
+keep if _merge==3
+
+drop _merge
+
+merge 1:1 spid using "D:\NHATS\Projects\trajectories and disability\cka_medicaid and help after disability\data\bene spid and hospice.dta"
+keep if _merge==3
+drop _merge
+
+***to prepare to merge, keep a variable for wave at first disability
+gen wave=.
+foreach n of numlist 2/6 {
+replace wave=`n' if dm`n'datehelp==index_date
+replace wave=`n' if wave==. & ds`n'datehelp==index_date
+}
+
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta"
+
+
+H="cleaning all variables"
+
+
+/* VARIABLE CLEANING
+ Step 1: make month of index (first disability)
+ Step 2: create hmoind_n and hmoind_p, 12/24 month indicators for monthly MA status before/after disability
+ */
+ 
+gen month=month(index_date)
+gen dualind_index=substr(dualind12i,month,1)
+gen dualind_n=substr(dualind12n1,month,13-month)+substr(dualind12i,1,month-1)
+gen dualind_p=substr(dualind12i,month,12)+substr(dualind12p1, 1, month-1)
+
+
+
+/*Turn these string variables into cont_ma_n_mos and cont_ma_p_mos to count number of months in MA before/after disability*/
+
+gen ind_nodual_index=!inlist(dualind_index,"0","4","")
+
+foreach x in n p {
+	gen cont_dual_`x'_mos=length(dualind_`x')
+	replace cont_dual_`x'_mos=strpos(dualind_`x',"0")-1 if strpos(dualind_`x',"0")!=0
+	
+
+}
+
+*make a variable for continuous dual months
+foreach x in n p {
+	gen cont_nocaid_`x'_mos=length(dualind_`x')
+	replace cont_nocaid_`x'_mos=strpos(dualind_`x',"1")-1 if strpos(dualind_`x',"1")!=0
+	}
+*/
+
+label var ind_nodual_index "Indicator ffs at first disability"
+label var cont_dual_n_mos "Months of continous mcaid coverage pre-disability: first digit is 12 months prior"
+label var cont_dual_p_mos "Months of continous mcaid coverage post-disability"
+
+*make variables to count the number of months of data prior to and after disability
+	gen cont_n_mos=strlen(dualind_n)
+	destring cont_n_mos, replace 
+	gen cont_p_mos=strlen(dualind_p)
+	destring cont_p_mos, replace
+	
+*make a variable for index to death
+gen mnths_dis_death= ((year(death_date)-year(index_date))*12)+(month(death_date)-month(index_date))	
+replace cont_p_mos= mnths_dis_death if mnths_dis_death<cont_p_mos
+replace cont_dual_p_mos= mnths_dis_death if mnths_dis_death<cont_dual_p_mos
+	
+/*make a variable to show that a person switched into MA after disability, switch_indicator
+first, make variables for switching before disability (switch_ma_n) and after disability (switch_ma_p)
+don't count as switch if is because enrolling in hospice (needs an indicator for a "hospice switch" (hospswitch))
+*/
+*make a variable for being in MA in first month (last digit of hmoind_n)-- this variable is also . if does not have 12 months of data
+	gen firstdual=substr(dualind_n, 1, 1)
+	destring firstdual, replace
+	*make missing if incomplete data prior to disability
+	replace firstdual=. if cont_n_mos<12
+
+	
+	
+tab cont_dual_n_mos	if cont_n_mos==12
+*year before disability:
+*424 in medicaid at 12 months prior, 36 gain medicaid over the year	
+tab cont_dual_p_mos if ind_nodual_index==0
+*months in medicaid after disability
+gen mnths_dual_after_dis=cont_p_mos-cont_nocaid_p_mos	
+tab mnths_dual_after_dis	
+*this variable shows the count of consecutive mnths after disability one is on medicaid-- so 390 on the whole 12 months, then mabe 20/month join starting a month or two after onset disability	
+	
+
+H="***BELOW THIS LINE IS TRASH*****"

@@ -6268,14 +6268,14 @@ replace cp_hb = 1 if homebound_cat<4
 
 gen adl_2plus=adl_index>=2
 
-log using `logpath'\models`date', replace
-logit hcalls age female married livealone rcfres adl_2plus prob_dem ind_hosp_adm_12m mc_hh metro_ind i.region if cp_hb==1, or
+log using `logpath'\femodel`date', replace
+qui logit hcalls age female married livealone rcfres adl_2plus prob_dem ind_hosp_adm_12m mc_hh metro_ind i.region if cp_hb==1, or
 
 qui outreg, varlabels stats(e_b e_ci p)
 
 logit hcalls age female married livealone rcfres adl_2plus prob_dem ind_hosp_adm_12m mc_hh metro_ind i.region i.year if cp_hb==1, or
 log close
-translate `logpath'\models`date'.smcl `logpath'\models`date'.pdf, replace
+translate `logpath'\femodel`date'.smcl `logpath'\femodel`date'.pdf, replace
 
 outreg using `logpath'\models`date'.rtf, varlabels stats(e_b e_ci p) merge replace
 
