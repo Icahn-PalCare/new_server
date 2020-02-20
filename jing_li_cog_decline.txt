@@ -272,9 +272,6 @@ keep id index_date n_*
 duplicates drop
 save visits.dta, replace
 
-H="***SAS here***"
-
-
 H="CCW 181-545"
 //get chronic condition indicators using actual CCW methodology
 
@@ -10783,6 +10780,9 @@ save "${intpath}\ccw366", replace
 
 
 
+H="***SAS here***"
+
+
 H="Dartmouth"
 /*
 
@@ -11043,7 +11043,7 @@ proc export data=dmouth_366_730 outfile="D:\HRS\Projects\exploratory\jing_li_cog
 replace; run;
 
 
-H="Charlson 181-545"
+H="Charlson"
 /*
 
 Created by: EBL
@@ -11466,6 +11466,164 @@ proc export data=charls_181_545 outfile="D:\HRS\Projects\exploratory\jing_li_cog
 replace; run;
 proc export data=charls_366_730 outfile="D:\HRS\Projects\exploratory\jing_li_cog_decline\data\int_data\charls_366_730.dta"
 replace; run;
+
+H="combine and clean for final including comorbs"
+cd $intpath
+
+//2/18/19--need to clean the comorb datasets, rename
+foreach y in 181 366 {
+use ccw`y', clear
+duplicates drop
+replace ccw_index=ccw_index-ccw_4
+label var ccw_index "Count of conditions `y'-`=`y'+364' days pre-ivw"
+
+// rename variables to keep (index and specific conditions)
+rename ccw_index_y1 ccw_index_`y'_`=`y'+364'
+tokenize 18 21 22 
+replace ccw_i=ccw_i-ccw_4
+forvalues i=1/3 {
+	rename ccw_``i'' cond_`=`i'+8'_`y'_`=`y'+364'
+}
+
+keep id index_date *`y'*
+tempfile ccw`y'
+save `ccw`y''
+
+use id bid_hrs_22 using index, clear
+duplicates drop
+merge 1:m bid using dmouth_`y'_`=`y'+364'
+drop dmouth_9 dmouth_i
+rename dmouth* cond*
+tempfile dmouth`y'
+save `dmouth`y''
+
+use id bid_hrs_22 using index, clear
+duplicates drop
+merge 1:m bid using charls_`y'_`=`y'+364'
+replace charls_index_wt=charls_index_wt-charls_5
+keep id index_date charls*wt*
+tempfile charls`y'
+save `charls`y''
+}
+
+
+use index, clear
+
+merge 1:1 id index_date using ffs, gen(ffsm)
+merge 1:1 id index_date using visits, gen(vism)
+
+//2/18/19--add comorbidity measures 
+foreach x in ccw dmouth charls {
+	foreach y in 181 366 {
+		merge 1:1 id index_date using ``x'`y'', gen(`x'`y'm) keep(match master)
+}
+}
+
+foreach x of varlist cond* ccw* charls* {
+	replace `x'=0 if missing(`x')
+}
+
+
+//2/19/19--randomize 
+preserve
+clear
+set seed 042387
+tokenize a b c d e f g h i j k
+set obs 11
+gen letter=""
+forvalues i=1/11 {
+replace letter="``i''" if _n==`i'
+}
+
+gen norm=rnormal()
+sort norm
+
+forvalues i=1/11 {
+	local lets `lets' `=letter[`i']'
+}
+
+di "`lets'"
+
+restore
+
+tokenize `lets'
+
+local n=1
+forvalues i=11(-1)1 {
+	rename cond_`i'_* cond_``i''_*
+
+}
+
+tokenize a b c d e f g h i j k
+forvalues i=1/11 {
+	foreach x in 181 366 {
+		label var cond_``i''_`x'_`=`x'+364' "Condition `i', `x' to `=`x'+364' days pre ivw" 
+}
+}
+
+merge 1:1 hhid pn wave using "${intpath}\HRS_id_1029.dta", nogen keep(match using) 
+replace core_year=wave*2+1990 if missing(core_year)
+
+
+
+merge 1:1 hhid pn core_year using "${hrs}\core_00_to_14.dta", keep(match master) nogen keepusing(c_ivw_date)
+
+
+
+destring id, replace
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", keep(match) keepusing(birth_date) nogen
+
+
+replace cont_ffs_n_mos=0 if missing(cont_ffs_n_mos)
+replace cont_ffs_p_mos=0 if missing(cont_ffs_p_mos)
+foreach x of varlist *nq* {
+	replace `x'=0 if cont_ffs_n_mos>=24 & missing(`x')
+}
+foreach x of varlist *pq* {
+	replace `x'=0 if cont_ffs_p_mos>=12 & missing(`x')
+}
+
+gen age=year(index_date)-year(birth_date)
+replace age=age-1 if month(index_date)<month(birth_date)
+replace age=age-1 if month(index_date)==month(birth_date) & day(index_date)<day(birth_date)
+replace age=65 if age==64
+
+foreach x of varlist *nq* {
+	replace `x'=0 if cont_ffs_n_mos>=12 & age==66 & missing(`x')
+}
+
+gen group=1 if missing(age)
+replace group=1 if cont_ffs_n_mos<24 | cont_ffs_p_mos<12
+replace group=2 if cont_ffs_p_mos==12 & age==65
+replace group=3 if cont_ffs_n_mos>=12 & cont_ffs_p_mos==12 & age==66
+replace group=4 if cont_ffs_n_mos>=24 & cont_ffs_p_mos==12 & age>=67
+
+label define group 1 "No link available or not FFS Medicare over study period" 2 "65 w/ 12m FFS post" 3 "66 w/ 12m FFS pre and post" 4 "67+ with 24m FFS pre and 12m post"
+label values group group
+keep hhidpn hhid pn wave n_* group cond* ccw* charls*
+label var group "Age/FFS flag"
+
+foreach x of varlist n_* {
+	replace `x'=. if group==1
+}
+
+foreach x of varlist *nq* {
+	replace `x'=. if group==2
+}
+
+foreach x of varlist *nq5 *nq6 *nq7 *nq8 {
+	replace `x'=. if group==3
+}
+
+order *, alpha
+
+order hhidpn hhid pn wave group n_* cond*181* cond*366* 
+drop *m
+
+save HRS_id_1029_w_visits_w_comorbs.dta, replace
+
+H="*****output for original dataset (not including comorbs)*****"
+
 
 H="combine and clean for final"
 cd $intpath
