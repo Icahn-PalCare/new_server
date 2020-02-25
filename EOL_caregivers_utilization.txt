@@ -10347,7 +10347,7 @@ local r=1
 		mat tab[`r',`c']=r(N)
 		mat tab[`r',`c'+1]=r(mean)
 		mat tab[`r',`c'+2]=r(sd)
-		svy: reg ind_hs `x'
+		svy: logit ind_hs `x'
 				test `x'
 		mat tab[`r',`c'+3]=r(p)
 		}
@@ -10408,7 +10408,7 @@ mat list tab
 
 mat rownames tab=`cvars1' `cvars2' `cvars3' `ivars1' `ivars2' `ivars3' `ivars4' N "National Estimate"
 
-frmttable using decedent_hospice_1_7_cat.rtf, replace statmat(tab) title("Sample Characteristics by Hospice Use for N-1 Decedents") ///
+frmttable using `logpath'/decedent_hospice_1_7_cat.rtf, replace statmat(tab) title("Sample Characteristics by Hospice Use for N-1 Decedents") ///
 ctitles("" "No Hospice, N" "No Hospice, Mean/%" "No Hospice, SD" "No Hospice, P-value" /// 
 "Yes Hospice, N" "Yes Hospice, Mean/%" "Yes Hospice, SD" "Yes Hospice, P-value" ///
 "Full Sample, N" "Full Sample, Mean/%" "Full Sample, SD") varlabels  ///
@@ -10464,7 +10464,7 @@ mat list tab
 
 mat rownames tab=`cvars1' `cvars2' `cvars3' `ivars1' `ivars2' `ivars3' N "National Estimate"
 
-frmttable using decedent_hospice_1_7_cat.rtf, replace statmat(tab) title("Sample Characteristics by Hospice Use for N-1 Decedents") ///
+frmttable using `logpath'/decedent_hospice_1_7_cat.rtf, replace statmat(tab) title("Sample Characteristics by Hospice Use for N-1 Decedents") ///
 ctitles("" "<6 Hours, Mean/%" "<6 Hours, P-value" "[6,20) Hours, Mean/%" "[6,20) Hours, P-value" "[20,40) Hours, Mean/%" "[20,40) Hours, P-value" ">=40 Hours, Mean/%" ">=40 Hours, P-value") varlabels  ///
 note("Waves 1-7 NHATS community-dwelling sample with 12m mortality" ///
 "2016 Claims used to determine hospice" ///
@@ -10508,7 +10508,7 @@ local r=1
 		mat tab[`r',`c'+3]=r(table)[5,1]
 		mat tab[`r',`c'+4]=r(table)[6,1]
 		if inlist(`i',1,2,3){
-		svy: reg group`i' `x'
+		svy: logit group`i' `x'
 				test `x'
 		mat tab[`r',`c'+5]=r(p)
 		}
@@ -10546,7 +10546,7 @@ mat list tab
 
 mat rownames tab=`cvars1' `cvars2' `cvars3' `ivars1' `ivars2' `ivars3' N "National Estimate"
 
-frmttable using decedent_hospice_1_7_cat.rtf, replace statmat(tab) title("Sample Characteristics by Hospice Use for N-1 Decedents") ///
+frmttable using `logpath'/decedent_hospice_1_7_cat.rtf, replace statmat(tab) title("Sample Characteristics by Hospice Use for N-1 Decedents") ///
 ctitles("" "Probable Dementia, N" "Probable Dementia, Mean/%" "Probable Dementia, SD" ///
 "Probable Dementia, 95% LB" "Probable Dementia, 95% UB" "Probable Dementia, P-value" "SR Cancer, N" "SR Cancer, Mean/%" "SR Cancer, SD" ///
 "SR Cancer, 95% LB" "SR Cancer, 95% UB" "SR Cancer, P-value") varlabels  ///
@@ -10573,7 +10573,7 @@ local r=1
 		mat tab[`r',`c'+1]=r(mean)
 		mat tab[`r',`c'+2]=r(sd)
 		if inlist(`i',1,2,3){
-		svy: reg group`i' `x'
+		svy: logit group`i' `x'
 				test `x'
 		mat tab[`r',`c'+3]=r(p)
 		}
@@ -10609,7 +10609,7 @@ mat list tab
 
 mat rownames tab=`cvars1' `cvars2' `cvars3' `ivars1' `ivars2' `ivars3' N "National Estimate"
 
-frmttable using decedent_hospice_1_7_cat.rtf, replace statmat(tab) title("Sample Characteristics by Hospice Use for N-1 Decedents") ///
+frmttable using `logpath'/decedent_hospice_1_7_cat.rtf, replace statmat(tab) title("Sample Characteristics by Hospice Use for N-1 Decedents") ///
 ctitles("" "SR Heart Disease, N" "SR Heart Disease, Mean/%" "SR Heart Disease, SD" ///
 "SR Heart Disease, P-value" "Full Sample, N" "Full Sample, Mean/%" "Full Sample, SD") varlabels  ///
 note("Waves 1-7 NHATS community-dwelling sample with 12m mortality" ///
@@ -10654,7 +10654,7 @@ mat colnames tab1="<6 Hours" "[6,20) Hours" "[20,40) Hours" ">=40 Hours"
 mat list tab
 mat list tab1
 
-frmttable using "D:\NHATS\Projects\caregiving\eol_caregivers_hospice_student\Output\logs\hopsice_table_cat.rtf", statmat(tab) title("Number of Hopice by Hour and Helper Category") replace
+frmttable using "D:\NHATS\Projects\caregiving\eol_caregivers_hospice_student\Output\logs\hospice_table_cat.rtf", statmat(tab) title("Number of Hopice by Hour and Helper Category") replace
 
 frmttable using "D:\NHATS\Projects\caregiving\eol_caregivers_hospice_student\Output\logs\hopsice_table_cat.rtf", statmat(tab1) title("Percentage Hopice by Hour and Helper Category") replace addtable
 
@@ -10771,6 +10771,22 @@ di r(p50)
 svy, subpop(if sample==1): mean hs_los
 sum hs_los [aw=anfinw]
 
+
+graph bar (mean) ind_hs, over(hrswk_unpaid_4, relabel (1 "<6" 2 "[6,20)" 3 "[20,40)" 4 ">=40")) ylabel(0 .2 "20" .4 "40" .6 "60" .8 "80", labsize(vsmall) labgap(zero)) ytitle(% Hospice, size(small)) title(Hospice by Informal Caregiving Hours) b1title("Informal Caregiving Hours Received")
+graph save all.gph, replace
+
+graph bar (mean) ind_hs if prob_dem==1, over(hrswk_unpaid_4, relabel (1 "<6" 2 "[6,20)" 3 "[20,40)" 4 ">=40"))ylabel(0 .2 "20" .4 "40" .6 "60" .8 "80", labsize(vsmall) labgap(zero)) ytitle(% Hospice, size(small)) title(Hospice by Informal Caregiving Hours) b1title("Informal Caregiving Hours Received") blabel(small)
+graph save dem.gph, replace
+
+graph bar (mean) ind_hs if sr_cancer_ever==1, over(hrswk_unpaid_4, relabel (1 "<6" 2 "[6,20)" 3 "[20,40)" 4 ">=40")) ylabel(0 .2 "20" .4 "40" .6 "60" .8 "80", labsize(vsmall) labgap(zero)) ytitle(% Hospice, size(small)) title(Hospice by Informal Caregiving Hours) b1title("Informal Caregiving Hours Received") blabel(small)
+graph save cancer.gph, replace
+
+graph combine all.gph dem.gph cancer.gph
+graph save combine.png, replace
+
+
+ 
+ 
 ///good hospice
 
 local vars  age female black other_race hisp educ_hs_ind married northeast south midwest medicaid ///
@@ -11157,7 +11173,7 @@ local r=1
 		mat tab[`r',`c']=r(N)
 		mat tab[`r',`c'+1]=r(mean)
 		mat tab[`r',`c'+2]=r(sd)
-		svy: reg ind_hs `x'
+		svy: logit ind_hs `x'
 				test `x'
 		mat tab[`r',`c'+3]=r(p)
 		}
@@ -11319,7 +11335,7 @@ local r=1
 		mat tab[`r',`c'+3]=r(table)[5,1]
 		mat tab[`r',`c'+4]=r(table)[6,1]
 		if inlist(`i',1,2,3){
-		svy: reg group`i' `x'
+		svy: logit group`i' `x'
 				test `x'
 		mat tab[`r',`c'+5]=r(p)
 		}
@@ -11385,7 +11401,7 @@ local r=1
 		mat tab[`r',`c'+1]=r(mean)
 		mat tab[`r',`c'+2]=r(sd)
 		if inlist(`i',1,2,3){
-		svy: reg group`i' `x'
+		svy: logit group`i' `x'
 				test `x'
 		mat tab[`r',`c'+3]=r(p)
 		}
