@@ -18460,6 +18460,146 @@ i.ind_hs_lt3d i.ind_hs_live_disch
 
 
 
+H="logits"
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
+
+
+merge m:1 id using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(matched)
+
+
+
+keep if nflag==0 |nflag==1
+
+gsort id  -nflag
+
+by id: carryforward married srh srh_pf srh_g srh_ve adl_independent_core age_ivw, replace
+
+keep if nflag==0
+
+gen no_ind_hs=0 if ind_hs==1
+replace no_ind_hs=1 if ind_hs==0
+label var no_ind_hs "No hospice use"
+
+
+
+tab dementia flag_burd
+
+gen n=1
+
+gen ind_hs_gt6m_1=0 if ind_hs_gt6m==0 & ind_hs==1
+replace ind_hs_gt6m_1=1 if ind_hs_gt6m==1 & ind_hs==1
+label var ind_hs_gt6m_1 ">183 days on hospice"
+
+gen ind_hs_suboptimal_1=0 if  ind_hs_gt6m_1==0 & ind_hs_lt3d==0 & ind_hs==1
+replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lt3d==1) & ind_hs==1
+label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
+
+gen unmarried=0 if married==1
+replace unmarried=1 if married==0
+
+gen hs_educ=0
+replace hs_educ=1 if degree==0
+
+gen vulnerable=0
+replace vulnerable=1 if black==1 | hisp_eth==1 | degree==0 | married==0
+
+gen no_ind_nw_remaining=0 if ind_nw_remaining==1
+replace no_ind_nw_remaining=1 if ind_nw_remaining==0
+
+gen no_ind_fw_remaining=0 if ind_fw_remaining==1
+replace no_ind_fw_remaining=1 if ind_fw_remaining==0
+
+//replace ind_hs_live_disch=0 if ind_hs_live_disch==.
+replace ind_hs_lt3d=0 if ind_hs_lt3d==. 
+
+
+manova ind_start_ltc nhres_exit loc_hosp_exit flag_burd ind_hs_gt6m no_ind_hs ind_hs_suboptimal ind_hs_live_disch ind_hs_lt3d= hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining
+
+
+gsem (ind_hs_live_disch <- hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining dem_cohort, logit ) (dem_cohort <- hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining, logit )
+
+gsem (ind_hs_suboptimal_1 <- hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining dem_cohort, logit ) (dem_cohort <- hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining, logit )
+
+logit ind_hs_gt6m  i.hs_educ age_at_death i.black i.hisp_eth i.other i.unmarried i.ind_nw_remaining i.dem_cohort if ind_hs==1
+
+logit ind_hs_lt3d  i.hs_educ age_at_death i.black i.hisp_eth i.other if ind_hs==1
+
+ i.unmarried i.ind_nw_remaining i.dem_cohort if ind_hs==1
+
+logit ind_hs_suboptimal i.hs_educ age_at_death i.black i.hisp_eth i.other i.unmarried i.ind_nw_remaining i.dem_cohort if ind_hs==1
+
+logit ind_hs_live_disch  i.hs_educ age_at_death i.black i.hisp_eth i.other i.unmarried i.ind_nw_remaining i.dem_cohort if ind_hs==1
+
+tab 
+
+//////////////
+
+gen white_oth=0
+replace white_oth=1 if white==1 | other==1
+label var white_oth "White/Other Race"
+
+label var hs_educ "HS education"
+
+logit ind_hs i.white_oth if dem_cohort==0 & hisp_eth==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
+
+logit ind_hs i.white_oth age_ivw srh_pf adl_independent_core if dem_cohort==0 & hisp_eth==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
+
+logit ind_hs i.white_oth if dem_cohort==1 & hisp_eth==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
+
+logit ind_hs i.white_oth age_ivw srh_pf adl_independent_core if dem_cohort==1 & hisp_eth==0, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" "Excluding Hispanic") title("Race and Hospice")
+
+
+logit ind_hs i.white_oth if dem_cohort==0 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
+
+logit ind_hs i.white_oth age_ivw srh_pf adl_independent_core if dem_cohort==0 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
+
+logit ind_hs i.white_oth if dem_cohort==1 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
+
+logit ind_hs i.white_oth age_ivw srh_pf adl_independent_core if dem_cohort==1 & black==0, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" "Excluding Black") title("Race and Hospice")
+
+
+logit ind_hs i.hs_educ if dem_cohort==0 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
+
+logit ind_hs i.hs_educ age_ivw srh_pf adl_independent_core if dem_cohort==0 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
+
+logit ind_hs i.hs_educ if dem_cohort==1 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
+
+logit ind_hs i.hs_educ age_ivw srh_pf adl_independent_core if dem_cohort==1 & black==0, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" =) title("Education and Hospice")
+
+
+logit ind_hs i.married if dem_cohort==0 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
+
+logit ind_hs i.married age_ivw srh_pf adl_independent_core if dem_cohort==0 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
+
+logit ind_hs i.married if dem_cohort==1 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
+
+logit ind_hs i.married age_ivw srh_pf adl_independent_core if dem_cohort==1 & black==0, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs") title("Married and Hospice")
+
+logit ind_hs i.hs_educ age_at_death i.unmarried i.ind_nw_remaining if dem_cohort==1 & black==0
+
+logit ind_hs i.hs_educ age_at_death i.black i.hisp_eth i.other i.unmarried i.ind_nw_remaining if dem_cohort==0
+
+
+
+
+
 H="changelog"
 01/29/20 - Burdensome Transitions added to Table 1. 
 

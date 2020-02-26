@@ -1156,7 +1156,7 @@ set more off
 capture log close
 
 
-cd "D:\NHATS\Projects\homebound\ko_homebound_income\output\logs"
+cd "D:\NHATS\Projects\homebound\ko_hb_trajectories\output\output"
 use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" if lml==0, clear
 
 
@@ -1355,51 +1355,7 @@ stset lw [pw=anfinw], failure(f_stat==1 2 3 4) id(spid)
 
 sts graph, note(fail=all)
 */
-
-
-//NH
-stset lw [pw=anfinw], failure(f_stat==2) id(spid)
-sts gen s4=s 
-
-//died
-stset lw [pw=anfinw], failure(f_stat==3) id(spid)
-sts gen s3=s 
-
-//community
-stset lw [pw=anfinw], failure(f_stat==1) id(spid)
-sts gen s2=s
-
-sts graph, addplot((line s4 lw, sort c(J) legend( order( 1 "Community" 2 "NH" 3 "Died"))) (line s3 lw, sort c(J)) )
-
-
-stset lw [pw=anfinw], failure(f_stat==1 2 3) id(spid)
-
-sts graph, addplot((line s2 lw, sort c(J) legend( order( 1 "All" 2 "Community" 3 "Died" 4 "NH" ))) (line s3 lw, sort c(J)) (line s4 lw, sort c(J)))
-
-
-//died
-stset lw [pw=anfinw], failure(f_stat==4) id(spid)
-
-local vars `age' ib4.income_quart /*fin_strain anydebt govtasst finhlpfam meals_wheels */ ///
-female black hisp married ind_noone educ_hs_ind  ///
-medicaid prob_dem `cond' adl_diff_ind srh_fp sr_cond_cat2 sr_cond_cat3 ///
-ind_paid_helper metro_ind northeast midwest south
-
-stcox age female black hisp married ind_noone educ_hs_ind  ///
-medicaid prob_dem adl_diff_ind srh_fp ///
-ind_paid_helper metro_ind northeast midwest south i.income_quart
-
-
-//nh
-stset lw [pw=anfinw], failure(f_stat==3) id(spid)
  
-stcox age female black hisp married ind_noone educ_hs_ind  ///
-medicaid prob_dem adl_diff_ind srh_fp ///
-ind_paid_helper metro_ind northeast midwest south i.income_quart
- 
- 
- 
-drop a
 gen sample_full=.
 replace sample_full=1 if sample==1 & status==2
 
@@ -1437,7 +1393,7 @@ label var sr_cond_cat`i' "`lab'"
 
 
 tab wave nwstat if wave<=4, row
-tab nwsta status if wave==1 
+tab nwsta status if wave==2 
 
 //income quartile definiton
 sum income_adj
@@ -1468,12 +1424,107 @@ sort spid wave
 gen inchb_after=1 if inchb==1 
 by spid: carryforward inchb_after, replace
 
+capture drop time
 sort spid inchb_after wave
 by spid inchb_after: gen time=_n if inchb_after==1 
 
 
 
+//NH
+stset lw [pw=anfinw], failure(f_stat==2) id(spid)
+sts gen s4=s 
 
+//died
+stset lw [pw=anfinw], failure(f_stat==3) id(spid)
+sts gen s3=s 
+
+//community
+stset lw [pw=anfinw], failure(f_stat==1) id(spid)
+sts gen s2=s
+
+sts graph, addplot((line s4 lw, sort c(J) legend( order( 1 "Community" 2 "NH" 3 "Died"))) (line s3 lw, sort c(J)) )
+
+
+stset lw [pw=anfinw], failure(f_stat==1 2 3) id(spid)
+
+sts graph, addplot((line s2 lw, sort c(J) legend( order( 1 "All" 2 "Community" 3 "Died" 4 "NH" ))) (line s3 lw, sort c(J)) (line s4 lw, sort c(J)))
+
+
+//community
+stset lw [pw=anfinw], failure(f_stat==1) id(spid)
+
+local vars age ib4.income_quart /*fin_strain anydebt govtasst finhlpfam meals_wheels */ ///
+female black hisp married ind_noone educ_hs_ind  ///
+medicaid prob_dem `cond' adl_diff_ind srh_fp sr_cond_cat2 sr_cond_cat3 ///
+ind_paid_helper metro_ind northeast midwest south
+
+
+stcox age female black hisp married educ_hs_ind ib4.income_quart
+outreg using home_limited, replace stats(e_b p e_ci) varlabels note(Wave 2 weights used) ctitles("" "HB Subhazard Ratio (1)" )
+
+stcox age female black hisp married ind_noone educ_hs_ind  ///
+medicaid prob_dem adl_diff_ind srh_fp ///
+ind_paid_helper metro_ind northeast midwest south ib4.income_quart
+outreg using home_limited, replace stats(e_b p e_ci) varlabels note(Wave 2 weights used) ctitles("" "HB Subhazard Ratio (2)" ) merge
+
+stcox `vars'
+outreg using home_limited, replace stats(e_b p e_ci) varlabels note(Wave 2 weights used) ctitles("" "HB Subhazard Ratio (3)" ) merge
+
+//competing risks
+
+stset lw [pw=anfinw], failure(f_stat==1) id(spid)
+
+local vars age ib4.income_quart /*fin_strain anydebt govtasst finhlpfam meals_wheels */ ///
+female black hisp married ind_noone educ_hs_ind  ///
+medicaid prob_dem adl_diff_ind srh_fp sr_cond_cat2 sr_cond_cat3 ///
+ind_paid_helper metro_ind northeast midwest south
+
+
+stcrreg age female black hisp married educ_hs_ind ib4.income_quart, compete(f_stat=2 3)
+outreg using home_limited_comp, replace stats(e_b p e_ci) varlabels note(Wave 2 weights used) ctitles("" "HB Subhazard Ratio (1)" ) 
+
+stcrreg age female black hisp married ind_noone educ_hs_ind  ///
+medicaid prob_dem adl_diff_ind srh_fp ///
+ind_paid_helper metro_ind northeast midwest south ib4.income_quart, compete(f_stat=2 3)
+outreg using home_limited_comp, replace stats(e_b p e_ci) varlabels note(Wave 2 weights used) ctitles("" "HB Subhazard Ratio (2)" ) merge
+
+stcrreg `vars', compete(f_stat=2 3)
+outreg using home_limited_comp, replace stats(e_b p e_ci) varlabels note(Wave 2 weights used) ctitles("" "HB Subhazard Ratio (3)" ) merge
+
+foreach x=1/3{
+	sum lw if f_stat==`i'
+}
+
+stcurve, cif
+
+
+
+
+
+
+
+//died
+stset lw [pw=anfinw], failure(f_stat==3) id(spid)
+
+local vars `age' ib4.income_quart /*fin_strain anydebt govtasst finhlpfam meals_wheels */ ///
+female black hisp married ind_noone educ_hs_ind  ///
+medicaid prob_dem `cond' adl_diff_ind srh_fp sr_cond_cat2 sr_cond_cat3 ///
+ind_paid_helper metro_ind northeast midwest south
+
+stcox age female black hisp married ind_noone educ_hs_ind  ///
+medicaid prob_dem adl_diff_ind srh_fp ///
+ind_paid_helper metro_ind northeast midwest south ib4.income_quart
+
+stcox `vars'
+
+
+//nh
+stset lw [pw=anfinw], failure(f_stat==2) id(spid)
+ 
+stcox age female black hisp married ind_noone educ_hs_ind  ///
+medicaid prob_dem adl_diff_ind srh_fp ///
+ind_paid_helper metro_ind northeast midwest south i.income_quart
+ 
 
 
 //important to define the last wave in community 
