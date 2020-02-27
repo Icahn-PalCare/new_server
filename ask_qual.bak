@@ -18539,62 +18539,73 @@ gen white_oth=0
 replace white_oth=1 if white==1 | other==1
 label var white_oth "White/Other Race"
 
-label var hs_educ "HS education"
+label var hs_educ "<HS education"
 
-logit ind_hs i.white_oth if dem_cohort==0 & hisp_eth==0, or
+gen adl_dependent_core=0 if adl_independent_core==1
+replace adl_dependent_core=1 if adl_independent_core==0
+label var adl_dependent_core "Dependent for ADLs"
+
+local vars1 age_ivw female_exit srh_pf adl_dependent_core
+local vars2 unmarried hs_educ
+
+logit ind_hs black if dem_cohort==0 & hisp_eth==0, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
 
-logit ind_hs i.white_oth age_ivw srh_pf adl_independent_core if dem_cohort==0 & hisp_eth==0, or
+logit ind_hs black `vars1' if dem_cohort==0 & hisp_eth==0, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
 
-logit ind_hs i.white_oth if dem_cohort==1 & hisp_eth==0, or
+logit ind_hs black if dem_cohort==1 & hisp_eth==0, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
 
-logit ind_hs i.white_oth age_ivw srh_pf adl_independent_core if dem_cohort==1 & hisp_eth==0, or
-outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" "Excluding Hispanic") title("Race and Hospice")
+logit ind_hs black `vars1' if dem_cohort==1 & hisp_eth==0, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \ "Excluding Hispanic" \ "Outcome is hospice indicator" ) title("Black vs. White/other and Hospice")
 
 
-logit ind_hs i.white_oth if dem_cohort==0 & black==0, or
+logit ind_hs hisp_eth if dem_cohort==0 & black==0, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
 
-logit ind_hs i.white_oth age_ivw srh_pf adl_independent_core if dem_cohort==0 & black==0, or
+logit ind_hs hisp_eth `vars1' if dem_cohort==0 & black==0, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
 
-logit ind_hs i.white_oth if dem_cohort==1 & black==0, or
+logit ind_hs hisp_eth if dem_cohort==1 & black==0, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
 
-logit ind_hs i.white_oth age_ivw srh_pf adl_independent_core if dem_cohort==1 & black==0, or
-outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" "Excluding Black") title("Race and Hospice")
+logit ind_hs hisp_eth `vars1' if dem_cohort==1 & black==0, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \ "Excluding Black" \ "Outcome is hospice indicator" ) title("Hispanic vs. White/other and Hospice") addtable
 
 
-logit ind_hs i.hs_educ if dem_cohort==0 & black==0, or
+logit ind_hs hs_educ if dem_cohort==0, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
 
-logit ind_hs i.hs_educ age_ivw srh_pf adl_independent_core if dem_cohort==0 & black==0, or
+logit ind_hs hs_educ `vars1' if dem_cohort==0, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
 
-logit ind_hs i.hs_educ if dem_cohort==1 & black==0, or
+logit ind_hs hs_educ if dem_cohort==1, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
 
-logit ind_hs i.hs_educ age_ivw srh_pf adl_independent_core if dem_cohort==1 & black==0, or
-outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" =) title("Education and Hospice")
+logit ind_hs hs_educ `vars1' if dem_cohort==1, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \  "Outcome is hospice indicator" ) title("<HS Education and Hospice") addtable
 
 
-logit ind_hs i.married if dem_cohort==0 & black==0, or
+logit ind_hs unmarried if dem_cohort==0, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
 
-logit ind_hs i.married age_ivw srh_pf adl_independent_core if dem_cohort==0 & black==0, or
+logit ind_hs unmarried `vars1' if dem_cohort==0, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
 
-logit ind_hs i.married if dem_cohort==1 & black==0, or
+logit ind_hs unmarried if dem_cohort==1, or
 outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
 
-logit ind_hs i.married age_ivw srh_pf adl_independent_core if dem_cohort==1 & black==0, or
-outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs") title("Married and Hospice")
+logit ind_hs unmarried `vars1' if dem_cohort==1, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \  "Outcome is hospice indicator" ) title("Unmarried and Hospice") addtable
 
-logit ind_hs i.hs_educ age_at_death i.unmarried i.ind_nw_remaining if dem_cohort==1 & black==0
 
-logit ind_hs i.hs_educ age_at_death i.black i.hisp_eth i.other i.unmarried i.ind_nw_remaining if dem_cohort==0
+logit ind_hs black hisp_eth hs_educ unmarried `vars1' if dem_cohort==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
+
+logit ind_hs black hisp_eth hs_educ unmarried `vars1' if dem_cohort==1, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \  "Outcome is hospice indicator" ) title("Hospice") addtable
+
 
 
 
