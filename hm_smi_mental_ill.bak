@@ -7530,20 +7530,16 @@ create table hrs as select * from
 core_04_14 a
 left join 
 medi.xref2015medicare b
-on a.hhid=b.hhid and a.pn=b.pn
-left join clean.restr_tracker_v2014 c
-on a.hhid=c.hhid and a.pn=b.pn;
+on a.hhid=b.hhid and a.pn=b.pn;
 quit;
 
-proc sort data=hrs out=hrs1;
+proc sort data=hrs out=hrs1 nodupkey;
 by bid_hrs_22 core_year;
 run;
 
-data hrs2;
+data hrs1 ;
 set hrs1;
-count+1;
-by bid_hrs_22;
-if first.bid_hrs_22 then count=1;
+if trim(bid_hrs_22)='' then delete;
 run;
 
 /* want to keep frist 2 observations and then drop the rest 
@@ -7551,13 +7547,100 @@ Then want to make sure they are consecutive interviews.
 Then keep the first interview and look 12 months prior to see if any smi's.
 */
 
+data hrs2;
+set hrs1;
+count+1;
+by bid_hrs_22 ;
+if first.bid_hrs_22 then count=1;
+run;
+
 data hrs3;
 set hrs2;
-if 
+if count=1 or count=2;
+run;
+
+data hrs4;
+set hrs3;
+flag=0;
+if count=2 and lag(bid_hrs_22)=bid_hrs_22 and core_year-2=lag(core_year) then flag=1;
+run; 
+
+data list (keep=bid_hrs_22);
+set hrs4;
+if flag=1;
+run;
+
+proc sql;
+create table hrs5 as select * from 
+hrs4 a
+inner join 
+list b
+on a.bid_hrs_22=b.bid_hrs_22;
+quit;
+
+proc freq data=hrs5;
+table count;
+run;
+
+data hrs_1_ivw;
+set hrs5;
+if count=1;
+run;
+
+data hrs_2_ivw;
+set hrs5;
+if count=2;
+run;
+
+proc freq data=hrs_2_ivw;
+table core_year;
+run;
+
+
+/*HERE*/
+
+
+
+
+
+
+
+data hrs4;
+set hrs3;
+by bid_hrs_22;
+set hrs1 (firstobs =2 keep= bid_hrs_22 core_year rename= (core_year=next_year))
+hrs1 (obs=1 drop=_all_);
+prev_year= ifn(first.bid_hrs_22, (.), lag(core_year));
+next_year= ifn(last.bid_hrs_22, (.), next_year);
+run;
+
+data hrs5;
+set hrs4;
+if core_year=next_year-2 or core_year=prev_year+2 then keep;
+run; 
+
+proc sort data=hrs5 out=hrs6;
+by bid_hrs_22 count;
+run;
+
+data hrs6;
+set hrs5;
+
+
+
+data hrs3;
+set hrs2;
+count+1;
+by bid_hrs_22 ;
+if first.bid_hrs_22 then count=1;
+run;
+
+
 
 data hrs2;
 set hrs1;
 age_at_core=(c_ivw_date-birth_date)/365.25;
+if (count=1 or count=2) and (core_year
 run;
 
 data proj_int.hrs;
