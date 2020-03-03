@@ -47,6 +47,9 @@ i.e. defining variables, labeling variables. Creating new quartiles for income b
 /* Days at home code
 
 /* Starting with death date as index and look 1 year back. */
+/* Days at home code
+
+/* Starting with death date as index and look 1 year back. */
 
 data index;
 set clean.death_date_2015;
@@ -428,6 +431,7 @@ run;
 
 proc export data=total_home_days outfile="D:\HRS\Projects\exploratory\cka_days_at_home\data\final\total_home_days.dta" replace; 
 run;
+
 
 H="Change log"
 
