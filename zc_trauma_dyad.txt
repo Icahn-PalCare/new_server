@@ -2168,6 +2168,153 @@ ctitles("" "Pre-trauma" "Post-trauma" "P-value") varlabels ///
 sdec(2,2,3) annotate(stars) asymbol(*,**,NR) replace
 
 
+H="regression"
+use spid  *date* using "${datapath}\sample_final", clear
+merge 1:1 spid using "${intpath}\index.dta", keepusing(bene_id) nogen keep(match)
+merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\snf_09_17.dta", keep(match) nogen keepusing(admit_date disch_date)
+keep if inrange(ivw_date_p1,admit_date,disch_date) | inrange(ivw_date_n1,admit_date,disch_date)
+gen ind_snf=1
+label var ind_snf "In a SNF at the time of the interview"
+keep spid ind_snf
+duplicates drop
+tempfile t1
+save `t1'
+
+use "${datapath}\sample_final", clear
+gen wave=wave_p1
+merge 1:1 spid wave using "${nhats}\sp_round_1_8.dta", keep(match) nogen keepusing(tot_hrswk_help_i)
+
+keep if !missing(ivw_date_n1)
+merge m:1 spid using "${intpath}\trauma_dyad_nhatspre", keep(match)
+replace iss=niss
+replace traum2=abs(traum2)
+
+replace tot_hrswk_help_i=0 if missing(tot_hrswk_help_i)
+replace medicaid_n1=0 if missing(medicaid_n1)
+replace ch3plus_n1=0 if missing(ch3plus_n1)
+local xvars iss c.age_n1 female_n1 i.race_n1 /*married_n1*/  i.livearrang_n1 educ_hs_ind_n1 /*medicaid_n1 i.income_quart_n1*/ ind_trauma_hosp ch3plus_n1 prob_dem_n1 sr_phq2_depressed_n1 traum2ivw
+sum `xvars' if !ind_snf & !nhres_p1 & !nhres_n1
+replace livearrang_n1=4 if livearrang_n1==5 
+label define livearrang 4 "Res Care Facility or NH", modify
+merge 1:1 spid using `t1', keep(match master) nogen
+replace ind_snf=0 if missing(ind_snf)
+reg n_helpers_p1 `xvars'
+
+reg n_helpers_p1 iss
+
+glm tot_hrswk_help_i `xvars', link(log) fam(gamma)
+
+*sum `xvars'
+rename tot_hrswk  hrswk_p1
+replace wave=wave_n1
+merge 1:1 spid wave using "${nhats}\sp_round_1_8.dta", keep(match) nogen keepusing(tot_hrswk_help_i)
+
+rename tot_hrswk hrswk_n1
+replace hrswk_n1=0 if hrswk_n1==.
+local xvars  c.age_n1 female_n1 i.race_n1 /*married_n1*/  i.livearrang_n1 educ_hs_ind_n1 /*medicaid_n1 i.income_quart_n1*/ ind_trauma_hosp ch3plus_n1 prob_dem_n1 //sr_phq2_depressed_n1
+
+
+corr hrswk_p1 age_n1 female_n1 educ_hs_ind_n1 ind_trauma_hosp ch3plus_n1 prob_dem_n1 hrswk_n1
+hist hrswk_p1
+
+
+
+
+
+local cvars1 iss age_n1 
+local ivars1 female_n1
+local catvars1 race livearrang
+local ivars2 educ_hs_ind_n1 ind_trauma_hosp ch3plus_n1 prob_dem_n1
+local cvars3 hrswk_n1
+
+forvalues i=1/5 {
+	local cativars`i'
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x'_n1, local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'_n1==`l' if !missing(`x'_n1)
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+local rows
+forvalues i=1/5 {
+local rows `rows' `cvars`i''  `ivars`i'' `cativars`i''
+}
+
+local rn : word count `rows' 
+local r=1
+local c=1
+
+mat tab=J(`rn',2,.)
+mat stars=J(`rn',2,0)
+ 
+foreach x of local rows {
+	sum `x'
+	mat tab[`r',1]=r(mean)
+	if r(max)==1 mat tab[`r',1]=r(mean)*100
+	reg hrswk_p1 `x'
+	test `x'
+	*mat tab[`r',2]=r(p)
+	glm hrswk_p1 `x', link(log) fam(gamma)
+	test `x'
+	mat tab[`r',2]=r(p)
+	local r=`r'+1
+}	
+
+mat rownames tab=`rows' 
+
+local xvars  c.age_n1 female_n1 i.race_n1 /*married_n1*/  i.livearrang_n1 educ_hs_ind_n1 /*medicaid_n1 i.income_quart_n1*/ ind_trauma_hosp ch3plus_n1 prob_dem_n1 //sr_phq2_depressed_n1
+
+log using "${outpath}\trauma_regression_log`c(current_date)'", replace
+//skew is 2.7; 6% have no hours
+sum hrswk_p1
+hist hrswk_p1, 
+graph export "${outpath}\hist_hours.pdf", replace
+
+
+corr hrswk_p1 iss age_n1 female_n1 educ_hs_ind_n1 ind_trauma_hosp ch3plus_n1 prob_dem_n1 hrswk_n1
+
+
+
+frmttable, statmat(tab) ctitles("" "Mean" "P-value") varlabels note("P-values from unadjusted GLM with log link and gamma family of hours worked on listed variable") title("Significance of bivariate relationship")
+
+//excluding people if they're a nursing home resident or in a SNF at either interview
+gen exclude=nhres_n1==1 | nhres_p1==1 | ind_snf==1
+
+//no substantial missingness--results not shareable off the server for small cell size
+qui sum `xvars' if !exclude
+
+//excluding NH folks (not controlling for prior status)
+glm hrswk_p1 iss `xvars' if !nhres_p1 & !nhres_n1 & !ind_snf, link(log) fam(gamma) eform
+
+//excluding NH, controlling for prior status
+glm hrswk_p1 iss `xvars' hrswk_n1 if !nhres_p1 & !nhres_n1 & !ind_snf, link(log) fam(gamma) eform
+
+/*gen ind_maj_trauma=iss>15 if !missing(iss)
+
+glm hrswk_p1 ind_maj_trauma `xvars' hrswk_n1 if !nhres_p1 & !nhres_n1 & !ind_snf, link(log) fam(gamma) eform
+
+hist n_helpers_p1
+graph export "${outpath}\hist_helpers.pdf", replace
+
+reg n_helpers_p1 `xvars' n_helpers_n1 if !nhres_p1 & !nhres_n1 & !ind_snf
+
+*/
+
+log close
+translate "${outpath}\trauma_regression_log`c(current_date)'.smcl" "${outpath}\trauma_regression_log`c(current_date)'.pdf", replace
+
 H="**********NSOC**********"
 
 

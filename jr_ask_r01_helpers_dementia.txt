@@ -16308,12 +16308,260 @@ label var ind_fw_remaining "% OOP<Baseline Financial Wealth"
 save "${final}\informal_cg_10yr_long_and_wide_final.dta", replace
 
 
+H="compare excluded group"
+clear all
+capture log close
+
+global datapath "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\int_data"
+local logpath "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\logs"
+global ooppath "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\oopdata"
+global output "E:\projects\burden_dementia\archive logs"
+cd $datapath
+
+
+use D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta, clear
+drop id
+gen id=hhid+pn
+keep  birthday birthmo birthyr birth_date race hisp_eth degree gender id
+tempfile tracker
+save `tracker'
+
+use decedent_dataset.dta if index_year>=2006, clear
+merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta", keep(match master) 
+replace e_ivw_date=td(31dec2016) if missing(e_ivw_date) & _m==3
+rename married married_exit
+rename medicaid medicaid_exit
+rename champus champus_exit
+rename adl_independent adl_independent_exit
+gen nflag=0
+gen noe=_m==1
+drop _m
+tempfile x
+save `x'
+
+use decedent_dataset.dta if index_year>=2006, clear
+merge 1:1 id using `tracker', keep(match) nogen
+merge 1:m id using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keep(match) nogen
+gsort id -core_year
+by id: gen nflag=_n
+tempfile c
+save `c'
+
+use decedent_dataset.dta if index_year>=2006, clear
+merge 1:1 id using `tracker', keep(match) gen(trackm)
+merge 1:1 id using `x', keep(match master) gen(xm)
+append using `c'
+by id, sort: egen no_exit=max(noe)
+drop noe
+gen year=core_year
+replace year=exit_year if missing(year)
+merge 1:1 id year using "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2016.dta", keep(match master) nogen keepusing(*s *k *f *i hlphrs n_p)
+
+replace birth_date=mdy(6,birthd,birthy) if missing(birth_date)
+cap drop death_date
+gen death_date = index_date
+gen age_at_death=floor((death_date-birth_date)/365.25)
+gen age_lt_75=age<75
+label var age_lt "Age <75 at death"
+gen ivw_2_death=(index_date-c_ivw_date)/365.25
+by id, sort: egen lt8yrs=max(ivw_2_death)
+replace lt8yrs=lt8yrs<8
+label var lt8yrs "Earliest core <8 years pre-death (not complete baseline)"
+by id: gen no_core=_N==1 & nflag==0
+
+by id: egen nocore4yr=max(cond(ivw_2_death>4 & nflag==1),1,0)
+label var nocore4yr "No core ivw within 4 years of death"
+
+sort id core_year 
+by id: gen mis2=core_year[_n+1]>core_year+4 & !missing(core_year[_n+1])
+by id: egen miss_core=max(mis2)
+label var miss_core "Missing consecutive cores"
+
+merge 1:1 id core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta", keepus(pdem) gen(demm) keep(match master)
+by id, sort: egen dem_cohort=max(cond(nflag==1 & inrange(pdem,.5,1)),1,0)
+by id, sort: egen missdem=max(cond(nflag==1 & missing(pdem)),1,0)
+replace dem_cohort=. if missdem==1
+label var missdem "No dementia probability at N1 ivw"
+label var no_exit "No exit ivw 2002-2016"
+label var no_core "No core ivws 1998-2014"
+replace nocore4=1 if no_core==1
+preserve
+gen begin=0
+keep if nflag==0
+local samplevars begin age_lt_75 no_exit nocore4yr  miss_core lt8yrs missdem
+
+local rn : word count `samplevars'
+
+mat tab=J(`rn',2,.)
+local r=1
+local c=1
+
+foreach x of local samplevars {
+	sum begin if `x'!=1
+	if "`x'"!="begin" mat tab[`r',1]=`last'-r(N)
+	mat tab[`r',2]=r(N)
+	local last=r(N)
+	drop if `x'==1
+	local r=`r'+1
+}
+
+mat rownames tab=`samplevars'
+
+frmttable using "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\sample_derivation_`c(current_date)'.rtf", ///
+statmat(tab) varlabels title("Sample Derivation") sdec(0) replace
+
+restore
+
+local samplevars age_lt_75 no_exit nocore4yr  miss_core lt8yrs missdem
+
+gen insamp=1
+foreach x of local samplevars {
+	replace insamp=0 if `x'==1 | missing(`x')
+}
+
+drop if age_lt_75==1
+
+keep if nflag<=1
+gen white = 0
+replace white = 1 if race==1 & hisp_eth==0
+
+gen black = 0
+replace black = 1 if race==2 & hisp_eth==0
+
+gen other = 0 
+replace other = 1 if white==0 & black==0 & hisp_eth==0
+
+label var white "Non-Hispanic White"
+label var black "Non-Hispanic Black"
+label var other "Non-Hispanic Other"
+replace female=gender==2
+
+foreach x in networth  {
+by id: egen a=max(`x')
+replace `x'=a
+drop a
+}
+rename adl_independent_core adl_independent
+sort id nflag
+foreach x in married medicaid champus adl_independent {
+	by id: replace `x'_exit=`x'[_n+1] if missing(`x'_exit)
+}
+
+keep if nflag==0
+gen n=1
+gen ind_hs_educ=degree>=2 if !inlist(degree,9,.)
+label var ind_hs_educ "Education: HS+ (excl. GED)"
+
+*gen nh_time=year(death_date)-nhres_start_yr_exit
+*replace nh_time=nh_time-1 if nhres_start_mo_exit>month(death_date) & !missing(nhres_start_mo_exit)
+*replace nh_time=0 if nh_time<0
+local cvars1 age_at_death
+local ivars1 female married_exit black hisp_eth ind_hs_educ 
+local ivars2 medicaid_exit ///
+champus_exit adl_independent_exit dem_cohort 
+local cvars2 networth
+
+
+forvalues i=1/3 {
+	foreach x of local catvars`i' {
+		di "`x'"
+		local `x'
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
+}
+
+di "`catvars1'"
+di "`cativars1'"
+
+local rn : word count `cvars1' `ivars1' `cvars2' `ivars2'  1 
+local r=1
+local c=1
+
+mat tab=J(`rn',3,.)
+mat stars=J(`rn',3,0)
+
+di `rn'
+
+mat tab=J(`rn',3,.)
+mat stars=J(`rn',3,0)
+
+foreach y in  0 1 {
+	forvalues i=1/3 {
+		foreach x of local cvars`i' {
+			sum `x' if inlist(insamp,`y'), d
+			mat tab[`r',`c']=r(mean)
+			if "`y'"=="1" {
+				ttest `x', by(insamp)
+				mat tab[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+			
+}
+		foreach x of local ivars`i' {
+			sum `x' if inlist(insamp,`y')
+			mat tab[`r',`c']=r(mean)*100
+			if "`y'"=="1" {
+				tab `x' insamp, chi2
+				mat tab[`r',`c'+1]=r(p)
+				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+}
+			local r=`r'+1
+}
+}
+	sum n if inlist(insamp,`y')
+	mat tab[`r',`c']=r(N)
+	
+	local r=1
+	local c=`c'+1
+}
+
+mat rownames tab=`cvars1' `ivars1' `cvars2' `ivars2' `cativars2' N
+
+frmttable using "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\excluded_`c(current_date)'.rtf", ///
+statmat(tab) title("Characteristics of Decedents, by complete ivw data") ///
+ctitles("" "Missing data" "Full data" "P-value") varlabels ///
+sdec(2)  ///
+annotate(stars) asymbol(*,**) replace note("Note: Demo variables from exit or N1 interview if no exit")
+
+
+
+
+
 H="table 1"
 
 use "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\data\final_data\informal_cg_10yr_long_and_wide_final.dta", clear
 cd "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress"
 
+merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\family_r_clean_98_14.dta", gen(famm) keep(match master)
+drop nhres_n1
+by id, sort: egen nhres_n1=max(cond(nflag==1 & nhres==1),1,0)
+gen kidcat=kid_adult_ind+1
+replace kidcat=3 if kid_adult_nearby==1
+replace kidcat=4 if living_kids_ind==1 & kid_adult_ind==0
 
+label define kidcat 1 "No living kids" 2 "Adult kids w/in 10mi" 3 "Adult kids only >10mi" 4 "Minor living Children only"
+label values kidcat kidcat
+
+tab kidcat married if !dem_cohort, row chi2
+tab kidcat married if dem_cohort, row chi2
+
+gen helpcat=married==1
+replace helpcat=2 if !married & (living_kids==1 | missing(living_kids_ind))
+replace helpcat=3 if !married & !living_kids_ind
+label define helpcat 1 "Married" 2 "Unmarried with living Children" 3 "Unmarried w/o living Children"
+label values helpcat helpcat
+sort id nflag
+by id: replace helpcat=helpcat[_n+1] if nflag==0
+by id: egen helpcat_baseline=max(cond(ind_baseline==1,helpcat,.))
 gen ind_hs_educ=degree>=2 if !inlist(degree,9,.)
 label var ind_hs_educ "Education: HS+ (excl. GED)"
 /*for table 1
@@ -16335,7 +16583,7 @@ replace race=3 if white==1
 replace white=3 if missing(race)
 label define race 1 "Hispanic" 2 "Non-Hispanic Black" 3 "Non-Hispanic White/Other"
 label values race race
-
+label copy helpcat helpcat_baseline
 preserve
 
 
@@ -16356,23 +16604,23 @@ srh_pf prob_dem_baseline pdem_baseline race networth_adj2016* *baseline, replace
 
 
 keep if nflag==1
-local cvars1
+local cvars1 age_ivw_baseline
 local ivars1 female
 local catvars1 race
 local cvars2 
-local ivars2 ind_hs_educ
+local ivars2 ind_hs_educ medicaid_baseline
 local catvars2 
-local cvars3 age_ivw_baseline 
-local ivars3 proxy_core_baseline married_baseline srh_pf_baseline ind_sr_comor_ge4_baseline  medicaid_baseline
-local catvars3 
-local cvars4 networth_adj2016_baseline 
-local ivars4 livealone_baseline adl_dependent_baseline iadl_dependent_baseline nhres_baseline ind_paid_helper_baseline
+local cvars3 
+local ivars3 /*proxy_core_baseline*/ srh_pf_baseline /*ind_sr_comor_ge4_baseline*/ adl_dependent_baseline iadl_dependent_baseline 
+local catvars3 helpcat_baseline
+local cvars4 //networth_adj2016_baseline 
+local ivars4 livealone_baseline nhres_baseline ind_paid_helper_baseline
 local catvars4
 local cvars5 age_ivw 
-local ivars5 proxy_core married srh_pf ind_sr_comor_ge4 medicaid nhres
-local catvars5 
-local cvars6 networth_adj2016
-local ivars6 livealone adl_dependent iadl_dependent nhres ind_paid_helper
+local ivars5 /*proxy_core*/  medicaid srh_pf /*ind_sr_comor_ge4*/  adl_dependent iadl_dependent
+local catvars5 helpcat
+local cvars6 //networth_adj2016
+local ivars6 livealone nhres ind_paid_helper
 
 
 
@@ -16418,50 +16666,54 @@ title("Missingness in the data") replace
 */
 local countvars
 forvalues i=1/6 {
-	local countvars `countvars' `cvars`i'' `cvars`i'' `ivars`i'' `cativars`i''
+	local countvars `countvars' `cvars`i''  `ivars`i'' `cativars`i''
 }
 
 local rn : word count `countvars' 1
 local r=1
 local c=1
 
-mat tab=J(`rn',4,.)
-mat stars=J(`rn',4,0)
+mat tab=J(`rn',8,.)
+mat stars=J(`rn',8,0)
+mat dmat=(0,1,0,1,0,1,0,0)
 
+replace dem_cohort=!dem_cohort if !missing(dem_cohort)
 foreach y in "0,1" 0 1 {
 	forvalues i=1/6 {
 		foreach x of local cvars`i' {
 			sum `x' if inlist(dem_cohort,`y'), d
 			mat tab[`r',`c']=r(mean)
-			mat tab [`r'+1,`c']=r(p50)
+			mat tab [`r',`c'+1]=r(sd)
 			if "`y'"=="1" {
 				ttest `x', by(dem_cohort)
-				mat tab[`r',`c'+1]=r(p)
-				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+				mat tab[`r',`c'+2]=r(p)
+				mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
 }
-			local r=`r'+2
+			local r=`r'+1
 			*if `i'==3 local r=`r'+1
 			
 }
 		foreach x of local ivars`i' {
 			sum `x' if inlist(dem_cohort,`y')
-			mat tab[`r',`c']=r(mean)*100
+			mat tab[`r',`c'+1]=r(mean)*100
+			mat tab[`r',`c']=r(mean)*r(N)
 			if "`y'"=="1" {
 				tab `x' dem_cohort, chi2
-				mat tab[`r',`c'+1]=r(p)
-				mat stars[`r',`c'+1]=(r(p)<.05)+(r(p)<.01)
+				mat tab[`r',`c'+2]=r(p)
+				mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
 }
 			local r=`r'+1
 }
 		foreach x of local catvars`i' {
 			if "`y'"=="1" {
 				tab `x' dem_cohort, chi2
-				mat tab[`r',4]=r(p)
-				mat stars[`r',4]=(r(p)<.05)+(r(p)<.01)
+				mat tab[`r',`c'+2]=r(p)
+				mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
 }
 			foreach z of local `x' {
 				sum `z' if inlist(dem_cohort,`y')
-				mat tab[`r',`c']=r(mean)*100
+				mat tab[`r',`c'+1]=r(mean)*100
+				mat tab[`r',`c']=r(mean)*r(N)
 				local r=`r'+1
 }
 }
@@ -16470,16 +16722,22 @@ foreach y in "0,1" 0 1 {
 	mat tab[`r',`c']=r(N)
 	
 	local r=1
-	local c=`c'+1
+	local c=`c'+2
 }
 
-mat rownames tab=`ivars1' `cativars1' `ivars2' age_ivw_baseline Median `ivars3' networth_adj2016_baseline Median `ivars4' age_ivw Median `ivars5' networth_adj2016 Median `ivars6' N
+mat rownames tab= `countvars' N
 
+forvalues i=1/`=`rn'-1' {
+	mat stars[`i',1]=3
+	mat stars[`i',2]=3
+	mat stars[`i',3]=3
+	mat stars[`i',4]=stars[`i',7]
+}
 frmttable using "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output\in_progress\table_1_`c(current_date)'.rtf", ///
 statmat(tab) title("Characteristics of Decedents, by Dementia Status") ///
-ctitles("" "Full Sample" "No Dementia" "Dementia" "P-value") varlabels ///
-sdec(2) note("Baseline status taken at interview closest to 10 years prior to death, all other values taken from interview preceding death") ///
-annotate(stars) asymbol(*,**) replace
+ctitles("" "Full Sample" "Dementia" "No Dementia" "P-value") varlabels ///
+sdec(1,1,1,2) note("Baseline status taken at interview closest to 10 years prior to death, all other values taken from interview preceding death") ///
+annotate(stars) asymbol(*,**,")") replace doubles(dmat) dbldiv(" (") 
 
 
 
@@ -17088,6 +17346,8 @@ translate "D:\HRS\Projects\dementia_decedents\jr_ask_r01_helpers_dementia\output
 
 
 H="changelog"
+3/4/20-Ran comparison to excluded group and table 1 in JAMA format. Evan
+
 2/7/20-Ran ranksum tests for p-values for helper hours. Evan
 
 1/13/20-Changed helpcat to include unmarried-but-missing-living-children-status in the unmarried with kids based on help reported. Evan

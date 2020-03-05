@@ -1798,22 +1798,40 @@ replace placedeath= 2 if pd2placedied==5  & r2dlmlint==1
 replace placedeath= 3 if pd2placedied==3  & r2dlmlint==1  
 replace placedeath= 4 if pd2placedied==91  & r2dlmlint==1  
 replace placedeath= 4 if pd2placedied==-8  & r2dlmlint==1  
+replace placedeath=. if placedeath==4
 
+gen placedeathpre=.
 
 label define pd3 1 "1 home or hospice residence" 2 "2 hospital or in transit to hospital" 3 "3 nursing home" 4 "4 other/dk"
 label values  placedeath pd3
 tab placedeath if inanal==1, m
 
 foreach var of varlist pd8placepre pd7placepre pd6placepre pd5placepre pd4placepre pd3placepre pd2placepre {
-replace placedeath=1 if `var'==1
-replace placedeath=2 if `var'==2
-replace placedeath=3 if `var'==3
-replace placedeath=. if `var'==4 | `var'==5 | `var'==91
+replace placedeathpre=1 if `var'==1
+replace placedeathpre=2 if `var'==2
+replace placedeathpre=3 if `var'==3
+replace placedeathpre=. if `var'==4 | `var'==5 | `var'==91
 }
-label values  placedeath pd3
-replace placedeath=. if placedeath==4
-tab placedeath 
+label values  placedeathpre pd3
+replace placedeathpre=. if placedeath==4
+tab placedeathpre if inanal==1, m
 
+*NH exposure in last month
+gen any_nh=0
+replace any_nh=1 if placedeath==3
+replace any_nh=1 if placedeathpre==3 & los_last_place>0 & los_last_place<30
+replace any_nh=0 if inanal==0
+
+*hospital exposure last month
+gen any_hospital=0
+replace any_hospital=1 if placedeath==2
+replace any_hospital=1 if placedeathpre==2 & los_last_place>0 & los_last_place<30
+replace any_hospital=0 if inanal==0
+
+*died at home or in hospice residence
+gen home_death=0
+replace home_death=1 if placedeath==1
+replace home_death=0 if inanal==0
 
 recode excellent (1=0)(0=1), gen(not_excellent)
 
@@ -1835,6 +1853,13 @@ recode hs_los (0/3=1)(4/99999999=0), gen (hs_shortstay)
 gen inanal_noduals=inanal
 replace inanal_noduals=0 if inanal==1 & medicaid_death==1
 
+
+*STRATIFY BY HOSPICE
+gen inanal_hospice=inanal
+replace inanal_hospice=0 if ind_hospice==0
+
+gen inanal_nohospice=inanal
+replace inanal_nohospice=0 if ind_hospice==1
 
 *make a variable for missing data
 
@@ -2104,77 +2129,84 @@ drop norm_weights sumofweights mudiff mu0 mu1 iptwt ptreat
 
 *care is not excellent: weighted model
 svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic not_excellent  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic not_excellent  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 
 *unmet pain needs: weighted model
 svyset sunit [pweight=unmet_pain_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic unmet_pain  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic unmet_pain  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 
 *unmet breathing needs: weighted model
 svyset sunit [pweight=unmet_bre_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic unmet_bre  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic unmet_bre  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 svydescribe if e(sample)
 gen unmet_bre_strata=strata
 replace unmet_bre_strata=53 if strata==52
 svyset sunit [pweight=unmet_bre_pweight], strata (unmet_bre_strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic unmet_bre  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic unmet_bre  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 
 *unmet sad: weighted model
 svyset sunit [pweight=unmet_sad_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic unmet_sad  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic unmet_sad  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 
 *unmet relig
 svyset sunit [pweight=unmet_relig_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic unmet_relig  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic unmet_relig  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 svydescribe if e(sample)
 gen unmet_relig_strata=strata
 replace unmet_relig_strata=55 if strata==54
 svyset sunit [pweight=unmet_relig_pweight], strata (unmet_relig_strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic unmet_relig  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic unmet_relig  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 
 *not always respect: weighted
 svyset sunit [pweight=di_recode_always_respect_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic di_recode_always_respect  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic di_recode_always_respect  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 
 *care not want
 svyset sunit [pweight=recode_care_notwant_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic recode_care_notwant  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic recode_care_notwant  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 
 *care_decision
 svyset sunit [pweight=recode_care_decision_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic recode_care_decision  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic recode_care_decision  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 
 *informed
 svyset sunit [pweight=di_recode_informed_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic di_recode_informed  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+svy, subpop(inanal): logistic di_recode_informed  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 
 
-**ologit model
+/*ologit model
 svyset sunit [pweight=sumscore_pweight], strata (strata) vce(linearized) singleunit(missing)
 svy, subpop(inanal): ologit sumscore_cat  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+*/
 
+***STRATIFICATIONS: 1. BY HOSPICE
+*in hospice
+svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
+qui svy, subpop(inanal_hospice): logistic not_excellent  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+margins ma1
 
-***INTERACTIONS
-*care is not excellent: weighted model
-*INTERACTION W HOSPICE
+*no hospice
 svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic not_excellent  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1##i.ind_hospice, cformat(%4.2f)
-		  margins, dydx(ma1) over(ind_hospice)
-		  margins ma1#ind_hospice		  
-		  
-*INTERACTION W PLACE OF DEATH
-svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic not_excellent  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1##i.placedeath, cformat(%4.2f)
-		  margins, dydx(ma1) over(placedeath)
-		  margins ma1#placedeath	
+qui svy, subpop(inanal_nohospice): logistic not_excellent  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+margins ma1
 
-*INTERACTION W REGIONAL MA Penetration
+*2 BY PLACE OF DEATH
+
+*IN NH
 svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): logistic not_excellent  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1##i.avgma_quint, cformat(%4.2f)
-		  margins, dydx(ma1) over(avgma_quint)
-		  margins ma1#avgma_quint	
-		  
-	
+qui svy, subpop(any_nh): logistic not_excellent  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+margins ma1
+
+*IN HOSPITAL
+svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
+qui svy, subpop(any_hospital): logistic not_excellent  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+margins ma1
+
+*DIED AT HOME
+svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
+qui svy, subpop(home_death): logistic not_excellent  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+margins ma1
+
 
 H="Change log"
 
