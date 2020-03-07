@@ -450,3 +450,154 @@ Days at home code created
 
 
 */
+
+H="NHATS "
+/* NHATS Days at home code */
+
+libname clean "D:\NHATS\Shared\base_data\CMS_claims\SAS\";
+libname medi "D:\NHATS\Shared\base_data\CMS_claims\SAS";
+
+
+proc import out=death_date datafile="D:\NHATS\Shared\base_data\CMS_claims\Stata\death_date.dta" replace; 
+run;
+
+data index_d;
+set death_date;
+if death_date~=.;
+index_date=death_date;
+run;
+
+proc sql;
+create table index as select a.*, b.*
+from index_d a inner join 
+clean.xwalk_2016 b
+on a.spid=b.spid;
+quit;
+
+
+proc sort data=index out=index1 nodupkey;
+by bene_id index_date;
+run;
+
+data index_548 (keep= spid bene_id index_date index_120 death_year) ;
+set index1;
+index_548=index_date-548;
+do i=index_548 to index_date;
+date=i;
+output;
+end;
+format date date9.;
+format index_date date9.;
+format index_548 date9.;
+run;
+run;
+
+
+
+/**************************************************************************/
+/**************** Claims Before Death  ******************************/
+/**************************************************************************/
+/*macro to get claims 120 days before death
+saves datasets for each claim type */
+%macro claimspre(days_start=,days_bef_index=,source=,suf=, year=);
+
+/*claims fully within x time of death date*/
+proc sql;
+create table &source._meet_1 as select a.*,b.index_date,b.spid 
+from medi.&source._&year. a inner join
+index1 b
+on a.bene_id=b.bene_id
+and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table &source._meet_2 as select a.*,b.index_date,b.spid 
+from medi.&source._&year. a inner join
+index1 b
+on a.bene_id=b.bene_id
+and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
+quit;
+
+data &source._meet_&suf.(compress=yes);
+set &source._meet_1 &source._meet_2;
+run;
+
+%mend;
+
+/*4m before death*/
+%claimspre(days_start=0,days_bef_index=548,source=hh,suf=18m,year=09_17); /*home health*/
+%claimspre(days_start=0,days_bef_index=548,source=ip,suf=18m,year=06_17); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=548,source=dm,suf=18m,year=09_17); /*dme*/
+%claimspre(days_start=0,days_bef_index=548,source=op,suf=18m,year=09_17); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=548,source=pb,suf=18m,year=09_17); /*carrier*/
+%claimspre(days_start=0,days_bef_index=548,source=snf,suf=18m,year=09_17); /*snf*/
+
+/* Hospice file a little different format than the rest, but does the same as above */
+
+data hs_09_17 (keep= hspcstrt hs_start admit_date disch_date bene_id provider) ;
+set medi.hs_09_17;
+hs_start=input(put(hspcstrt, 8.), yymmdd8.);
+format hs_start date9.;
+format admit_date date9.;
+run;
+
+/*claims fully within x time of death date*/
+proc sql;
+create table hs_meet_1 as select a.*,b.index_date,b.spid 
+from hs_09_17 a inner join
+index1 b
+on a.bene_id=b.bene_id
+and 0<=b.index_date-a.hs_start<=548;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table hs_meet_2 as select a.*,b.index_date,b.spid 
+from hs_09_17 a inner join
+index1 b
+on a.bene_id=b.bene_id
+and b.index_date-a.hs_start>548 and b.index_date-a.disch_date<=548;
+quit;
+
+data hs_meet_18m(compress=yes);
+set hs_meet_1 hs_meet_2;
+run;
+
+/*emergency and observation stays identified from the inpatient and outpatient file. */
+
+%macro er_obs(source=);
+
+data &source._meet_18m_er_obs;
+set &source._meet_18m;
+er_flag = 0;
+obs_flag = 0;
+array rvcntr rvcntr01-rvcntr45;
+array hcpcs hcpscd01-hcpscd45;
+array rvunt rvunt01-rvunt45;
+do over rvcntr;
+do over hcpcs;
+do over rvunt;
+if strip(rvcntr) in:("0450", "0451", "0452", "0456", "0459", "0981") then er_flag = 1;
+if strip(rvcntr) in:("0762") then obs_flag =1;
+/*if strip(rvcntr) in:("0760") and strip(hcpcs) in: ("G0378") and rvunt>=8 then obs_flag =1;*/
+end;
+end;
+end;
+run;
+
+data &source._er_meet_18m;
+set &source._meet_18m_er_obs;
+if er_flag=1;
+run;
+
+data &source._obs_meet_18m;
+set &source._meet_18m_er_obs;
+if obs_flag=1;
+run;
+
+%mend;
+
+/*4m before death*/
+%er_obs(source=ip); /*inpatient file*/
+%er_obs(source=op); /*outpatient file*/
