@@ -1924,119 +1924,14 @@ svy, subpop(inanal): tab metro_ind ma1, column
 svy, subpop(inanal): tab avgma_quint ma1, column
 
 svy, subpop(inanal): tab diff_get_out_bed ma1, column
+svy, subpop(inanal): tab adl_impair ma1, column
+
 svy, subpop(inanal): tab lung_all ma1, column
 svy, subpop(inanal): tab cva_all ma1, column
 svy, subpop(inanal): tab cancer_all ma1, column
 svy, subpop(inanal): tab prob_dem ma1, column
 
 
-*figure 1: forest plot
-
-foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed  threeplusmsr {
-		svy, subpop(inanal): logistic `var' i.ma1 i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed, cformat(%4.2f)
-}
-
-***for appendix
-
-*1. testing ologit model of count of total measures low qual care
-svy, subpop(inanal): ologit sumscore_cat i.ma1 i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed, cformat(%4.2f)
-		  margins ma1
-		  
-*appendix table 2: fully adjusted, exclude Medicaid
-foreach var of varlist threeplusmsr not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed  {
-		svy, subpop(inanal_noduals): logistic `var' i.ma1 i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed , cformat(%4.2f)
-}
-
-*appendix table 3: alt MA def, fully adjusted
-foreach var of varlist threeplusmsr not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
-		recode_care_decision di_recode_informed  {
-		svy, subpop(inanal): logistic `var' i.ma2 i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed , cformat(%4.2f)
-}
-
-
-****TESTING INTERACTIONS:
-*1) INTERACTION WITH HOSPICE USE
-*2) INTERACTION WITH SITE OF CARE
-*3) INTERACTION WITH REGIONAL MA PENETRATION 
-
-
-*FIGURE 2
-*interaction with hospice
-
-svy, subpop(inanal): logistic threeplusmsr i.ma1##i.ind_hospice i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed , cformat(%4.2f)
-		  margins, dydx(ma1) over(ind_hospice)
-		  margins ma1#ind_hospice		  
-		  
-*
-
-		  
-*interaction with place of death		  
-svy, subpop(inanal): logistic threeplusmsr i.ma1##i.placedeath i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  , cformat(%4.2f)
-		  margins, dydx(ma1) over(placedeath)
-		  margins ma1#placedeath
-		  		  margins placedeath#ma1
-
-
-*interaction with regional MA penetration
-
-		  
-		  svy, subpop(inanal): logistic threeplusmsr i.ma1##i.avgma_quint i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed, cformat(%4.2f)
-		  margins, dydx(ma1) over(avgma_quint)
-		  margins ma1#avgma_quint
-		  marginsplot
-		  
-
-
-*/
-	
-*interaction with dual status
-	svy, subpop(inanal): logistic threeplusmsr i.ma1##i.medicaid_death i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  , cformat(%4.2f)
-		  margins, dydx(ma1) over(medicaid_death)
-		  margins ma1#medicaid_death
-		  marginsplot
-
-		  *interaction with low income 
-
-			svy, subpop(inanal): logistic threeplusmsr i.ma1##i.income_quart i.deathage_3cat female child  spouse  ///
-		  diff_get_out_bed  , cformat(%4.2f)
-		  margins, dydx(ma1) over(income_quart)
-		  margins ma1#income_quart
-		  		  margins income_quart#ma1
-
-		  marginsplot  
-		  
-*TABLE 3	
-*looking at eol care characteristics and ma
-
-svy, subpop(inanal): tab ind_hospice ma1, column
-svy, subpop(inanal_hosp): tab hs_shortstay ma1, column
-svy, subpop(inanal_hosp): tab livedischarge ma1, column
-svy, subpop(inanal_hosp): tab low_quart_hosp ma1, column
-
-
-
-foreach var of varlist  symptoms_always comm_always recommend_def {
-svy, subpop(inanal_hosp): mean `var', over(ma1)
-svy, subpop(inanal_hosp): reg `var' i.ma1
-}
-	
-
-	
-svy, subpop(inanal_hosp): mean comp_process_score, over(ma1) 	
-	svy, subpop(inanal_hosp): reg comp_process_score i.ma1 
-		
-svy, subpop(inanal): tab late_transition ma1, column
-svy, subpop(inanal): tab placedeath ma1, column
 
 
 *PROPENSITY SCORE MODEL
@@ -2174,10 +2069,6 @@ svyset sunit [pweight=di_recode_informed_pweight], strata (strata) vce(linearize
 svy, subpop(inanal): logistic di_recode_informed  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 
 
-/*ologit model
-svyset sunit [pweight=sumscore_pweight], strata (strata) vce(linearized) singleunit(missing)
-svy, subpop(inanal): ologit sumscore_cat  deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
-*/
 
 ***STRATIFICATIONS: 1. BY HOSPICE
 *in hospice
@@ -2206,6 +2097,36 @@ margins ma1
 svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
 qui svy, subpop(home_death): logistic not_excellent  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 margins ma1
+
+
+*TABLE 3	
+*looking at eol care characteristics and ma
+svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
+
+svy, subpop(inanal): tab ind_hospice ma1, column
+svy, subpop(inanal_hosp): tab hs_shortstay ma1, column
+svy, subpop(inanal_hosp): tab livedischarge ma1, column
+svy, subpop(inanal_hosp): tab low_quart_hosp ma1, column
+svy, subpop(inanal): tab placedeath ma1, column
+
+svy, subpop(inanal): tab late_transition ma1, column
+svy, subpop(inanal): tab week_transition ma1, column
+svy, subpop(inanal): tab any_nh ma1, column
+svy, subpop(inanal): tab any_hospital ma1, column
+
+
+***for appendix
+
+*appendix table 3: alt MA def, fully adjusted
+foreach var of varlist threeplusmsr not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant /// 
+		recode_care_decision di_recode_informed  {
+		svy, subpop(inanal): logistic `var' i.ma2 i.deathage_3cat female child  spouse  ///
+		  diff_get_out_bed , cformat(%4.2f)
+}
+
+
+		  
+
 
 
 H="Change log"
