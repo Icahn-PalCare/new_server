@@ -1482,3 +1482,35 @@ proc surveymeans data=nsoc_cancer nobs mean stderr;
 weight weight_revised; stratum cgvarstrat; cluster cgvarunit;
 domain cg_sample;
 var cg_age cg_ivw_dx age age_dx; run;
+
+
+/**************************************************
+PERCENT OF ALL INCIDENT CANCERS WITH A CAREGIVER INTERVIEW
+***********************************************************/
+data cg_sample; set nsoc_cancer(where=(cg_sample=1));
+keep spid cg_sample;
+run;
+
+proc sort data=cg_sample nodup out=cg_sample; by spid; run;
+
+data cancerdx; set inter.incidentcancersample; run;
+proc contents data=cancerdx; run;
+
+proc freq data=cancerdx; tables sample; run;
+
+data cancerdx; set cancerdx(where=((wave=1 and replenishment=0) or (wave=5 and replenishment=1))); 
+keep spid anfinwgt varstrat varunit sample wave;
+run;
+
+proc freq data=cancerdx; tables sample; run;
+
+proc sort data=cg_sample; by spid; run;
+proc sort data=cancerdx; by spid; run;
+
+data cg_incident; merge cg_sample cancerdx; by spid;
+if cg_sample=. then cg_sample=0; run;
+
+proc freq data=cg_incident; tables sample*cg_sample; run;
+
+proc surveyfreq data=cg_incident; tables sample*cg_sample/row col; 
+weight anfinwgt; strata varstrat; cluster varunit; run;

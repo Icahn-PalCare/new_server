@@ -1,4 +1,4 @@
-= V4 Outline MultiLine NoSorting TabWidth=30
+= V7 Outline MultiLine NoSorting TabWidth=30
 
 H="*******"
 
@@ -4723,9 +4723,6 @@ left join
 ccw_0m_24m c
 on a.bid_hrs_22=c.bid_hrs_22 and a.index_date=c.index_date;
 quit;
-
-
-H="CCW CCs following actual methodology"
 
 
 H="Change log"
