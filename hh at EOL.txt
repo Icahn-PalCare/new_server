@@ -389,9 +389,10 @@ H="putting dataset together"
  gen ivwdeathdays= death_date-ivw_date
  sort spid wave
  by spid: egen closedth=min(ivwdeathdays) if ivwdeathdays>0
- replace keep
   
  replace keep=1 if closedth==ivwdeathdays & closedth!=.
+ 
+ *tab keep=1 reveals 3,112 obs of people who died
  
  *merge in ffs before
  drop _merge 
@@ -400,6 +401,17 @@ H="putting dataset together"
  
  *drop if in MA in last 12 months
  replace keep=0 if ffseol==0
+ *1,171 individuals lost because in MA in last month of life
+ 
+ 
+ 
+ *merge with days at home in last year
+ drop _merge
+ merge m:1 spid using "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\total_home_days_last_year.dta" 
+*exclude those who have no days at home
+*==77
+ replace keep=0 if home_days==0
+
 
 H="variable cleaning"
 *VARIABLE CLEANING
@@ -445,13 +457,31 @@ replace keephha=0 if anyhha==0 | anyhha==.
 gen keepsw=keep
 replace keepsw=0 if anysw==0 | anysw==.
 
+
+*make visits/100 days at home
+gen totalvisits_perdah=totalvisits/(home_days/100)
+gen nursevisits_perdah=nursevisits/(home_days/100)
+gen therapyvisits_perdah=therapyvisits/(home_days/100)
+gen swvisits_perdah=swvisits/(home_days/100)
+gen hhavisits_perdah=hhavisits/(home_days/100)
+
+
+
+
 *adls
 recode adl_diff_index (0=0 "0")(1/2=1 "1=2")(3/7=2 "3+"), gen(adl_cat)
 
-drop srhospice
+
 *make hospice for nonmissing val of hospicelml
 sort spid wave
 by spid: egen srhospice= min(hospicelml)
+
+*****cleaning up for move off server
+drop age total_caregiver_comp completed_nsoc eligible_nsoc nhats_death_month nhats_death_date nhats_death_day sr_othercancer_had sr_kidneycancer_had sr_coloncancer_had sr_crvovrnutrncancer_had sr_bladdercancer_had sr_prostatecancer_had sr_breastcancer_had sr_skincancer_had death_date
+
+
+
+ save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\working file for move off server_ march 9 2020.dta", replace
 
 H="analysis"
 *analysis
