@@ -14575,10 +14575,13 @@ tempfile mds
 save `mds'
 
 
-
 use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\index_dates.dta", clear
 
 merge 1:m bid using "D:\HRS\Shared\base_data\hrs_cms\Stata\hs_1998_2015.dta", keep(match master) keepusing(admit_date disch_date stus_cd)
+
+replace admit_date=index_date if admit_date>=index_date & !missing(admit_date)
+replace disch_date=index_date if disch_date>=index_date & !missing(disch_date)
+
 
 gen los=disch_date-admit_date
 replace los=1 if los==0
@@ -14586,18 +14589,35 @@ by bid, sort: egen totlos=total(los)
 gen lt3=index_date-admit_date<3 if !missing(admit_date)
 
 gen ind_hs_gt6m=totlos>183 if !missing(totlos)
+
 by bid, sort: egen ind_hs_lt3d=max(lt3)
+
+gen test=.
+replace test=0 if index_date-admit_date>=3 & index_date-admit_date!=.
+replace test=1 if index_date-admit_date<3 & index_date-admit_date!=.
+
+by bid_hrs_22: egen ind_hs_lt3d_dth_all=max(test)
+label var ind_hs_lt3d_dth_all "<3 days in hospice before death"
+
+gen test1=.
+replace test1=0 if index_date-admit_date>=3 & index_date-admit_date!=. 
+replace test1=1 if index_date-admit_date<3 & index_date-admit_date!=. & totlos<3
+
+by bid_hrs_22: egen ind_hs_lt3d_dth_3=max(test1)
+label var ind_hs_lt3d_dth_3 "<3 days in hospice before death, when totlos<3"
+
+
 by bid: egen ind_hs_live_disch=max(cond(!inlist(stus_cd,"30","40","41","42") & !missing(stus_cd),1,0))
 replace ind_hs_live_disch=. if _m==1
 label var ind_hs_gt6m ">183 days on hospice"
 label var ind_hs_lt3d "<3 days on hospice"
-gen ind_hs_suboptimal=ind_hs_gt | ind_hs_lt if !missing(ind_hs_gt)
+gen ind_hs_suboptimal=ind_hs_gt | ind_hs_lt3d if !missing(ind_hs_gt)
 label var ind_hs_suboptimal "<3 or >183 days on hospice"
 label var ind_hs_live_disch "Live discharge from hospice"
 gen ind_hs=_m==3
 label var ind_hs "Any hospice use"
 
-drop _m admit_date stus_cd *los lt3 disch
+drop _m admit_date stus_cd *los disch lt3 test*
 duplicates drop
 merge 1:1 bid using `mds', nogen
 

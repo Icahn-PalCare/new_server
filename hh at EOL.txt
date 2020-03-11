@@ -483,6 +483,18 @@ drop age total_caregiver_comp completed_nsoc eligible_nsoc nhats_death_month nha
 
  save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\working file for move off server_ march 9 2020.dta", replace
 
+H="final clean for pulling off"
+use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\working file for move off server_ march 9 2020.dta", clear
+
+drop ivw_date ivw_day ivw_month cont_ffs_n_mos ivwdeathdays closedth _m
+
+replace hs_days=0 if hs_days==.
+label var hs_days "Hospice days that would otherwise be 'at home'"
+//allowed, but a very small number
+drop hs_days
+
+save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\working file for move off server_ march 11 2020.dta", replace
+
 H="analysis"
 *analysis
 
@@ -914,7 +926,10 @@ if op_er=1 then not_home=1;
 if op_obs=1 then not_home=1;
 if snf=1 then not_home=1;
 if mds=1 then not_home=1;
-if hs=1 and home_hs=0 then not_home=1;
+*if hs=1 and home_hs=0 then not_home=1;
+*ebl--3/11/20--getting relevant count of hospice days;
+if hs=1 and not_home=1 then hs=0;
+if hs=1 then note_home=1;
 home=0;
 if not_home=0 then home=1;
 if bene_id~="" ; 
@@ -927,7 +942,8 @@ run;
 proc sql;
 create table total_home_days 
 as select spid,
-sum(home) as home_days
+sum(home) as home_days,
+sum(hs) as hs_days
 from all_claims_365_2
 group by spid;
 quit;
@@ -1355,6 +1371,10 @@ H="Change log"
 Updates:
 
 
+
+3/11/2020 EBL
+------------
+Added "final clean for pulling off" header. First use of the change log!
 
 12/17/2018 MH
 ------------
