@@ -90,10 +90,11 @@ replace `x'="1" if `x'=="Lo"
 replace `x'="2" if `x'=="Medium"
 replace `x'="3" if `x'=="High"
 destring `x', replace
+tab `x'
 }
 
 
-egen clim_prob=rowtotal(tornado snowfall hurricane drought heatwave flood wildfire landslide)
+egen clim_prob=rowtotal(snowfall hurricane drought heatwave flood wildfire landslide)
 
 tempfile climate_geo
 save "`climate_geo'"
@@ -118,6 +119,13 @@ merge 1:1 hhid pn core_year using "`hrs_geo'", keep(master matched) nogen
 rename stctyfips10 fips
 
 merge m:1 fips using "`climate_geo'", keep(master matched) nogen
+drop _merge
+merge m:1 hhid pn year using "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2016.dta", keep(master match) nogen
+
+replace n_f=0 if n_f==.
+
+gen any_formal=0
+replace any_formal=1 if n_f>0 & n_f!=.
 
 gen age= floor(core_year-birthyr)
 
@@ -142,14 +150,30 @@ label var clim_prob "Climate Index-restricted"
 
 sum clim_prob, d
 gen clim_prob_bin=0
-replace clim_prob_bin=1 if inrange(clim_prob,14,18)
+replace clim_prob_bin=1 if inrange(clim_prob,12,18)
 label var clim_prob_bin "Climate Hazard-restricted, binary"
 
+gen white_other=0
+replace white_oth=1 if white==1 | other_race==1
+
+label var white_other "Non-Hispanic White or Other race"
+
+gen flood_high=0 if flood!=.
+replace flood_high=1 if flood==3
+label var flood_high "Flood high Prev"
+/*
+gen liv_alone=.
+replace liv_alone=0 if resspouse==1 | livealone==0
+replace liv_alone=1 if resspouse==0 & livealone==1
+*/
 gen n=1
 gen group1=1 if age>=65
 gen group2=1 if group1==1 & prob_dem==0
 gen group3=1 if group1==1 & prob_dem==1
-gen group4=1
+gen group4=1 if age>=65 & hazards_bin==1
+gen group5=1 if group1==1 & prob_dem==0 & hazards_bin==1
+gen group6=1 if group1==1 & prob_dem==1 & hazards_bin==1
+
 
 svyset secu [pweight=wgtr], strata(stratum) 
 
@@ -157,10 +181,10 @@ svyset secu [pweight=wgtr], strata(stratum)
 
 local r=1 
 local c=1
-mat tab=J(2, 3,.)
+mat tab=J(3, 3,.)
 
 forvalues i=1/3{
-	foreach x in hazards_bin clim_prob_bin{
+	foreach x in hazards_bin clim_prob_bin flood_high{
 	sum `x' [aw=wgtr] if group`i'==1
 	mat tab[`r',`c']=`r(sum_w)'*`r(mean)'
 	local r=`r'+1
@@ -170,18 +194,18 @@ local r=1
 }
 mat list tab
 
-mat rownames tab= hazards_bin clim_prob_bin
+mat rownames tab= hazards_bin clim_prob_bin flood_high
 
 frmttable using "D:\HRS\Projects\exploratory\AK_KO_climate_dem\logs\table_1.rtf", ///
 statmat(tab) title("Population of 2014 Core, by Dementia Status") ///
 ctitles("" "65+" "65+ without Dementia" "65+ with Dementia" ) varlabels ///
-sdec(2) note("Using 2014 interview." "Climate Index/Hazard-restricted variable created using: tornado, snowfall, hurricane, drought, heatwave, flood, wildfire, and landslide" "Climate Hazard, binary had a threshold of 14 to be considered at risk; 14 is based off the website" "Climate Hazard-restricted, binary had a threshold of 14 to be considered at risk; 14 is based off the 75th percentile") replace
+sdec(2) note("Using 2014 interview." "Climate Index/Hazard-restricted variable created using: tornado, snowfall, hurricane, drought, heatwave, flood, wildfire, and landslide" "Climate Hazard, binary had a threshold of 12 to be considered at risk; 14 is based off Columbia's methodology" "Climate Hazard-restricted, binary had a threshold of 14 to be considered at risk; 14 is based off the 75th percentile") replace
 
 
 local cvars1 age
-local ivars1 female white black hisp_eth other_race education1 married medicare medicaid  fw_lowest fw_midlow fw_midhigh fw_highest srh_pf adl_independent_core 
-local cvars2 adl_index_core hazards clim_prob
-local ivars2 hazards_bin clim_prob_bin
+local ivars1 female white_other black hisp_eth education1 married medicaid fw_lowest fw_midlow fw_midhigh fw_highest srh_pf adl_independent_core resspouse any_formal
+local cvars2 adl_index_core hazards clim_prob n_f
+local ivars2 hazards_bin clim_prob_bin flood_high
 
 local rn: word count `cvars1' `ivars1' `cvars2' `ivars2' 1
 
@@ -231,7 +255,7 @@ foreach x in `ivars2'{
 }
 
 sum n [aw=wgtr] if group`i'==1 
-mat tab[`r',`c']==`r(N)'
+mat tab[`r',`c']==`r(sum_w)'
 
 local c=`c'+1
 local r=1
@@ -247,29 +271,237 @@ mat list stars
 frmttable using "D:\HRS\Projects\exploratory\AK_KO_climate_dem\logs\table_1.rtf", ///
 statmat(tab) title("Characteristics of 2014 Core, by Dementia Status") ///
 ctitles("" "65+" "65+ without Dementia" "65+ with Dementia" ) varlabels ///
-sdec(2) note("Using 2014 interview." "Climate Index/Hazard-restricted variable created using: tornado, snowfall, hurricane, drought, heatwave, flood, wildfire, and landslide" "Climate Hazard, binary had a threshold of 14 to be considered at risk; 14 is based off the website" "Climate Hazard-restricted, binary had a threshold of 14 to be considered at risk; 14 is based off the 75th percentile") ///
+sdec(2) note("Using 2014 interview." "Climate Index/Hazard-restricted variable created using: tornado, snowfall, hurricane, drought, heatwave, flood, wildfire, and landslide" "Climate Hazard, binary had a threshold of 12 to be considered at risk; 14 is based off Columbia's methodology" "Climate Hazard-restricted, binary had a threshold of 14 to be considered at risk; 14 is based off the 75th percentile") ///
 annotate(stars) asymbol(*,**) addtable replace
 
 
 
+
+local cvars1 age
+local ivars1 female white_other black hisp_eth education1 married medicaid  fw_lowest fw_midlow fw_midhigh fw_highest srh_pf adl_independent_core resspouse any_formal
+local cvars2 adl_index_core hazards clim_prob n_f
+local ivars2 hazards_bin clim_prob_bin flood_high
+
+local rn: word count `cvars1' `ivars1' `cvars2' `ivars2' 1
+
+local r=1 
+local c=1
+mat tab=J(`rn', 3,.)
+mat stars=J(`rn', 3,0)
+forvalues i=4/6{
+foreach x in `cvars1' {
+	sum `x' [aw=wgtr] if group`i'==1
+	mat tab[`r',`c']=`r(mean)'
+		if `i'==4{
+			ttest `x' if group4==1, by(prob_dem)
+			mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
+			} 
+	local r=`r'+1
+}
+
+foreach x in `ivars1'{
+	sum `x' [aw=wgtr] if group`i'==1
+	mat tab[`r',`c']=`r(mean)'*100
+		if `i'==4{
+			tab `x' prob_dem if group4==1, chi2
+			mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
+			} 
+	local r=`r'+1	
+	}
+	
+foreach x in `cvars2' {
+	sum `x' [aw=wgtr] if group`i'==1
+	mat tab[`r',`c']=`r(mean)'
+		if `i'==4{
+			ttest `x' if group4==1, by(prob_dem)
+			mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
+			} 
+	local r=`r'+1	
+	}
+	
+foreach x in `ivars2'{
+	sum `x' [aw=wgtr] if group`i'==1
+	mat tab[`r',`c']=`r(mean)'*100
+		if `i'==4{
+			tab `x' prob_dem if group4==1, chi2
+			mat stars[`r',`c'+2]=(r(p)<.05)+(r(p)<.01)
+			} 
+	local r=`r'+1
+}
+
+sum n [aw=wgtr] if group`i'==1 
+mat tab[`r',`c']==`r(sum_w)'
+
+local c=`c'+1
+local r=1
+}
+
+mat rownames tab=`cvars1' `ivars1' `cvars2' `ivars2' "Population(N)"
+mat colnames tab="65+" "65+ without Dementia" "65+ with Dementia"
+mat list tab
+mat list stars
+
+
+
+frmttable using "D:\HRS\Projects\exploratory\AK_KO_climate_dem\logs\table_1.rtf", ///
+statmat(tab) title("Characteristics of 2014 Core, by Dementia Status restricted to people living in vulnerable areas") ///
+ctitles("" "65+" "65+ without Dementia" "65+ with Dementia" ) varlabels ///
+sdec(2) note("Using 2014 interview." "Climate Index/Hazard-restricted variable created using: tornado, snowfall, hurricane, drought, heatwave, flood, wildfire, and landslide" "Climate Hazard, binary had a threshold of 12 to be considered at risk; 14 is based off  Columbia's methodology" "Climate Hazard-restricted, binary had a threshold of 14 to be considered at risk; 14 is based off the 75th percentile" "Vulnerable areas were defined by Columbia") ///
+annotate(stars) asymbol(*,**) addtable replace
+
+
+
+
+
+H="HRS Geographic & ADI "
+/*
+use ADI_2013_v2.0 and ADI_2015! 
+FIPS: The block group Census ID: state(2chars)county(3chars)Tract(6chars)Block(1char)= 12chars total  
+adi_natrank: nat'l percentile of block group ADI score - should use this ranking! 
+adi_staterank: state specific decile of block group ADI score (ranking constructed for each state alone w/o consideration of national ADI, according to Neighborhood Atlas)
+*/
+
+/*
+tostring to see all of the fips 
+get average of ADI scores by each county 
+merge on county fips
+merge from there 
+substring, take last 4 digits 
+*/
+
+global ref_data "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data"
+
+*******************CLEAN & SET UP ADI 2013 v.2 DATA***************************
+use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data\ADI_2013_v2.0.dta", clear
+*done to see full fips #s 
+tostring fips, replace format (%15.0gc)
+
+*add leading 0 to fipsnew to make all fips 12 chars long
+gen zfips = string(real(fips),"%012.0f")
+
+*keep state& ctfips&fips, which is first 11 chars (statecountyfips)
+gen stctytct = substr(zfips,1,11)
+
+
+*find adi_natranks that are nonnumeric 
+codebook adi_natrank if missing(real(adi_natrank))
+/*PH: suppression due to low population and/or housing 
+GQ: suppression due to high group quarters population 
+PH-GQ: suppresion due to both 
+*/
+
+gen numadi = adi_natrank 
+replace numadi = "." if numadi == "PH" 
+replace numadi = "." if numadi == "GQ" 
+replace numadi = "." if numadi == "GQ-PH"
+codebook numadi if missing(real(numadi))
+destring numadi, replace
+codebook numadi
+
+*use cmd: collapse to get all the same observations to 1 obsv & get avge of adi 
+collapse (mean) adi2013 = numadi, by(stctytct)
+*returns only avge natrank & stctytct 
+
+save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data\tomerge_adi2013.dta", replace
+
+***********************CLEAN & SET UP ADI 2015 DATA***************************
+use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data\ADI_2015.dta", clear 
+
+*done to see full fips #s 
+tostring fips, replace format (%15.0gc)
+
+*add leading 0 to fipsnew to make all fips 12 chars long
+gen zfips = string(real(fips),"%012.0f")
+
+*keep state& ctfips, which is first 5 chars (statecountyfips)
+gen stctytct = substr(zfips,1,11)
+
+*find adi_natranks that are nonnumeric 
+codebook adi_natrank if missing(real(adi_natrank))
+/*PH: suppression due to low population and/or housing 
+GQ: suppression due to high group quarters population 
+PH-GQ: suppresion due to both 
+*/
+
+gen numadi = adi_natrank 
+replace numadi = "." if numadi == "PH" 
+replace numadi = "." if numadi == "GQ" 
+replace numadi = "." if numadi == "GQ-PH"
+codebook numadi if missing(real(numadi))
+destring numadi, replace
+codebook numadi
+
+*use cmd: collapse to get all the same observations to 1 obsv & get avge of adi 
+collapse (mean) adi2015 = numadi, by(stctytct)
+*returns only avge natrank & stctytct 
+
+save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data\tomerge_adi2015.dta", replace
+
+***********************MERGE HRS DATA TO 2013 & 2015 ADI ***************************
+
+use "D:\HRS\Shared\raw\HRS\hrs_restricted_2014\Detail\2014\hrsxdetail2014(2nd try unzip)\stata\HRSXGEO14b_R.dta", clear
+rename wave core_year
+destring core_year, replace
+tempfile hrs_geo
+save "`hrs_geo'", replace
+
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta" if core_year==2014, clear
+
+merge 1:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", keep(master matched) keepusing(birthday birthyr pn hhid race hispanic hisp_eth white black native_amer asian_pi other_race other_na_api_race death_date degree gender secu stratum study)
+
+gen age=core_year-birthyr 
+
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta" , keep(master match) nogen keepusing(hhid pn core_year pdem)
+gen prob_dem=.
+replace prob_dem=0 if pdem<.5 & !missing(pdem)
+replace prob_dem=1 if pdem>=.5 & !missing(pdem)
+
+merge 1:1 hhid pn core_year using "`hrs_geo'", keep(master matched) nogen
+rename stctyfips10 fips
+gen stctytct = linkcen2010
+
+merge m:1 stctytct using "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data\tomerge_adi2015.dta", keep(master matched) nogen
+
+merge m:1 stctytct using "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data\tomerge_adi2013.dta", keep(master matched) nogen 
+
+*17,900 matched on statecountytracts and 848 not matched  
+
+assert stctytct == linkcen2010
+drop stctytct
+
+xtile adi2013_quin= adi2013, nq(5)
+xtile adi2015_quin= adi2015, nq(5)
+
+
+save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\adi_hrsgeo", replace
+
+
+drop  rescode urbrur1993 urbrur2003 urbrur2013 countyname10 countyname10 linkcen1990 linkcen2000 linkcen2010 tract10 cntyfips10 stfips10 fips zipcode stateusps c_ivw_month c_ivw_day birthday c_ivw_day_imp c_ivw_date birthday birthyr native_amer asian_pi  other_na_api_race death_date study race adi2013 adi2015
+
+
+
+
+
+save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\adi_hrsgeo_public", replace
+
+
 H="Change log"
-
-
 ********************Change Log******************** 
 
 
 
 Updates:
 
-
-
-12/17/2018 MH
-------------
-A formal template in Notetab was created with different headings. 
-
-12/13/2018 MH
+3/12/2020 CY
 -------------
-Change log conception was first introduced.
+Merged ADI & HRS_GEO data on state,county,&tract
 
+12/02/2019 MH
+------------
+Created table. Added in variables. Created new hazards measurement. 
+
+11/29/2019 MH
+------------
+Started project. Merged data.
 
 */

@@ -665,7 +665,62 @@ run;
 
 
 /* Bringing in MDS section*/
+//////////////////////**********************Stata*******************************///////////////////////
 
+
+use "D:\NHATS\Shared\base_data\CMS_claims\Stata\mds_3_10_17.dta", clear
+sort bene_id
+keep bene_id a0310a_fed_obra_cd a0310f_entry_dschrg_cd a0310e_first_since_admsn_cd fac_prvdr_intrnl trgt_dt    
+
+
+destring fac_prvdr_intrnl, replace
+
+
+// assessment reference date is the same as the target date unless it is missing. 
+gen date=trgt_dt
+
+format %td date
+
+
+sort bene_id fac_prvdr_intrnl date
+////
+gen type_cd=.
+replace type_cd=1 if a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01" 
+replace type_cd=2 if inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
+
+gen same_day=1 if a0310a_fed_obra_cd=="01" & inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
+replace type_cd=3 if same_day==1
+
+drop if type_cd==.
+
+gen a=1 if type_cd[_n-1]==1 & type_cd==1 & bene_id[_n-1]==bene_id & fac_prvdr_intrnl[_n-1]==fac_prvdr_intrnl 
+
+gen b=1 if type_cd[_n+1]==2 & type_cd==2 & bene_id[_n+1]==bene_id & fac_prvdr_intrnl[_n+1]==fac_prvdr_intrnl
+
+
+gen admit=date if type_cd==1
+gen discharge=date if type_cd==2
+
+replace admit=date[_n-1] if type_cd[_n-1]==1 & bene_id==bene_id[_n-1] & fac_prvdr_intrnl==fac_prvdr_intrnl[_n-1]
+
+replace discharge=date[_n+1] if type_cd[_n+1]==2 & bene_id==bene_id[_n+1] & fac_prvdr_intrnl==fac_prvdr_intrnl[_n+1]
+
+
+//sort bid_hrs_22 a d fac_int_id
+bys bene_id fac_prvdr_intrnl admit discharge: keep if _n==1 
+
+
+replace admit=discharge if admit==.
+replace discharge=admit if discharge==.
+
+saveold "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\int_data\mds.dta", version(12) replace
+
+
+
+
+
+
+//////////////////////**********************SAS*******************************///////////////////////
 proc import out=proj_int.mds datafile="D:\NHATS\Projects\home health policy\cka_hh at EOL\data\int_data\mds.dta" replace; 
 run;
 
