@@ -485,6 +485,97 @@ drop  rescode urbrur1993 urbrur2003 urbrur2013 countyname10 countyname10 linkcen
 save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\adi_hrsgeo_public", replace
 
 
+H="FEMA Disaster Declaration "
+/*
+Cleaning FEMA disaster declarations
+Merge in crosswalk fips & give counties w/o disasters a 0 
+keep 2013-2015 data only 
+get basic stats on # of disasters per county, per year, types of disasters 
+*/
+
+global ref_data "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data"
+
+*import crosswalk data 
+import excel "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data\Crosswalk Disasters_CountyFips.xlsx", sheet("Sheet1") firstrow case(lower) allstring clear
+
+gen stctyfips = string(real(fips), "%05.0f")
+sort state stctyfips
+duplicates list state stctyfips name
+duplicates tag state stctyfips, gen(dups)
+tab stctyfips name if dups 
+duplicates drop state stctyfips, force
+*dropped 3 
+save "crosswalk", replace
+
+*import FEMA Disaster Declarations 
+import delimited "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data\DisasterDeclarationsSummaries.csv", clear
+
+tab fydeclared if fydeclared >=2013 & fydeclared <=2015
+*gives 1200 obsvns in 2013, 765 in 2014, 869 in 2015
+
+keep if fydeclared == 2013|fydeclared == 2014|fydeclared == 2015
+
+tostring fipsstatecode, replace
+
+gen zstatefips = fipsstatecode
+replace  zstatefips = "0"+ fipsstatecode if length(fipsstatecode) == 1
+
+tostring fipscountycode, replace
+gen zcountyfips = fipscountycode 
+replace zcountyfips = "00"+ fipscountycode if length(fipscountycode) == 1
+replace zcountyfips = "0"+ fipscountycode if length(fipscountycode) == 2
+
+gen stctyfips = zstatefips+zcountyfips
+
+save "femadisasterdeclarations", replace
+
+sort state stctyfips
+merge m:1 state stctyfips using "crosswalk.dta"
+
+*see which fips were onlyl in the fema disaster declarations 
+list stctyfips if _merge == 1
+
+replace disasternumber = 0 if disasternumber == . 
+
+keep if  inlist(incidenttype, "Fire", "Flood", "Hurricane", "Severe Ice Storm", "Severe Storm(s)", "Snow", "Tornado", "Typhoon")
+
+encode incidenttype, gen (incidtype)
+tab incidtype, nolabel  
+
+*want count of incident types (disasters) by stctyfips & yr
+forvalues i = 1/8{
+gen indicator`i' = incidtype == `i'
+}
+
+tab1 indicator*
+
+forvalues i = 1/8{
+egen indyr`i' = total(indicator`i'), by(stctyfips fydeclared)	
+}
+
+forvalues i = 1/8{
+sum indyr`i' if indyr`i' != 0
+}
+
+keep fydeclared stctyfips indyr* 
+
+rename fydeclared year
+duplicates report stctyfips year 
+
+duplicates drop 
+
+reshape wide indyr*, i(stctyfips) j(year)
+
+rename stctyfips fips
+
+merge 1:m fips using "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\adi_hrsgeo.dta", gen(a)
+
+
+drop  rescode urbrur1993 urbrur2003 urbrur2013 countyname10 countyname10 linkcen1990 linkcen2000 linkcen2010 tract10 cntyfips10 stfips10 fips zipcode stateusps c_ivw_month c_ivw_day birthday c_ivw_day_imp c_ivw_date birthday birthyr native_amer asian_pi  other_na_api_race death_date study race fips indyr7* indyr8*
+
+
+save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\climate_merged_public.dta", replace
+
 H="Change log"
 ********************Change Log******************** 
 

@@ -1,7 +1,7 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Processing HRS Raw Data"
-/*
+ho/*
 This code processes the raw datasets as downloaded from the HRS website
 
 Files used for 2000-2010 were downloaded in October 2013
@@ -12933,7 +12933,7 @@ proc sort data=hrs_cln.restricted_v2014 nodupkey;
 by id;
 run;
 
-data tracker1;
+data d;
 set tracker.trk2014tr_r;
 keep hhid pn id id_num degree schlyrs gender secu stratum yrs_lvl study;
 id=hhid||pn;
@@ -13476,12 +13476,19 @@ proc export data=hrs_cln.restr_tracker_v2014 outfile="D:\HRS\Shared\base_data\hr
 H="*************************"
 
 
+H="pull unrestricted datasets"
+
+
 H="Chaneglog"
 ********************Change Log******************** 
 
 
 
 Updates:
+
+03/13/20 EBL
+------------
+Stripped dates so could be pulled off server.
 
 05/29/19 EBL
 ------------

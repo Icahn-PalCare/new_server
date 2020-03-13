@@ -3969,17 +3969,17 @@ di ""
 di ""
 di ""
 di ""
-di "First, looking at percent post-institutional over time (first episode in sequence only)"
+di "Now, looking at #visits over time in days 31-60 (first episode in sequence only)"
 di ""
 di ""
 di ""
-mean visits_60 , over(year)
-svy: mean visits_60, over(year)
+mean visits_60 if new_sq==1, over(year)
+svy: mean visits_60 if new_sq==1, over(year)
 
-qui svy: reg visits_60 i.year
+qui svy: reg visits_60 i.year if new_sq==1,
 margins year
 
-qui svy: reg visits_60 year
+qui svy: reg visits_60 year if new_sq==1,
 margins, over(year)
 
 
@@ -3987,21 +3987,21 @@ margins, over(year)
 margins, dydx(year)
 
 mean visits_60 , over(year prob_dem)
-svy, subpop(if prob_dem==1): mean visits_60, over(year)
-svy, subpop(if prob_dem==1): mean visits_60, over(year)
+svy, subpop(if prob_dem==1 & new_sq==1): mean visits_60, over(year)
+svy, subpop(if prob_dem==1 & new_sq==1): mean visits_60, over(year)
 
-svy: reg visits_60 i.year##i.prob_dem
+svy, subpop(if new_sq==1): reg visits_60 i.year##i.prob_dem
 margins year, over(prob_dem)
 marginsplot, name(fe2_vis, replace)
 
 
-qui svy, subpop(if  prob_dem==1): reg visits_60 year
+qui svy, subpop(if  prob_dem==1 & new_sq==1): reg visits_60 year
 margins, dydx(year)
-qui svy, subpop(if  prob_dem==0): reg visits_60 year
+qui svy, subpop(if  prob_dem==0 & new_sq==1): reg visits_60 year
 margins, dydx(year)
-qui svy: reg visits_60 year prob_dem
+qui svy, subpop(if new_sq==1): reg visits_60 year prob_dem
 margins, dydx(*)
-qui svy: reg prob_dem year
+qui svy, subpop(if new_sq==1): reg prob_dem year
 margins, dydx(year)
 
 graph combine fe2 fe2_vis, ysize(4) xsize(8) name(graph, replace)

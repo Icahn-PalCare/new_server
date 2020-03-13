@@ -13292,6 +13292,301 @@ note("Waves 1-7 NHATS 12m mortality" \ "1-7 Waves Claims used to determine hospi
 
 
 
+H="Off server dataset--3/13"
+//Using hospice from claims for 1-7
+clear all
+set more off
+capture log close
+
+local datapath "D:\NHATS\Projects\caregiving\eol_caregivers_hospice_student\Data\final_data"
+cd `datapath'
+local logpath "D:\NHATS\Projects\caregiving\eol_caregivers_hospice_student\Output\logs"
+cd `logpath'
+
+use "D:\NHATS\Shared\base_data\NHATS cleaned\op_round_1_8.dta", clear
+replace prim_helper_cat=op_relations if primary_cg==1
+label values prim_helper_cat op_relationship_cat
+keep if primary_cg==1
+by spid wave, sort: egen hasspouse=max(spouse)
+drop if hasspouse & !spouse
+gen kid=inrange(prim_,2,3)
+by spid wave, sort: egen haskid=max(kid)
+drop if haskid & !kid
+gen othfm=prim_==4
+by spid wave, sort: egen hasoth=max(othfm)
+drop if hasoth & !othfm
+gen friend=prim_h==6
+by spid wave, sort: egen hasfriend=max(friend)
+drop if hasfr & !friend
+duplicates drop spid wave prim_helper, force
+//keep spid prim_helper_cat wave
+by spid wave, sort: replace prim_=7 if _N>1
+by spid wave: keep if _n==1
+label define op_relationship_cat 7 "Son and daughter tied", modify
+tempfile op
+save `op'
+
+use `datapath'\serious_ill_nhats_sample.dta /*if wave<=3 &*/ if sp_ivw==1 /*& !nhres*/, clear
+
+//drop if wave==1
+
+duplicates drop spid wave hs_los, force
+drop prim*
+merge 1:1 spid wave using `op'
+/*identify the group we want to use subpop command
+ -die w/in 12m (for the 14 who have 2 ivws in the year prior to death, take the earlier one)
+ -no use of hs pre ivw
+ -ffs not important because all HS claims are visible; because when you become hospice you are medicare
+ */
+replace medicaid=0 if missing(medicaid)
+
+replace sr_cancer_new=. if yearsample==2015 & wave==5
+
+//nhats hospice wave 3 and after 
+gen income_adj=.
+replace income_adj= (245.120/224.939)*aveincome if wave==1
+replace income_adj= (245.120/229.594)*aveincome if wave==2
+replace income_adj= (245.120/232.957)*aveincome if wave==3
+replace income_adj= (245.120/236.736)*aveincome if wave==4
+replace income_adj= (245.120/237.017)*aveincome if wave==5
+replace income_adj= (245.120/240.007)*aveincome if wave==6
+replace income_adj=aveincome if wave==7
+label var income_adj "Inflation Adjusted Income"
+
+format %12.0g hs_los
+
+sort wave
+forvalues w=2/7 {
+xtile income_quart`w'_adj=income_adj if wave==`w', nq(4) 
+}
+egen income_quart_adj=rowmax(income_quart*_adj)
+forvalues w=2/7 { 
+drop income_quart`w'_adj 
+}
+
+sum income_adj
+forvalues i=1/4 {
+gen inccat_adj`i'=income_quart_adj==`i'
+local lab : label income_quart_adj `=`i''
+label var inccat_adj`i' "Adjusted Income: `lab'"
+}
+
+label var income_quart_adj "Quartile Inflation Adjusted Income" 
+label define income_quart_adj 1 "1st Adjusted Income Quartile" ///
+2 "2nd Adjusted Income Quartile" 3 "3rd Adjusted Income Quartile" 4 "4th Adjusted Income Quartile"
+tab income_quart wave
+
+gsort spid -wave
+by spid: carryforward death_date, replace
+gen death2n1=death_date-ivw_date if (wave==1 & yearsample==2011) | (wave==5 & yearsample==2015)
+sort spid wave
+by spid: carryforward death2n1, replace
+label var death2n1 "Days from N1(first) interview to Death"
+
+gen lol=death_date-ivw_date
+replace lol=0 if lol<0
+label var lol "Days from N-1(last) interview to Death"
+
+gen ind_hs_nhats_tw=0
+replace ind_hs_nhats_tw=1 if placedied==4 | hospice1==1 | hospicelml==1
+
+sort spid wave
+by spid: gen ind_hs_nhats= ind_hs_nhats_tw[_n+1]
+by spid: gen died_nhats=lml[_n+1]
+label var ind_hs_nhats "Hospice indicator in wave prior"
+label var ind_hs_nhats_tw "Hospice indicator in LML ivw"
+
+
+//
+format first_hs %td
+gen hs_prior=first_hs<ivw_date 
+gen pop=died_12==1 & !hs_prior 
+sort spid pop ivw_date
+//replacing pop=1 to pop=0 for waves after first death_12 comes up 
+by spid pop: replace pop=0 if _n>1 & pop==1 
+duplicates report spid if pop
+//reweight so later waves aren't overweighted
+
+svyset varunit [pw=anfinw],strat(varstrat)
+
+gen ind_hs=!missing(first_hs) 
+sum hs_los if pop,d
+replace hs_los=0 if !ind_hs
+tab hs_prior if pop
+tab ind_hs if pop
+*hist hs_los if pop
+gen ind_help=n_helpers>0
+tab ind_help if pop
+gen hrswk_20=tot_hrswk_help_i>=20 & !missing(tot_hrswk_help_i)
+gen ind_4_help=n_helpers>=4
+label var hrswk_20 "20+ hours of help per week (all sources)"
+label var ind_4_help "4+ helpers (incl. paid CGs)"
+label var ind_help "Any helpers"
+gen ind_solo_inf=n_help==n_paid+1
+label var ind_solo_inf "Has solo informal caregiver"
+gen ind_solo_solo=n_help==1 & n_paid==0
+label var ind_solo_s "Has solo inf. & no paid CGs"
+levelsof prim_, local(levels)
+local prim
+foreach l of local levels {
+gen prim`l'=prim_==`l'
+local lab : label op_relationship_cat `l'
+label var prim`l' "Primary helper : `lab'"
+}
+gen prim8=n_helpers==0
+//prim7 category is small, attributing to prim2 
+replace prim2=1 if prim_==7
+//other unpaid help var. creation
+gen prim9=.
+replace prim9=0 if prim_!=4 & prim_!=6
+replace prim9=1 if prim_==4 | prim_==6 
+
+label var prim2 "Primary helper : Daughter (incl. step-/-in-law) or (Son & Daughter)"
+label var prim8 "No helpers listed"
+label var prim9 "Other Unpaid help"
+local prim prim1 prim2 prim3 prim5 prim8 prim9
+
+/*la def livearrang 1 "Alone" 2 "With spouse/partner" ///
+	3"With spouse/partner + others" 4 "With others"
+la val livearrang livearrang*/
+gen livesp=0 
+replace livesp=1 if inlist(livearrang, 2, 3)
+lab var livesp "Lived with Partner/Spouse"
+gen liveoth=livearrang==4
+lab var liveoth "Lives with Other"
+/*forvalues i=1/4 {
+local lab : label region `i'
+gen `lab'=region==`i'
+label var `lab' "`lab'"
+rename `lab', l
+}*/
+//
+gen adl0=adl_index==0 if adl_index!=.
+gen adl2=0
+replace adl2=1 if adl_index==1 | adl_index==2
+gen adl3=adl_index>=3 if adl_index!=.
+label var adl0 "Num. of ADLs 0"
+label var adl2 "Num. of ADLs 1-2"
+label var adl3 "Num. of ADLs 3+"
+gen race_mis=race_cat==. 
+
+//replace pop=1 if died_nhats==1 & wave>=7
+sort spid pop ivw_date
+//replacing pop=1 to pop=0 for waves after first death_12 comes up 
+by spid pop: replace pop=0 if _n>1 & pop==1 
+/*
+gen ind_hospice= 0
+replace ind_hospice=1 if ind_hs==1 & (wave<=3 | wave==4) 
+replace ind_hospice=1 if ind_hs_nhats==1 & wave>=4
+*/
+//dropping wave 6 because we don't see there nhats hospice
+gen good_hs=0
+replace good_hs=1 if hs_los>=3
+
+foreach i in 1 3 15{
+gen hs_los_`i'=0
+replace hs_los_`i'=1 if hs_los>=`i'
+label var hs_los_`i' "Hospice LOS `i'+"
+}
+
+gen hs_los_cat=0
+replace hs_los_cat=1 if hs_los>=1
+replace hs_los_cat=2 if hs_los>=3
+replace hs_los_cat=3 if hs_los>=15
+
+gen tot_hrswk_unpaid_i=tot_hrswk_help_i-tot_hrswk_paid_i
+gen n_unpaid_helpers= n_helpers - n_paid_helpers
+ 
+gen hrswk_unpaid_40=0 if tot_hrswk_unpaid_i<40
+replace hrswk_unpaid_40=1 if tot_hrswk_unpaid_i>=40
+label var hrswk_unpaid_40 "Received 40+ Hours of Unpaid Help"
+
+drop if wave==8
+drop if lml==1
+sort spid wave
+keep if died_12==1 
+//keep if death_date-ivw_date<=183 & death_date-ivw_date>=0
+keep if nhres==0
+keep if n_unpaid_helpers>0 
+by spid: keep if _n==_N
+
+//
+
+merge 1:m bene_id using "D:\NHATS\Projects\caregiving\eol_caregivers_hospice_student\Data\int_data\hs.dta", keepusing(disch_live_dt bene_id clm_hospc_start_dt_id) gen(test)
+
+tab ind_hs test
+
+drop if test==2
+
+format %td disch_live_dt clm_hospc_start_dt_id
+
+gen hs_dur_ivw=1 if clm_hospc_start_dt_id<=ivw_date<= disch_live_dt & clm_hospc_start_dt_id!=. & disch_live_dt!=.
+
+tab hs_dur_ivw
+
+gen hs_bef_ivw=1 if disch_live_dt<ivw_date & disch_live_dt!=.
+
+sort spid hs_dur_ivw
+by spid: carryforward hs_dur_ivw, replace
+
+sort spid hs_bef_ivw 
+by spid: carryforward hs_bef_ivw, replace
+
+by spid: keep if _n==1
+
+
+sum income_adj
+forvalues i=1/4 {
+gen inccat`i'=income_quart_adj==`i'
+local lab : label income_quart_adj `=`i''
+label var inccat`i' "Income: `lab'"
+}
+tab wave
+
+gen hrswk_unpaid_3=1 if tot_hrswk_unpaid_i<6
+replace hrswk_unpaid_3=2 if tot_hrswk_unpaid_i>=6 & tot_hrswk_unpaid_i<40
+replace hrswk_unpaid_3=3 if tot_hrswk_unpaid_i>=40
+
+gen hrswk_unpaid_4=1 if tot_hrswk_unpaid_i<6
+replace hrswk_unpaid_4=2 if tot_hrswk_unpaid_i>=6 & tot_hrswk_unpaid_i<20
+replace hrswk_unpaid_4=3 if tot_hrswk_unpaid_i>=20 & tot_hrswk_unpaid_i<40 
+replace hrswk_unpaid_4=4 if tot_hrswk_unpaid_i>=40 
+
+gen unpaid_helpers_3=1 if n_unpaid_helpers==1
+replace unpaid_helpers_3=2 if n_unpaid_helpers==2
+replace unpaid_helpers_3=3 if n_unpaid_helpers>=3
+
+gen helpers_3=1 if n_helpers==1
+replace helpers_3=2 if n_helpers==2
+replace helpers_3=3 if n_helpers>=3
+
+gen a=1 if ivw_date>=first_hs
+
+tab hrswk_unpaid_4, gen(hrswk_unpaid)
+tab unpaid_helpers_3, gen(unpaid_helpers)
+tab helpers_3, gen(helpers)
+
+label var hrswk_unpaid1 "<6 unpaid hours"
+label var hrswk_unpaid2 "[6,20) unpaid hours"
+label var hrswk_unpaid3 "[20,40) unpaid hours"
+label var hrswk_unpaid4 ">=40 hours"
+
+label var unpaid_helpers1 "1 Unpaid Helper"
+label var unpaid_helpers2 "2 Unpaid Helpers"
+label var unpaid_helpers3 "3+ Unpaid Helpers"
+
+label var helpers1 "1 Helper"
+label var helpers2 "2 Helpers"
+label var helpers3 "3+ Helpers"
+
+
+
+/* Drop vars to take off server. */
+
+drop bene_id-n_died_on_hs first_hs-hmo_12m clm_hospc_start_dt_id disch_live_dt test hs_dur_ivw hs_bef_ivw ivw_day ivw_month ivw_date death_date nhats_death_date index_date nhats_death_day
+
+save "D:\NHATS\Projects\caregiving\eol_caregivers_hospice_student\Data\final_data\eol_caregivers_off_server.dta", replace
+
 H="Changelog"
 
 

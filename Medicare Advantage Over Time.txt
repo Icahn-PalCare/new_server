@@ -379,6 +379,11 @@ ctitles("" "MA, 2002" "TM, 2002" "MA,2008" "TM, 2008" "MA, 2014" "TM, 2014") ///
 varlabels replace
 
 
+H="save unrestricted dataset"
+use "D:\HRS\Projects\MA_selection\MA characteristics over time\data\final_data\ma_final.dta", clear
+drop *date zip state a_mo b_mo hmo_mo rucc wave_year
+save "D:\HRS\Projects\MA_selection\MA characteristics over time\data\final_data\ma_final_unr.dta" , replace
+
 H="change log"
 5/22/19-EBL-split code to make dataset and separately run graphs; added "Tables 02,08,14" header
 

@@ -1175,7 +1175,207 @@ note("Among community-dwelling SPs in 2011 & 2015 with probable dementia and imp
 
 
 H="look at mismatch in domains"
+ //tables looking at toileting mismatch
 
+use "${intpath}\dem_wave_1_5_w_help_sample.dta", clear
+
+gen lva=livearr+1
+replace lva=lva-1 if lva>1
+label define lva 1 "Lives alone" 2 "Lives with spouse only" 3 "Lives with spouse+" 4 "Lives with others"
+label values lva lva
+label copy helpcat prim_helper_cat
+keep if toil_jenny==1 //& !ind_no_helpers
+sort spid wave
+by spid: keep if _n==1
+gen pop=1
+merge 1:1 spid wave using "${nhats}\sp_round_1_8.dta", nogen
+gen income_adj=0
+replace income_adj= (240.007/224.939)*aveincome if wave==1
+replace income_adj= (240.007/229.594)*aveincome if wave==2
+replace income_adj= (240.007/232.957)*aveincome if wave==3
+replace income_adj= (240.007/236.736)*aveincome if wave==4
+replace income_adj= (240.007/237.017)*aveincome if wave==5
+//replace income_adj= (240.007/240.007)*aveincome if wave==6
+replace income_adj=income_adj/(240.007/237.017)
+label var income_adj "Income, 2015$"
+
+egen a1=rowtotal(toil_j dres_j bath_j meds_j bank_j)
+gen severe=a1==5
+gen sev_dem=severe==1 & prob_dem==1
+label var sev_dem "Severe dementia"
+
+keep if inlist(wave,1,5)
+svyset varunit [pw=anfinw], strat(varstrat)
+gen prim_helper_sp=prim_helper_cat==1 if !missing(prim_helper_cat)
+label var prim_helper_sp "Primary helper: spouse"
+replace pop=0 if missing(pop)
+
+foreach x of varlist tot_*_i {
+replace `x'=0 if n_helpers==0 
+}
+replace ind_gt20hrs_wk_paid=0 if n_helpers==0
+
+//look at 40 hours
+gen ind_gt40hrs=tot_hrswk_help_i>=40
+gen toil_match=!toil_mismatch
+
+gen only1=n_helpers==1
+label var only1 "Only one helper
+gen gt3=n_helpers>=3
+label var gt3 "3+ helpers"
+local cvars1 age
+local ivars1 female white educ_hs_ind 
+local catvars1 //income_quart
+local cvars2 income_adj
+local ivars2 medicaid married 
+local catvars2
+local cvars3 n_children
+local ivars3 
+local catvars3 //lva prim_helper_cat
+local ivars4 livealone prim_helper_sp rcfres metro_ind
+local catvars4 //region
+local ivars5 /*ind_no_helpers*/ ind_paid_helper ind_gt40hrs
+local cvars6 tot_hrswk_help_i n_helpers //tot_hrswk_paid_i n_helpers sr_numconditions1 
+local ivars6 gt3 adl_toil_help /*nontoil_mismatch*/ 
+local cvars7 sr_numconditions1 
+local ivars7 sr_phq2_depressed sev_dem sr_hosp_ind 
+local cvars8 adlcount_jenny iadlcount_jenny 
+local ivars8 died_12
+
+
+
+forvalues time=1/8 {
+
+foreach x of local catvars`time' {
+	local `x'
+	levelsof `x', local(levels)
+		foreach l of local levels {
+			di "`l'"
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		local cativars`time' `cativars`time'' ``x''
+}
+}
+
+
+local rn : word count `cvars1' `ivars1' `cativars1' `cvars2' `ivars2' `cativars2'  `cvars3' `ivars3' `cativars3'  `cvars4' `ivars4' `cativars4'  `cvars5' `ivars5' `cativars5'  `cvars6' `ivars6' `cativars6'  `cvars7' `ivars7' `cativars7' `cvars8' `ivars8' `cativars8' 
+di `rn'
+local r=1
+local c=1
+
+tokenize 2 1 3
+mat tab=J(`rn'+1,4,.)
+mat stars=J(`rn'+1,4,0)
+
+foreach i in "0,1" 0 1 {
+forvalues time=1/8 {
+foreach x of local cvars`time' {
+		sum `x' [aw=anfinw] if inlist(adverse_toil,`i') & pop==1
+		mat tab[`r',`c']=r(mean)
+		*mat tab[`r',`c']=r(sd)
+	svy, subpop(if pop==1): reg `x' adverse_toil 
+	test adverse_toil
+	mat tab[`r',4]=r(p)
+	mat stars[`r',4]=(r(p)<.05)+(r(p)<.01)
+
+	local r=`r'+1
+
+}
+
+
+
+foreach x of local ivars`time' {
+		sum `x' [aw=anfinw] if inlist(adverse_toil,`i') & pop==1
+		*if r(N)*r(mean)>=11 | r(mean)*r(N)==0 | r(N)==r(N)*r(mean) mat tab[`r',`c']=r(mean)*r(N)
+
+		if r(N)*r(mean)>=11 | r(mean)*r(N)==0 | r(N)==r(N)*r(mean)  mat tab[`r',`c']=r(mean)*100
+		else mat stars[`r',`c']=3
+	svy, subpop(if pop==1): tab `x' adverse_toil 
+	mat tab[`r',4]=e(p_Pear)
+	mat stars[`r',4]=(e(p_Pear)<.05)+(e(p_Pear)<.01)
+	local r=`r'+1
+}
+
+foreach y of local catvars`time' {
+	svy, subpop(if pop==1): tab `y' adverse_toil 
+	mat tab[`r',4]=e(p_Pear)
+	mat stars[`r',4]=(e(p_Pear)<.05)+(e(p_Pear)<.01)
+
+	foreach x of local `y' {
+			sum `x' [aw=anfinw] if inlist(adverse_toil,`i') & pop==1
+			*if r(N)*r(mean)>=11 | r(mean)*r(N)==0 | r(N)==r(N)*r(mean) mat tab[`r',`c']=r(mean)*r(N)
+			if r(N)*r(mean)>=11 | r(mean)*r(N)==0 | r(N)==r(N)*r(mean)  mat tab[`r',`c']=r(mean)*100
+			else mat stars[`r',`c']=3
+		local r=`r'+1
+
+}
+}
+}
+
+
+
+
+	sum adverse_toil if inlist(adverse_toil,`i') & pop==1
+	mat tab[`r',`c']=r(N)
+local r=1
+local c=`c'+1
+
+}
+
+
+
+mat rownames tab= `cvars1' `ivars1' `cativars1' `cvars2' `ivars2' `cativars2'  `cvars3' `ivars3' `cativars3'  `cvars4' `ivars4' `cativars4'  `cvars5' `ivars5' `cativars5'  `cvars6' `ivars6' `cativars6'  `cvars7' `ivars7' `cativars7' `cvars8' `ivars8' `cativars8'  N
+
+frmttable using "${outpath}\table_1_`c(current_date)'.rtf", ///
+statmat(tab) title("Characteristics of Sample") ///
+ctitles("" "Full sample" "No adverse consequences" "Yes adverse consequences" "P-value") varlabels ///
+sdec(1,1,1,2) annotate(stars) asymbol(*,**,NR) replace ///
+note("Among community-dwelling SPs in 2011 & 2015 with probable dementia and impairment in toileting")
+
+//Venn diagram.  
+rename gt3 ind_gt3_helpers
+
+*pvenn2 toil_mismatch ind_gt20hrs_tot ind_gt3_helpers
+
+preserve
+keep if pop==1
+
+pvenn2 toil_match ind_gt40hrs ind_gt3_helpers, nolabel //legend(off)
+graph save "${outpath}\venn_`c(current_date)'", replace
+graph export "${outpath}\venn_`c(current_date)'.pdf", replace
+
+restore
+replace govtasst=0 if missing(govtasst) 
+preserve
+set seed 123
+mi set wide
+mi register imputed medicaid
+mi impute logit medicaid c.aveincome##i.income_quart i.educ_ i.race meals_wheels ownhome govtasst, add(5) force
+*predict pmcaid gend ind_miss_mcaid=missing(medicaid)
+*replace medicaid=pmcaid>=.5 if missing(medicaid) & !missing(pmcaid)
+
+log using "${outpath}\model", replace
+mi estimate: svy, subpop(pop): logit adverse_toil adl_toil_help ind_gt40hrs ind_gt3_helpers age female married white medicaid sr_hosp_ind, or
+mi estimate, or
+log close
+translate "${outpath}\model.smcl" "${outpath}\model_`c(current_date)'.pdf", replace
+restore
+
+gen group=!toil_match & !ind_gt40hrs & !ind_gt3_helpers
+replace group=2 if toil_match & !ind_gt40hrs & !ind_gt3_helpers
+replace group=3 if !toil_match & ind_gt40hrs & !ind_gt3_helpers
+replace group=4 if !toil_match & !ind_gt40hrs & ind_gt3_helpers
+replace group=5 if toil_match & ind_gt40hrs & !ind_gt3_helpers
+replace group=6 if toil_match & !ind_gt40hrs & ind_gt3_helpers
+replace group=7 if !toil_match & ind_gt40hrs & ind_gt3_helpers
+replace group=8 if toil_match & ind_gt40hrs & ind_gt3_helpers
+label define group 1 "None of them" 2 "Toileting match only" 3 ">40 hrs only" 4 ">3 helpers only" 5 "Toileting & hours only" 6 "Toileting & helpers only" 7 "Hours and helpers only" 8 "All of them"
+label values group group
+keep if pop==1
+tab group
 
 H="changelog"
 2/4/20-Updated the model to include >3 helpers and tabbed the venn numbers.

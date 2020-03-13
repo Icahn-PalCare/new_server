@@ -1408,6 +1408,130 @@ save "D:\NHATS\Projects\homebound\ko_homebound_income\data\final\ko_hb_income_fi
 
 
 
+H="Table (needs to be added to sample chars notetab tab)"
+use "D:\NHATS\Projects\homebound\ko_homebound_income\data\final\ko_hb_income_final.dta", clear
+
+local cvars1 age
+local cvars2 n_social_network persontime income_adj n_helpers n_paid_helpers tot_hrsmonth_help_i ///
+tot_hrsmonth_paid_i 
+local ivars1 female whiteoth black hisp married livealone educ_hs_ind proxy ind_noone 
+local ivars2 ind_any_helpers ind_paid_helper top_quartile_help_helped ///
+medicaid medigap srh_fp nhres ///
+sr_ami_ever sr_stroke_ever sr_cancer_ever sr_hip_ever sr_heart_dis_ever ///
+sr_htn_ever sr_ra_ever sr_osteoprs_ever sr_diabetes_ever sr_lung_dis_ever ///
+prob_dementia dem_2_cat adl_diff_ind adl_independent iadl_diff_ind iadl_independent 
+local ivars3 adl1 adl2 adl3 iadl1 iadl2 iadl3 adl_eat_help adl_bath_help adl_toil_help ///
+adl_dres_help adl_ins_help adl_bed_help iadl_laun_help ///
+iadl_shop_help iadl_meal_help iadl_bank_help iadl_meds_help ///
+ reg_doc_seen sr_hosp_ind
+gen lfunextwave=nwstatus==7
+label var lfune "Lost to follow up prior to next wave"
+
+
+local cvars1 age
+local cvars2 persontime  income_adj
+local ivars1 female white black hisp other_race married livealone educ_hs_ind proxy ind_noone 
+label var inchb "Incident Homebound Next Wave"
+label var incnh "Incident Nursing Home Next Wave"
+local ivars2 ind_paid_helper inccat1 inccat2 inccat3 inccat4 proxy  ///
+medicaid medigap srh_fp adl_eat_help adl_bath_help adl_toil_help adl_dres_help ///
+adl_ins_help adl_bed_help adl_impair iadl_impair ///
+sr_cond_cat1 sr_cond_cat2 sr_cond_cat3 sr_ami_ever sr_stroke_ever sr_cancer_ever sr_hip_ever sr_heart_dis_ever ///
+sr_htn_ever sr_ra_ever sr_osteoprs_ever sr_diabetes_ever sr_lung_dis_ever ///
+prob_dementia dem_2_cat adl_diff_ind adl_independent inchbnextwave incnhnextwave ///
+lfunextwave died_12 everhb evernh metro_ind northeast midwest south west /*///
+fin_strain mealskip nopayhous nopayutil nopaymed anydebt creditdebt medpaynotcash finhlpfam meals_wheels govtasst*/
+
+
+
+
+gen n=1
+
+
+
+forvalues i=1/7 {
+gen group`i'=nwstatus==`i'
+}
+ 
+ keep if status==1
+//drop if wave==1 & status!=1
+local rn : word count 1 `cvars1' `cvars2' `ivars1' `ivars2' `coutcomes' `coutcomes' `ioutcomes' 1 1
+di `rn'
+mat tab1=J(`rn',5,.)
+mat stars=J(`rn',5,0)
+local r=1
+local c=1
+foreach i in 1 3 5 6 7 {
+	foreach round in 1 2 {
+		foreach x of local cvars`round' {
+			qui sum `x' if group`i'==1 & wave==1  [aw=anfin]
+			mat tab1[`r',`c']=r(mean)
+			if inlist("`i'","3","5","6","7") {
+				svy: reg `x' group`i' if group`i'==1 | group1==1
+				test group`i'
+				mat stars[`r',`c']=(r(p)<.01) + (r(p)<.05) 
+}
+			local r=`r'+1
+}
+		foreach x of local ivars`round' {
+			qui sum `x' if group`i'==1 & wave==1  [aw=anfin]
+			mat tab1[`r',`c']=r(mean)*100
+			if inlist("`i'","3","5","6","7") {
+				svy, subpop(if status==1 & wave==1  & group`i'==1 | group1==1): tab `x' group`i' 
+				mat stars[`r',`c']=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+}
+			local r=`r'+1
+}
+}
+	local r=`r'+1
+
+	
+	foreach x of local coutcomes {
+		qui sum `x' if group`i'==1,d
+		mat tab1[`r',`c']=r(mean)
+		if inlist("`i'","3","5","6","7") {
+				svy: reg `x' group`i' if group`i'==1 | group1==1
+				test group`i'
+			mat stars[`r',`c']=(r(p)<.01) + (r(p)<.05)
+}
+		local r=`r'+1
+*		if "`x'"=="tot_paid_by_mc_12m_wi_n0" {
+			qui sum `x' if group`i'==1,d
+			mat tab1[`r',`c']=r(p50)
+			local r=`r'+1
+*}
+}
+	foreach x of local ioutcomes {
+		qui sum `x' if group`i'==1
+		mat tab1[`r',`c']=r(mean)*100
+			if inlist("`i'","3","5","6","7") {
+				svy, subpop(if status==1 & wave==1  & group`i'==1 | group1==1): tab `x' group`i' 
+				mat stars[`r',`c']=(e(p_Pear)<.01) + (e(p_Pear)<.05)
+}
+			local r=`r'+1
+}
+	qui sum n if group`i'==1 & wave==1  [aw=anfin]
+	
+	mat tab1[`r',`c']=r(N)
+	mat tab1[`r'+1,`c']=r(sum)
+	local r=1
+	local c=`c'+1
+}
+
+foreach x in `coutcomes' {
+local rnames `rnames' "`x'" "Median"
+}
+
+mat rownames tab1=`cvars1' `ivars1' `cvars2' `ivars2' "_" N "Estimate"
+
+frmttable using sample_derivation_new.rtf,  replace statmat(tab1) ///
+ title("Sample Characteristics by next wave status") ///
+ ctitles("" "Community"  "Incident HB"  "Incident NH" ///
+ "Died" "LFU") ///
+ sdec(2) annotate(stars) asymbol(*,**) ///
+ varlabels note("Waves 1 NHATS community-dwelling sample, by next-wave status")
+ 
+
 H="****************"
 
 
