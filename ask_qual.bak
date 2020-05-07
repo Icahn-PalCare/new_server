@@ -14575,29 +14575,54 @@ tempfile mds
 save `mds'
 
 
-
 use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\index_dates.dta", clear
 
 merge 1:m bid using "D:\HRS\Shared\base_data\hrs_cms\Stata\hs_1998_2015.dta", keep(match master) keepusing(admit_date disch_date stus_cd)
 
+replace admit_date=index_date if admit_date>=index_date & !missing(admit_date)
+replace disch_date=index_date if disch_date>=index_date & !missing(disch_date)
+
 gen los=disch_date-admit_date
 replace los=1 if los==0
 by bid, sort: egen totlos=total(los)
-gen lt3=index_date-admit_date<3 if !missing(admit_date)
+gen lteq3=index_date-admit_date<=3 if !missing(admit_date)
+
+sort bid admit_date
+by bid: gen last=1 if _n==_N & admit_date!=.
+by bid: gen same=1 if last==1 & admit_date-1==disch_date[_n-1]
 
 gen ind_hs_gt6m=totlos>183 if !missing(totlos)
-by bid, sort: egen ind_hs_lt3d=max(lt3)
+
+by bid, sort: egen ind_hs_lteq3d=max(lteq3)
+
+gen test=.
+replace test=0 if index_date-admit_date>3 & index_date-admit_date!=.
+replace test=1 if index_date-admit_date<=3 & index_date-admit_date!=. & same==1
+
+by bid_hrs_22: egen ind_hs_lteq3d_dth_all=max(test) 
+label var ind_hs_lteq3d_dth_all "<=3 days in hospice before death"
+
+gen test1=.
+replace test1=0 if index_date-admit_date>=3 & index_date-admit_date!=. 
+replace test1=1 if index_date-admit_date<3 & index_date-admit_date!=. & totlos<3 & same==1
+
+by bid_hrs_22: egen ind_hs_lteq3d_dth_3=max(test1)
+label var ind_hs_lteq3d_dth_3 "<=3 days in hospice before death, when totlos<=3"
+
+
 by bid: egen ind_hs_live_disch=max(cond(!inlist(stus_cd,"30","40","41","42") & !missing(stus_cd),1,0))
 replace ind_hs_live_disch=. if _m==1
 label var ind_hs_gt6m ">183 days on hospice"
-label var ind_hs_lt3d "<3 days on hospice"
-gen ind_hs_suboptimal=ind_hs_gt | ind_hs_lt if !missing(ind_hs_gt)
-label var ind_hs_suboptimal "<3 or >183 days on hospice"
+label var ind_hs_lteq3d "<=3 days on hospice"
+
+
+gen ind_hs_suboptimal=ind_hs_gt | ind_hs_lteq3d if !missing(ind_hs_gt)
+label var ind_hs_suboptimal "<=3 or >183 days on hospice"
 label var ind_hs_live_disch "Live discharge from hospice"
 gen ind_hs=_m==3
 label var ind_hs "Any hospice use"
 
-drop _m admit_date stus_cd *los lt3 disch
+drop _m admit_date stus_cd *los disch lteq3 test* same last
 duplicates drop
 merge 1:1 bid using `mds', nogen
 
@@ -14856,6 +14881,16 @@ label var ind_fw_remaining "% OOP<Baseline Financial Wealth"
 
 
 save $final\R01_final.dta, replace
+
+
+H="pulling off server"
+use $final\R01_final.dta, clear
+
+
+gen unmarried=0 if married==1
+replace unmarried=1 if married==0
+keep id hisp_eth age_at_death female_exit srh_pf dem_cohort ind_hs_lteq3d ind_hs_lteq3d_dth_all ind_hs_lteq3d_dth_3 ind_hs_live_disch ind_hs black age_ivw ind_nw_remaining ind_hs_gt6m ind_hs_suboptima unmarried ind_nw_remaining ind_fw_remaining adl_independent_core ind_hs_gt6m_t hs_admit_cat
+save $final\sa2_vulnerable_offserver, replace
 
 
 H="********************************"
@@ -16470,6 +16505,9 @@ restore
 save "`fdpath'/burden_dementia_sample_long.dta", replace
 
 
+H="*************"
+
+
 H="Adding burden dementia table"
 use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
 cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
@@ -17706,6 +17744,122 @@ mat list tab
 
 frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Financial Wealth") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "P-values shown in columns 1-4 are done by chi2" "P-value shown in column 5 shows the significance of the interaction term when regressed on the variable") annotate(stars) asymbol(*,**) replace
 
+H="Logistic and GSEM models"
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
+
+
+merge m:1 id using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(matched)
+
+
+
+keep if nflag==0 |nflag==1
+
+gsort id  -nflag
+
+by id: carryforward married srh srh_pf srh_g srh_ve adl_independent_core age_ivw, replace
+
+keep if nflag==0
+
+gen no_ind_hs=0 if ind_hs==1
+replace no_ind_hs=1 if ind_hs==0
+label var no_ind_hs "No hospice use"
+
+
+
+tab dementia flag_burd
+
+gen n=1
+
+gen ind_hs_gt6m_1=0 if ind_hs_gt6m==0 & ind_hs==1
+replace ind_hs_gt6m_1=1 if ind_hs_gt6m==1 & ind_hs==1
+label var ind_hs_gt6m_1 ">183 days on hospice"
+
+gen ind_hs_suboptimal_1=0 if  ind_hs_gt6m_1==0 & ind_hs_lteq3d_dth_all==0 & ind_hs==1
+replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lteq3d_dth_all==1) & ind_hs==1
+label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
+
+gen unmarried=0 if married==1
+replace unmarried=1 if married==0
+
+gen hs_educ=0
+replace hs_educ=1 if degree==0
+
+gen vulnerable=0
+replace vulnerable=1 if black==1 | hisp_eth==1 | degree==0 | married==0
+
+gen no_ind_nw_remaining=0 if ind_nw_remaining==1
+replace no_ind_nw_remaining=1 if ind_nw_remaining==0
+
+gen no_ind_fw_remaining=0 if ind_fw_remaining==1
+replace no_ind_fw_remaining=1 if ind_fw_remaining==0
+
+//replace ind_hs_live_disch=0 if ind_hs_live_disch==.
+
+
+
+
+//////////////
+
+gen white_oth=0
+replace white_oth=1 if white==1 | other==1
+label var white_oth "White/Other Race"
+
+label var hs_educ "<HS education"
+
+gen adl_dependent_core=0 if adl_independent_core==1
+replace adl_dependent_core=1 if adl_independent_core==0
+label var adl_dependent_core "Dependent for ADLs"
+
+local vars1 age_ivw female_exit srh_pf adl_dependent_core
+local vars2 unmarried hs_educ
+
+logit ind_hs black if dem_cohort==0 & hisp_eth==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
+
+logit ind_hs black if dem_cohort==1 & hisp_eth==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
+
+logit ind_hs hisp_eth if dem_cohort==0 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
+
+logit ind_hs hisp_eth if dem_cohort==1 & black==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
+
+logit ind_hs hs_educ if dem_cohort==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
+
+logit ind_hs hs_educ if dem_cohort==1, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
+
+logit ind_hs unmarried if dem_cohort==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
+
+logit ind_hs unmarried if dem_cohort==1, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \ "Outcome is hospice indicator" ) title("Unadjusted Models on Hospice by Demenia status") 
+
+
+logit ind_hs black hisp_eth hs_educ unmarried `vars1' if dem_cohort==0, or
+outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
+
+logit ind_hs black hisp_eth hs_educ unmarried `vars1' if dem_cohort==1, or
+outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \  "Outcome is hospice indicator" ) title("Adjusted Models on Hospice by Demenia status") addtable
+
+//////GSEM
+ 
+
+
+local vars1 age_ivw female_exit srh_pf adl_dependent_core
+gsem (ind_hs_lteq3d_dth_all ind_hs_gt6m_1 ind_hs_live_disch <- black hisp_eth hs_educ unmarried `vars1') if dem_cohort==0, logit
+outreg using hospice_vulnerable_gsem.rtf, varlabels stats(e_b e_ci p) ctitles("" "<3 Days" ">183 Days" "Live Discharge") replace eq_merge title("Adjusted Multivariate models Non-Dementia") note("Displaying ORs" \ "Outcome is either <3 days, >183 days, or discharged from hospice" )
+
+gsem (ind_hs_lteq3d_dth_all ind_hs_gt6m_1 ind_hs_live_disch <- black hisp_eth hs_educ unmarried `vars1') if dem_cohort==1 , logit
+outreg using hospice_vulnerable_gsem.rtf, varlabels stats(e_b e_ci p) ctitles("" "<3 Days" ">183 Days" "Live Discharge") eq_merge note("Displaying ORs" \ "Outcome is either <3 days, >183 days, or discharged from hospice" ) title("Adjusted Multivariate models Dementia") addtable
+
+margins, dydx(*) post
+margins, coefl
+
+
 H="xnewer tables"
 use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
 cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
@@ -18397,219 +18551,6 @@ mat colnames tab="Dem/Ex FW vs Dem/FW Rem" "Non Dem/Ex FW  vs Non Dem/FW Rem" "D
 mat list tab
 
 frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Financial Wealth") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "P-values shown in columns 1-4 are done by chi2" "P-value shown in column 5 shows the significance of the interaction term when regressed on the variable") annotate(stars) asymbol(*,**) replace
-
-H="multi-variate"
-use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
-cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
-
-
-merge m:1 id using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(matched)
-
-
-
-keep if nflag==0 |nflag==1
-
-gsort id  -nflag
-
-by id: carryforward married, replace
-
-keep if nflag==0
-
-gen no_ind_hs=0 if ind_hs==1
-replace no_ind_hs=1 if ind_hs==0
-label var no_ind_hs "No hospice use"
-
-
-
-tab dementia flag_burd
-
-gen n=1
-
-gen ind_hs_gt6m_1=0 if ind_hs_gt6m==0 & ind_hs==1
-replace ind_hs_gt6m_1=1 if ind_hs_gt6m==1 & ind_hs==1
-label var ind_hs_gt6m_1 ">183 days on hospice"
-
-gen ind_hs_suboptimal_1=0 if  ind_hs_gt6m_1==0 & ind_hs_lt3d==0 & ind_hs==1
-replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lt3d==1) & ind_hs==1
-label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
-
-gen unmarried=0 if married==1
-replace unmarried=1 if married==0
-
-gen hs_educ=0
-replace hs_educ=1 if degree==0
-
-gen vulnerable=0
-replace vulnerable=1 if black==1 | hisp_eth==1 | degree==0 | married==0
-
-gen no_ind_nw_remaining=0 if ind_nw_remaining==1
-replace no_ind_nw_remaining=1 if ind_nw_remaining==0
-
-gen no_ind_fw_remaining=0 if ind_fw_remaining==1
-replace no_ind_fw_remaining=1 if ind_fw_remaining==0
-
-replace ind_hs_live_disch=0 if ind_hs_live_disch==.
-replace ind_hs_lt3d=0 if ind_hs_lt3d==. 
-
-
-manova ind_start_ltc nhres_exit loc_hosp_exit flag_burd ind_hs_gt6m no_ind_hs ind_hs_suboptimal ind_hs_live_disch ind_hs_lt3d= hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining
-
-mvreg
- mat list r(table)
-i.ind_hs_lt3d i.ind_hs_live_disch   
-
-
-
-H="logits"
-use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
-cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
-
-
-merge m:1 id using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(matched)
-
-
-
-keep if nflag==0 |nflag==1
-
-gsort id  -nflag
-
-by id: carryforward married srh srh_pf srh_g srh_ve adl_independent_core age_ivw, replace
-
-keep if nflag==0
-
-gen no_ind_hs=0 if ind_hs==1
-replace no_ind_hs=1 if ind_hs==0
-label var no_ind_hs "No hospice use"
-
-
-
-tab dementia flag_burd
-
-gen n=1
-
-gen ind_hs_gt6m_1=0 if ind_hs_gt6m==0 & ind_hs==1
-replace ind_hs_gt6m_1=1 if ind_hs_gt6m==1 & ind_hs==1
-label var ind_hs_gt6m_1 ">183 days on hospice"
-
-gen ind_hs_suboptimal_1=0 if  ind_hs_gt6m_1==0 & ind_hs_lt3d==0 & ind_hs==1
-replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lt3d==1) & ind_hs==1
-label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
-
-gen unmarried=0 if married==1
-replace unmarried=1 if married==0
-
-gen hs_educ=0
-replace hs_educ=1 if degree==0
-
-gen vulnerable=0
-replace vulnerable=1 if black==1 | hisp_eth==1 | degree==0 | married==0
-
-gen no_ind_nw_remaining=0 if ind_nw_remaining==1
-replace no_ind_nw_remaining=1 if ind_nw_remaining==0
-
-gen no_ind_fw_remaining=0 if ind_fw_remaining==1
-replace no_ind_fw_remaining=1 if ind_fw_remaining==0
-
-//replace ind_hs_live_disch=0 if ind_hs_live_disch==.
-replace ind_hs_lt3d=0 if ind_hs_lt3d==. 
-
-
-manova ind_start_ltc nhres_exit loc_hosp_exit flag_burd ind_hs_gt6m no_ind_hs ind_hs_suboptimal ind_hs_live_disch ind_hs_lt3d= hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining
-
-
-gsem (ind_hs_live_disch <- hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining dem_cohort, logit ) (dem_cohort <- hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining, logit )
-
-gsem (ind_hs_suboptimal_1 <- hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining dem_cohort, logit ) (dem_cohort <- hs_educ c.age_at_death black hisp_eth other unmarried ind_nw_remaining, logit )
-
-logit ind_hs_gt6m  i.hs_educ age_at_death i.black i.hisp_eth i.other i.unmarried i.ind_nw_remaining i.dem_cohort if ind_hs==1
-
-logit ind_hs_lt3d  i.hs_educ age_at_death i.black i.hisp_eth i.other if ind_hs==1
-
- i.unmarried i.ind_nw_remaining i.dem_cohort if ind_hs==1
-
-logit ind_hs_suboptimal i.hs_educ age_at_death i.black i.hisp_eth i.other i.unmarried i.ind_nw_remaining i.dem_cohort if ind_hs==1
-
-logit ind_hs_live_disch  i.hs_educ age_at_death i.black i.hisp_eth i.other i.unmarried i.ind_nw_remaining i.dem_cohort if ind_hs==1
-
-tab 
-
-//////////////
-
-gen white_oth=0
-replace white_oth=1 if white==1 | other==1
-label var white_oth "White/Other Race"
-
-label var hs_educ "<HS education"
-
-gen adl_dependent_core=0 if adl_independent_core==1
-replace adl_dependent_core=1 if adl_independent_core==0
-label var adl_dependent_core "Dependent for ADLs"
-
-local vars1 age_ivw female_exit srh_pf adl_dependent_core
-local vars2 unmarried hs_educ
-
-logit ind_hs black if dem_cohort==0 & hisp_eth==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
-
-logit ind_hs black `vars1' if dem_cohort==0 & hisp_eth==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
-
-logit ind_hs black if dem_cohort==1 & hisp_eth==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
-
-logit ind_hs black `vars1' if dem_cohort==1 & hisp_eth==0, or
-outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \ "Excluding Hispanic" \ "Outcome is hospice indicator" ) title("Black vs. White/other and Hospice")
-
-
-logit ind_hs hisp_eth if dem_cohort==0 & black==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
-
-logit ind_hs hisp_eth `vars1' if dem_cohort==0 & black==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
-
-logit ind_hs hisp_eth if dem_cohort==1 & black==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
-
-logit ind_hs hisp_eth `vars1' if dem_cohort==1 & black==0, or
-outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \ "Excluding Black" \ "Outcome is hospice indicator" ) title("Hispanic vs. White/other and Hospice") addtable
-
-
-logit ind_hs hs_educ if dem_cohort==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
-
-logit ind_hs hs_educ `vars1' if dem_cohort==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
-
-logit ind_hs hs_educ if dem_cohort==1, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
-
-logit ind_hs hs_educ `vars1' if dem_cohort==1, or
-outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \  "Outcome is hospice indicator" ) title("<HS Education and Hospice") addtable
-
-
-logit ind_hs unmarried if dem_cohort==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
-
-logit ind_hs unmarried `vars1' if dem_cohort==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") merge
-
-logit ind_hs unmarried if dem_cohort==1, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge
-
-logit ind_hs unmarried `vars1' if dem_cohort==1, or
-outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \  "Outcome is hospice indicator" ) title("Unmarried and Hospice") addtable
-
-
-logit ind_hs black hisp_eth hs_educ unmarried `vars1' if dem_cohort==0, or
-outreg, varlabels stats(e_b e_ci p) ctitles("" "No Dementia") 
-
-logit ind_hs black hisp_eth hs_educ unmarried `vars1' if dem_cohort==1, or
-outreg using hospice_vulnerable.rtf, varlabels stats(e_b e_ci p) ctitles("" "Dementia") merge note("Displaying ORs" \  "Outcome is hospice indicator" ) title("Hospice") addtable
-
-
-
-
-
 
 H="changelog"
 01/29/20 - Burdensome Transitions added to Table 1. 

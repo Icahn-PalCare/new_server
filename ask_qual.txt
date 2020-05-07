@@ -13319,6 +13319,7 @@ label var ffs_lt_84m "<84m continuous FFS prior to death"
 
 gen dropped_7yr = 0
 replace dropped_7yr = 1 if final_7yr==0 & final==1
+gen age_lt_67=age_at_death<67
 
 preserve
 
@@ -13364,12 +13365,12 @@ gen begin=0
 gen missdem=dem_cohort==.
 replace final_7yr=!final_7yr
 
-local full1 age_lt_70 death_b4_core no_exit miss_core no_core nocore4yr hrs_lt_60m ffs_lt_60m
+local full1 age_lt_67 death_b4_core no_exit miss_core no_core nocore4yr hrs_lt_60m ffs_lt_60m
 local full2 final 
 local full3 age_lt_72 hrs_lt_84m ffs_lt_84m 
 local full4 final_7yr 
 
-local samplevars begin age_lt_72 nolink no_exit nocore4yr missdem miss_core hrs_lt_84m //final_7yr
+local samplevars begin age_lt_67 nolink no_exit nocore4yr missdem 
 
 local rn : word count `samplevars'
 
@@ -13394,8 +13395,11 @@ statmat(tab) varlabels title("Sample Derivation") sdec(0) replace
 restore
 by id, sort: egen nolink=min(cond(missing(bid_hrs_22)),1,0)
 gen missdem=dem_cohort==.
-drop if age_lt_72 | nolink | no_exit | nocore4yr | missdem | miss_core | hrs_lt_84m
+drop if age_lt_67 | nolink | no_exit | nocore4yr | missdem 
 drop nolink missdem
+by id: egen minn=min(nflag)
+drop if minn>0
+drop minn
 save R01_j.dta, replace
 
 
@@ -14577,7 +14581,7 @@ save `mds'
 
 use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\index_dates.dta", clear
 
-merge 1:m bid using "D:\HRS\Shared\base_data\hrs_cms\Stata\hs_1998_2015.dta", keep(match master) keepusing(admit_date disch_date stus_cd)
+merge 1:m bid using "D:\HRS\Shared\base_data\hrs_cms\Stata\hs_1998_2015.dta", keep(match master) keepusing(admit_date disch_date stus_cd pdgns_cd)
 
 replace admit_date=index_date if admit_date>=index_date & !missing(admit_date)
 replace disch_date=index_date if disch_date>=index_date & !missing(disch_date)
@@ -14622,7 +14626,266 @@ label var ind_hs_live_disch "Live discharge from hospice"
 gen ind_hs=_m==3
 label var ind_hs "Any hospice use"
 
-drop _m admit_date stus_cd *los disch lteq3 test* same last
+
+//getting total los up to this point for live disch after 183 days
+sort bid admit_date
+by bid: gen obsnum=_n
+gen los_sofar=los if obsnum==1
+levelsof obsnum, local(levels)
+foreach l of local levels {
+	if `l'>1  {
+		by bid: replace los_sofar=los+los_sofar[_n-1] if obsnum==`l'
+}
+}
+
+by bid: egen ind_hs_gt6m_then_live_disch=max(cond(!inlist(stus_cd,"30","40","41","42") & !missing(stus_cd) & los_sofar>=183,1,0))
+label var ind_hs_gt6m_then_live_disch "Live discharge after 183 days on hospice"
+
+local ccw4 (substr(pdgns_cd,1,5) ==	"29011"	 ///
+| substr(pdgns_cd,1,5) ==	"29012"	 ///
+| substr(pdgns_cd,1,5) ==	"29013"	 ///
+| substr(pdgns_cd,1,5) ==	"29010"	 ///
+| substr(pdgns_cd,1,5) ==	"29021"	 ///
+| substr(pdgns_cd,1,5) ==	"29020"	 ///
+| substr(pdgns_cd,1,4) ==	"2903"	 ///
+| substr(pdgns_cd,1,5) ==	"29041"	 ///
+| substr(pdgns_cd,1,5) ==	"29042"	 ///
+| substr(pdgns_cd,1,5) ==	"29043"	 ///
+| substr(pdgns_cd,1,5) ==	"29040"	 ///
+| substr(pdgns_cd,1,4) ==	"2900"	 ///
+| substr(pdgns_cd,1,5) ==	"29410"	 ///
+| substr(pdgns_cd,1,5) ==	"29411"	 ///
+| substr(pdgns_cd,1,5) ==	"29420"	 ///
+| substr(pdgns_cd,1,5) ==	"29421"	 ///
+| substr(pdgns_cd,1,4) ==	"2940"	 ///
+| substr(pdgns_cd,1,4) ==	"2948"	 ///
+| substr(pdgns_cd,1,5) ==	"33111"	 ///
+| substr(pdgns_cd,1,5) ==	"33119"	 ///
+| substr(pdgns_cd,1,4) ==	"3312"	 ///
+| substr(pdgns_cd,1,4) ==	"3317"	 ///
+| substr(pdgns_cd,1,4) ==	"3310"	 ///
+| substr(pdgns_cd,1,3) ==	"797"	 ///
+| substr(pdgns_cd,1,5) ==	"F0150"	 ///
+| substr(pdgns_cd,1,5) ==	"F0151"	 ///
+| substr(pdgns_cd,1,5) ==	"F0280"	 ///
+| substr(pdgns_cd,1,5) ==	"F0281"	 ///
+| substr(pdgns_cd,1,5) ==	"F0390"	 ///
+| substr(pdgns_cd,1,5) ==	"F0391"	 ///
+| substr(pdgns_cd,1,3) ==	"F04"	 ///
+| substr(pdgns_cd,1,3) ==	"F05"	 ///
+| substr(pdgns_cd,1,4) ==	"F061"	 ///
+| substr(pdgns_cd,1,4) ==	"F068"	 ///
+| substr(pdgns_cd,1,4) ==	"G138"	 ///
+| substr(pdgns_cd,1,4) ==	"G300"	 ///
+| substr(pdgns_cd,1,4) ==	"G301"	 ///
+| substr(pdgns_cd,1,4) ==	"G308"	 ///
+| substr(pdgns_cd,1,4) ==	"G309"	 ///
+| substr(pdgns_cd,1,5) ==	"G3101"	 ///
+| substr(pdgns_cd,1,5) ==	"G3109"	 ///
+| substr(pdgns_cd,1,4) ==	"G311"	 ///
+| substr(pdgns_cd,1,4) ==	"G312"	 ///
+| substr(pdgns_cd,1,3) ==	"G94"	 ///
+| substr(pdgns_cd,1,5) ==	"R4181"	 ///
+| substr(pdgns_cd,1,3) ==	"R54")
+
+
+local ccw15 (substr(pdgns_cd,1,5) ==	"39891"	 ///
+| substr(pdgns_cd,1,5) ==	"40201"	 ///
+| substr(pdgns_cd,1,5) ==	"40211"	 ///
+| substr(pdgns_cd,1,5) ==	"40291"	 ///
+| substr(pdgns_cd,1,5) ==	"40401"	 ///
+| substr(pdgns_cd,1,5) ==	"40403"	 ///
+| substr(pdgns_cd,1,5) ==	"40411"	 ///
+| substr(pdgns_cd,1,5) ==	"40413"	 ///
+| substr(pdgns_cd,1,5) ==	"40491"	 ///
+| substr(pdgns_cd,1,5) ==	"40493"	 ///
+| substr(pdgns_cd,1,4) ==	"4281"	 ///
+| substr(pdgns_cd,1,5) ==	"42821"	 ///
+| substr(pdgns_cd,1,5) ==	"42822"	 ///
+| substr(pdgns_cd,1,5) ==	"42823"	 ///
+| substr(pdgns_cd,1,5) ==	"42820"	 ///
+| substr(pdgns_cd,1,5) ==	"42831"	 ///
+| substr(pdgns_cd,1,5) ==	"42832"	 ///
+| substr(pdgns_cd,1,5) ==	"42833"	 ///
+| substr(pdgns_cd,1,5) ==	"42830"	 ///
+| substr(pdgns_cd,1,5) ==	"42841"	 ///
+| substr(pdgns_cd,1,5) ==	"42842"	 ///
+| substr(pdgns_cd,1,5) ==	"42843"	 ///
+| substr(pdgns_cd,1,5) ==	"42840"	 ///
+| substr(pdgns_cd,1,4) ==	"4289"	 ///
+| substr(pdgns_cd,1,4) ==	"4280"	 ///
+| substr(pdgns_cd,1,5) ==	"I0981"	 ///
+| substr(pdgns_cd,1,4) ==	"I110"	 ///
+| substr(pdgns_cd,1,4) ==	"I130"	 ///
+| substr(pdgns_cd,1,4) ==	"I132"	 ///
+| substr(pdgns_cd,1,4) ==	"I501"	 ///
+| substr(pdgns_cd,1,5) ==	"I5020"	 ///
+| substr(pdgns_cd,1,5) ==	"I5021"	 ///
+| substr(pdgns_cd,1,5) ==	"I5022"	 ///
+| substr(pdgns_cd,1,5) ==	"I5023"	 ///
+| substr(pdgns_cd,1,5) ==	"I5030"	 ///
+| substr(pdgns_cd,1,5) ==	"I5031"	 ///
+| substr(pdgns_cd,1,5) ==	"I5032"	 ///
+| substr(pdgns_cd,1,5) ==	"I5033"	 ///
+| substr(pdgns_cd,1,5) ==	"I5040"	 ///
+| substr(pdgns_cd,1,5) ==	"I5041"	 ///
+| substr(pdgns_cd,1,5) ==	"I5042"	 ///
+| substr(pdgns_cd,1,5) ==	"I5043"	 ///
+| substr(pdgns_cd,1,6) ==	"I50810"	 ///
+| substr(pdgns_cd,1,6) ==	"I50811"	 ///
+| substr(pdgns_cd,1,6) ==	"I50812"	 ///
+| substr(pdgns_cd,1,6) ==	"I50813"	 ///
+| substr(pdgns_cd,1,6) ==	"I50814"	 ///
+| substr(pdgns_cd,1,5) ==	"I5082"	 ///
+| substr(pdgns_cd,1,5) ==	"I5083"	 ///
+| substr(pdgns_cd,1,5) ==	"I5084"	 ///
+| substr(pdgns_cd,1,5) ==	"I5089"	 ///
+| substr(pdgns_cd,1,4) ==	"I509")
+
+local ccw19 (substr(pdgns_cd,1,5) ==	"41001"	 ///
+| substr(pdgns_cd,1,5) ==	"41002"	 ///
+| substr(pdgns_cd,1,5) ==	"41011"	 ///
+| substr(pdgns_cd,1,5) ==	"41012"	 ///
+| substr(pdgns_cd,1,5) ==	"41010"	 ///
+| substr(pdgns_cd,1,5) ==	"41021"	 ///
+| substr(pdgns_cd,1,5) ==	"41022"	 ///
+| substr(pdgns_cd,1,5) ==	"41020"	 ///
+| substr(pdgns_cd,1,5) ==	"41031"	 ///
+| substr(pdgns_cd,1,5) ==	"41032"	 ///
+| substr(pdgns_cd,1,5) ==	"41030"	 ///
+| substr(pdgns_cd,1,5) ==	"41041"	 ///
+| substr(pdgns_cd,1,5) ==	"41042"	 ///
+| substr(pdgns_cd,1,5) ==	"41040"	 ///
+| substr(pdgns_cd,1,5) ==	"41051"	 ///
+| substr(pdgns_cd,1,5) ==	"41052"	 ///
+| substr(pdgns_cd,1,5) ==	"41050"	 ///
+| substr(pdgns_cd,1,5) ==	"41061"	 ///
+| substr(pdgns_cd,1,5) ==	"41062"	 ///
+| substr(pdgns_cd,1,5) ==	"41060"	 ///
+| substr(pdgns_cd,1,5) ==	"41071"	 ///
+| substr(pdgns_cd,1,5) ==	"41072"	 ///
+| substr(pdgns_cd,1,5) ==	"41070"	 ///
+| substr(pdgns_cd,1,5) ==	"41081"	 ///
+| substr(pdgns_cd,1,5) ==	"41082"	 ///
+| substr(pdgns_cd,1,5) ==	"41080"	 ///
+| substr(pdgns_cd,1,5) ==	"41091"	 ///
+| substr(pdgns_cd,1,5) ==	"41092"	 ///
+| substr(pdgns_cd,1,5) ==	"41090"	 ///
+| substr(pdgns_cd,1,5) ==	"41000"	 ///
+| substr(pdgns_cd,1,4) ==	"4111"	 ///
+| substr(pdgns_cd,1,5) ==	"41181"	 ///
+| substr(pdgns_cd,1,5) ==	"41189"	 ///
+| substr(pdgns_cd,1,4) ==	"4110"	 ///
+| substr(pdgns_cd,1,3) ==	"412"	 ///
+| substr(pdgns_cd,1,4) ==	"4131"	 ///
+| substr(pdgns_cd,1,4) ==	"4139"	 ///
+| substr(pdgns_cd,1,4) ==	"4130"	 ///
+| substr(pdgns_cd,1,5) ==	"41401"	 ///
+| substr(pdgns_cd,1,5) ==	"41402"	 ///
+| substr(pdgns_cd,1,5) ==	"41403"	 ///
+| substr(pdgns_cd,1,5) ==	"41404"	 ///
+| substr(pdgns_cd,1,5) ==	"41405"	 ///
+| substr(pdgns_cd,1,5) ==	"41406"	 ///
+| substr(pdgns_cd,1,5) ==	"41407"	 ///
+| substr(pdgns_cd,1,5) ==	"41412"	 ///
+| substr(pdgns_cd,1,4) ==	"4142"	 ///
+| substr(pdgns_cd,1,4) ==	"4143"	 ///
+| substr(pdgns_cd,1,4) ==	"4144"	 ///
+| substr(pdgns_cd,1,4) ==	"4148"	 ///
+| substr(pdgns_cd,1,4) ==	"4149"	 ///
+| substr(pdgns_cd,1,5) ==	"41400"	 ///
+| substr(pdgns_cd,1,4) ==	"I200"	 ///
+| substr(pdgns_cd,1,4) ==	"I201"	 ///
+| substr(pdgns_cd,1,4) ==	"I208"	 ///
+| substr(pdgns_cd,1,4) ==	"I209"	 ///
+| substr(pdgns_cd,1,5) ==	"I2101"	 ///
+| substr(pdgns_cd,1,5) ==	"I2102"	 ///
+| substr(pdgns_cd,1,5) ==	"I2109"	 ///
+| substr(pdgns_cd,1,5) ==	"I2111"	 ///
+| substr(pdgns_cd,1,5) ==	"I2119"	 ///
+| substr(pdgns_cd,1,5) ==	"I2121"	 ///
+| substr(pdgns_cd,1,5) ==	"I2129"	 ///
+| substr(pdgns_cd,1,4) ==	"I213"	 ///
+| substr(pdgns_cd,1,4) ==	"I214"	 ///
+| substr(pdgns_cd,1,5) ==	"I21A1"	 ///
+| substr(pdgns_cd,1,5) ==	"I21A9"	 ///
+| substr(pdgns_cd,1,4) ==	"I220"	 ///
+| substr(pdgns_cd,1,4) ==	"I221"	 ///
+| substr(pdgns_cd,1,4) ==	"I222"	 ///
+| substr(pdgns_cd,1,4) ==	"I228"	 ///
+| substr(pdgns_cd,1,4) ==	"I229"	 ///
+| substr(pdgns_cd,1,4) ==	"I230"	 ///
+| substr(pdgns_cd,1,4) ==	"I231"	 ///
+| substr(pdgns_cd,1,4) ==	"I232"	 ///
+| substr(pdgns_cd,1,4) ==	"I233"	 ///
+| substr(pdgns_cd,1,4) ==	"I234"	 ///
+| substr(pdgns_cd,1,4) ==	"I235"	 ///
+| substr(pdgns_cd,1,4) ==	"I236"	 ///
+| substr(pdgns_cd,1,4) ==	"I237"	 ///
+| substr(pdgns_cd,1,4) ==	"I238"	 ///
+| substr(pdgns_cd,1,4) ==	"I240"	 ///
+| substr(pdgns_cd,1,4) ==	"I241"	 ///
+| substr(pdgns_cd,1,4) ==	"I248"	 ///
+| substr(pdgns_cd,1,4) ==	"I249"	 ///
+| substr(pdgns_cd,1,5) ==	"I2510"	 ///
+| substr(pdgns_cd,1,6) ==	"I25110"	 ///
+| substr(pdgns_cd,1,6) ==	"I25111"	 ///
+| substr(pdgns_cd,1,6) ==	"I25118"	 ///
+| substr(pdgns_cd,1,6) ==	"I25119"	 ///
+| substr(pdgns_cd,1,4) ==	"I252"	 ///
+| substr(pdgns_cd,1,4) ==	"I253"	 ///
+| substr(pdgns_cd,1,5) ==	"I2541"	 ///
+| substr(pdgns_cd,1,5) ==	"I2542"	 ///
+| substr(pdgns_cd,1,4) ==	"I255"	 ///
+| substr(pdgns_cd,1,4) ==	"I256"	 ///
+| substr(pdgns_cd,1,6) ==	"I25700"	 ///
+| substr(pdgns_cd,1,6) ==	"I25701"	 ///
+| substr(pdgns_cd,1,6) ==	"I25708"	 ///
+| substr(pdgns_cd,1,6) ==	"I25709"	 ///
+| substr(pdgns_cd,1,6) ==	"I25710"	 ///
+| substr(pdgns_cd,1,6) ==	"I25711"	 ///
+| substr(pdgns_cd,1,6) ==	"I25718"	 ///
+| substr(pdgns_cd,1,6) ==	"I25719"	 ///
+| substr(pdgns_cd,1,6) ==	"I25720"	 ///
+| substr(pdgns_cd,1,6) ==	"I25721"	 ///
+| substr(pdgns_cd,1,6) ==	"I25728"	 ///
+| substr(pdgns_cd,1,6) ==	"I25729"	 ///
+| substr(pdgns_cd,1,6) ==	"I25730"	 ///
+| substr(pdgns_cd,1,6) ==	"I25731"	 ///
+| substr(pdgns_cd,1,6) ==	"I25738"	 ///
+| substr(pdgns_cd,1,6) ==	"I25739"	 ///
+| substr(pdgns_cd,1,6) ==	"I25750"	 ///
+| substr(pdgns_cd,1,6) ==	"I25751"	 ///
+| substr(pdgns_cd,1,6) ==	"I25758"	 ///
+| substr(pdgns_cd,1,6) ==	"I25759"	 ///
+| substr(pdgns_cd,1,6) ==	"I25760"	 ///
+| substr(pdgns_cd,1,6) ==	"I25761"	 ///
+| substr(pdgns_cd,1,6) ==	"I25768"	 ///
+| substr(pdgns_cd,1,6) ==	"I25769"	 ///
+| substr(pdgns_cd,1,6) ==	"I25790"	 ///
+| substr(pdgns_cd,1,6) ==	"I25791"	 ///
+| substr(pdgns_cd,1,6) ==	"I25798"	 ///
+| substr(pdgns_cd,1,6) ==	"I25799"	 ///
+| substr(pdgns_cd,1,6) ==	"I25810"	 ///
+| substr(pdgns_cd,1,6) ==	"I25811"	 ///
+| substr(pdgns_cd,1,6) ==	"I25812"	 ///
+| substr(pdgns_cd,1,5) ==	"I2582"	 ///
+| substr(pdgns_cd,1,5) ==	"I2583"	 ///
+| substr(pdgns_cd,1,5) ==	"I2584"	 ///
+| substr(pdgns_cd,1,5) ==	"I2589"	 ///
+| substr(pdgns_cd,1,4) ==	"I259")
+
+gen hs_admit_cat=1 if `ccw4'
+replace hs_admit_cat=2 if  inrange(real(substr(pdgns_cd,1,3)),140,239) | substr(pdgns_cd,1,1)=="C" | (substr(pdgns_cd,1,1)=="D" & real(substr(pdgns_cd,2,2))<50)
+replace hs_admit_cat=3 if `ccw15' //| `ccw19'
+replace hs_admit_cat=4 if missing(hs_admit_cat) & ind_hs==1
+by bid, sort: egen a=min(hs_admit_cat)
+replace hs_admit_cat=a
+drop a
+label define hs_admit_cat 1 "Dementia" 2 "Cancer" 3 "Heart failure" 4 "Other"
+label values hs_admit_cat hs_admit_cat
+
+drop _m admit_date stus_cd *los disch lteq3 test* same last los_sofar obsnum pdgns_cd
 duplicates drop
 merge 1:1 bid using `mds', nogen
 
