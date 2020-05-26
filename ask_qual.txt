@@ -14594,11 +14594,26 @@ gen lteq3=index_date-admit_date<=3 if !missing(admit_date)
 sort bid admit_date
 by bid: gen last=1 if _n==_N & admit_date!=.
 by bid: gen same=1 if last==1 & admit_date-1==disch_date[_n-1]
+//by bid: gen same=1 if last[_n+1]==1 & admit_date[_n+1]-1==disch_date
 
-gen ind_hs_gt6m=totlos>183 if !missing(totlos)
+by bid: gen ad=1 if admit_date==disch_date[_n-1] & admit_date!=.
+
+gen ind_hs_gt6m=totlos>183 if _merge==3
 
 by bid, sort: egen ind_hs_lteq3d=max(lteq3)
+label var ind_hs_lteq3d "<3 days indicator"
 
+gen ind_hs_lteq3d_dth_all=0 if _merge==3
+replace ind_hs_lteq3d_dth_all=1 if same==1 & los[_n-1]+los<=3 &_merge==3
+replace ind_hs_lteq3d_dth_all=1 if los<=3 & same==. & last==1
+
+by bid, sort: egen ind_hs_lteq3d_dth_all1=max(ind_hs_lteq3d_dth_all)
+
+drop ind_hs_lteq3d_dth_all
+rename ind_hs_lteq3d_dth_all1 ind_hs_lteq3d_dth_all
+
+label var ind_hs_lteq3d_dth_all "<=3 days in hospice before death"
+/*
 gen test=.
 replace test=0 if index_date-admit_date>3 & index_date-admit_date!=.
 replace test=1 if index_date-admit_date<=3 & index_date-admit_date!=. & same==1
@@ -14612,7 +14627,7 @@ replace test1=1 if index_date-admit_date<3 & index_date-admit_date!=. & totlos<3
 
 by bid_hrs_22: egen ind_hs_lteq3d_dth_3=max(test1)
 label var ind_hs_lteq3d_dth_3 "<=3 days in hospice before death, when totlos<=3"
-
+*/
 
 by bid: egen ind_hs_live_disch=max(cond(!inlist(stus_cd,"30","40","41","42") & !missing(stus_cd),1,0))
 replace ind_hs_live_disch=. if _m==1
@@ -14885,7 +14900,7 @@ drop a
 label define hs_admit_cat 1 "Dementia" 2 "Cancer" 3 "Heart failure" 4 "Other"
 label values hs_admit_cat hs_admit_cat
 
-drop _m admit_date stus_cd *los disch lteq3 test* same last los_sofar obsnum pdgns_cd
+drop _m admit_date stus_cd *los disch lteq3 same last los_sofar obsnum pdgns_cd ad
 duplicates drop
 merge 1:1 bid using `mds', nogen
 
@@ -16760,6 +16775,42 @@ save "`fdpath'/burden_dementia_sample_long.dta", replace
 
 H="*************"
 
+
+H="off server dataset creation"
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
+
+
+merge m:1 id using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(matched)
+
+
+//keep if nflag==0
+
+gen no_ind_hs=0 if ind_hs==1
+replace no_ind_hs=1 if ind_hs==0
+label var no_ind_hs "No hospice use"
+
+foreach x in ind_start_ltc ind_hs_suboptimal no_ind_hs ind_hs_gt6m ind_hs_lteq3d_dth_all ind_hs_live_disch loc_hosp_exit {
+tab `x'
+}
+
+
+tab dementia flag_burd
+
+gen n=1
+
+gen ind_hs_gt6m_1=0 if ind_hs_gt6m==0 & ind_hs==1
+replace ind_hs_gt6m_1=1 if ind_hs_gt6m==1 & ind_hs==1
+label var ind_hs_gt6m_1 ">183 days on hospice"
+
+gen ind_hs_suboptimal_1=0 if  ind_hs_gt6m_1==0 & ind_hs_lteq3d_dth_all==0 & ind_hs==1
+replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lteq3d_dth_all==1) & ind_hs==1
+label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
+
+
+keep id hisp_eth age_at_death female_exit srh_pf adl_independent_core dem_cohort ind_hs_gt6m ind_hs_live_disch ind_hs ind_hs_lteq3d_dth_all ind_hs_suboptimal ind_hs_suboptimal_1 hs_admit_cat black age_ivw ind_nw_remaining ind_fw_remaining married married_exit 
+
+save $final\sa2_vulnerable_offserver.dta, replace
 
 H="Adding burden dementia table"
 use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear

@@ -2574,7 +2574,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 12/17/2019
+Date Updated: 05/26/2019
 
 Description: This section uses the SP and OP data files and imputes
 hours of help provided to SP per methods in NHATS Technical Paper #7
@@ -2630,7 +2630,7 @@ save `resttrack'
 
 //7/13/17--add in metro/nonmetro var
 use "D:\NHATS\Shared\raw\NHATS\NHATS Public\NHATS_Round_1_8_MetNonmet_STATA\NHATS_Round_1_8_MetNonmet.dta", clear
-forvalues w=1/6 {
+forvalues w=1/$w {
 gen metro_ind`w'=r`w'd==1 if inrange(r`w'd,1,2)
 }
 reshape long metro_ind, i(spid) j(wave)
@@ -2647,6 +2647,10 @@ cd "${work}"
 
 use round_1_${w}_clean_helper_added.dta
 merge 1:1 spid wave using `metro', keep(match master) nogen
+
+
+
+
 
 // 10/17/19
 rename rehab rehabil
@@ -3992,10 +3996,14 @@ gen iadl_index=iadl_laun_help+iadl_shop_help+iadl_bank_help+iadl_meal_help+iadl_
 replace iadl_index=. if iadl_index<0
 gen iadl_independent=iadl_index==0 if iadl_index!=.
 gen iadl_impair=iadl_index>0 if iadl_index!=.
-foreach x in adl iadl {
-	egen `x'_diff_index=rowtotal(`x'*diff)
-	gen `x'_diff_ind=`x'_diff_index>=1 if !missing(`x'_diff_index)
-}
+
+
+egen adl_diff_index=rowtotal(adl_eat_diff adl_bath_diff adl_toil_diff adl_dres_diff adl_bed_diff adl_ins_diff)
+gen adl_diff_ind=adl_diff_index>=1 if !missing(adl_diff_index)
+
+egen iadl_diff_index=rowtotal(iadl_*_diff)
+gen iadl_diff_ind=`x'iadl_diff_index>=1 if !missing(iadl_diff_index)
+
 label var adl_independent "Independent in ADLs"
 label var adl_impair "Help with 1+ ADL"
 label var adl_index "Index of help w/ ADLs"
@@ -4601,7 +4609,7 @@ howpkupm2 howpkupm3 medsrem medsdif medsyrgo medsmis havregdoc regdoclyr hwgtreg
  hwgtregd2 hwgtregd3 hwgtregd4 hwgtregd5 hwgtregd6 hwgtregd7 hwgtregd8 hwgtregd9 ///
  ansitindr tpersevr1 tpersevr2 tpersevr3 tpersevr4 chginspln anhlpwdec
 */
-//note--as of now, doesn't include round 7
+
 forvalues wave=1/$w {
 use "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_`wave'\NHATS_Round_`wave'_SP_File.dta", clear
 keep spid cs`wave'dnumchild ho`wave'entrst hh`wave'dhshldnum mo* sc* ha* mc* 
@@ -4779,8 +4787,6 @@ foreach x in hours paid kids {
 
 restore
 
-
-
 merge 1:1 spid wave using `kids', keep(match master) gen(kidm)
 merge 1:1 spid wave using `hours', keep(match master) gen(hrm)
 merge 1:1 spid wave using `paid', keep(match master) gen(paidm)
@@ -4941,6 +4947,18 @@ foreach x in laun shop meal bank meds {
 	label var iadl_`x'_diff "Has difficulty while `x'ing last month"
 	label var iadl_`x'_not "Did not `x' in last month"
 }
+
+//5/26/20-added here because code used is farther down. 
+egen a1=rowtotal(toil_j dres_j bath_j meds_j bank_j)
+gen severe=a1==5
+gen sev_dem=severe==1 & prob_dem==1
+label var sev_dem "Severe dementia"
+
+notes sev_dem: toil_j dres_j bath_j meds_j bank_j prob_dem
+notes sev_dem: Severe Dementia from Jenny''s Caregiving project
+notes sev_dem: Located in NHATS Setup, under Part 7.
+notes sev_dem: Created: 05/26/20-MH
+
 label var iadl_meds_diff "Difficulty taking meds last month"
 label var iadl_meds_not "Didn't take meds or not by self in last month"	
 label var adl_ins_diff "Difficulty moving around inside by self in last month"
@@ -5484,7 +5502,7 @@ iadl_shop_not_done iadl_meal_help iadl_meal_diff iadl_meal_not_done iadl_bank_he
  shop_jenny meal_jenny bank_jenny iadlcount_jenny device_mobility spouse_help_ind tot_spousehrs daughter_help_ind tot_daughterhrs son_help_ind tot_sonhrs otherfamily_help_ind ///
  tot_otherfamilyhrs paid_help_ind tot_paidhrs otherinformal_help_ind tot_otherinformalhrs any_paid_by_sp any_paid_by_gov any_paid_by_ins any_paid_by_unk any_paid_by_oth ///
  any_paid_by_gov_cat_1 any_paid_by_gov_cat_2 any_paid_by_gov_cat_3 any_paid_by_gov_cat_oth any_paid_by_gov_cat_unknown any_paid_by_medicare any_paid_by_medicaid any_paid_by_state ///
- ind_gt20hrs_wk_inf ind_gt20hrs_wk_paid anfinwgt an2011wgt death_* died_12 died_24 *_lml qoc_lml_e adl_out* out_jenny soc_iso frail rehab surgery
+ ind_gt20hrs_wk_inf ind_gt20hrs_wk_paid anfinwgt an2011wgt death_* died_12 died_24 *_lml qoc_lml_e adl_out* out_jenny soc_iso frail rehab surgery sev_dem
  
 
 saveold "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_${w}", replace version(12)
@@ -7429,6 +7447,10 @@ H="Changelog"
 
 
 Updates:
+
+05/26/2020 MH
+----------
+Fixed adl variable and added in Jenny's sever dementia variable. 
 
 1/7/2020 EBL
 ----------
