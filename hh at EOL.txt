@@ -435,6 +435,8 @@ tab anytherapy if keep==1
 tab anysw if keep==1
 tab anyhha if keep==1
 
+*recode age
+recode agecat (1/2=1 "65-74")(3/4=2 "75-84")(5/6=3 "85+"), gen(age3cat)
 
 *living in a NH on nhats ivw before death
 gen nhstatus=0
@@ -466,7 +468,12 @@ gen swvisits_perdah=swvisits/(home_days/100)
 gen hhavisits_perdah=hhavisits/(home_days/100)
 
 
-
+*make visits/30 days at home
+gen totalvisits_per30dah=30* (totalvisits/home_days)
+gen nursevisits_per30dah=30*(nursevisits/home_days)
+gen therapyvisits_per30dah=30*(therapyvisits/home_days)
+gen swvisits_per30dah=30*(swvisits/home_days)
+gen hhavisits_per30dah=30*(hhavisits/home_days)
 
 *adls
 recode adl_diff_index (0=0 "0")(1/2=1 "1=2")(3/7=2 "3+"), gen(adl_cat)
@@ -498,29 +505,37 @@ save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final dat
 H="analysis"
 *analysis
 
+*Figure 1
 svyset  varunit [pweight=anfinwgt], strat(varstrat)
-svy, subpop(keep): tab anyvisits
-svy, subpop(keephh): mean totalvisits
+svy, subpop(keep): tab anyvisits, ci
+svy, subpop(keephh): mean totalvisits_per30dah
 
-svy, subpop(keephh): tab anynurse
-svy, subpop(keepnurse): mean nursevisits
+svy, subpop(keep): tab anynurse, ci
+svy, subpop(keepnurse): mean nursevisits_per30dah
 
-svy, subpop(keephh): tab anytherapy
-svy, subpop(keeptherapy): mean therapyvisits
+svy, subpop(keep): tab anytherapy, ci
+svy, subpop(keeptherapy): mean therapyvisits_per30dah
 
-svy, subpop(keephh): tab anyhha
-svy, subpop(keephha): mean hhavisits
+svy, subpop(keep): tab anyhha, ci
+svy, subpop(keephha): mean hhavisits_per30dah
 
-svy, subpop(keephh): tab anysw
-svy, subpop(keepsw): mean swvisits
+svy, subpop(keep): tab anysw, ci
+svy, subpop(keepsw): mean swvisits_per30dah
 
-foreach var of varlist  female   educ_hs_ind livealone metro_ind medicaid  srhospice    sr_lung_dis_ever sr_heart_dis_ever sr_phq2_depressed sr_gad2_anxiety prob_dem {
-svy, subpop(keephh): logistic anyhha `var'
+
+*table 1
+tab anyvisits if keep==1
+
+
+foreach var of varlist  female   educ_hs_ind  metro_ind medicaid livealone   sr_lung_dis_ever sr_heart_dis_ever sr_phq2_depressed sr_gad2_anxiety prob_dem srhospice {
+svy, subpop(keep): tab  anyvisits `var', row
 }
 
-foreach var of varlist agecat  race_cat income_cat homebound_cat adl_cat {
-svy, subpop(keephh): logistic anyhha i.`var'
+foreach var of varlist  age3cat  race_cat income_cat homebound_cat adl_cat  {
+svy, subpop(keep): tab  anyvisits `var', row
 }
+
+
 
 H="**********Adding in days at home"
 
