@@ -647,6 +647,81 @@ drop if ivw_type==2
 drop ivw_type
 save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_14.dta", replace
 
+H="EBL merging multiple years by n1 address"
+*use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14_unr.dta", clear
+//note--half of disaster counties don't match with anybody in HRS, just 5 counties in HRS don't match (74 obs total)
+use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\climate_clean_new", clear
+rename st stctyfips10 
+tempfile t1
+save `t1'
+
+//get a dataset with all of the interviews, core and exit
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
+gen ivw_type=1
+append using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta"
+replace ivw_type=2 if missing(ivw_type)
+label define ivw_type 1 "Core" 2 "Exit"
+replace core_year=exit_year if missing(core_year)
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta", keep(match master)
+replace c_ivw_date=death_all if ivw_type==2
+gen ind_died_24m=death_all<=c_ivw_date+730
+
+keep id core_year c_ivw_date ivw_type death_all ind_died_24m
+keep if ivw_type==1
+tempfile ivws
+save `ivws'
+
+use hhid pn stcty wave using "D:\HRS\Shared\raw\HRS\hrs_restricted_2014\Detail\2014\hrsxdetail2014(2nd try unzip)\stata\HRSXGEO14b_R.dta", clear
+gen id=hhid+pn
+rename wave core_year
+destring core_year, replace
+gen wave=(core_year-1990)/2
+merge 1:1 id core_year using `ivws', keep(match) nogen
+sort id core_year
+by id: gen ivw_date_n1=c_ivw_date
+
+forvalues i=5/12 {
+	preserve
+	keep if wave==`i'
+	joinby stc using `t1', unmatched(both) _merge(_merge)
+	keep if _merge==3
+	keep if inrange(inc_date,ivw_date_n1,ivw_date_n1+730)
+	drop if death_all<inc_date & !missing(inc_date)
+	drop inc_date death_all
+	duplicates drop
+	tempfile t`i'
+	save `t`i''
+	restore
+}
+
+clear 
+forvalues i=5/12 {
+	append using `t`i''
+}
+
+keep id core_year mete* hydro geo climate ivw_type 
+duplicates drop
+duplicates report id core_year
+merge m:1 id core_year using `ivws', nogen keepusing(ivw_type ind_died_24m)
+
+
+foreach x of varlist mete_storm mete_ext hydro geo climate {
+replace `x'=0 if missing(`x') 
+replace `x'=. if core_year==1998
+by id core_year, sort: egen a=max(`x')
+replace `x'=a
+drop a
+}
+duplicates drop
+
+egen ind_disaster=rowmax(mete_* hydro geo climate)
+rename core_year year
+order id year ivw_type
+
+drop if ivw_type==2
+drop ivw_type
+save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_14_n1loc.dta", replace
+
 H="Change log"
 ********************Change Log******************** 
 
