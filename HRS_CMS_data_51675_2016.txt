@@ -89,23 +89,23 @@ Medpar 1998-2012 - processing steps
 *************************************************************************
 ************************************************************************/
 %let source=mp;
-*/prints first 10 rows of mp_2000 file, just select variables listed below;
-proc sql outobs=10;
-select BID_HRS_22, ADMSNDT,DSCHRGDT,loscnt from medi_raw.&source._1998;
-quit;
 
 *creates merged medpar file 1998-2012 years;
-data medi_wk.&source._1998_2016;
+data medi_wk.&source._1998_2016a;
 set medi_raw.&source._1998 medi_raw.&source._1999 medi_raw.&source._2000 medi_raw.&source._2001 medi_raw.&source._2002 medi_raw.&source._2003 medi_raw.&source._2004 medi_raw.&source._2005 medi_raw.&source._2006 medi_raw.&source._2007 medi_raw.&source._2008
 medi_raw.&source._2009 medi_raw.&source._2010 medi_raw.&source._2011
 medi_raw.&source._2012 medi_raw.&source._2013 medi_raw.&source._2014 medi_raw.&source._2015  medi_raw.&source._2016;
-*formats dates for admission and discharge;
-admit_date=datejul(ADMSNDT);
-if substr(trim(left(DSCHRGDT)),1,1) in ("1","2") then do;
-disch_date=datejul(DSCHRGDT);
-end;
+run;
 
-admit_year=year(admit_date);
+data medi_wk.&source._1998_2016;
+set medi_wk.&source._1998_2016a;
+*formats dates for admission and discharge;
+rename ADMSNDT=admit_date;
+rename DSCHRGDT=disch_date;
+format admit_date date9.;
+format disch_date date9.;
+
+admit_year=year(ADMSNDT);
 
 *calculate discharge date if null from admit date and los;
 if disch_date=. then disch_date=admit_date+loscnt;
@@ -113,8 +113,6 @@ if disch_date=. then disch_date=admit_date+loscnt;
 bid_n=substr(trim(left(BID_HRS_22)),2,9)+0;
 disch_year=year(disch_date);
 
-format admit_date date9.;
-format disch_date date9.;
 run;
 
 *Check for and remove dupicates;
@@ -122,37 +120,9 @@ proc sort data=medi_wk.&source._1998_2016 out=temp2  nodupkey;
 by BID_n admit_date disch_date pmt_amt;
 run;
 
-/*create table bid of just observations that had multiple observations
-that match on id, admit date and discharge date
-They have different payment amounts though b/c of previous step*/
-proc sql;
-create table bid as
-select BID_n,admit_date, disch_date,count(*)
-from medi_wk.&source._1998_2016 group by
-BID_n,admit_date, disch_date having count(*)>1;
 
-*prints list of observations where match on id, admit date and disch date;
-select BID_n,admit_date, disch_date from medi_wk.&source._1998_2016
-where bid_n in (select bid_n from bid)
-;
-quit;
 
-* Variable list:
-MSNDT ADMSNDT CHAR Documentation 
-MEDPAR_ADMSN_DT: MEDPAR Admission Date 
-DSCHRGDT DSCHRGDT CHAR Documentation 
-MEDPAR_DSCHRG_DT: MEDPAR Discharge Date 
-loscnt;
 
-*identify observatons where discharge year is null - no observations identified;
-proc sql outobs=10;
-select BID_HRS_22, ADMSNDT,DSCHRGDT,loscnt from medi_wk.&source._1998_2016 where 
-disch_year=.;
-quit;
-*frequency table of admit and disch year vars;
-proc freq data=medi_wk.&source._1998_2016;
-table admit_year disch_year;
-run;
 
 proc export data=medi_wk.mp_1998_2016 outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\mp_1998_2016.dta' replace; 
 run;
@@ -180,10 +150,10 @@ set medi_raw.&source._1998 medi_raw.&source._1999 medi_raw.&source._2000 medi_ra
  medi_raw.&source._2003 medi_raw.&source._2004 medi_raw.&source._2005 medi_raw.&source._2006 medi_raw.&source._2007 medi_raw.&source._2008 medi_raw.&source._2009 medi_raw.&source._2010 medi_raw.&source._2011
 medi_raw.&source._2012 medi_raw.&source._2013 medi_raw.&source._2014 medi_raw.&source._2015 medi_raw.&source._2016 ;
 *create clean admit and discharge date variables;
-admit_date=mdy(substr(trim(left(FROM_DT)),5,2),substr(trim(left(FROM_DT)),7,2),substr(trim(left(FROM_DT)),1,4));
-disch_date=mdy(substr(trim(left(thru_DT)),5,2),substr(trim(left(thru_DT)),7,2),substr(trim(left(thru_DT)),1,4));
+rename from_dt=admit_date;
+rename thru_dt=disch_date;
 
-admit_year=year(admit_date);
+admit_year=year(from_dt);
 
 *format ID number;
 bid_n=substr(trim(left(BID_HRS_22)),2,9)+0;
@@ -244,10 +214,10 @@ set medi_raw.&source._1998 medi_raw.&source._1999 medi_raw.&source._2000 medi_ra
  medi_raw.&source._2003 medi_raw.&source._2004 medi_raw.&source._2005 medi_raw.&source._2006 medi_raw.&source._2007 medi_raw.&source._2008 medi_raw.&source._2009  medi_raw.&source._2010 medi_raw.&source._2011
 medi_raw.&source._2012 medi_raw.&source._2013 medi_raw.&source._2014 medi_raw.&source._2015 medi_raw.&source._2016;
 *create clean admit and discharge date variables;
-admit_date=mdy(substr(trim(left(FROM_DT)),5,2),substr(trim(left(FROM_DT)),7,2),substr(trim(left(FROM_DT)),1,4));
-disch_date=mdy(substr(trim(left(thru_DT)),5,2),substr(trim(left(thru_DT)),7,2),substr(trim(left(thru_DT)),1,4));
+rename from_dt=admit_date;
+rename thru_dt=disch_date;
 
-admit_year=year(admit_date);
+admit_year=year(from_dt);
 
 *format ID number;
 bid_n=substr(trim(left(BID_HRS_22)),2,9)+0;
@@ -304,10 +274,10 @@ set medi_raw.&source._1998 medi_raw.&source._1999 medi_raw.&source._2000 medi_ra
  medi_raw.&source._2003 medi_raw.&source._2004 medi_raw.&source._2005 medi_raw.&source._2006 medi_raw.&source._2007 medi_raw.&source._2008 medi_raw.&source._2009 medi_raw.&source._2010 medi_raw.&source._2011
 medi_raw.&source._2012 medi_raw.&source._2013 medi_raw.&source._2014 medi_raw.&source._2015 medi_raw.&source._2016 ;
 *create clean admit and discharge date variables;
-admit_date=mdy(substr(trim(left(FROM_DT)),5,2),substr(trim(left(FROM_DT)),7,2),substr(trim(left(FROM_DT)),1,4));
-disch_date=mdy(substr(trim(left(thru_DT)),5,2),substr(trim(left(thru_DT)),7,2),substr(trim(left(thru_DT)),1,4));
+rename from_dt=admit_date;
+rename thru_dt=disch_date;
 
-admit_year=year(admit_date);
+admit_year=year(from_dt);
 
 *format ID number;
 bid_n=substr(trim(left(BID_HRS_22)),2,9)+0;
@@ -410,10 +380,10 @@ medi_wk.&source._2014temp medi_wk.&source._2015temp
 medi_wk.&source._2016temp;
 
 *create clean admit date, discharge date and admit year vars;
-admit_date=mdy(substr(trim(left(FROM_DT)),5,2),substr(trim(left(FROM_DT)),7,2),substr(trim(left(FROM_DT)),1,4));
-disch_date=mdy(substr(trim(left(thru_DT)),5,2),substr(trim(left(thru_DT)),7,2),substr(trim(left(thru_DT)),1,4));
+rename from_dt=admit_date;
+rename thru_dt=disch_date;
 
-admit_year=year(admit_date);
+admit_year=year(from_dt);
 
 *format ID variable;
 bid_n=substr(trim(left(BID_HRS_22)),2,9)+0;
@@ -443,10 +413,10 @@ medi_raw.&source._2012 medi_raw.&source._2013 medi_raw.&source._2014 medi_raw.&s
 ;
 
 *clean admit and discharge date and admit year variables;
-admit_date=mdy(substr(trim(left(FROM_DT)),5,2),substr(trim(left(FROM_DT)),7,2),substr(trim(left(FROM_DT)),1,4));
-disch_date=mdy(substr(trim(left(thru_DT)),5,2),substr(trim(left(thru_DT)),7,2),substr(trim(left(thru_DT)),1,4));
+rename from_dt=admit_date;
+rename thru_dt=disch_date;
 
-admit_year=year(admit_date);
+admit_year=year(from_dt);
 
 *format ID variable;
 bid_n=substr(trim(left(BID_HRS_22)),2,9)+0;
@@ -476,11 +446,12 @@ medi_raw.&source._2012 medi_raw.&source._2013 medi_raw.&source._2014 medi_raw.&s
 ;
 
 *clean admit date, discharge date and admit year variables;
-admit_date=mdy(substr(trim(left(FROM_DT)),5,2),substr(trim(left(FROM_DT)),7,2),substr(trim(left(FROM_DT)),1,4));
-disch_date=mdy(substr(trim(left(thru_DT)),5,2),substr(trim(left(thru_DT)),7,2),substr(trim(left(thru_DT)),1,4));
+rename from_dt=admit_date;
+rename thru_dt=disch_date;
 
-admit_year=year(admit_date);
-disch_year=year(disch_date);
+admit_year=year(from_dt);
+
+disch_year=year(thru_dt);
 
 *Format ID variable;
 bid_n=substr(trim(left(BID_HRS_22)),2,9)+0;
@@ -510,7 +481,51 @@ proc export data=medi_wk.dm_1998_2016 outfile='D:\HRS\Shared\base_data\hrs_cms\S
 run;
 
 H="Hospice"
-/* Hospice (HS) medicare claim records clean up*/
+/*
+Durable medical equipment (DM) medicare claim records clean up
+*/
+
+%let source=dm;
+proc sql outobs=10;
+select BID_HRS_22, FROM_DT,thru_DT,pmt_amt from medi_raw.&source._2000;
+quit;
+
+*create combined 1998-2012 data file;
+data medi_wk.&source._1998_2016;
+set medi_raw.&source._1998 medi_raw.&source._1999 medi_raw.&source._2000 medi_raw.&source._2001 medi_raw.&source._2002
+ medi_raw.&source._2003 medi_raw.&source._2004 medi_raw.&source._2005 medi_raw.&source._2006    
+ medi_raw.&source._2007 medi_raw.&source._2008 medi_raw.&source._2009 medi_raw.&source._2010
+ medi_raw.&source._2011
+medi_raw.&source._2012 medi_raw.&source._2013 medi_raw.&source._2014 medi_raw.&source._2015 medi_raw.&source._2016 ;
+;
+
+*clean admit date, discharge date and admit year variables;
+rename from_dt=admit_date;
+rename thru_dt=disch_date;
+
+admit_year=year(from_dt);
+
+disch_year=year(thru_dt);
+
+*Format ID variable;
+bid_n=substr(trim(left(BID_HRS_22)),2,9)+0;
+if SGMT_NUM=1;
+run;
+
+*Check for and remove duplicates;
+proc sort data=medi_wk.&source._1998_2016 out=temp2  nodupkey;
+by BID_HRS_22 admit_date disch_date pmt_amt;
+run;
+
+proc sql outobs=10;
+select distinct SGMT_CNT,count(*) from medi_wk.&source._1998_2016 group by SGMT_CNT;
+quit;
+
+* Find observations with null for discharge year;
+proc sql outobs=10;
+select BID_HRS_22, admit_date,disch_date  from medi_wk.&source._1998_2016 where 
+disch_year=.;
+quit;/* Hospice (HS) medicare claim records clean up*/
 
 %let source=hs;
 proc sql outobs=10;
@@ -524,11 +539,12 @@ medi_raw.&source._2012 medi_raw.&source._2013 medi_raw.&source._2014 medi_raw.&s
 
 
 *clean admit date, discharge date and admit year variables;
-admit_date=mdy(substr(trim(left(FROM_DT)),5,2),substr(trim(left(FROM_DT)),7,2),substr(trim(left(FROM_DT)),1,4));
-disch_date=mdy(substr(trim(left(thru_DT)),5,2),substr(trim(left(thru_DT)),7,2),substr(trim(left(thru_DT)),1,4));
+rename from_dt=admit_date;
+rename thru_dt=disch_date;
 
-admit_year=year(admit_date);
-disch_year=year(disch_date);
+admit_year=year(from_dt);
+
+disch_year=year(thru_dt);
 
 
 *Format ID variable;
@@ -557,6 +573,13 @@ table admit_year disch_year;
 run;
 
 proc export data=medi_wk.hs_1998_2016 outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\hs_1998_2016.dta' replace; 
+run;
+* Table of discharge year and admit year;
+proc freq;
+table admit_year disch_year;
+run;
+
+proc export data=medi_wk.dm_1998_2016 outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\dm_1998_2016.dta' replace; 
 run;
 
 H="***********************************************"
