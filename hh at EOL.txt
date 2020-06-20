@@ -409,7 +409,7 @@ H="putting dataset together"
  drop _merge
  merge m:1 spid using "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\total_home_days_last_year.dta" 
 *exclude those who have no days at home
-*==77
+*==75
  replace keep=0 if home_days==0
 
 
@@ -438,10 +438,11 @@ tab anyhha if keep==1
 *recode age
 recode agecat (1/2=1 "65-74")(3/4=2 "75-84")(5/6=3 "85+"), gen(age3cat)
 
-*living in a NH on nhats ivw before death
+/*living in a NH on nhats ivw before death-- decided not to do this-- given they had some days at home in last year
 gen nhstatus=0
 replace nhstatus=1 if closedth==ivwdeathdays & closedth!=. & sp_status==3
 replace keep=0 if nhstatus==1 
+*/
 
 *keep variable for those receiving hh and hh types
 gen keephh=keep
@@ -534,6 +535,9 @@ svy, subpop(keep): tab  anyvisits `var', row
 foreach var of varlist  age3cat  race_cat income_cat homebound_cat adl_cat  {
 svy, subpop(keep): tab  anyvisits `var', row
 }
+
+svy, subpop(keep): mean home_days, over(anyvisits)
+svy, subpop(keep): reg home_days anyvisits
 
 
 
