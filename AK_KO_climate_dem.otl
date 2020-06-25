@@ -722,6 +722,9 @@ drop if ivw_type==2
 drop ivw_type
 save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_14_n1loc.dta", replace
 
+H="new merge on june 24th"
+
+
 H="Change log"
 ********************Change Log******************** 
 
