@@ -28,7 +28,7 @@ Simple Outline: NHATS data cleanup, variable creation.
 //File paths for raw data
 
 //NEED TO CHANGE WAVE NUMBER FOR EACH WAVE
-global w 8
+global w 9
 
 global work D:\NHATS\Shared\base_data\NHATS cleaned\working
 global logs D:\NHATS\Shared\base_data\NHATS cleaned\logs
@@ -193,8 +193,23 @@ sn`w'* dt`w'* gr`w'* wa`w'* wb`w'* ho`w'* cs`w'* re`w'* pd`w'* lm`w'* rh`w'*) //
 rename (ep8eoltalk ep8poweratty ep8livngwill) (eoltalk poweratty livngwill)
 }
 save round_`w'_ltd.dta, replace
+
+
+if `w'==9 {	
+keep `keepallwaves' re9intplace re9newstrct re9spadrsnew re9dresistrct ///
+	re9dcensdiv ip9nginslast w9an2011wgt0 lm* rh`w'rehab
+	
+rename (r`w'* w`w'* mo`w'* hh`w'* ip`w'* hc`w'* ss`w'* pc`w'* cp`w'* cg`w'* ha`w'* ///
+sc`w'* mc`w'* sd`w'* pa`w'* hw`w'* is`w'* ht`w'* fl`w'* ir`w'* cm`w'* ew`w'* hp`w'* ///
+sn`w'* dt`w'* gr`w'* wa`w'* wb`w'* ho`w'* cs`w'* re`w'* pd`w'* lm`w'* rh`w'*) ///
+(*) 
+
+}
+save round_`w'_ltd.dta, replace
 }
 
+// 6/26/2020-commenting this out until we have r9 sens file
+/*
 //check sensitive data files, keep only some variables, merge with ltd datasets
 forvalues w=1/$w{
 	use "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File.dta"
@@ -203,7 +218,7 @@ forvalues w=1/$w{
 	tab dup	
 	clear
 }
-
+*/
 //combine waves into single dataset
 use round_1_ltd.dta
 forvalues w=2/$w{
@@ -212,12 +227,14 @@ append using round_`w'_ltd.dta
 
 preserve
 
+// 6/26/2020-commenting this out until we have r9 sens file
+/*
 forvalues w=1/$w{
 use "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File.dta", clear
 gen wave=`w'
 save "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File_new.dta", replace
 
-}
+}*/
 
 restore
 
@@ -254,12 +271,14 @@ merge m:1 spid using "${r7s}NHATS_Round_7_SP_Sen_Dem_File_new.dta", ///
 merge m:1 spid using "${r8s}NHATS_Round_8_SP_Sen_Dem_File_new.dta", ///
 	keepusing(r8dintvwrage hh8spageall r8ddeathage pd8mthdied pd8yrdied hc8cancerty*) nogen
 
+//will merge in r9 sensitive data when available
 
 //3B?
 //merge in tracker status information
 
 
 merge m:1 spid using "${r${w}raw}NHATS_Round_${w}_Tracker_File", keepusing( yearsample ///
+w9trfinwgt0 w9tr2011wgt0 r9status r9spstat r9spstatdtmt r9spstatdtyr r9fqstatdtmt ///
 w8trfinwgt0 w8tr2011wgt0 r8status r8spstat r8spstatdtmt r8spstatdtyr r8fqstatdtmt ///
 w7trfinwgt0 w7tr2011wgt0 r7status r7spstat r7spstatdtmt r7spstatdtyr r7fqstatdtmt ///
 w6trfinwgt0 w6tr2011wgt0 r6status r6spstat r6spstatdtmt r6spstatdtyr r6fqstatdtmt ///
@@ -285,6 +304,7 @@ drop if _merge==2
 drop _merge	
 save round_1_to_$w.dta, replace
 
+// 6/26/2020-ebl-for some reason, these folders are read only for me.  
 //old version of stata
 forvalues w=1/$w{
 clear all
@@ -994,6 +1014,8 @@ tab indephigh wave if sp_ivw_yes==1, missing
 *********************************************
 *********************************************
 gen age=.
+//6/26/2020-needs to be updated once we have the r9 sensitive
+gen r9dintvwrage=r8dintvwrage+1
 forvalues w=1/$w{
 	replace age=r`w'dintvwrage if wave==`w'
 	sum age if wave==`w', detail

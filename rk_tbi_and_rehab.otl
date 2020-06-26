@@ -1,0 +1,199 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Outline"
+
+
+H="get index"
+
+foreach clm in ip op pb {
+
+
+use bid_hrs_22 admit_date dgnscd* using "D:\HRS\Shared\base_data\hrs_cms\Stata/`clm'_1998_2016.dta" if year(admit_date)>=2000, clear
+gen n=_n
+duplicates drop
+
+forvalues i=1/9 {
+	rename dgnscd0`i' diag`i'
+}
+
+rename dgnscd* diag*
+
+reshape long diag, i(n) j(num)
+drop num n
+
+duplicates drop
+
+gen tbi=1 & inlist(substr(diag,1,1),"8") & inlist(substr(diag,2,1),"0") & ///
+inlist(substr(diag,3,1),"0","1","3","4")
+
+replace tbi=1 & inlist(substr(diag,1,1),"8") & inlist(substr(diag,2,1),"5") & ///
+inlist(substr(diag,3,1),"0","1","2","3")
+
+replace tbi=1 if (substr(diag,1,3)=="854" & inlist(substr(diag,4,1),"0","1")) | (inlist(substr(diag,1,3),"950") & inlist(substr(diag,4,1),"1","2","3"))
+
+replace tbi=1 & diag=="95901" | diag=="99555"
+
+replace tbi=1 if inlist(substr(diag,1,3),"S01","S06")
+
+replace tbi=1 if inlist(substr(diag,1,3),"S02") & inlist(substr(diag,4,1),"0","1","3","7","8","9")
+
+replace tbi=1 if inlist(substr(diag,1,3),"S06") & ///
+inlist(substr(diag,4,1),"0","1","2","3","4","5","6","8","9")
+replace tbi=1 if inlist(substr(diag,1,3),"S09") & inlist(substr(diag,4,1),"8","7","9")
+replace tbi=1 if inlist(substr(diag,1,4),"S040","T010","T020","T040","T060")
+replace tbi=1 if inlist(substr(diag,1,3),"T90") & inlist(substr(diag,4,1),"1","2","4","5","8","9")
+
+gen `clm'=1
+
+keep if tbi==1
+sort bid_hrs_22 admit_date
+by bid_hrs_22: keep if _n==1
+
+tempfile `clm' 
+save ``clm''
+}
+
+
+clear
+foreach x in ip op pb {
+	append using ``x''
+}
+
+foreach x in ip op pb {
+	replace `x'=0 if missing(`x')
+	by bid_hrs_22, sort: egen any_`x'=max(`x')
+}
+
+
+gsort bid_hrs_22 -ip admit_date
+preserve
+tempfile t1
+save `t1'
+
+use hhid pn r13iwbeg using "D:\HRS\Shared\raw\HRS\hrs_public_2016\rand2016\randhrs1992_2016v1.dta", clear
+rename r13iwbeg c_ivw_date
+gen id=hhid+pn
+tempfile t2
+save `t2'
+
+use id hhid pn c_ivw_date using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
+append using `t2'
+
+merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keep(match)
+
+joinby bid_hrs_22 using `t1', unmatched(both) _merge(_m)
+
+sort id c_ivw_date
+gen ivw_date_n1=c_ivw_date[_n-1]
+gen ivw_date_p1=c_ivw_date
+by id: keep if inrange(admit_date, c_ivw_date[_n-1], c_ivw_date)
+
+gsort bid_hrs_22 -ip admit_date
+by bid_hrs_22: keep if _n==1
+drop if missing(id)
+
+tempfile t1
+save `t1'
+
+rename admit_date index_date
+
+save "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\index.dta", replace
+
+
+H="get FFS between ivws"
+use "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\index.dta", clear
+drop _m* sex
+merge 1:m bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\bqsf_1998_2016.dta", keep(match)
+keep if inrange(start_dt,ivw_date_n1-90,ivw_date_p1)
+gen ffsa=ab_mo_cnt==3 | (a_mo_cnt==b_mo_cnt & ab_mo_cnt>0)
+replace ffsa=0 if hmo_mo>0
+by bid_hrs_22, sort: egen ffs=min(ffsa)
+
+keep id ffs index_date
+duplicates drop
+
+save "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\ffs.dta", replace
+
+H="rehab within one year of TBI"
+use id bid_hrs_22 admit_date yob using "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\index.dta", clear
+rename admit_date index_date
+
+tempfile index
+save `index'
+
+local hcpcs inlist(substr(hcpcscd,1,6),"97001", "97002", "97039", "97003","97004","96105" ,"96125") | inlist(substr(hcpcscd,1,6),"92506", "92507","90901", "92521", "92522", "92523") | inlist(substr(hcpcscd,1,6), "92524", "92605", "92607", "92608", "92609") | inlist(substr(hcpcscd,1,6), "92610", "96105", "97110", "97112", "97113") | inlist(substr(hcpcscd,1,6), "97116", "97124", "97140", "97150", "97530") | inlist(substr(hcpcscd,1,6), "97532", "97533", "97535", "97537", "97542", "97755", "97760")  | inlist(substr(hcpcscd,1,5),"G0151", "G0157", "G0159","G0152", "G0158","G0160","G0153", "G0161")
+
+local revcntr inlist(substr(rvcntr,1,4),"0420", "0421", "0422", "0423", "0424", "0449", "0977")  | inlist(substr(rvcntr,1,4),"0430", "0431", "0432", "0433", "0434", "0439", "0978","0440") | inlist(substr(rvcntr,1,4),"0441", "0442", "0443", "0444", "0449", "0979")
+
+
+foreach x in ip op snf hs hh {
+	use bid_hrs_22 admit_date hcpscd* rvcntr* using  "D:\HRS\Shared\base_data\hrs_cms\Stata/`x'_1998_2016.dta", clear
+	rename hcpscd0* hcpcscd*
+	rename hcpscd* hcpcscd*
+	rename rvcntr0* rvcntr*
+	merge m:1 bid_hrs_22 using `index', keep(match)
+	keep if inrange(admit_date,index_date,index_date+365)
+	gen n=_n
+	reshape long hcpcscd rvcntr,i(n) j(num)
+	drop n num admit_date
+	duplicates drop
+	gen rehab=0
+	replace rehab=1 if `hcpcs'
+	replace rehab=1 if `revcntr'
+	gen ind_ip_rehab="`x'"=="ip" & rehab==1
+	drop hcpcscd rvcntr
+	duplicates drop
+	tempfile `x'
+	save ``x''
+}
+
+foreach x in pb dm {
+	use bid_hrs_22 admit_date hcpscd* using "D:\HRS\Shared\base_data\hrs_cms\Stata/`x'_1998_2016.dta", clear	
+	rename hcpscd0* hcpcscd*
+	rename hcpscd* hcpcscd*
+	merge m:1 bid_hrs_22 using `index', keep(match)
+	keep if inrange(admit_date,index_date,index_date+365)
+	gen n=_n
+	reshape long hcpcscd,i(n) j(num)
+	drop n num admit_date
+	duplicates drop
+	gen rehab=`hcpcs'
+	drop hcpcscd
+	duplicates drop
+	tempfile `x'
+	save ``x''
+}
+
+clear
+
+foreach x in ip op snf hh hs pb dm {
+	append using ``x''
+}
+
+by bid, sort: egen anyrehab=max(rehab)
+by bid, sort: egen anyip=max(ind_ip_rehab)
+
+drop if anyip & ind_ip_rehab!=1
+drop if anyrehab & rehab!=1
+replace ind_ip_rehab=anyip
+drop anyip anyrehab
+duplicates drop
+
+save  "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\rehab.dta", replace
+
+H="merge"
+use "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\index.dta", clear
+rename admit_date index_date
+
+merge 1:1 id using  "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\ffs.dta", keep(match master) gen(ffsm)
+
+merge 1:1 bid_hrs_22 using  "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\rehab.dta", keep(match master) gen(rehabm)
+
+replace ffs=0 if ffsm==1
+destring yob, replace
+replace ffs=0 if year(index_date)-yob<65
+replace rehab=0 if rehabm==1
+
+tab ffs
+tab rehab if ffs==1
+tab ind_ip_rehab if ffs==1 & rehab==1
