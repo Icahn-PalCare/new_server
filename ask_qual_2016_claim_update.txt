@@ -29,7 +29,7 @@ Burdensome transitions last 90 days
 
 H="set libraries"
 libname clean 'D:\HRS\Shared\base_data\hrs_cleaned'; 
-libname medi 'D:\HRS\Shared\raw\CMS\CMS_DUA_51675_2014\Merged\SAS';
+libname medi 'D:\HRS\Shared\base_data\hrs_cms\SAS';
 
 
 /*rand data path*/
@@ -63,7 +63,7 @@ run;
 */
 
 data proj_int.index(keep=id bid_hrs_22 index_date index_month index_year);
-set clean.death_date_2015;
+set clean.death_date_2016;
 index_date=death_all;
 index_month=death_month;
 index_year=death_year;
@@ -83,7 +83,7 @@ Also pulls in spouse date of death where available in the claims s_claims_dod*/
 
 /*sort claims denominator file*/
 
-proc sort data=medi.bqsf_1998_2015 out=dn  nodupkey;
+proc sort data=medi.bqsf_1998_2016 out=dn  nodupkey;
 by bid_hrs_22 start_dt;
 run;
 
@@ -194,7 +194,7 @@ saves datasets for each claim type / time window to the spo_mc_i directory*/
 /*claims fully within x time of death date*/
 proc sql;
 create table &source._meet_1 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
+from medi.&source._1998_2016 a inner join
 index1 b
 on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
 and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
@@ -203,7 +203,7 @@ quit;
 /*claims that start earlier than x time but span into x time before death*/
 proc sql;
 create table &source._meet_2 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
+from medi.&source._1998_2016 a inner join
 index1 b
 on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
 and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
@@ -243,7 +243,7 @@ saves datasets for each claim type / time window to the spo_mc_i directory*/
 /*claims fully within x time of death date*/
 proc sql;
 create table &source._meet_1 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
+from medi.&source._1998_2016 a inner join
 index1 b
 on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
 and &days_start<=a.admit_date - b.index_date<=&days_aft_index ;
@@ -252,7 +252,7 @@ quit;
 /*claims that start earlier than R's DOD but span after R's death*/
 proc sql;
 create table &source._meet_2 as select a.*,b.index_date,b.id 
-from medi.&source._1998_2015 a inner join
+from medi.&source._1998_2016 a inner join
 index1 b
 on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
 and a.admit_date<b.index_date
@@ -6841,7 +6841,7 @@ clear all
 
 
 local medipath "D:\HRS\Shared\base_data\hrs_cms\Stata"
-local logpath "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\logs"
+local logpath "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
 local datapath "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data"
 local hrspath "D:\HRS\Shared\base_data\hrs_cleaned"
 local restrpath "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\ref_docs"
@@ -6942,7 +6942,7 @@ rename *, l
 tempfile xwalk
 save `xwalk'
 
-use bid start_dt ab_mo_cnt hmo_mo buyin_mo snf_covdys using basf_1998_2015 if buyin_mo>=1 & ab_mo_cnt>=1 & hmo_mo==0, clear
+use bid start_dt ab_mo_cnt hmo_mo buyin_mo snf_covdys using basf_1998_2016 if buyin_mo>=1 & ab_mo_cnt>=1 & hmo_mo==0, clear
 gen year=year(start_dt)
 drop start_dt
 by bid, sort: egen ly=max(year)
@@ -6954,7 +6954,7 @@ save `mbsf'
 
 foreach x in dm hh hs ip snf op pb {
 	di "`x'"
-	use bid_hrs_22 pmt_amt admit_date disch_date using `x'_1998_2015
+	use bid_hrs_22 pmt_amt admit_date disch_date using `x'_1998_2016
 	gen year=year(admit_date)
 	merge m:1 bid year using `mbsf', keep(match)
 	gen rate=1 if year==2016
@@ -7619,7 +7619,7 @@ Basic Structure
 /*First, make smaller versions of each claim type by matching only to sample and 
 keeping only id, index date, admit date, and diagnoses*/
 
-use "E:\data\hrs_cleaned\death_date_2015.dta" if !missing(bid_hrs_22) & year(death_all)>=2004, clear
+use "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2016.dta" if !missing(bid_hrs_22) & year(death_all)>=2004, clear
 rename death_all index_date
 keep id bid_hrs_22 index_date
 tempfile index
@@ -7627,7 +7627,7 @@ save `index'
 
 
 foreach type in ip op pb hh snf dm hs {
-	use bid_hrs_22 admit_date dgnscd* using "E:/data/CMS_DUA_51675_2014/Merged/Stata/`type'_1998_2015.dta", clear
+	use bid_hrs_22 admit_date dgnscd* using "D:\HRS\Shared\base_data\hrs_cms\Stata/`type'_1998_2016.dta", clear
 	merge m:1 bid_hrs_22 using `index', keep(match using) nogen
 	gen clmnum=_n
 	rename dgnscd0* dgnscd*
@@ -14548,7 +14548,7 @@ tempfile mds2
 save `mds2'
 
 
-use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_16.dta", clear
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_15.dta", clear
 gen adate=date(a1900_,"YMD")
 gen pdate=date(v0100c,"YMD")
 foreach x in a b c {
@@ -14604,7 +14604,7 @@ by bid, sort: egen ind_hs_lteq3d=max(lteq3)
 label var ind_hs_lteq3d "<3 days indicator"
 
 gen ind_hs_lteq3d_dth_all=0 if _merge==3
-replace ind_hs_lteq3d_dth_all=1 if (same==1 | ad==1) & los[_n-1]+los<=3 &_merge==3
+replace ind_hs_lteq3d_dth_all=1 if same==1 & los[_n-1]+los<=3 &_merge==3
 replace ind_hs_lteq3d_dth_all=1 if los<=3 & same==. & last==1
 
 by bid, sort: egen ind_hs_lteq3d_dth_all1=max(ind_hs_lteq3d_dth_all)
@@ -16775,6 +16775,42 @@ save "`fdpath'/burden_dementia_sample_long.dta", replace
 
 H="*************"
 
+
+H="off server dataset creation"
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear
+cd "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\output\in_progress"
+
+
+merge m:1 id using "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta", keep(matched)
+
+
+//keep if nflag==0
+
+gen no_ind_hs=0 if ind_hs==1
+replace no_ind_hs=1 if ind_hs==0
+label var no_ind_hs "No hospice use"
+
+foreach x in ind_start_ltc ind_hs_suboptimal no_ind_hs ind_hs_gt6m ind_hs_lteq3d_dth_all ind_hs_live_disch loc_hosp_exit {
+tab `x'
+}
+
+
+tab dementia flag_burd
+
+gen n=1
+
+gen ind_hs_gt6m_1=0 if ind_hs_gt6m==0 & ind_hs==1
+replace ind_hs_gt6m_1=1 if ind_hs_gt6m==1 & ind_hs==1
+label var ind_hs_gt6m_1 ">183 days on hospice"
+
+gen ind_hs_suboptimal_1=0 if  ind_hs_gt6m_1==0 & ind_hs_lteq3d_dth_all==0 & ind_hs==1
+replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lteq3d_dth_all==1) & ind_hs==1
+label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
+
+
+keep id hisp_eth age_at_death female_exit srh_pf adl_independent_core dem_cohort ind_hs_gt6m ind_hs_live_disch ind_hs ind_hs_lteq3d_dth_all ind_hs_suboptimal ind_hs_suboptimal_1 hs_admit_cat black age_ivw ind_nw_remaining ind_fw_remaining married married_exit 
+
+save $final\sa2_vulnerable_offserver.dta, replace
 
 H="Adding burden dementia table"
 use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear

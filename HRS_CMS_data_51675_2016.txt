@@ -726,25 +726,25 @@ H="MDS"
 Final datasets (in SAS and Stata) will be
 -mds_2_99_10
 -mds_3_10_12
--ltcasf_99_15
--ltcisf_99_15
--ltcqsf_99_15
+-ltcasf_99_16
+-ltcisf_99_16
+-ltcqsf_99_16
 */
 
-libname raw 'D:\HRS\Shared\raw\CMS\CMS_DUA_51675_2014\Received_20181030';
-libname merged 'D:\HRS\Shared\raw\CMS\CMS_DUA_51675_2014\Merged\SAS';
+libname raw 'D:\HRS\Shared\raw\CMS\cms_DUA_51675_2016';
+libname merged 'D:\HRS\Shared\base_data\hrs_cms\SAS';
 
 
-data merged.ltcasf_99_15;
-set raw.ltcasf_1999_2015;
+data merged.ltcasf_99_16;
+set raw.ltcasf_1999_2016;
 run;
 
-data merged.ltcisf_99_15;
-set raw.ltcisf_1999_2015;
+data merged.ltcisf_99_16;
+set raw.ltcisf_1999_2016;
 run;
 
-data merged.ltcqsf_99_15;
-set raw.ltcqsf_1999_2015;
+data merged.ltcqsf_99_16;
+set raw.ltcqsf_1999_2016;
 run;
 
 data merged.mds_2_99_10;
@@ -762,34 +762,34 @@ set raw.mds_2_1999
 	raw.mds_2_2010;
 run;
 
-data merged.mds_3_10_15;
+data merged.mds_3_10_16;
 set raw.mds_3_2010
 	raw.mds_3_2011
 	raw.mds_3_2012
 	raw.mds_3_2013
 	raw.mds_3_2014
-	raw.mds_3_2015;
+	raw.mds_3_2016;
 run;
 
 
 /*export all to stata*/
-proc export data=merged.ltcasf_99_15 
-outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\ltcasf_99_15.dta' replace;
+proc export data=merged.ltcasf_99_16 
+outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\ltcasf_99_16.dta' replace;
 run;
 
-proc export data=merged.ltcisf_99_15 
-outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\ltcisf_99_15.dta' replace;
+proc export data=merged.ltcisf_99_16 
+outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\ltcisf_99_16.dta' replace;
 run;
 
-proc export data=merged.ltcqsf_99_15 
-outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\ltcqsf_99_15.dta' replace;
+proc export data=merged.ltcqsf_99_16 
+outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\ltcqsf_99_16.dta' replace;
 run;
 
 proc export data=merged.mds_2_99_10 
 outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta' replace;
 run;
 
-proc export data=merged.mds_3_10_15
-outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_15.dta' replace;
+proc export data=merged.mds_3_10_16
+outfile='D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_16.dta' replace;
 run;
 

@@ -73,6 +73,7 @@ save `t1'
 use hhid pn r13iwbeg using "D:\HRS\Shared\raw\HRS\hrs_public_2016\rand2016\randhrs1992_2016v1.dta", clear
 rename r13iwbeg c_ivw_date
 gen id=hhid+pn
+drop if missing(c_ivw_date)
 tempfile t2
 save `t2'
 
@@ -115,8 +116,7 @@ duplicates drop
 save "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\ffs.dta", replace
 
 H="rehab within one year of TBI"
-use id bid_hrs_22 admit_date yob using "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\index.dta", clear
-rename admit_date index_date
+use id bid_hrs_22 index_date yob using "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\index.dta", clear
 
 tempfile index
 save `index'
