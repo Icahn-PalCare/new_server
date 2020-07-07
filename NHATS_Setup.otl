@@ -228,13 +228,13 @@ append using round_`w'_ltd.dta
 preserve
 
 // 6/26/2020-commenting this out until we have r9 sens file
-/*
+
 forvalues w=1/$w{
 use "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File.dta", clear
 gen wave=`w'
 save "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File_new.dta", replace
 
-}*/
+}
 
 restore
 
@@ -271,7 +271,9 @@ merge m:1 spid using "${r7s}NHATS_Round_7_SP_Sen_Dem_File_new.dta", ///
 merge m:1 spid using "${r8s}NHATS_Round_8_SP_Sen_Dem_File_new.dta", ///
 	keepusing(r8dintvwrage hh8spageall r8ddeathage pd8mthdied pd8yrdied hc8cancerty*) nogen
 
-//will merge in r9 sensitive data when available
+//merge in additional r8 sensitive data
+merge m:1 spid using "${r9s}NHATS_Round_9_SP_Sen_Dem_File_new.dta", ///
+	keepusing(r9dintvwrage hh9spageall r9ddeathage pd9mthdied pd9yrdied hc9cancerty*) nogen
 
 //3B?
 //merge in tracker status information
@@ -304,7 +306,6 @@ drop if _merge==2
 drop _merge	
 save round_1_to_$w.dta, replace
 
-// 6/26/2020-ebl-for some reason, these folders are read only for me.  
 //old version of stata
 forvalues w=1/$w{
 clear all
@@ -1014,8 +1015,7 @@ tab indephigh wave if sp_ivw_yes==1, missing
 *********************************************
 *********************************************
 gen age=.
-//6/26/2020-needs to be updated once we have the r9 sensitive
-gen r9dintvwrage=r8dintvwrage+1
+
 forvalues w=1/$w{
 	replace age=r`w'dintvwrage if wave==`w'
 	sum age if wave==`w', detail
@@ -2652,7 +2652,7 @@ save `resttrack'
 
 //7/13/17--add in metro/nonmetro var
 use "D:\NHATS\Shared\raw\NHATS\NHATS Public\NHATS_Round_1_8_MetNonmet_STATA\NHATS_Round_1_8_MetNonmet.dta", clear
-forvalues w=1/$w {
+forvalues w=1/8 {
 gen metro_ind`w'=r`w'd==1 if inrange(r`w'd,1,2)
 }
 reshape long metro_ind, i(spid) j(wave)
