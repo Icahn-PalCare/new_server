@@ -2655,3 +2655,73 @@ run;
 
 proc export data=burd_90_label outfile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta" replace; 
 run;
+
+H="Part C from MBSF--not needed now"
+use "D:\NHATS\Shared\base_data\CMS_claims\Stata\mbsf_06_17.dta" , clear
+
+//people who have died, Part C for them. 
+keep if death_date!=.
+
+gen death_month=month(death_date)
+
+tab death_month
+
+rename ptc_plan_type_cd_0* ptc_plan_type_cd_*
+
+gen ptc=""
+forvalues i=1/12{
+	replace ptc=ptc_plan_type_cd_`i' if death_month==`i'
+}
+
+tempfile part1
+save "`part1'"
+
+
+// people who died in hospice, part c for the month before hospice enrollment
+
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\hs_09_17.dta", clear
+
+sort bene_id clm_hospc_start_dt_id
+
+gen hospice_month= month(clm_hospc_start_dt_id)
+gen hospice_year= year(clm_hospc_start_dt_id)
+
+by bene_id, sort: egen ind_died_on_hospice=max(cond(inlist(ptnt_dschrg_stus_cd,"20","40","41","42"), 1,0))
+
+keep if ind_died_on_hospice==1
+
+
+bys bene_id: keep if _n==1
+codebook bene_id
+
+tempfile died_in_hs
+save "`died_in_hs'"
+
+use "D:\NHATS\Shared\base_data\CMS_claims\Stata\mbsf_06_17.dta" , clear
+
+merge m:1 bene_id using "`died_in_hs'", keep(matched)
+
+gen prev_hs_month=hospice_month-1
+//replace prev_hs_month=12 if prev_hs_month==0
+
+rename ptc_plan_type_cd_0* ptc_plan_type_cd_*
+
+gen ptc_plan_type_cd_0=""
+sort bene_id year
+by bene_id: replace ptc_plan_type_cd_0=ptc_plan_type_cd_12[_n-1]
+
+gen ptc=""
+forvalues i=0/12{
+	replace ptc=ptc_plan_type_cd_`i' if prev_hs_month==`i'
+}
+
+tempfile part2
+save "`part2'"
+
+
+use "`part1'"
+merge 1:1 bene_id "`part2'"
+
+keep bene_id ptc
+save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\partc.dta"

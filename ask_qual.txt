@@ -16808,9 +16808,9 @@ replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lteq3d_dth_all==1) &
 label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
 
 
-keep id hisp_eth age_at_death female_exit srh_pf adl_independent_core dem_cohort ind_hs_gt6m ind_hs_live_disch ind_hs ind_hs_lteq3d_dth_all ind_hs_suboptimal ind_hs_suboptimal_1 hs_admit_cat black age_ivw ind_nw_remaining ind_fw_remaining married married_exit 
+keep id hisp_eth age_at_death female_exit srh_pf adl_independent_core dem_cohort ind_hs_gt6m ind_hs_live_disch ind_hs ind_hs_lteq3d_dth_all ind_hs_suboptimal ind_hs_suboptimal_1 hs_admit_cat black age_ivw ind_nw_remaining ind_fw_remaining married married_exit ind_hs_gt6m_then_live_disch 
 
-save $final\sa2_vulnerable_offserver.dta, replace
+save $final\sa2_vulnerable_offserver_713.dta, replace
 
 H="Adding burden dementia table"
 use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\final_data\R01_final.dta", clear

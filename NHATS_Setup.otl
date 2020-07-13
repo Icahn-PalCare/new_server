@@ -271,7 +271,7 @@ merge m:1 spid using "${r7s}NHATS_Round_7_SP_Sen_Dem_File_new.dta", ///
 merge m:1 spid using "${r8s}NHATS_Round_8_SP_Sen_Dem_File_new.dta", ///
 	keepusing(r8dintvwrage hh8spageall r8ddeathage pd8mthdied pd8yrdied hc8cancerty*) nogen
 
-//merge in additional r8 sensitive data
+//merge in additional r9 sensitive data
 merge m:1 spid using "${r9s}NHATS_Round_9_SP_Sen_Dem_File_new.dta", ///
 	keepusing(r9dintvwrage hh9spageall r9ddeathage pd9mthdied pd9yrdied hc9cancerty*) nogen
 
@@ -7469,6 +7469,10 @@ H="Changelog"
 
 
 Updates:
+
+07/7/2020 MH
+----------
+Added in round 9. 
 
 05/26/2020 MH
 ----------
