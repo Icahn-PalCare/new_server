@@ -1,0 +1,221 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="First Heading"
+/* 
+********************HEADING******************** 
+
+Project Name: CAncer Caregivers
+Date Started: 7/15/20
+
+Primary Investigator: Naomi
+Funding Source:
+
+Created by: MH
+
+Primary Analyst: 
+Secondary Analyst:
+
+Datasets Used:
+
+Simple Outline:
+
+
+*/
+ 
+//STATA
+// Global Macros use $ symbol to be called. 
+
+//Intermediate Data Path
+global intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+global datapath "E:\nhats\data\Projects\..."
+
+//Log files path
+global logpath "E:\nhats\data\Projects\..."
+
+
+//SAS 
+
+
+//Intermediate Data Path
+//libname intpath "E:\nhats\data\Projects\..."
+
+// Final Data Path
+//libname datapath "E:\nhats\data\Projects\..."
+
+//Log files path
+//libname logpath "E:\nhats\data\Projects\..."
+
+
+H="set libraries"
+/*nhats cleaned path*/
+libname nhats '?D:\NHATS\Shared\base_data\NHATS cleaned';
+
+/*medicare xwalk and claims path*/
+libname medi 'D:\NHATS\Shared\base_data\CMS_claims\Sas';
+
+/*project data paths*/
+libname proj_int 'D:\NHATS\Projects\exploratory\cancer_caregivers_naomi\data\int_data';
+libname proj_fin 'D:\NHATS\Projects\exploratory\cancer_caregivers_naomi\data\final_data';
+
+H="Index date"
+/*Import NHATS Cleaned Dataset for Rounds 1-9*/
+proc import datafile="D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_9.dta" out=proj_int.nhats replace; run;
+proc import datafile="D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1_7.dta" out=proj_int.nsoc replace; run;
+
+
+proc import datafile="D:\NHATS\Shared\base_data\CMS_claims\Stata\xwalk_2016.dta" out=proj_int.xwalk replace; run;
+
+data index1;
+set proj_int.nsoc (keep=spid opid cg_ivw_date);
+index_date=cg_ivw_date;
+index_month=month(cg_ivw_date);
+index_year=year(cg_ivw_date);
+run;
+
+proc sql;
+create table index as select a.*, b.*
+from index1 a left join
+proj_int.xwalk b 
+on a.spid=b.spid;
+quit;
+
+
+proc sort data=index out=proj_int.index nodupkey;
+by spid bene_id index_year opid;
+run;
+
+H="get continuous FFS before index date"
+
+/*sort claims denominator file*/
+
+proc sort data=medi.mbsf_06_17 out=mbsf  nodupkey;
+by bene_id year;
+run;
+
+proc sort data=proj_int.index out=index1 nodupkey;
+by bene_id index_year opid;
+run;
+
+/*get mbsf just for interview year*/
+
+proc sql; 
+create table mbsf_index_year as select
+a.*,b.buyin12,b.year,b.hmoind12
+from index1 a inner join
+mbsf b
+on trim(left(a.bene_id))=trim(left(b.bene_id)) 
+and a.index_year=b.year;
+quit;
+
+
+proc sql;
+select count(distinct bene_id) from mbsf_index_year;
+quit;
+
+
+
+data mbsf_index_year2;
+set mbsf_index_year;
+if length(trim(left(buyin12)))=12 and index_month>0 then do;
+buyin_iy=substr(trim(left(buyin12)),1,index_month);
+hmo_iy=substr(trim(left(HMOIND12)),1,index_month);
+end;
+else do;
+buyin_iy=trim(left(buyin12));
+hmo_iy=trim(left(HMOIND12));
+end;
+format index_date date9.;
+run;
+proc means n;
+var index_month;
+run;
+
+proc sql;
+create table mbsf_index_year_bef as select
+a.bene_id,a.year as index_year,
+b.year as index_year_bef,
+b.year, b.buyin12,b.HMOIND12
+from mbsf_index_year a inner join
+mbsf b
+on trim(left(a.bene_id))=trim(left(b.bene_id))
+and 0<a.year-b.year<=1 order by bene_id,year;
+quit;
+
+
+/* and the year before... 1922 have the -2 year dn file*/
+proc sql;
+create table mbsf_index_year_2bef as select
+a.bene_id,a.bene_id,a.index_year,a.index_year_bef,
+b.year as index_year_2bef,
+b.year,b.buyin12,b.HMOIND12
+from mbsf_index_year_bef a inner join
+mbsf b
+on trim(left(a.bene_id))=trim(left(b.bene_id))
+and 0<a.index_year_bef-b.year<=1 order by bene_id,year;
+quit;
+
+/*merge the insurance data for death year, -1 and -2 years into single dataset*/
+proc sql;
+create table all_insurance as select a.*,b.buyin12 as buyin_bef,b.HMOIND12 as hmo_bef from
+mbsf_index_year2 a
+left join
+mbsf_index_year_bef b
+on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year;
+quit;
+
+proc sql;
+create table all_insurance2 as select a.*,b.buyin12 as buyin_2bef,b.HMOIND12 as hmo_2bef from
+all_insurance a
+left join
+mbsf_index_year_2bef b
+on trim(left(a.bene_id))=trim(left(b.bene_id)) and a.index_year=b.index_year; 
+quit;
+
+
+/*merge death year and year before death buy-in and hmo variables
+Trim so the final variable _6m is 6 months pre-death
+Note: indicator variables for parts a and b and hmo are null if don't
+have information for full 6 months pre-death*/
+data all_insurance3;
+set all_insurance2;
+buyin_2y=trimn(left(buyin_2bef))||trimn(left(buyin_bef))||trimn(left(buyin_iy));
+hmo_2y=trimn(left(hmo_2bef))||trimn(left(hmo_bef))||trimn(left(hmo_iy));
+
+buyin_2y_r=reverse(trim(buyin_2y));
+hmo_2y_r=reverse(trim(hmo_2y));
+
+
+/*create length of continous a&b and non-hmo coverage vars*/
+if indexc(buyin_2y_r,"0","1","2","A","B")=0 then part_ab_n_mos=length(buyin_2y_r)-1;
+if indexc(buyin_2y_r,"0","1","2","A","B") then part_ab_n_mos=indexc(buyin_2y_r,"0","1","2","A","B")-1;
+if indexc(hmo_2y_r,"1","2","4","A","B","C")=0 then non_hmo_d_n_mos=length(hmo_2y_r)-1;
+if indexc(hmo_2y_r,"1","2","4","A","B","C") then non_hmo_d_n_mos=indexc(hmo_2y_r,"1","2","4","A","B","C")-1;
+if part_ab_n_mos<=non_hmo_d_n_mos then cont_ffs_n_mos=part_ab_n_mos;
+if non_hmo_d_n_mos<part_ab_n_mos then cont_ffs_n_mos=non_hmo_d_n_mos;
+run;
+
+
+data proj_int.ffs_before;
+set all_insurance3;
+run;
+
+
+H="Change log"
+
+
+********************Change Log******************** 
+
+
+
+Updates:
+
+
+
+07/15/2020 MH
+------------
+Creation of dataset. 
+
+
+*/

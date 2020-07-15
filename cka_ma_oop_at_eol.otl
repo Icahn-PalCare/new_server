@@ -1,0 +1,316 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Outline"
+/* 
+********************HEADING******************** 
+
+Project Name: MA and OOP spending in the last year of life
+
+Date Started: 7/13/20
+
+Primary Investigator: CKA
+Funding Source:
+
+Primary Analyst: CKA
+Secondary Analyst: MH
+
+Datasets Used: 
+
+
+
+*/
+ 
+/* Stata */
+
+global intpath "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\int_data"
+global datapath "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data"
+global outpath "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\in_progress"
+global hrs "D:\HRS\Shared\base_data\hrs_cleaned"
+global cms "D:\HRS\Shared\base_data\hrs_cms\Stata"
+
+
+
+
+
+H="get ma and hospice info at last year of life"
+//start with death date
+
+use "${hrs}\death_date_2016" if !missing(bid_hrs_22), clear
+
+keep id bid_hrs_22 death_all
+rename death_all index_date
+
+//get hospice start date
+
+merge 1:m bid using "${cms}\hs_1998_2016", keep(match master) nogen keepusing(admit_date disch_date)
+gen hs=index_date-disch_date<=365
+by id, sort: egen ind_hs=max(hs)
+gsort id admit_date
+replace admit_date=index_date-365 if admit_date<index_date-365
+gen los=disch_date-admit_date+1
+replace los=0 if disch_date<index_date-365 
+by id: egen hs_los=total(los)
+replace hs_los=ceil(hs_los/30.4)
+replace hs_los=12 if hs_los>12
+label var hs_los "HS months in last year (from claims)"
+by id: keep if _n==1
+rename admit_date first_hs_date
+
+
+merge 1:m bid using "${cms}\bqsf_1998_2016", keep(match) nogen keepusing(start_dt end_dt *mo*)
+
+keep if inrange(start_dt,index_date-457,index_date)
+
+gsort id -start_dt
+by id: drop if _n==6
+
+by id: egen ab=total(ab_mo_cnt)
+
+by id: gen ind_ab_last_yr=ab>=12
+
+by id: egen buyin_los=total(buyin_mo)
+gen ind_buyin=buyin_los>0
+replace buyin_los=12 if buyin_los>12
+
+
+gen ma=hmo_mo==ab_mo_cnt & hmo_mo
+by id: egen ma_los=total(hmo_mo)
+replace ma_los=12 if ma_los>12
+gen full_ma=ma_los==12
+by id: egen any_ma=max(hmo_mo)
+replace any_ma=any_ma>0
+sort id start_dt 
+by id: egen ma_at_start=max(cond(_n==1),ma,0)
+by id: egen ma_at_eol=max(cond(_n==_N),ma,0)
+
+by id: egen ma_at_hospice=max(cond(hmo_mo>=1 & inrange(first_hs_date,start_dt,end_dt),1,0))
+gen hs_too_early=index-first_hs_date>365 & !missing(first_hs_date)
+
+keep id index ind_hs ind_* full any ma_at* hs_too *_los bid
+
+label var ind_ab_last_yr "Complete Medicare coverage in last year"
+label var ind_hs "Any hospice use in last year"
+label var ind_buyin "Medicaid in last year (from Buy-in indicator)"
+label var full_ma "MA for all of last year"
+label var any_ma "Any MA in last year"
+label var ma_at_hospice "MA when entered hospice"
+label var hs_too_early "Entered hospice >yr pre-death"
+label var buyin_los "Medicaid months (from Buy-in indicator)"
+label var ma_at_start "MA at start of last year"
+label var ma_at_eol "MA at end of last year"
+
+duplicates drop
+
+save "${intpath}\ma_and_hs.dta", replace
+
+H="Annualize OOP"
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\oopme_final_2016.dta", clear
+rename *, l
+gen id=hhid+pn
+
+gsort id -year
+by id: keep if _n<=2
+tempfile t1
+save `t1'
+
+use id exit_year using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta", clear
+gen ivw_date=.
+rename exit year
+
+append using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta"
+replace ivw_date=c_ivw_date
+replace year=core_year if missing(year)
+ 
+keep id ivw_date year
+gsort id -year 
+by id: gen ivw_date_n1=ivw_date[_n+1]
+
+
+merge m:1 id  using "${intpath}\ma_and_hs.dta", keepusing(index_date) keep(match) nogen
+replace ivw_date=index_date if missing(ivw_date)
+
+keep if inrange(index_date-ivw_date,0,365)
+
+merge 1:1 id year using `t1', gen(oopm) keepusing(total_oop hospital_oop doctor_oop rx_oop nh_oop helper_oop home_oop other_oop *oop) keep(match)
+
+gen ivw_time=ivw_date-ivw_date_n1
+gen time2d=index_date-ivw_date
+gen pct=1 if index_date-ivw_date_n1<=365
+replace pct=365/(index_date-ivw_date_n1) if index_date==ivw_date & missing(pct)
+
+replace pct=(365-time2d)/(ivw_time)  if missing(pct)
+foreach x in total_oop hospital_oop doctor_oop rx_oop nh_oop helper_oop home_oop other_oop {
+	gen `x'_last=`x'*pct
+	by id: egen `x'_last_yr=total(`x'_last)
+
+}
+
+drop *oop ivw_time time2d pct oopm ivw_date* *last year
+
+replace other_oop_last_yr=total-hospital-doctor-rx-nh-helper-home
+
+duplicates drop	
+save "${intpath}\oopdata.dta", replace
+
+
+
+H="get mds info for all benes"
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta", clear
+
+keep bid_hrs_22 fac_int_id aa8a_pri_rfa trgt_dt 
+
+gen target=date(trgt_dt, "YMD")
+format %td target
+
+
+gen date=target
+format %td date
+
+
+sort bid_hrs_22 fac_int_id date
+////
+gen type_cd=.
+replace type_cd=1 if aa8a=="09" | aa8a=="01"
+replace type_cd=2 if aa8a=="06" | aa8a=="07" | aa8a=="08"
+//replace type_cd=1 if  year(admit)<1999
+
+
+
+drop if type_cd==.
+
+sort bid_hrs_22 fac_int_id date type_cd
+/*
+drop if type_cd==.
+sort bid_hrs_22 date type_cd
+bys bid_hrs_22 date type_cd: keep if _n==1 
+*/
+sort bid_hrs_22 fac_int_id date type_cd
+gen a=1 if bid_hrs_22==bid_hrs_22[_n+1] & type_cd==2 & type_cd[_n+1]==2 & fac_int_id==fac_int_id[_n+1]
+gen b=1 if bid_hrs_22==bid_hrs_22[_n-1] & type_cd==1 & type_cd[_n-1]==1 & fac_int_id==fac_int_id[_n-1]
+
+
+//drop if a==1 | b==1 not taking out becuase of readmissions
+
+tempfile a
+save "`a'"
+
+
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_16.dta", clear
+sort bid_hrs_22
+keep bid_hrs_22 a0310a_fed_obra_cd a0310f_entry_dschrg_cd a0310e_first_since_admsn_cd fac_prvdr_intrnl trgt_dt    
+
+
+destring fac_prvdr_intrnl, replace
+
+
+gen target=date(trgt_dt, "YMD")
+format %td target
+
+// assessment reference date is the same as the target date unless it is missing. 
+gen date=target
+
+format %td date
+
+
+sort bid_hrs_22 fac_prvdr_intrnl date
+////
+gen type_cd=.
+replace type_cd=1 if a0310a_fed_obra_cd=="01" | a0310f_entry_dschrg_cd=="01" 
+replace type_cd=2 if inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
+
+gen same_day=1 if a0310a_fed_obra_cd=="01" & inlist(a0310f_entry_dschrg_cd, "10", "11", "12")
+replace type_cd=3 if same_day==1
+
+drop if type_cd==.
+
+gen a=1 if type_cd[_n-1]==1 & type_cd==1 & bid_hrs_22[_n-1]==bid_hrs_22 & fac_prvdr_intrnl[_n-1]==fac_prvdr_intrnl 
+
+gen b=1 if type_cd[_n+1]==2 & type_cd==2 & bid_hrs_22[_n+1]==bid_hrs_22 & fac_prvdr_intrnl[_n+1]==fac_prvdr_intrnl
+
+
+
+tempfile b
+save "`b'"
+
+use "`a'", clear
+append using "`b'" 
+
+replace fac_int_id=fac_prvdr_intrnl if fac_int_id==.
+
+drop a b fac_prvdr_intrnl
+
+sort bid_hrs_22 fac_int_id date
+
+gen admit=date if type_cd==1
+gen discharge=date if type_cd==2
+
+replace admit=date[_n-1] if type_cd[_n-1]==1 & bid_hrs_22==bid_hrs_22[_n-1] & fac_int_id==fac_int_id[_n-1]
+
+replace discharge=date[_n+1] if type_cd[_n+1]==2 & bid_hrs_22==bid_hrs_22[_n+1] & fac_int_id==fac_int_id[_n+1]
+
+format admit %td
+format discharge %td
+
+
+//sort bid_hrs_22 a d fac_int_id
+bys bid_hrs_22 fac_int_id admit discharge: keep if _n==1 
+
+
+replace admit=discharge if admit==.
+replace discharge=admit if discharge==.
+
+merge m:1 bid using "${intpath}\ma_and_hs.dta", keep(match) 
+
+keep if discharge>index_date-365
+replace admit=index_date-365 if admit<index_date-365
+
+gen los=(discharge-admit+1)/30.4
+by id, sort: egen nh_los=total(los)
+replace nh_los=ceil(nh_los)
+replace nh=12 if nh>12
+keep id index_date nh_los
+label var nh_los "NH months in last year (from MDS)"
+duplicates drop
+
+save "${intpath}\mds.dta", replace
+
+
+
+H="combine with survey info"
+use "${intpath}\ma_and_hs.dta", clear
+merge 1:1 id using "${intpath}\oopdata.dta", nogen keep(match) //gen(oopm)
+merge 1:1 id using "${intpath}\mds.dta", nogen //gen(mdsm)
+*merge 1:1 id using "D:\HRS\Shared\raw\HRS\hrs_tracking_2016\TRK2016TR_R.dta"
+merge 1:m id using "${hrs}\core_00_to_14.dta", nogen keep(match) keepusing(core_year c_ivw_date hhid pn married networth_adj2012 hhm adl_*core comor_c_hrs) //gen(corem) 
+merge m:1 id using "${hrs}\exit_02_to_16_dt.dta", nogen keep(match) keepusing(nhres) //gen(corem) 
+merge m:1 hhid pn using  "D:\HRS\Shared\raw\HRS\hrs_tracking_2016\TRK2016TR_R.dta", keep(match) nogen keepusing(birthmo birthyr degree hispanic gender race)
+
+merge 1:1 id core_year using "D:\HRS\Shared\raw\HRS\hrs_public_2014\dementia\pdem_withvarnames_00_14.dta" , keepusing(pdem) nogen keep(match)
+gen prob_dem=pdem>0.5 if !missing(pdem)
+label var prob_dem "Probable dementia at last wave pre-death"
+
+gen livealone=hhm==0 & !married
+sort id core_year 
+by id: keep if _n==_N
+drop if index_date-c_ivw_date>4*365.25
+gen age_at_death=year(index_date)-birthyr
+replace age_at_death=age_at_death-1 if birthmo>month(index_date)
+drop if age<65
+gen female=gender==2
+rename race orace
+gen race=hispanic<5
+replace race=2 if !race & orace==2 
+replace race=3 if !race & orace==1 
+replace race=4 if !race & orace==7
+replace race=5 if !race
+
+label define race 1 "Hispanic" 2 "NH Black" 3 "NH White" 4 "NH Other" 5 "Unknown"
+label values race race
+  
+drop hhm c_ivw_date birth* gender orace hispanic adl_cat_core adl_partial adl_severe pdem
+
+label var nhres "Nursing home resident at death (from exit)"
+
+
+save "${datapath}\cka_ma_oop_at_eol.dta", replace

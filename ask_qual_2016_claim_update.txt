@@ -15075,7 +15075,7 @@ replace hs_loc_death_cat=2 if stus_cd=="41" | (stus_cd=="42" & typesrvc=="2")
 replace hs_loc_death_cat=3 if stus_cd=="41" & typesrvc=="2"
 replace hs_loc_death_cat=4 if inlist(stus_cd,"40","41","42") & missing(hs_loc_death_cat)
 
-label define hs_loc_death_cat 1 "Home" 2 "Hospice while in institution (hospital or other)" 3 "Inpatient hospice" 4 "Unknown location"
+label define hs_loc_death_cat 1 "Home" 2 "Hospice while in institution (hospital or other)" 3 "Inpatient hospice" 4 "Unknown (last claim indicated still patient)"
 label values hs_loc_death_cat hs_loc_death_cat
 by bid, sort: egen a=max(hs_loc_death_cat)
 replace hs_loc_death_cat=a
@@ -15134,6 +15134,7 @@ by bid: egen ind_hs_live_disch=max(cond(!inlist(stus_cd,"30","40","41","42") & !
 replace ind_hs_live_disch=. if _m==1
 label var ind_hs_gt6m ">183 days on hospice"
 label var ind_hs_lteq3d "<=3 days on hospice"
+replace hs_loc_death_cat=4 if  missing(hs_loc_death_cat) & !missing(stus_cd) & !ind_hs_live_disch
 
 
 gen ind_hs_suboptimal=ind_hs_gt | ind_hs_lteq3d if !missing(ind_hs_gt)
@@ -17309,7 +17310,7 @@ replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lteq3d_dth_all==1) &
 label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
 
 
-keep id hisp_eth age_at_death female_exit srh_pf adl_independent_core dem_cohort ind_hs_gt6m ind_hs_live_disch ind_hs ind_hs_lteq3d_dth_all ind_hs_suboptimal ind_hs_suboptimal_1 hs_admit_cat black age_ivw ind_nw_remaining ind_fw_remaining married married_exit nflag exit_year
+keep id hisp_eth age_at_death female_exit srh_pf adl_independent_core dem_cohort ind_hs_gt6m ind_hs_live_disch ind_hs ind_hs_lteq3d_dth_all ind_hs_suboptimal ind_hs_suboptimal_1 hs_admit_cat black age_ivw ind_nw_remaining ind_fw_remaining married married_exit nflag exit_year ind_hs_gt6m_then_live_disch  hs_loc
 
 save "$final\sa2_vulnerable_offserver`c(current_date)'.dta", replace
 
