@@ -7,8 +7,15 @@ H="get index"
 
 foreach clm in ip op pb {
 
-
+if "`clm'"=="pb" {
 use bid_hrs_22 admit_date dgnscd* using "D:\HRS\Shared\base_data\hrs_cms\Stata/`clm'_1998_2016.dta" if year(admit_date)>=2000, clear
+}
+
+else { 
+use bid_hrs_22 admit_date dgnscd* rvcntr* using "D:\HRS\Shared\base_data\hrs_cms\Stata/`clm'_1998_2016.dta" if year(admit_date)>=2000, clear
+}
+
+
 gen n=_n
 duplicates drop
 
@@ -46,7 +53,19 @@ replace tbi=1 if inlist(substr(diag,1,3),"T90") & inlist(substr(diag,4,1),"1","2
 gen `clm'=1
 
 keep if tbi==1
-sort bid_hrs_22 admit_date
+
+gen ed=0
+if "`clm'"!="pb" {
+	foreach x of varlist rvcntr* {
+		replace ed=1 if inlist(substr(`x',1,3),"045") | `x'=="0981"
+}
+drop rvcntr*
+
+}
+
+drop diag
+
+gsort bid_hrs_22 admit_date -ed
 by bid_hrs_22: keep if _n==1
 
 tempfile `clm' 
@@ -65,8 +84,12 @@ foreach x in ip op pb {
 }
 
 
-gsort bid_hrs_22 -ip admit_date
-preserve
+gsort bid_hrs_22 -ip admit_date -ed
+save "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\indexdup.dta", replace
+
+use "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\indexdup.dta", clear
+
+
 tempfile t1
 save `t1'
 
@@ -79,19 +102,19 @@ save `t2'
 
 use id hhid pn c_ivw_date using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
 append using `t2'
-
-merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keep(match)
-
-joinby bid_hrs_22 using `t1', unmatched(both) _merge(_m)
-
 sort id c_ivw_date
 gen ivw_date_n1=c_ivw_date[_n-1]
 gen ivw_date_p1=c_ivw_date
-by id: keep if inrange(admit_date, c_ivw_date[_n-1], c_ivw_date)
+merge m:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keep(match)
 
-gsort bid_hrs_22 -ip admit_date
-by bid_hrs_22: keep if _n==1
+joinby bid_hrs_22 using `t1', unmatched(both) _merge(_m)
 drop if missing(id)
+sort id c_ivw_date
+by id: keep if inrange(admit_date, ivw_date_n1, ivw_date_p1)
+
+gsort bid_hrs_22 -ip admit_date -ed 
+by bid_hrs_22: keep if _n==1
+
 
 tempfile t1
 save `t1'
@@ -183,7 +206,6 @@ save  "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\rehab.dta", re
 
 H="merge"
 use "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\index.dta", clear
-rename admit_date index_date
 
 merge 1:1 id using  "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\ffs.dta", keep(match master) gen(ffsm)
 
@@ -192,8 +214,12 @@ merge 1:1 bid_hrs_22 using  "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\i
 replace ffs=0 if ffsm==1
 destring yob, replace
 replace ffs=0 if year(index_date)-yob<65
+keep if ffs==1
 replace rehab=0 if rehabm==1
+drop c_ivw_date
+rename ivw_date_n1 c_ivw_date
+merge 1:m hhid pn id c_ivw_date using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", keepusing(core_year) keep(match) nogen
 
-tab ffs
-tab rehab if ffs==1
-tab ind_ip_rehab if ffs==1 & rehab==1
+rename core_year core_year_n1
+keep hhid pn id ed any_ip rehab core_year_n1
+save "D:\HRS\Projects\exploratory\rk_tbi_and_rehab\data\int_data\rk_tbi_and_rehab.dta", replace

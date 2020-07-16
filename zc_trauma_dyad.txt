@@ -10349,6 +10349,8 @@ save `t11'
 restore
 preserve
 replace iss=niss
+drop if inlist(iss,0,99)
+
 keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw traum2ivw ind_trauma_hosp apc  fall iss  iss_cat los icu_days ind_procedure ind_comp_any n_readmit n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84 
 tempfile t1
 save `t1'
@@ -10361,24 +10363,26 @@ drop help_cat
 
 gen help_cat=ind_no_helpers
 replace help_cat=2 if !ind_paid & !ind_no_helpers
-replace help_cat=3 if ind_paid & n_helpers>n_paid
-replace help_cat=4 if n_helpers==n_paid & ind_paid
+replace help_cat=3 if ind_paid 
+*replace help_cat=4 if n_helpers==n_paid & ind_paid
 label var help_cat "Caregiving, categorical"
 label values help_cat help_cat
+label define help_cat 3 "Has paid help", modify
+replace race=1 if race==3
 
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat {
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat income_adj charls_index_wt ch3plus {
 rename `x' `x'_p1
 }
 
 gen wave=wave-1
+drop ivw_date
 
 merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match) gen(othm)
 rename race_cat race
 
 gen help_cat=ind_no_helpers
 replace help_cat=2 if !ind_paid_helper & !ind_no_helpers
-replace help_cat=3 if n_helpers>n_paid_helpers & ind_paid_helper
-replace help_cat=4 if n_helpers==n_paid_helpers & ind_paid_helper
+replace help_cat=3 if ind_paid_helper
 label var help_cat "Caregiving, categorical"
 label values help_cat help_cat
 
@@ -10398,6 +10402,7 @@ label define livearrang 1 "Lives alone" 3 "With others (and not spouse)" 4 "Resi
 5 "Nursing Home", modify
 
 replace married=0 if livearrang==1 & missing(married)
+replace race=1 if race==3
 
 gen adl_cat=adl_index==0 if !missing(adl_index)
 replace adl_cat=2 if inrange(adl_index,1,2)
@@ -10407,7 +10412,7 @@ label values adl_cat adl_cat
 
 gen ivw2traum=index_date-ivw_date
 label var ivw2 "Days from interview to trauma"
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat {
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus {
 rename `x' `x'_n1
 }
 
@@ -10426,44 +10431,149 @@ label var ind_snf "In SNF <30 days prior to P1 interview"
 label var ind_snf_d "SNF use w/in 12 weeks of discharge"
 label var los "LOS for index stay"
 label var apc "Anatomic Profile Category for injury"
-drop index_date inj_cat iss_cat
+drop index_date inj_cat
 save "${datapath}\sample_final_unr.dta", replace
 
 
 H="table 1 on unresticted"
+use "${intpath}\trauma_dyad_nhatspre", clear
+preserve
+merge 1:1 spid using "${intpath}\index.dta", keepusing(bene_id) nogen keep(match)
+merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\snf_09_17.dta", keep(match) nogen keepusing(admit_date disch_date)
+keep if inrange(ivw_date,admit_date,disch_date)
+gen ind_snf=1
+label var ind_snf "In a SNF at the time of the interview"
+keep spid ind_snf
+duplicates drop
+tempfile t11
+save `t11'
 
-use "${datapath}\sample_final_unr", clear
-*keep if !missing(ivw_date_n1)
+restore
+preserve
+replace iss=niss
+drop if inlist(iss,0,99)
+
+keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw traum2ivw ind_trauma_hosp apc  fall iss  iss_cat los icu_days ind_procedure ind_comp_any n_readmit n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84 
+tempfile t1
+save `t1'
 
 
-*local cvars1 charls_index_wt
-local ivars1 prob_dem sr_phq2_depressed soc_iso adverse_any adverse_sc adverse_mo adverse_hh  frail adl_impair
-local catvars1 adl_cat 
-local cvars2 n_helpers
-local catvars2 help_cat
+restore
+drop help_cat
 
-keep spid  prob_dem* sr_phq2_dep* n_helpers* help_cat* adl* soc_iso* adverse_sc* adverse_mo* adverse_hh* adverse_any* soc_iso* frail*
 
-rename *_n1 *0
-rename *_p1 *1
-foreach x of varlist *0 {
-	local l`x' : var label `x'
+
+gen help_cat=ind_no_helpers
+replace help_cat=2 if !ind_paid & !ind_no_helpers
+replace help_cat=3 if ind_paid 
+*replace help_cat=4 if n_helpers==n_paid & ind_paid
+label var help_cat "Caregiving, categorical"
+label values help_cat help_cat
+label define help_cat 3 "Has paid help", modify
+replace race=1 if race==3
+
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat income_adj charls_index_wt ch3plus {
+rename `x' `x'_p1
 }
 
-reshape long `ivars1' `catvars1' `cvars2' `catvars2', i(spid) j(post)
+gen wave=wave-1
+drop ivw_date
 
-foreach x of varlist `ivars1' `catvars1' `cvars2' `catvars2' {
-	label var `x' "`l`x'0'"
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match) gen(othm)
+rename race_cat race
+
+gen help_cat=ind_no_helpers
+replace help_cat=2 if !ind_paid_helper & !ind_no_helpers
+replace help_cat=3 if ind_paid_helper
+label var help_cat "Caregiving, categorical"
+label values help_cat help_cat
+
+egen adverse_mo=rowmax(adverse_insd adverse_out adverse_bed)
+label var adverse_mo "Adv. cons. of unmet need: mobility"
+egen adverse_sc=rowmax(adverse_dres adverse_toil adverse_bath adverse_eat)
+label var adverse_sc "Adv. cons. of unmet need: self-care"
+egen adverse_hh=rowmax(adverse_laun adverse_shop adverse_meal adverse_bank)
+label var adverse_hh "Adv. cons. of unmet need: household"
+egen adverse_any=rowmax(adverse*)
+label var adverse_any "Adv. cons. of unmet need: any"
+
+replace livearrang=livearrang-1 if livearrang>2
+replace livearrang=4 if rcfres==1
+replace livearrang=5 if nhres==1
+label define livearrang 1 "Lives alone" 3 "With others (and not spouse)" 4 "Residential Care Facility" ///
+5 "Nursing Home", modify
+
+replace married=0 if livearrang==1 & missing(married)
+replace race=1 if race==3
+
+gen adl_cat=adl_index==0 if !missing(adl_index)
+replace adl_cat=2 if inrange(adl_index,1,2)
+replace adl_cat=3 if inrange(adl_index,3,6)
+label var adl_cat "ADLs, categorical"
+label values adl_cat adl_cat
+
+gen ivw2traum=index_date-ivw_date
+label var ivw2 "Days from interview to trauma"
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus {
+rename `x' `x'_n1
 }
 
+keep spid *p1 *n1 ivw2traum
+merge 1:1 spid using `t1', nogen keep(match)
+merge 1:1 spid using `t11', nogen keep(match master)
+replace ind_snf=0 if missing(ind_snf)
+label var apc "Anatomic Profile"
+label var fall "Injury mechanism: fall"
+label var icu_days "Days in the ICU during index stay"
+label var ind_ed_vis "ED visit w/in 12 weeks of discharge"
+label var ind_hh_days "HH use w/in 12 weeks of discharge"
+label var ind_procedure "Any procedure performed during index stay"
+label var ind_rea "Any readmission w/in 12 weeks of discharge"
+label var ind_snf "In SNF <30 days prior to P1 interview"
+label var ind_snf_d "SNF use w/in 12 weeks of discharge"
+label var los "LOS for index stay"
+label var apc "Anatomic Profile Category for injury"
+drop index_date inj_cat
+save "${datapath}\sample_final_unr.dta", replace
+
+
+H="stay and utilization chars on prepost"
+
+/*gen _row1=.
+label var _row1 "Trauma characteristics"
+gen _row2=.
+label var _row2 "Stay characteristics"
+gen _row3=. 
+label var _row3 "12 week utilization and outcomes"
+*/
+clear all
+use  "${datapath}\sample_final_unr", clear
+gen wave=wave_n1
+merge 1:1 spid using "${intpath}\trauma_dyad_nhatspre", keep(match)
+local cvars1 ivw2traum traum2ivw
+local ivars1  ind_trauma_hosp
+local catvars1 apc //inj_cat
+local cvars2
+local ivars2 fall vehicle_crash 
+local catvars2
+local cvars3 iss
+local ivars3 
+local catvars3 iss_cat //apc
+local cvars4 los icu_days
+local ivars4 ind_procedure ind_comp_any 
+local catvars4 
+local cvars5 n_readmit n_snf_days n_hh_days n_ed_vis
+local ivars5 ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84
+local catvars5 
+
+di "`period'"
 forvalues i=1/5 {
-	local cativars`i'
+	di "`i'"
 	foreach x of local catvars`i' {
-		gen l`x'=.
-		local lab : var label `x'
-		label var l`x' "`lab'"
+		local cativars`i'
 		di "`x'"
 		local `x'
+		di "``x''"	
 		levelsof `x', local(levels)
 		foreach l of local levels {
 			gen `x'`l'=`x'==`l' if !missing(`x')
@@ -10481,81 +10591,137 @@ di "`cativars1'"
 
 local rows
 forvalues i=1/5 {
-local rows `rows' `cvars`i'' `cvars`i'' `cvars`i'' `ivars`i'' `catvars`i'' `cativars`i''
+local rows `rows' `cvars`i'' `cvars`i'' `cvars`i'' `ivars`i'' `cativars`i''
 }
 
 local rn : word count `rows' 1
 local r=1
 local c=1
 
-mat tab=J(`rn',3,.)
-mat stars=J(`rn',3,0)
+mat tab=J(`rn',2,.)
+mat stars=J(`rn',2,0)
 
 local n=_N
-foreach t in 0 1 {
 forvalues i=1/5 {
 	foreach x of local cvars`i' {
-		sum `x' if post==`t', d
+		qui sum `x' /*if inlist(dem_cohort,`y')*/, d
 		mat tab[`r',`c']=r(mean)
 		mat tab [`r'+1,`c']=r(sd)
 		mat tab[`r'+2,`c']=r(p50)
 		if `n'-r(N)>=11 | `n'==r(N) mat tab[`r',`c'+1]=`n'-r(N)
 		else mat stars[`r',`c'+1]=3
-		if `t'==1 {
-		reg `x' post, cluster(spid)
-		test post 
-		mat tab[`r',`c'+1]=r(p)
-		mat stars[`r',`c'+1]=(r(p)<.05) + (r(p)<.01)
-		}
 		local r=`r'+3
 		
 }
 	foreach x of local ivars`i' {
-		sum `x' if post==`t'
-		if r(N)*r(mean)>=11 | r(N)==0 | r(N)==r(N)*r(mean) mat tab[`r',`c']=r(mean)*100
+		qui sum `x' 
+		if (r(N)*r(mean)>=11 & r(N)-r(N)*r(mean)>=11) | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',`c']=r(mean)*100
 		else mat stars[`r',`c']=3
 		if `n'-r(N)>=11 | `n'==r(N) mat tab[`r',`c'+1]=`n'-r(N)
 		else mat stars[`r',`c'+1]=3
-		if `t'==1 {
-		logit `x' post, cluster(spid)
-		test post 
-		mat tab[`r',`c'+1]=r(p)
-		mat stars[`r',`c'+1]=(r(p)<.05) + (r(p)<.01)
-}
 		local r=`r'+1
 }
 	foreach x of local catvars`i' {
-		sum `x' if post==`t'
-		if `t'==1 {
-		tab `x' post, chi2 
-		mat tab[`r',3]=r(p)
-		mat stars[`r',3]=(r(p)<.05) + (r(p)<.01)
-		*if `n'-r(N)>=11 | `n'==r(N) mat tab[`r',`c'+1]=`n'-r(N)
-		*else mat stars[`r',`c'+1]=3
-}		
-		local r=`r'+1
+		qui sum `x'
+		if `n'-r(N)>=11 | `n'==r(N) mat tab[`r',`c'+1]=`n'-r(N)
+		else mat stars[`r',`c'+1]=3
 		foreach z of local `x' {
-			sum `z' if post==`t'
-			if r(N)*r(mean)>=11 | r(N)==0 | r(N)==r(N)*r(mean) mat tab[`r',`c']=r(mean)*100
+			qui sum `z' 
+			if r(N)*r(mean)>=11 | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',`c']=r(mean)*100
 			else mat stars[`r',`c']=3
 			local r=`r'+1
 }
 }
 }
 mat tab[`r',`c']=`n'
-	local r=1
-	local c=`c'+1
-}	
-
-mat rownames tab=`cvars1' `ivars1' `catvars1' `cativars1' `cvars2' SD Median `ivars2' `catvars2' `cativars2'  N
+	
+/*
+local cvars1 traum2ivw
+local ivars1  
+local catvars1 inj_cat
+local cvars2
+local ivars2 fall vehicle_crash 
+local catvars2
+local cvars3 iss
+local ivars3 
+local catvars3 iss_cat
+local cvars4 los icu_days
+local ivars4 ind_procedure ind_comp_any 
+local catvars4 
+local cvars5 n_readmit n_snf_days n_hh_days n_ed_vis
+local ivars5 ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84
+local catvars5 
+*/
+mat rownames tab=ivw2traum SD Median traum2ivw SD Median `ivars1' `cativars1' `ivars2' `cativars2' ///
+`cvars3' SD Median `ivars3' `cativars3' los SD Median icu_days SD Median `ivars4' `cativars4' ///
+n_readmit SD Median n_snf_days SD Median n_hh_days SD Median n_ed_vis SD Median `ivars5' `cativars5' N
 
 if "`period'"=="pre" local title Trauma with NHATS interview following
 else local title Trauma with prior NHATS interview
-frmttable using "${outpath}\table_1_`period'`c(current_date)'.rtf", ///
-statmat(tab) title("Characteristics of Sample: `title'") ///
-ctitles("" "Pre-trauma" "Post-trauma" "P-value") varlabels ///
-sdec(2,2,3) annotate(stars) asymbol(*,**,NR) replace
+frmttable using "${outpath}\stay_and_util_tables_`period'`c(current_date)'.rtf", ///
+statmat(tab) title("Characteristics of trauma and utilization:" "`title'") ///
+ctitles("" "Mean/%" "N Missing") varlabels ///
+sdec(2,0) annotate(stars) asymbol(*,**,NR) replace
 
+local rn : word count ind_comp_intraop ind_comp_cardiac ind_comp_resp ind_comp_vasc ind_comp_wound ind_comp_genitourinary ind_comp_gastro ind_comp_neuro ind_comp_infect ind_comp_misc ind_comp_any
+
+//ebl--9/6/19--drop this for now because there's so little that's shareable. worth looking at again after update for icd10.
+/*
+mat tab=J(`rn',2,.)
+mat stars=J(`rn',2,0)
+local r=1
+
+foreach x of varlist ind_comp* {
+	qui sum `x' 
+	if (r(N)*r(mean)>=11 & r(N)-r(N)*r(mean)>=11) | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',1]=r(mean)*r(N)
+	else mat stars[`r',1]=3
+	if (r(N)*r(mean)>=11 & r(N)-r(N)*r(mean)>=11) | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',2]=r(mean)*100
+	else mat stars[`r',2]=3
+	local r=`r'+1
+}
+
+mat rownames tab=ind_comp_intraop ind_comp_cardiac ind_comp_resp ind_comp_vasc ind_comp_wound ind_comp_genitourinary ind_comp_gastro ind_comp_neuro ind_comp_infect ind_comp_misc ind_comp_any
+
+frmttable using "${outpath}\stay_and_util_tables_`period'`c(current_date)'.rtf", ///
+addtable statmat(tab) title("Complications, detailed") ///
+ctitles("" "N" "%") sdec(0,2) annotate(stars) asymbol(*,**,NR)
+*/
+
+
+
+H="sens analyses"
+//note, you need to run the unrestricted sample code and comment out dropping the index date in order for this to run
+
+use"${datapath}\sample_final_unr", clear
+merge 1:m spid using "${nhats}\sp_round_1_8.dta", keep(match) nogen keepusing(death_date)
+replace iss=. if inlist(iss,0,99)
+duplicates drop
+replace los=1 if !los
+gen lnlos=ln(los)
+gen died_12=death_date-index_date<=365
+gen died_6=death_date-index_date<=183
+reg died_12 iss
+reg died_12 iss if traum2ivw<=91
+local xvars iss c.age_n1 female_n1 i.race_n1  married_n1 educ_hs_ind_n1 ind_trauma_hosp prob_dem_n1
+local xvarslim c.age_n1 female_n1 married_n1
+gen iss9=iss>9 if !missing(iss)
+
+label var died_6 "Died within 6 months"
+
+logit died_6 iss `xvarslim' if traum2ivw<=91 
+outreg, varlabels stats(e_b e_ci p) ctitles("" "1")
+logit died_6 iss `xvarslim' if traum2ivw<=183
+outreg, varlabels stats(e_b e_ci p)  merge ctitles("" "2")
+
+logit died_6 iss9 `xvarslim' if traum2ivw<=91
+outreg, varlabels stats(e_b e_ci p) merge ctitles("" "3")
+logit died_6 iss9 `xvarslim' if traum2ivw<=183
+outreg using "${outpath}\sensitivity_regs", varlabels stats(e_b e_ci p) merge ctitles("" "4") replace note("Regressions 1-4 are death within 6 months"\ "Regressions 1 and 3 among those with interviews within 3 months after trauma"\ "2 and 4 among all ivws within 6 mos after trauma" \"Full covariates not included because of small sample size and perfect collinearity")
+
+reg los iss `xvars'
+outreg, varlabels stats(b ci p)  ctitles("" "ln(LOS)")
+reg los iss9 `xvars'
+outreg  using "${outpath}\sensitivity_regs", addtable varlabels stats(b ci p) merge ctitles("" "ln(LOS)") note( "Regressions are on the natural log of the LOS of the index stay, among full sample")
 
 H="Changelog"
 
