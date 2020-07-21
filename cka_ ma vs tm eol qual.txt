@@ -2663,16 +2663,33 @@ use "D:\NHATS\Shared\base_data\CMS_claims\Stata\mbsf_06_17.dta" , clear
 keep if death_date!=.
 
 gen death_month=month(death_date)
-
+gen death_year=year(death_date)
 tab death_month
 
-rename ptc_plan_type_cd_0* ptc_plan_type_cd_*
-
-gen ptc=""
-forvalues i=1/12{
-	replace ptc=ptc_plan_type_cd_`i' if death_month==`i'
+gen ma=0
+forvalues i=1/9{
+replace ma=1 if bene_hmo_ind_0`i'!="0" & death_month==`i' 
 }
+forvalues i=10/12{
+replace ma=1 if bene_hmo_ind_`i'!="0" & death_month==`i' 
+}
+keep if ma==1
 
+rename (ptc_plan_type_cd_0* ptc_cntrct_id_0* ptc_pbp_id_0*) (ptc_plan_type_cd_* ptc_cntrct_id_* ptc_pbp_id_*)
+
+gen ptc_plan =""
+gen ptc_cntrct=""
+gen ptc_pbp =""
+forvalues i=1/12{
+	replace ptc_plan=ptc_plan_type_cd_`i' if death_month==`i'
+	replace ptc_cntrct=ptc_cntrct_id_`i' if death_month==`i'
+	replace ptc_pbp=ptc_pbp_id_`i' if death_month==`i'
+	
+	}
+rename year year_mbsf	
+gen year=death_year
+	
+	
 tempfile part1
 save "`part1'"
 
@@ -2700,28 +2717,70 @@ save "`died_in_hs'"
 
 use "D:\NHATS\Shared\base_data\CMS_claims\Stata\mbsf_06_17.dta" , clear
 
-merge m:1 bene_id using "`died_in_hs'", keep(matched)
+merge m:1 bene_id using "`died_in_hs'", nogen keep(matched)
 
 gen prev_hs_month=hospice_month-1
+gen prev_hs_year=hospice_year
+replace prev_hs_year=prev_hs_year-1 if prev_hs_month==0
 //replace prev_hs_month=12 if prev_hs_month==0
 
-rename ptc_plan_type_cd_0* ptc_plan_type_cd_*
+gen ma=.
+
+forvalues i=1/9{
+replace ma=1 if bene_hmo_ind_0`i'!="0" & prev_hs_month==`i' & hospice_year==prev_hs_year
+}
+forvalues i=10/11{
+replace ma=1 if bene_hmo_ind_`i'!="0" & prev_hs_month==`i' & hospice_year==prev_hs_year
+}
+
+replace ma=1 if bene_hmo_ind_12!="0" & prev_hs_month==0 & hospice_year-1==prev_hs_year
+
+keep if ma==1
+
+
+rename (ptc_plan_type_cd_0* ptc_cntrct_id_0* ptc_pbp_id_0*) (ptc_plan_type_cd_* ptc_cntrct_id_* ptc_pbp_id_*)
 
 gen ptc_plan_type_cd_0=""
+gen ptc_cntrct_id_0 =""
+gen ptc_pbp_id_0 =""
+
 sort bene_id year
 by bene_id: replace ptc_plan_type_cd_0=ptc_plan_type_cd_12[_n-1]
+by bene_id: replace ptc_cntrct_id_0=ptc_cntrct_id_12[_n-1]
+by bene_id: replace ptc_pbp_id_0=ptc_pbp_id_12[_n-1]
 
-gen ptc=""
-forvalues i=0/12{
-	replace ptc=ptc_plan_type_cd_`i' if prev_hs_month==`i'
-}
+
+gen ptc_plan =""
+gen ptc_cntrct=""
+gen ptc_pbp =""
+forvalues i=1/12{
+	replace ptc_plan=ptc_plan_type_cd_`i' if prev_hs_month==`i'
+	replace ptc_cntrct=ptc_cntrct_id_`i' if prev_hs_month==`i'
+	replace ptc_pbp=ptc_pbp_id_`i' if prev_hs_month==`i'
+	
+	}
+
+by bene_id: keep if _n==1
+
+rename (year prev_hs_year) (year_mbsf year)
 
 tempfile part2
 save "`part2'"
 
 
 use "`part1'"
-merge 1:1 bene_id "`part2'"
+merge 1:1 bene_id using "`part2'"
 
-keep bene_id ptc
-save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\partc.dta"
+keep bene_id ptc* year hmoind12
+save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\partc.dta", replace
+
+
+use "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\int_data\SNP_2010_2019 yrs.dta", clear
+
+rename (ptc_pbp_id ptc_contrct_id) (ptc_pbp ptc_cntrct)
+
+duplicates drop year ptc_pbp ptc_cntrct, force
+merge 1:m year ptc_pbp ptc_cntrct using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\partc.dta", keep(using matched)
+
+
+save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\partc_snp.dta", replace
