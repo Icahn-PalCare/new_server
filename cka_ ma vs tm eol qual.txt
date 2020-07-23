@@ -1731,6 +1731,14 @@ label var ind_hs_12_pre "Hospice claim 12-months pre death"
 label var ind_died_on_hospice "Died in Hospice"
 label var ma_month_bef_hs "Had MA month before Hospice"
 
+merge 1:1 bene_id using  "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\partc_snp.dta" 
+drop if _merge==2
+drop _merge
+
+merge 1:1 bene_id using "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\partc.dta" 
+drop if _merge==2
+
+
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
 
 H=" variable cleaning"
@@ -1895,6 +1903,101 @@ replace low_quart_hosp=1 if ind_hospice==1 & (quart_symptoms_always==1 | quart_c
 *recode race_cat
 recode race_cat (1=1)(2/4=0), gen (whiterace)
 
+
+*make a variable for any nonfamily friend who knows patient well
+
+gen any_nonffwk8=.
+replace any_nonffwk8 =0 if is8prxyrelat >=1 & is8prxyrelat <=29 | is8prxyrelat==32
+replace any_nonffwk8 =1 if is8prxyrelat == 30|is8prxyrelat == 31| is8prxyrelat==37| is8prxyrelat==39| is8prxyrelat==40
+replace any_nonffwk8 = 0 if is8prxyrelat==33|is8prxyrelat==34|is8prxyrelat==35|is8prxyrelat==36|is8prxyrelat==38 
+replace any_nonffwk8 = 1 if is8prxyrelat==91|is8prxyrelat==92
+replace any_nonffwk8 = 0 if is8famrrutin ==3|is8famrrutin ==4
+replace any_nonffwk8 = . if r8dlmlint !=1
+
+
+gen any_nonffwk7 = . 
+replace any_nonffwk7 =0 if is7prxyrelat >=1 & is7prxyrelat <=29 | is7prxyrelat==32
+replace any_nonffwk7 =1 if is7prxyrelat == 30|is7prxyrelat == 31| is7prxyrelat==37| is7prxyrelat==39| is7prxyrelat==40
+replace any_nonffwk7 = 0 if is7prxyrelat==33|is7prxyrelat==34|is7prxyrelat==35|is7prxyrelat==36|is7prxyrelat==38 
+replace any_nonffwk7 = 0 if is7prxyrelat==91|is7prxyrelat==92
+replace any_nonffwk7 = 0 if is7famrrutin ==3|is7famrrutin ==4
+replace any_nonffwk7 = . if r7dlmlint !=1
+
+gen any_nonffwk6 = . 
+replace any_nonffwk6 =0 if is6prxyrelat >=1 & is6prxyrelat <=29 | is6prxyrelat==32
+replace any_nonffwk6 =1 if is6prxyrelat == 30|is6prxyrelat == 31| is6prxyrelat==37|is6prxyrelat==39| is6prxyrelat==40
+replace any_nonffwk6 = 0 if is6prxyrelat==33|is6prxyrelat==34|is6prxyrelat==35|is6prxyrelat==36|is6prxyrelat==38 
+replace any_nonffwk6 = 0 if is6prxyrelat==91|is6prxyrelat==92
+replace any_nonffwk6 = 0 if is6famrrutin ==3|is6famrrutin ==4
+replace any_nonffwk6 = . if r6dlmlint !=1
+
+
+gen any_nonffwk5 = . 
+replace any_nonffwk5 =0 if is5prxyrelat >=1 & is5prxyrelat <=29 | is5prxyrelat==32
+replace any_nonffwk5 =1 if is5prxyrelat == 30|is5prxyrelat == 31| is5prxyrelat==37| is5prxyrelat==39| is5prxyrelat==40
+replace any_nonffwk5 = 0 if is5prxyrelat==33|is5prxyrelat==34|is5prxyrelat==35|is5prxyrelat==36|is5prxyrelat==38 
+replace any_nonffwk5 = 0 if is5prxyrelat==91|is5prxyrelat==92
+replace any_nonffwk5 = 0 if is5famrrutin ==3|is5famrrutin ==4
+replace any_nonffwk5 = . if r5dlmlint !=1
+
+gen any_nonffwk4 = . 
+replace any_nonffwk4 =0 if is4prxyrelat >=1 & is4prxyrelat <=29 | is4prxyrelat==32
+replace any_nonffwk4 =1 if is4prxyrelat == 30|is4prxyrelat == 31| is4prxyrelat==37| is4prxyrelat==39| is4prxyrelat==40
+replace any_nonffwk4 = 0 if is4prxyrelat==33|is4prxyrelat==34|is4prxyrelat==35|is4prxyrelat==36|is4prxyrelat==38 
+replace any_nonffwk4 = 0 if is4prxyrelat==91|is4prxyrelat==92
+replace any_nonffwk4 = 0 if is4famrrutin ==3|is4famrrutin ==4
+replace any_nonffwk4 = . if r4dlmlint !=1
+
+gen any_nonffwk3 = . 
+replace any_nonffwk3 =0 if is3prxyrelat >=1 & is3prxyrelat <=29 | is3prxyrelat==32
+replace any_nonffwk3 =1 if is3prxyrelat == 30|is3prxyrelat == 31| is3prxyrelat==37|is3prxyrelat==39| is3prxyrelat==40
+replace any_nonffwk3 = 0 if is3prxyrelat==33|is3prxyrelat==34|is3prxyrelat==35|is3prxyrelat==36|is3prxyrelat==38 
+replace any_nonffwk3 = 0 if is3prxyrelat==91|is3prxyrelat==92
+replace any_nonffwk3 = 0 if is3famrrutin ==3|is3famrrutin ==4
+replace any_nonffwk3 = . if r3dlmlint !=1
+
+gen any_nonffwk2 = . 
+replace any_nonffwk2 =0 if is2prxyrelat >=1 & is2prxyrelat <=29 | is2prxyrelat==32
+replace any_nonffwk2 =1 if is2prxyrelat == 30|is2prxyrelat == 31| is2prxyrelat==37| is2prxyrelat==39| is2prxyrelat==40
+replace any_nonffwk2 = 0 if is2prxyrelat==33|is2prxyrelat==34|is2prxyrelat==35|is2prxyrelat==36|is2prxyrelat==38 
+replace any_nonffwk2 = 0 if is2prxyrelat==91|is2prxyrelat==92
+replace any_nonffwk2 = 0 if is2famrrutin ==3|is2famrrutin ==4
+replace any_nonffwk2 = . if r2dlmlint !=1
+
+gen inanalnonff = 0 
+replace inanalnonff = 1 if any_nonffwk2 ==1 & r2dresid==6
+replace inanalnonff = 1 if any_nonffwk3 ==1 & r3dresid==6
+replace inanalnonff = 1 if any_nonffwk4 ==1 & r4dresid==6
+replace inanalnonff = 1 if any_nonffwk5 ==1 & r5dresid==6
+replace inanalnonff = 1 if any_nonffwk6 ==1 & r6dresid==6
+replace inanalnonff = 1 if any_nonffwk7 ==1 & r7dresid==6
+replace inanalnonff = 1 if any_nonffwk8 ==1 & r8dresid==6
+
+gen expanded_inanal=inanal
+replace expanded_inanal=1 if inanalnonff==1
+gen nonff_inanal=0
+replace nonff_inanal=1 if expanded_inanal==1 & inanal==0
+
+*variable for hospice one month or less
+gen hosplessmnth=.
+replace hosplessmnth=1 if ind_hospice==1 
+replace hosplessmnth=0 if ind_hospice==1 & hs_los>30 & livedischarge==0
+
+
+*MA Plan types
+gen snp=0
+replace snp=1 if specialneedsplantype!=""
+replace snp=. if snp==0
+replace snp=1 if specialneedsplantype== "Chronic or Disabling Condition"
+replace snp=2 if specialneedsplantype== "Dual-Eligible"
+replace snp=3 if specialneedsplantype== "Institutional"
+replace snp=0 if snp==. & ma1==1
+
+recode snp (1/3=1), gen(any_snp)
+replace any_snp=0 if any_snp==.
+
+label define snpx 1 "chronic or disabling condition" 2 "dual-eligible" 3 "institutional"
+label values snp snpx
 		
 save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\MA_eol_nhats.dta", replace
 
@@ -1909,34 +2012,37 @@ svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missi
 		
 *table 1: in MA at time of death vs not
 *looking at quality variables
-svy, subpop(inanal): tab ma1
+svy, subpop(inanal): tab ma1, ci
 tab ma1 if inanal==1, m
 
 
 svy, subpop(inanal): tab ma1, count cellwidth(15) format (%15.2g)
 
-svy, subpop(inanal): tab deathage_3cat ma1, column
-svy, subpop(inanal): tab female ma1, column
-svy, subpop(inanal): tab race_cat ma1, column
-svy, subpop(inanal): tab income_quart ma1, column
-svy, subpop(inanal): tab medicaid_death ma1, column
-svy, subpop(inanal): tab metro_ind ma1, column
-svy, subpop(inanal): tab avgma_quint ma1, column
+svy, subpop(inanal): tab deathage_3cat ma1, column ci
+svy, subpop(inanal): tab female ma1, column ci
+svy, subpop(inanal): tab race_cat ma1, column ci
+svy, subpop(inanal): tab income_quart ma1, column ci
+svy, subpop(inanal): tab medicaid_death ma1, column ci
+svy, subpop(inanal): tab metro_ind ma1, column ci
+svy, subpop(inanal): tab avgma_quint ma1, column ci
 
-svy, subpop(inanal): tab diff_get_out_bed ma1, column
-svy, subpop(inanal): tab adl_impair ma1, column
+svy, subpop(inanal): tab any_snp ma1, column ci
 
-svy, subpop(inanal): tab lung_all ma1, column
-svy, subpop(inanal): tab cva_all ma1, column
-svy, subpop(inanal): tab cancer_all ma1, column
-svy, subpop(inanal): tab prob_dem ma1, column
+
+svy, subpop(inanal): tab diff_get_out_bed ma1, column ci
+svy, subpop(inanal): tab adl_impair ma1, column ci
+
+svy, subpop(inanal): tab lung_all ma1, column ci
+svy, subpop(inanal): tab cva_all ma1, column ci
+svy, subpop(inanal): tab cancer_all ma1, column ci
+svy, subpop(inanal): tab prob_dem ma1, column ci
 
 
 
 
 *PROPENSITY SCORE MODEL
 *create and assess propensity score
-pscore ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse pweight if inanal==1, pscore(mapscore) blockid(mablock)logit	detail
+pscore ma1 deathage_3cat female whiterace income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem lung_all child spouse pweight if inanal==1, pscore(mapscore) blockid(mablock)logit	detail
 psgraph, treated(ma1) pscore(mapscore)
 
 
@@ -2071,10 +2177,16 @@ svy, subpop(inanal): logistic di_recode_informed  i.deathage_3cat female whitera
 
 
 ***STRATIFICATIONS: 1. BY HOSPICE
+svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
+svy, subpop(inanal): logistic not_excellent  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse i.ind_hospice i.ma1, cformat(%4.2f)
+margins, dydx(ind_hospice)
+margins, dydx(ma1)
+
+
 *in hospice
 svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
 qui svy, subpop(inanal_hospice): logistic not_excellent  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
-margins ma1
+margins, ma1
 
 *no hospice
 svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
@@ -2087,6 +2199,7 @@ margins ma1
 svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
 qui svy, subpop(any_nh): logistic not_excellent  i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
 margins ma1
+margins, dydx(ma1)
 
 *IN HOSPITAL
 svyset sunit [pweight=not_excellent_pweight], strata (strata) vce(linearized) singleunit(missing)
@@ -2103,16 +2216,19 @@ margins ma1
 *looking at eol care characteristics and ma
 svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
 
-svy, subpop(inanal): tab ind_hospice ma1, column
-svy, subpop(inanal_hosp): tab hs_shortstay ma1, column
-svy, subpop(inanal_hosp): tab livedischarge ma1, column
-svy, subpop(inanal_hosp): tab low_quart_hosp ma1, column
-svy, subpop(inanal): tab placedeath ma1, column
+svy, subpop(inanal): tab ind_hospice ma1, column ci
+svy, subpop(inanal_hosp): tab hs_shortstay ma1, column ci
+svy, subpop(inanal_hosp): tab hosplessmnth ma1, column ci
 
-svy, subpop(inanal): tab late_transition ma1, column
-svy, subpop(inanal): tab week_transition ma1, column
-svy, subpop(inanal): tab any_nh ma1, column
-svy, subpop(inanal): tab any_hospital ma1, column
+svy, subpop(inanal_hosp): tab livedischarge ma1, column ci
+svy, subpop(inanal_hosp): tab low_quart_hosp ma1, column ci
+svy, subpop(inanal): tab placedeath ma1, column ci
+
+svy, subpop(inanal): tab late_transition ma1, column ci
+svy, subpop(inanal): tab week_transition ma1, column ci
+svy, subpop(inanal): tab any_nh ma1, column ci
+svy, subpop(inanal): tab any_hospital ma1, column ci
+svy, subpop(inanal): tab not_excellent ma1, column ci
 
 
 ***for appendix
@@ -2127,7 +2243,47 @@ foreach var of varlist threeplusmsr not_excellent unmet_pain unmet_bre unmet_sad
 
 		  
 
+*** new table s3
+svyset sunit [pweight=pweight], strata (strata) vce(linearized) singleunit(missing)
 
+foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant recode_care_decision di_recode_informed  {
+		svy, subpop(inanal): logistic `var' i.ma1, cformat(%4.2f)
+		margins ma1
+		}
+		
+		
+
+foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant recode_care_decision di_recode_informed  {
+		svy, subpop(inanal): logistic `var' i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+		margins ma1
+		}
+		
+		
+		*table s4
+		foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant recode_care_decision di_recode_informed  {
+		svy, subpop(expanded_inanal): logistic `var' i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+		margins ma1
+		}
+		
+		foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant recode_care_decision di_recode_informed  {
+		svy, subpop(inanal): logistic `var' i.deathage_3cat female whiterace i.income_quart medicaid_death metro_ind diff_get_out_bed adl_impair prob_dem child spouse  i.ma1, cformat(%4.2f)
+		margins ma1
+		}
+		
+		
+		*make a comparable graph by proxy type
+		foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant recode_care_decision di_recode_informed  {
+		svy, subpop(inanal): logistic `var' i.ma1, cformat(%4.2f)
+		margins ma1
+		}
+		
+		foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant recode_care_decision di_recode_informed  {
+		 tab `var' ma1 if nonff_inanal==1, column
+		}
+		
+				foreach var of varlist not_excellent unmet_pain unmet_bre unmet_sad unmet_relig di_recode_always_respect recode_care_notwant recode_care_decision di_recode_informed  {
+		 tab `var' ma1 if inanal==1, column
+		}
 
 H="Change log"
 
