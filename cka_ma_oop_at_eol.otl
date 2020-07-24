@@ -314,3 +314,44 @@ label var nhres "Nursing home resident at death (from exit)"
 
 
 save "${datapath}\cka_ma_oop_at_eol.dta", replace
+
+
+H="variable cleaning"
+
+
+
+
+*log transform expenditures
+gen tot_oop_log=log(total_oop_last_yr)
+gen hospital_log=log(hospital_oop_last_yr)
+gen doctor_log=log(doctor_oop_last_yr)
+gen rx_log=log(rx_oop_last_yr)
+gen nh_log=log(nh_oop_last_yr)
+gen helper_log=log(helper_oop_last_yr)
+gen home_log=log(home_oop_last_yr)
+gen other_log=log(other_oop_last_yr)
+
+H="analysis"
+
+tabstat total_oop_last_yr, statistics (mean sd) by(full_ma)
+
+twoway (histogram tot_oop_log if full_ma==0, color(blue%30))(histogram tot_oop_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA"))
+graph save "Graph" "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\histograms to show amy_ july 23\histogram_total oop_ july 23 2020.gph"
+
+twoway (histogram hospital_log if full_ma==0, color(blue%30))(histogram hospital_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA")) saving(ckahospital.gph)
+twoway (histogram doctor_log if full_ma==0, color(blue%30))(histogram doctor_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA")) saving(ckadoctor.gph)
+twoway (histogram rx_log if full_ma==0, color(blue%30))(histogram rx_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA")) saving(ckarx.gph)
+twoway (histogram nh_log if full_ma==0, color(blue%30))(histogram nh_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA")) saving(ckanh.gph)
+twoway (histogram helper_log if full_ma==0, color(blue%30))(histogram helper_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA")) saving(ckahelper.gph)
+twoway (histogram home_log if full_ma==0, color(blue%30))(histogram home_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA")) saving(ckahome.gph)
+twoway (histogram other_log if full_ma==0, color(blue%30))(histogram other_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA")) saving(ckaother.gph)
+
+
+gr combine ckahospital.gph ckadoctor.gph ckarx.gph ckanh.gph ckahelper.gph ckahome.gph 
+graph save "Graph" "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\histograms to show amy_ july 23\histogram_oop by cat_ july 23 2020.gph"
+
+foreach var of varlist 
+tabstat total_oop_last_yr, statistics (mean sd) by(full_ma)
+
+
+tabstat total_oop_last_yr hospital_oop_last_yr doctor_oop_last_yr rx_oop_last_yr nh_oop_last_yr helper_oop_last_yr home_oop_last_yr other_oop_last_yr, statistics (mean ) by(full_ma)
