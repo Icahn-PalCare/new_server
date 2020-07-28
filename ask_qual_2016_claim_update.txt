@@ -19358,6 +19358,59 @@ mat list tab
 
 frmttable using burd_tables.rtf, addtable statmat(tab) title("P-values, by Dementia and Financial Wealth") varlabels sdec(2) note("Days on hospice and live discharge are conditional on having hospice, however the combined is not (so no-hospice counts as <3 days)" "The Admission to long-term nursing stay in the last year of life variable is calculated using the MDS and observing if there is a nursing home stay greater than 100 days in the last year of life" "P-values shown in columns 1-4 are done by chi2" "P-value shown in column 5 shows the significance of the interaction term when regressed on the variable") annotate(stars) asymbol(*,**) replace
 
+H="14 days"
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\aim2_outcomes.dta", clear
+
+merge 1:m bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\op_1998_2016.dta", keep(master matched) keepusing(admit_date disch_date) gen(op)
+
+keep if op==1 | (op==3 & dis_date<=admit_date & admit_date<=dis_date_14)
+bys id: keep if _n==1
+tempfile op
+save "`op'"
+
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\aim2_outcomes.dta", clear
+
+merge 1:m bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\ip_1998_2016.dta", keep(master matched) keepusing(admit_date disch_date) gen(ip)
+
+keep if ip==1 | (ip==3 & dis_date<=admit_date & admit_date<=dis_date_14)
+bys id: keep if _n==1
+tempfile ip
+save "`ip'"
+
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\aim2_outcomes.dta", clear
+
+merge 1:m bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\hh_1998_2016.dta", keep(master matched) keepusing(admit_date disch_date) gen(hh)
+
+keep if hh==1 | (hh==3 & dis_date<=admit_date & admit_date<=dis_date_14)
+bys id: keep if _n==1
+tempfile hh
+save "`hh'"
+
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\aim2_outcomes.dta", clear
+
+merge 1:m bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\snf_1998_2016.dta", keep(master matched) keepusing(admit_date disch_date) gen(snf)
+
+keep if snf==1 | (snf==3 & dis_date<=admit_date & admit_date<=dis_date_14)
+bys id: keep if _n==1
+tempfile snf
+save "`snf'"
+
+
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\aim2_outcomes.dta", clear
+
+merge 1:1 bid_hrs_22 using "`op'", keepusing(op) nogen
+merge 1:1 bid_hrs_22 using "`ip'", keepusing(ip) nogen 
+merge 1:1 bid_hrs_22 using "`hh'", keepusing(hh) nogen 
+merge 1:1 bid_hrs_22 using "`snf'", keepusing(snf) nogen 
+
+
+save "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\live_disch_14.dta", replace
+
 H="changelog"
 01/29/20 - Burdensome Transitions added to Table 1. 
 
