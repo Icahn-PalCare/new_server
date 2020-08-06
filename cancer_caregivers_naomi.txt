@@ -858,7 +858,7 @@ run;
 %dx_time_range(range1=0, range2=2yr, days_aft_core=730);
 
 
-H="get no cancer before and cancer after"
+H="get no cancer before and cancer afterxxxxx---need to correct to reflect new changes. "
 data cancer_dx_1_yr_bef;
 set dx_all_last_1yr;
 	cancer=0;
@@ -961,6 +961,39 @@ run;
 
 
 
+H="cancer stata final step"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\nsoc_round_1_7.dta", clear
+rename cg_ivw_year index_year 
+
+tempfile nsoc
+save "`nsoc'"
+
+
+use "D:\NHATS\Projects\exploratory\cancer_caregivers_naomi\data\final_data\cancer.dta", clear
+
+sort spid index_year opid 
+
+
+gen a=1 if spid==spid[_n-1] & index_year!=index_year[_n-1]
+by spid: carryforward a, replace
+
+drop if a==1
+drop a
+
+
+merge 1:1 spid opid index_year using "`nsoc'", keep(matched) keepusing(cg_ivw_month) nogen
+
+
+merge m:1 spid using "D:\NHATS\Shared\base_data\CMS_claims\Stata\death_date.dta", keep(matched) nogen
+
+gen ivw_date=mdy(cg_ivw_month,1,index_year)
+gen ivw_till_death_months=death_date-ivw_date
+replace ivw_till_death_months=floor(ivw_till_death_months/30.4)
+
+drop cg_ivw_month death_* ivw_date
+
+save "D:\NHATS\Projects\exploratory\cancer_caregivers_naomi\data\final_data\cancer_complete.dta", replace 
+
 H="Change log"
 
 
@@ -969,6 +1002,10 @@ H="Change log"
 
 
 Updates:
+
+08/06/2020 MH
+------------
+Updating code. 
 
 07/21/2020 MH
 ------------
