@@ -822,7 +822,7 @@ sort id core_year
 by id: keep if _n==_N
 merge 1:1 id core_year using "`fam'", keep(master match) nogen
 merge 1:1 id core_year using "`a'", keep(master match) nogen //one person dropped who didn't match HyearF_R file
-merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta", keep(match) nogen //kept people with death date only
+merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2016.dta", keep(match) nogen //kept people with death date only
 merge 1:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta", keep(master match) gen(exit) //keeping if exit interview
 
 
