@@ -331,6 +331,29 @@ gen helper_log=log(helper_oop_last_yr)
 gen home_log=log(home_oop_last_yr)
 gen other_log=log(other_oop_last_yr)
 
+H="merging in survey vars"
+*merge in with weight variables
+use "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta" 
+keep  secu stratum  id hhid
+destring id, replace
+save "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\secu stratum.dta"
+
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta"
+keep wgtr hhid id core_year
+destring id, replace
+merge m:1 hhid id using "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\secu stratum.dta"
+keep if _merge==3
+sort hhid id core_year
+drop _merge
+save "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\weighting vars.dta", replace
+
+use "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\cka_ma_oop_at_eol.dta"
+destring id, replace
+sort hhid id core_year
+drop _merge
+merge hhid id core_year using  "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\weighting vars.dta"
+save "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\cka_ma_oop_at_eol.dta", replace
+
 H="analysis"
 
 tabstat total_oop_last_yr, statistics (mean sd) by(full_ma)
