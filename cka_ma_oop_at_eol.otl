@@ -316,21 +316,6 @@ label var nhres "Nursing home resident at death (from exit)"
 save "${datapath}\cka_ma_oop_at_eol.dta", replace
 
 
-H="variable cleaning"
-
-
-
-
-*log transform expenditures
-gen tot_oop_log=log(total_oop_last_yr)
-gen hospital_log=log(hospital_oop_last_yr)
-gen doctor_log=log(doctor_oop_last_yr)
-gen rx_log=log(rx_oop_last_yr)
-gen nh_log=log(nh_oop_last_yr)
-gen helper_log=log(helper_oop_last_yr)
-gen home_log=log(home_oop_last_yr)
-gen other_log=log(other_oop_last_yr)
-
 H="merging in survey vars"
 *merge in with weight variables
 use "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta" 
@@ -354,7 +339,315 @@ drop _merge
 merge hhid id core_year using  "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\weighting vars.dta"
 save "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\cka_ma_oop_at_eol.dta", replace
 
+H="variable cleaning"
+*VARIABLE CLEANING
+use "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\cka_ma_oop_at_eol.dta"
+destring id, replace
+sort hhid id core_year
+drop _merge
+merge hhid id core_year using  "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\weighting vars.dta"
+*ma in categories: none, full year, partial year
+gen ma3cat=0
+replace ma3cat=1 if any_ma==1 & full_ma==0
+replace ma3cat=2 if full_ma==1
+label define mc3 0 "none" 1 "partial year" 2 "full year"
+label values ma3cat mc3
+
+
+
+*any mds record of nh or proxy reports individual died in nh
+gen any_nh=0
+replace any_nh=1 if nhres==1
+replace any_nh=1 if nh_los!=.
+
+*any mds record of nh
+gen mds_nh=1
+replace mds_nh=0 if nh_los==.
+
+*any oop spending by cat
+foreach x in total_oop hospital_oop doctor_oop rx_oop nh_oop helper_oop home_oop other_oop {
+recode `x'_last_yr (min/0=0)(0.000000000001/max=1), gen(any_`x')
+}
+
+*keep= no medicaid, no nursing home
+gen keep=1
+replace keep=0 if ind_buyin==1
+*2000 individuals with at least one month medicaid
+replace keep=0 if mds_nh==1
+**2599 individuals with at least one month in nh
+
+*log transform expenditures
+gen tot_oop_log=log(total_oop_last_yr)
+gen hospital_log=log(hospital_oop_last_yr)
+gen doctor_log=log(doctor_oop_last_yr)
+gen rx_log=log(rx_oop_last_yr)
+gen nh_log=log(nh_oop_last_yr)
+gen helper_log=log(helper_oop_last_yr)
+gen home_log=log(home_oop_last_yr)
+gen other_log=log(other_oop_last_yr)
+
+*new survey stratum variable due to 2 strata (out of 54) with too few units
+gen stratum_n=stratum
+replace stratum_n=52 if stratum==55 | stratum==56
+
+
+*gen keep variable to limit to ppl with at least $1 spending in any category
+foreach x in any_total_oop any_hospital_oop any_doctor_oop any_rx_oop any_nh_oop any_helper_oop any_home_oop any_other_oop {
+gen `x'_keep = keep
+replace `x'_keep=0 if `x'==0
+}
+
 H="analysis"
+*ANALYSIS
+svyset secu [pweight=wgtr], strata(stratum_n) vce(linearized)
+svy, subpop(keep): tab full_ma
+
+
+*examine proportions with any OOP spending
+putexcel set "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\examine cost bins_8 25 2020.xls", replace
+putexcel A1:H1= "Examining OOP costs by categories: MA vs TM", merge bold border(bottom)
+
+putexcel B2:D2= "% with any OOP costs", merge border(bottom)
+putexcel F2:H2= "mean OOP costs", merge border(bottom)
+putexcel B3= "TM", border(bottom)
+putexcel C3= "MA", border(bottom)
+putexcel D3= "p-value", border(bottom)
+putexcel F3= "TM", border(bottom)
+putexcel G3= "MA", border(bottom)
+putexcel H3= "p-value", border(bottom)
+
+***
+putexcel A4= "total costs"
+svy, subpop(keep): logistic any_total_oop i.full_ma
+margins full_ma
+matlist r(table)
+matrix results=r(table)
+scalar ratetm=results[1,1]
+putexcel B4=matrix(ratetm), nformat(percent_d2)
+scalar ratema=results[1,2]
+putexcel C4=matrix(ratema), nformat(percent_d2)
+qui svy, subpop(keep): logistic any_total_oop i.full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,2]
+putexcel D4=matrix(pval), nformat(number_d2)
+*
+svy, subpop(any_total_oop_keep): mean total_oop if full_ma==0
+matrix aaa=e(b)
+putexcel F4=matrix(aaa), nformat(accountcur)
+svy, subpop(any_total_oop_keep): mean total_oop if full_ma==1
+matrix aab=e(b)
+putexcel G4=matrix(aab), nformat(accountcur)
+svy, subpop(any_total_oop_keep): reg total_oop full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel H4=matrix(pval), nformat(number_d2)
+
+
+***
+putexcel A5= "hospital costs"
+svy, subpop(keep): logistic any_hospital_oop i.full_ma
+margins full_ma
+matlist r(table)
+matrix results=r(table)
+scalar ratetm=results[1,1]
+putexcel B5=matrix(ratetm), nformat(percent_d2)
+scalar ratema=results[1,2]
+putexcel C5=matrix(ratema), nformat(percent_d2)
+qui svy, subpop(keep): logistic any_hospital_oop i.full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,2]
+putexcel D5=matrix(pval), nformat(number_d2)
+*
+svy, subpop(any_hospital_oop_keep): mean hospital_oop_last_yr if full_ma==0
+matrix aaa=e(b)
+putexcel F5=matrix(aaa), nformat(accountcur)
+svy, subpop(any_hospital_oop_keep): mean hospital_oop_last_yr if full_ma==1
+matrix aab=e(b)
+putexcel G5=matrix(aab), nformat(accountcur)
+svy, subpop(any_hospital_oop_keep): reg hospital_oop_last_yr full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel H5=matrix(pval), nformat(number_d2)
+
+
+*** 
+putexcel A6= "Physician visit costs"
+svy, subpop(keep): logistic any_doctor_oop i.full_ma
+margins full_ma
+matlist r(table)
+matrix results=r(table)
+scalar ratetm=results[1,1]
+putexcel B6=matrix(ratetm), nformat(percent_d2)
+scalar ratema=results[1,2]
+putexcel C6=matrix(ratema), nformat(percent_d2)
+qui svy, subpop(keep): logistic any_doctor_oop i.full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,2]
+putexcel D6=matrix(pval), nformat(number_d2)
+*
+svy, subpop(any_doctor_oop_keep): mean doctor_oop_last_yr if full_ma==0
+matrix aaa=e(b)
+putexcel F6=matrix(aaa), nformat(accountcur)
+svy, subpop(any_doctor_oop_keep): mean doctor_oop_last_yr if full_ma==1
+matrix aab=e(b)
+putexcel G6=matrix(aab), nformat(accountcur)
+svy, subpop(any_doctor_oop_keep): reg doctor_oop_last_yr full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel H6=matrix(pval), nformat(number_d2)
+
+***
+putexcel A7= "Prescription drug costs"
+svy, subpop(keep): logistic any_rx_oop i.full_ma
+margins full_ma
+matlist r(table)
+matrix results=r(table)
+scalar ratetm=results[1,1]
+putexcel B7=matrix(ratetm), nformat(percent_d2)
+scalar ratema=results[1,2]
+putexcel C7=matrix(ratema), nformat(percent_d2)
+qui svy, subpop(keep): logistic any_rx_oop i.full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,2]
+putexcel D7=matrix(pval), nformat(number_d2) 
+*
+svy, subpop(any_rx_oop_keep): mean rx_oop_last_yr if full_ma==0
+matrix aaa=e(b)
+putexcel F7=matrix(aaa), nformat(accountcur)
+svy, subpop(any_rx_oop_keep): mean rx_oop_last_yr if full_ma==1
+matrix aab=e(b)
+putexcel G7=matrix(aab), nformat(accountcur)
+svy, subpop(any_rx_oop_keep): reg rx_oop_last_yr full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel H7=matrix(pval), nformat(number_d2)
+
+***
+putexcel A8= "NH costs"
+svy, subpop(keep): logistic any_nh_oop i.full_ma
+margins full_ma
+matlist r(table)
+matrix results=r(table)
+scalar ratetm=results[1,1]
+putexcel B8=matrix(ratetm), nformat(percent_d2)
+scalar ratema=results[1,2]
+putexcel C8=matrix(ratema), nformat(percent_d2)
+qui svy, subpop(keep): logistic any_nh_oop i.full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,2]
+putexcel D8=matrix(pval), nformat(number_d2) 
+*
+svy, subpop(any_nh_oop_keep): mean nh_oop_last_yr if full_ma==0
+matrix aaa=e(b)
+putexcel F8=matrix(aaa), nformat(accountcur)
+svy, subpop(any_nh_oop_keep): mean nh_oop_last_yr if full_ma==1
+matrix aab=e(b)
+putexcel G8=matrix(aab), nformat(accountcur)
+svy, subpop(any_nh_oop_keep): reg nh_oop_last_yr full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel H8=matrix(pval), nformat(number_d2)
+
+***
+putexcel A9= "Helper costs"
+svy, subpop(keep): logistic any_helper_oop i.full_ma
+margins full_ma
+matlist r(table)
+matrix results=r(table)
+scalar ratetm=results[1,1]
+putexcel B9=matrix(ratetm), nformat(percent_d2)
+scalar ratema=results[1,2]
+putexcel C9=matrix(ratema), nformat(percent_d2)
+qui svy, subpop(keep): logistic any_helper_oop i.full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,2]
+putexcel D9=matrix(pval), nformat(number_d2) 
+*
+svy, subpop(any_helper_oop_keep): mean helper_oop_last_yr if full_ma==0
+matrix aaa=e(b)
+putexcel F9=matrix(aaa), nformat(accountcur)
+svy, subpop(any_helper_oop_keep): mean helper_oop_last_yr if full_ma==1
+matrix aab=e(b)
+putexcel G9=matrix(aab), nformat(accountcur)
+svy, subpop(any_helper_oop_keep): reg helper_oop_last_yr full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel H9=matrix(pval), nformat(number_d2)
+
+***
+putexcel A10= "Home modification/renovation costs"
+svy, subpop(keep): logistic any_home_oop i.full_ma
+margins full_ma
+matlist r(table)
+matrix results=r(table)
+scalar ratetm=results[1,1]
+putexcel B10=matrix(ratetm), nformat(percent_d2)
+scalar ratema=results[1,2]
+putexcel C10=matrix(ratema), nformat(percent_d2)
+qui svy, subpop(keep): logistic any_home_oop i.full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,2]
+putexcel D10=matrix(pval), nformat(number_d2) 
+*
+svy, subpop(any_home_oop_keep): mean home_oop_last_yr if full_ma==0
+matrix aaa=e(b)
+putexcel F10=matrix(aaa), nformat(accountcur)
+svy, subpop(any_home_oop_keep): mean home_oop_last_yr if full_ma==1
+matrix aab=e(b)
+putexcel G10=matrix(aab), nformat(accountcur)
+svy, subpop(any_home_oop_keep): reg home_oop_last_yr full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel H10=matrix(pval), nformat(number_d2)
+
+***
+putexcel A11= "Other costs"
+svy, subpop(keep): logistic any_other_oop i.full_ma
+margins full_ma
+matlist r(table)
+matrix results=r(table)
+scalar ratetm=results[1,1]
+putexcel B11=matrix(ratetm), nformat(percent_d2)
+scalar ratema=results[1,2]
+putexcel C11=matrix(ratema), nformat(percent_d2)
+qui svy, subpop(keep): logistic any_other_oop i.full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,2]
+putexcel D11=matrix(pval), nformat(number_d2) 
+*
+svy, subpop(any_other_oop_keep): mean other_oop_last_yr if full_ma==0
+matrix aaa=e(b)
+putexcel F11=matrix(aaa), nformat(accountcur)
+svy, subpop(any_other_oop_keep): mean other_oop_last_yr if full_ma==1
+matrix aab=e(b)
+putexcel G11=matrix(aab), nformat(accountcur)
+svy, subpop(any_other_oop_keep): reg other_oop_last_yr full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel H11=matrix(pval), nformat(number_d2)
+
+*********************************************************************
+
+svy, subpop(keep): tab full_ma
+foreach var of varlist any_total_oop any_hospital_oop any_doctor_oop any_rx_oop any_nh_oop any_helper_oop any_home_oop any_other_oop {
+svy, subpop(keep): tab `var' full_ma, column
+}
 
 tabstat total_oop_last_yr, statistics (mean sd) by(full_ma)
 
