@@ -378,6 +378,29 @@ set all_insurance3;
 run;
 
 
+H="making var for hosp admits in last year of life"
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\ip_06_17.dta" 
+keep admit_date bene_id
+
+merge m:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" , keepusing (spid)
+keep if _merge==3
+drop _merge bene_id
+
+merge m:1 spid using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\death_date.dta", keepusing (death_date)
+
+gen days_admit_death= death_date-admit_date
+replace days_admit_death=. if death_date==. | admit_date==.
+replace days_admit_death=. if days_admit_death<0
+gen hosp_lst_yr_ind=0
+replace hosp_lst_yr_ind=1 if days_admit_death>0 & days_admit_death<366
+egen num_admits_lst_yr=total(hosp_lst_yr_ind==1), by (spid)
+
+by spid, sort: gen pid=_n
+keep if pid==1
+drop pid admit_date death_date _merge days_admit_death hosp_lst_yr_ind
+
+ save "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\hosp admits eol.dta", replace
+
 H="putting dataset together"
  use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta"
  merge m:1 spid using "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\hh visits EOL.dta"
@@ -411,6 +434,9 @@ H="putting dataset together"
 *exclude those who have no days at home
 *==75
  replace keep=0 if home_days==0
+ 
+ drop _merge
+ merge m:1 spid using "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\hosp admits eol.dta"
 
 
 H="variable cleaning"
@@ -487,6 +513,11 @@ by spid: egen srhospice= min(hospicelml)
 *****cleaning up for move off server
 drop age total_caregiver_comp completed_nsoc eligible_nsoc nhats_death_month nhats_death_date nhats_death_day sr_othercancer_had sr_kidneycancer_had sr_coloncancer_had sr_crvovrnutrncancer_had sr_bladdercancer_had sr_prostatecancer_had sr_breastcancer_had sr_skincancer_had death_date
 
+*recode hospice days 
+recode hs_days (0=0)(1/999999=1), gen(hospice_ind)
+
+*recode num admits last year
+recode num_admits_lst_yr (1/14=1), gen(hospital_ind)
 
 
  save "D:\NHATS\Projects\MA and EOL care\cka_ MA vs TM EOL quality\data\final data\working file for move off server_ march 9 2020.dta", replace
@@ -528,16 +559,21 @@ svy, subpop(keepsw): mean swvisits_per30dah
 tab anyvisits if keep==1
 
 
-foreach var of varlist  female   educ_hs_ind  metro_ind medicaid livealone   sr_lung_dis_ever sr_heart_dis_ever sr_phq2_depressed sr_gad2_anxiety prob_dem srhospice {
+foreach var of varlist  female   educ_hs_ind  metro_ind medicaid livealone   sr_lung_dis_ever sr_heart_dis_ever sr_phq2_depressed sr_gad2_anxiety prob_dem hospice_ind hospital_ind {
 svy, subpop(keep): tab  anyvisits `var', row
 }
 
-foreach var of varlist  age3cat  race_cat income_cat homebound_cat adl_cat  {
+foreach var of varlist  age3cat  race_cat region income_cat homebound_cat adl_cat   {
 svy, subpop(keep): tab  anyvisits `var', row
 }
 
 svy, subpop(keep): mean home_days, over(anyvisits)
 svy, subpop(keep): reg home_days anyvisits
+svy, subpop(keep): mean hs_days, over(anyvisits)
+svy, subpop(keep): reg hs_days anyvisits
+svy, subpop(keep): mean num_admits_lst_yr, over(anyvisits)
+svy, subpop(keep): reg num_admits_lst_yr anyvisits
+
 
 
 
