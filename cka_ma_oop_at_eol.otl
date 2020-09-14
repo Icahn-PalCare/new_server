@@ -317,11 +317,12 @@ save "${datapath}\cka_ma_oop_at_eol.dta", replace
 
 
 H="merging in survey vars"
-*merge in with weight variables
+
+ *merge in with weight variables
 use "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta" 
 keep  secu stratum  id hhid
 destring id, replace
-save "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\secu stratum.dta"
+save "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\secu stratum.dta", replace
 
 use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta"
 keep wgtr hhid id core_year
@@ -335,9 +336,15 @@ save "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\weigh
 use "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\cka_ma_oop_at_eol.dta"
 destring id, replace
 sort hhid id core_year
-drop _merge
 merge hhid id core_year using  "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\weighting vars.dta"
 save "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\cka_ma_oop_at_eol.dta", replace
+
+sort id core_year
+drop _merge
+merge 1:1 id core_year using "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\use vars.dta"
+keep if _merge==3
+save "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\cka_ma_oop_at_eol.dta", replace
+
 
 H="variable cleaning"
 *VARIABLE CLEANING
@@ -370,7 +377,7 @@ recode `x'_last_yr (min/0=0)(0.000000000001/max=1), gen(any_`x')
 }
 
 *keep= no medicaid, no nursing home
-gen keep=1
+gen keep=1 if any_total_oop!=.
 replace keep=0 if ind_buyin==1
 *2000 individuals with at least one month medicaid
 replace keep=0 if mds_nh==1
@@ -397,6 +404,12 @@ gen `x'_keep = keep
 replace `x'_keep=0 if `x'==0
 }
 
+*gen keep variable to limit to ppl with use in any category
+foreach x in hospital_use nh_use doctor_use rx_use other_use home_use {
+gen `x'_keep = keep
+replace `x'_keep=0 if `x'==0
+}
+
 H="analysis"
 *ANALYSIS
 svyset secu [pweight=wgtr], strata(stratum_n) vce(linearized)
@@ -404,17 +417,22 @@ svy, subpop(keep): tab full_ma
 
 
 *examine proportions with any OOP spending
-putexcel set "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\examine cost bins_8 25 2020.xls", replace
-putexcel A1:H1= "Examining OOP costs by categories: MA vs TM", merge bold border(bottom)
+putexcel set "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\examine cost bins_9 3 2020.xls", replace
+putexcel A1:l1= "Examining OOP costs by categories: MA vs TM", merge bold border(bottom)
 
 putexcel B2:D2= "% with any OOP costs", merge border(bottom)
-putexcel F2:H2= "mean OOP costs", merge border(bottom)
+putexcel F2:H2= "mean OOP costs- everyone", merge border(bottom)
+putexcel J2:L2= "mean OOP costs- any use", merge border(bottom)
+
 putexcel B3= "TM", border(bottom)
 putexcel C3= "MA", border(bottom)
 putexcel D3= "p-value", border(bottom)
 putexcel F3= "TM", border(bottom)
 putexcel G3= "MA", border(bottom)
 putexcel H3= "p-value", border(bottom)
+putexcel J3= "TM", border(bottom)
+putexcel K3= "MA", border(bottom)
+putexcel L3= "p-value", border(bottom)
 
 ***
 putexcel A4= "total costs"
@@ -432,13 +450,13 @@ matrix results=r(table)
 scalar pval=results[4,2]
 putexcel D4=matrix(pval), nformat(number_d2)
 *
-svy, subpop(any_total_oop_keep): mean total_oop if full_ma==0
+svy, subpop(keep): mean total_oop if full_ma==0
 matrix aaa=e(b)
 putexcel F4=matrix(aaa), nformat(accountcur)
-svy, subpop(any_total_oop_keep): mean total_oop if full_ma==1
+svy, subpop(keep): mean total_oop if full_ma==1
 matrix aab=e(b)
 putexcel G4=matrix(aab), nformat(accountcur)
-svy, subpop(any_total_oop_keep): reg total_oop full_ma
+svy, subpop(keep): reg total_oop full_ma
 matlist r(table)
 matrix results=r(table)
 scalar pval=results[4,1]
@@ -461,18 +479,29 @@ matrix results=r(table)
 scalar pval=results[4,2]
 putexcel D5=matrix(pval), nformat(number_d2)
 *
-svy, subpop(any_hospital_oop_keep): mean hospital_oop_last_yr if full_ma==0
+svy, subpop(keep): mean hospital_oop_last_yr if full_ma==0
 matrix aaa=e(b)
 putexcel F5=matrix(aaa), nformat(accountcur)
-svy, subpop(any_hospital_oop_keep): mean hospital_oop_last_yr if full_ma==1
+svy, subpop(keep): mean hospital_oop_last_yr if full_ma==1
 matrix aab=e(b)
 putexcel G5=matrix(aab), nformat(accountcur)
-svy, subpop(any_hospital_oop_keep): reg hospital_oop_last_yr full_ma
+svy, subpop(keep): reg hospital_oop_last_yr full_ma
 matlist r(table)
 matrix results=r(table)
 scalar pval=results[4,1]
 putexcel H5=matrix(pval), nformat(number_d2)
-
+*
+svy, subpop(hospital_use_keep): mean hospital_oop_last_yr if full_ma==0
+matrix aaa=e(b)
+putexcel J5=matrix(aaa), nformat(accountcur)
+svy, subpop(hospital_use_keep): mean hospital_oop_last_yr if full_ma==1
+matrix aab=e(b)
+putexcel K5=matrix(aab), nformat(accountcur)
+svy, subpop(hospital_use_keep): reg hospital_oop_last_yr full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel L5=matrix(pval), nformat(number_d2)
 
 *** 
 putexcel A6= "Physician visit costs"
@@ -490,18 +519,29 @@ matrix results=r(table)
 scalar pval=results[4,2]
 putexcel D6=matrix(pval), nformat(number_d2)
 *
-svy, subpop(any_doctor_oop_keep): mean doctor_oop_last_yr if full_ma==0
+svy, subpop(keep): mean doctor_oop_last_yr if full_ma==0
 matrix aaa=e(b)
 putexcel F6=matrix(aaa), nformat(accountcur)
-svy, subpop(any_doctor_oop_keep): mean doctor_oop_last_yr if full_ma==1
+svy, subpop(keep): mean doctor_oop_last_yr if full_ma==1
 matrix aab=e(b)
 putexcel G6=matrix(aab), nformat(accountcur)
-svy, subpop(any_doctor_oop_keep): reg doctor_oop_last_yr full_ma
+svy, subpop(keep): reg doctor_oop_last_yr full_ma
 matlist r(table)
 matrix results=r(table)
 scalar pval=results[4,1]
 putexcel H6=matrix(pval), nformat(number_d2)
-
+*
+svy, subpop(doctor_use_keep): mean doctor_oop_last_yr if full_ma==0
+matrix aaa=e(b)
+putexcel J6=matrix(aaa), nformat(accountcur)
+svy, subpop(doctor_use_keep): mean doctor_oop_last_yr if full_ma==1
+matrix aab=e(b)
+putexcel K6=matrix(aab), nformat(accountcur)
+svy, subpop(doctor_use_keep): reg doctor_oop_last_yr full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel L6=matrix(pval), nformat(number_d2)
 ***
 putexcel A7= "Prescription drug costs"
 svy, subpop(keep): logistic any_rx_oop i.full_ma
@@ -518,13 +558,13 @@ matrix results=r(table)
 scalar pval=results[4,2]
 putexcel D7=matrix(pval), nformat(number_d2) 
 *
-svy, subpop(any_rx_oop_keep): mean rx_oop_last_yr if full_ma==0
+svy, subpop(keep): mean rx_oop_last_yr if full_ma==0
 matrix aaa=e(b)
 putexcel F7=matrix(aaa), nformat(accountcur)
-svy, subpop(any_rx_oop_keep): mean rx_oop_last_yr if full_ma==1
+svy, subpop(keep): mean rx_oop_last_yr if full_ma==1
 matrix aab=e(b)
 putexcel G7=matrix(aab), nformat(accountcur)
-svy, subpop(any_rx_oop_keep): reg rx_oop_last_yr full_ma
+svy, subpop(keep): reg rx_oop_last_yr full_ma
 matlist r(table)
 matrix results=r(table)
 scalar pval=results[4,1]
@@ -546,18 +586,29 @@ matrix results=r(table)
 scalar pval=results[4,2]
 putexcel D8=matrix(pval), nformat(number_d2) 
 *
-svy, subpop(any_nh_oop_keep): mean nh_oop_last_yr if full_ma==0
+svy, subpop(keep): mean nh_oop_last_yr if full_ma==0
 matrix aaa=e(b)
 putexcel F8=matrix(aaa), nformat(accountcur)
-svy, subpop(any_nh_oop_keep): mean nh_oop_last_yr if full_ma==1
+svy, subpop(keep): mean nh_oop_last_yr if full_ma==1
 matrix aab=e(b)
 putexcel G8=matrix(aab), nformat(accountcur)
-svy, subpop(any_nh_oop_keep): reg nh_oop_last_yr full_ma
+svy, subpop(keep): reg nh_oop_last_yr full_ma
 matlist r(table)
 matrix results=r(table)
 scalar pval=results[4,1]
 putexcel H8=matrix(pval), nformat(number_d2)
-
+*
+svy, subpop(nh_use_keep): mean nh_oop_last_yr if full_ma==0
+matrix aaa=e(b)
+putexcel J8=matrix(aaa), nformat(accountcur)
+svy, subpop(nh_use_keep): mean nh_oop_last_yr if full_ma==1
+matrix aab=e(b)
+putexcel K8=matrix(aab), nformat(accountcur)
+svy, subpop(nh_use_keep): reg nh_oop_last_yr full_ma
+matlist r(table)
+matrix results=r(table)
+scalar pval=results[4,1]
+putexcel L8=matrix(pval), nformat(number_d2)
 ***
 putexcel A9= "Helper costs"
 svy, subpop(keep): logistic any_helper_oop i.full_ma
@@ -574,13 +625,13 @@ matrix results=r(table)
 scalar pval=results[4,2]
 putexcel D9=matrix(pval), nformat(number_d2) 
 *
-svy, subpop(any_helper_oop_keep): mean helper_oop_last_yr if full_ma==0
+svy, subpop(keep): mean helper_oop_last_yr if full_ma==0
 matrix aaa=e(b)
 putexcel F9=matrix(aaa), nformat(accountcur)
-svy, subpop(any_helper_oop_keep): mean helper_oop_last_yr if full_ma==1
+svy, subpop(keep): mean helper_oop_last_yr if full_ma==1
 matrix aab=e(b)
 putexcel G9=matrix(aab), nformat(accountcur)
-svy, subpop(any_helper_oop_keep): reg helper_oop_last_yr full_ma
+svy, subpop(keep): reg helper_oop_last_yr full_ma
 matlist r(table)
 matrix results=r(table)
 scalar pval=results[4,1]
@@ -602,13 +653,13 @@ matrix results=r(table)
 scalar pval=results[4,2]
 putexcel D10=matrix(pval), nformat(number_d2) 
 *
-svy, subpop(any_home_oop_keep): mean home_oop_last_yr if full_ma==0
+svy, subpop(keep): mean home_oop_last_yr if full_ma==0
 matrix aaa=e(b)
 putexcel F10=matrix(aaa), nformat(accountcur)
-svy, subpop(any_home_oop_keep): mean home_oop_last_yr if full_ma==1
+svy, subpop(keep): mean home_oop_last_yr if full_ma==1
 matrix aab=e(b)
 putexcel G10=matrix(aab), nformat(accountcur)
-svy, subpop(any_home_oop_keep): reg home_oop_last_yr full_ma
+svy, subpop(keep): reg home_oop_last_yr full_ma
 matlist r(table)
 matrix results=r(table)
 scalar pval=results[4,1]
@@ -630,13 +681,13 @@ matrix results=r(table)
 scalar pval=results[4,2]
 putexcel D11=matrix(pval), nformat(number_d2) 
 *
-svy, subpop(any_other_oop_keep): mean other_oop_last_yr if full_ma==0
+svy, subpop(keep): mean other_oop_last_yr if full_ma==0
 matrix aaa=e(b)
 putexcel F11=matrix(aaa), nformat(accountcur)
-svy, subpop(any_other_oop_keep): mean other_oop_last_yr if full_ma==1
+svy, subpop(keep): mean other_oop_last_yr if full_ma==1
 matrix aab=e(b)
 putexcel G11=matrix(aab), nformat(accountcur)
-svy, subpop(any_other_oop_keep): reg other_oop_last_yr full_ma
+svy, subpop(keep): reg other_oop_last_yr full_ma
 matlist r(table)
 matrix results=r(table)
 scalar pval=results[4,1]
