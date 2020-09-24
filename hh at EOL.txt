@@ -437,6 +437,9 @@ H="putting dataset together"
 *==44
  replace keep=0 if home_days==0
  
+ *exclude those on hospice whole last year
+ replace keep=0 if hs_days>364 & hs_days!=.
+ 
  drop _merge
  merge m:1 spid using "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\hosp admits eol.dta"
 
@@ -567,7 +570,7 @@ svy, subpop(keepsw): mean swvisits_per30dah
 
 *table 1
 tab anyvisits if keep==1
-
+svy, subpop(keep): tab anyvisits
 
 foreach var of varlist  female   educ_hs_ind  metro_ind medicaid income15kless livealone   sr_lung_dis_ever sr_heart_dis_ever sr_phq2_depressed sr_gad2_anxiety prob_dem hospice_ind hospital_ind {
 svy, subpop(keep): tab   `var' anyvisits, column
@@ -584,6 +587,7 @@ svy, subpop(keep): reg hs_days anyvisits
 svy, subpop(keep): mean num_admits_lst_yr, over(anyvisits)
 svy, subpop(keep): reg num_admits_lst_yr anyvisits
 svy, subpop(keep): mean ivwdeathdays, over(anyvisits)
+svy, subpop(keep): reg ivwdeathdays anyvisits
 
 
 
