@@ -30,7 +30,14 @@ global outpath "D:\HRS\Projects\medicare_advantage\cka_telemed access serious il
 
 D:\NHATS\Projects\serious_illness\cka_telemed access serious illness
 
-H="get telemed data from nhats"
+H="making ser ill file"
+ use "D:\NHATS\Projects\serious_illness\ask_identifying_serious_illness_icd9_to_10\data\final_data\serious_ill_nhats_1_6_full_6m.dta" 
+ 
+ keep spid wave ffs_6m ab_6m hmo_6m ind_smi_any smi_count ind_hs_p12m ind_icu_p12m mult_ed_vis_p12m ind_ed_vis_p12m n_ed_vis_p12m mult_ip_adm_p12m ind_hs_p6m ind_icu_p6m mult_ed_vis_p6m ind_ed_vis_p6m n_ed_vis_p6m mult_ip_adm_p6m criteria_none criteria_all criteria_smi criteria_c criteria_b smi_and_adl criteria_a ind_ed_op_or_ip_6m ind_ed_op_6m adl_ind ser_med_illness multi_any_ind smi_cva_ind smi_hip_ind smi_neurodeg_ind smi_hiv_ind smi_liver_ind smi_diab_compl_ind smi_copd_ind smi_chf_ind smi_renal_ind smi_cancer_ind smi_dem_ind el_cancer_6m hip_icd10 dementia_icd10 cva_icd10 chf_icd10 cad_icd10 renal_icd10 liver_icd10 pvd_icd10 als_icd10 hiv_icd10 diabetes_icd10 copd_icd10 esrd_icd10 cancer_icd10 park neurodeg park_count
+ 
+ save "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\data\int_data\ser ill vars.dta"
+
+H="get telemed data from nhats, merge in rest"
  *PULLING NHATS TELEMED DATA
  
 foreach num of numlist 1 2 3 4 5 6 7 8 9 {
@@ -66,14 +73,17 @@ destring wave, replace
 sort spid wave
 merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_9.dta" 
 
+drop _merge
+merge 1:1 spid wave using "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\data\int_data\ser ill vars.dta"
+
 H="variable cleaning"
 *****VARIABLE CLEANING*******
 recode homebound_cat (1/3=1)(4=0), gen(any_homebound)
 
 *examine definitions telemed readiness
-gen no_cell_computer_tablet=1
-replace no_cell_computer_tablet=0 if cellphone==1 | computer==1 | tablet==1
-tab no_cell_computer_tablet
+gen no_device=1
+replace no_device=0 if cellphone==1 | computer==1 | tablet==1
+tab no_device
 
 gen no_device_et=no_cell_computer_tablet
 replace no_device_et= 0 if emailtext==1
@@ -81,55 +91,655 @@ replace no_device_et= 0 if emailtext==1
 gen no_device_et_online= no_device_et
 replace no_device_et_online= 0 if online==1
 
+*define subpop-- check with evan on if this is correct
 gen keep=1
 replace keep=0 if age<70
+replace keep=0 if ffs_6m!=1 
+replace keep=0 if ab_6m!=1  
+replace keep=0 if hmo_6m!=1
+tab keep
+
+
+*the following tech vars aren't asked if online==0. making them 0 not missing
+foreach var of varlist shoponli1 shoponli2 shoponli3 socialnet intrntmd1 intrntmd2 intrntmd3 {
+tab `var' online, m
+}
+foreach var of varlist shoponli1 shoponli2 shoponli3 socialnet intrntmd1 intrntmd2 intrntmd3 {
+replace `var'=0 if online==0
+}
+
+
+*renaming the online vars for clarity
+rename shoponli1 online_grocery 
+rename shoponli2 online_banking 
+rename shoponli3 online_rxrefill 
+rename intrntmd1 online_healthprvdr
+rename intrntmd2 online_healthinsur
+rename intrntmd3 online_healthconds
+
+*age
+recode age (70/75=1 "70-74")(75/80=2 "75-80")(80/85=3 "80-85")(85/max=4 "85+"), gen(age_cat)
+replace age_cat=. if age<70
+
+*iadls
+recode iadl_index (0=0 "0")(1=1 "1")(2/5=2 "2+"), gen (iadl_3cat)
+
+*adls
+recode adl_index (0=0 "0")(1=1 "1")(2/6=2 "2+"), gen (adl_3cat)
 
 
 H="analysis"
 
 ****ANALYSIS***********
+putexcel set "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\table1_sept27.xls", replace
+putexcel A1:E1= "Table 1. Characteristics of those with and without serious illness, waves 1-6 (N=19,580)", merge bold border(bottom)
+putexcel C2= "No Serious Illness (17,877 obs)",  bold border(bottom)
+putexcel D2= "Serious Illness (1,693 obs)",  bold border(bottom)
+putexcel E2= "p-value",  bold border(bottom)
+
+tab criteria_b if keep==1
 svyset  spid [pweight=anfinwgt], strat(varstrat)
 
-svy, subpop(keep): logistic cellphone i.wave
-margins wave
-marginsplot
-graph save "Graph" "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\cellphone.gph", replace
+putexcel A4= "Age"
+putexcel B5= "70-74"
+putexcel B6= "75-80"
+putexcel B7= "80-85"
+putexcel B8= "85+"
+
+svy, subpop(keep): tab criteria_b
+mat a=e(b)
+putexcel C3=matrix(a), nformat(percent_d2)
+
+svy, subpop(keep): tab age_cat if criteria_b==0
+mat a=e(b)'
+putexcel C5= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab age_cat if criteria_b==1
+mat b=e(b)'
+putexcel D5= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab age_cat criteria_b, column
+mat c=e(p_Pear)
+putexcel E5= matrix(c), nformat(number_d2)
+
+putexcel A10= "Race"
+putexcel B11= "White, Non-Hispanic"
+putexcel B12= "Black, Non-Hispanic"
+putexcel B13= "Other (Am Indian/Asian/Nativ Hawaiian)"
+putexcel B14= "Hispanic"
+svy, subpop(keep): tab race_cat if criteria_b==0
+mat a=e(b)'
+putexcel C11= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab race_cat if criteria_b==1
+mat b=e(b)'
+putexcel D11= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab race_cat criteria_b, column
+mat c=e(p_Pear)
+putexcel E11= matrix(c), nformat(number_d2)
+
+putexcel A16= "Married or lives with partner"
+putexcel B17= "No"
+putexcel B18= "Yes"
+svy, subpop(keep): tab marriedpartnered if criteria_b==0
+mat a=e(b)'
+putexcel C17= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab marriedpartnered if criteria_b==1
+mat b=e(b)'
+putexcel D17= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab marriedpartnered criteria_b, column
+mat c=e(p_Pear)
+putexcel E17= matrix(c), nformat(number_d2)
+
+putexcel A20= "Lives alone"
+putexcel B21= "No"
+putexcel B22= "Yes"
+svy, subpop(keep): tab livealone if criteria_b==0
+mat a=e(b)'
+putexcel C21= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab livealone if criteria_b==1
+mat b=e(b)'
+putexcel D21= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab livealone criteria_b, column
+mat c=e(p_Pear)
+putexcel E21= matrix(c), nformat(number_d2)
 
 
-svy, subpop(keep): logistic computer i.wave
-margins wave
-marginsplot
-graph save "Graph" "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\computer.gph", replace
+putexcel A24= "Education"
+putexcel B25= "Less than high school"
+putexcel B26= "High school/GED"
+putexcel B27= "Some college"
+putexcel B28= "College or more"
+svy, subpop(keep): tab education if criteria_b==0
+mat a=e(b)'
+putexcel C25= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab education if criteria_b==1
+mat b=e(b)'
+putexcel D25= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab education criteria_b, column
+mat c=e(p_Pear)
+putexcel E25= matrix(c), nformat(number_d2)
 
-svy, subpop(keep): logistic tablet i.wave
-margins wave
-marginsplot
-graph save "Graph" "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\tablet.gph", replace
+putexcel A30= "Metropolitan region"
+putexcel B31= "No"
+putexcel B32= "Yes"
+svy, subpop(keep): tab metro_ind if criteria_b==0
+mat a=e(b)'
+putexcel C31= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab metro_ind if criteria_b==1
+mat b=e(b)'
+putexcel D31= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab metro_ind criteria_b, column
+mat c=e(p_Pear)
+putexcel E31= matrix(c), nformat(number_d2)
+
+putexcel A34= "Income quartile"
+putexcel B35= "Lowest"
+putexcel B36= "2nd"
+putexcel B37= "3rd"
+putexcel B38= "Highest"
+svy, subpop(keep): tab income_quart if criteria_b==0
+mat a=e(b)'
+putexcel C35= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab income_quart if criteria_b==1
+mat b=e(b)'
+putexcel D35= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab income_quart criteria_b, column
+mat c=e(p_Pear)
+putexcel E35= matrix(c), nformat(number_d2)
+
+putexcel A40= "Medicaid"
+putexcel B41= "No"
+putexcel B42= "Yes"
+svy, subpop(keep): tab medicaid if criteria_b==0
+mat a=e(b)'
+putexcel C41= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab medicaid if criteria_b==1
+mat b=e(b)'
+putexcel D41= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab medicaid criteria_b, column
+mat c=e(p_Pear)
+putexcel E41= matrix(c), nformat(number_d2)
+
+putexcel A44= "Self-reported health"
+putexcel B45= "Excellent"
+putexcel B46= "Very good"
+putexcel B47= "Good"
+putexcel B48= "Fair"
+putexcel B49= "Poor"
+svy, subpop(keep): tab srh if criteria_b==0
+mat a=e(b)'
+putexcel C45= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab srh if criteria_b==1
+mat b=e(b)'
+putexcel D45= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab srh criteria_b, column
+mat c=e(p_Pear)
+putexcel E45= matrix(c), nformat(number_d2)
+
+putexcel A51= "IADLs"
+putexcel B52= "0"
+putexcel B53= "1"
+putexcel B54= "2+"
+svy, subpop(keep): tab iadl_3cat if criteria_b==0
+mat a=e(b)'
+putexcel C52= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab iadl_3cat if criteria_b==1
+mat b=e(b)'
+putexcel D52= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab iadl_3cat criteria_b, column
+mat c=e(p_Pear)
+putexcel E52= matrix(c), nformat(number_d2)
+
+putexcel A56= "ADLs"
+putexcel B57= "0"
+putexcel B58= "1"
+putexcel B59= "2+"
+svy, subpop(keep): tab adl_3cat if criteria_b==0
+mat a=e(b)'
+putexcel C57= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab adl_3cat if criteria_b==1
+mat b=e(b)'
+putexcel D57= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab adl_3cat criteria_b, column
+mat c=e(p_Pear)
+putexcel E57= matrix(c), nformat(number_d2)
+
+putexcel A61= "Homebound"
+putexcel B62= "No"
+putexcel B63= "Yes"
+svy, subpop(keep): tab any_homebound if criteria_b==0
+mat a=e(b)'
+putexcel C62= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab any_homebound if criteria_b==1
+mat b=e(b)'
+putexcel D62= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab any_homebound criteria_b, column
+mat c=e(p_Pear)
+putexcel E62= matrix(c), nformat(number_d2)
+
+putexcel A65= "Multiple admissions prior year"
+putexcel B66= "No"
+putexcel B67= "Yes"
+svy, subpop(keep): tab mult_ip_adm_p12m if criteria_b==0
+mat a=e(b)'
+putexcel C66= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab mult_ip_adm_p12m if criteria_b==1
+mat b=e(b)'
+putexcel D66= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab mult_ip_adm_p12m criteria_b, column
+mat c=e(p_Pear)
+putexcel E66= matrix(c), nformat(number_d2)
+
+putexcel A69= "Dementia"
+putexcel B70= "No"
+putexcel B71= "Yes"
+svy, subpop(keep): tab smi_dem_ind if criteria_b==0
+mat a=e(b)'
+putexcel C70= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab smi_dem_ind if criteria_b==1
+mat b=e(b)'
+putexcel D70= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab smi_dem_ind criteria_b, column
+mat c=e(p_Pear)
+putexcel E70= matrix(c), nformat(number_d2)
+
+putexcel A73= "Cancer"
+putexcel B74= "No"
+putexcel B75= "Yes"
+svy, subpop(keep): tab smi_cancer_ind if criteria_b==0
+mat a=e(b)'
+putexcel C74= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab smi_cancer_ind if criteria_b==1
+mat b=e(b)'
+putexcel D74= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab smi_cancer_ind criteria_b, column
+mat c=e(p_Pear)
+putexcel E74= matrix(c), nformat(number_d2)
+
+putexcel A77= "Renal failure"
+putexcel B78= "No"
+putexcel B79= "Yes"
+svy, subpop(keep): tab smi_renal_ind if criteria_b==0
+mat a=e(b)'
+putexcel C78= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab smi_renal_ind if criteria_b==1
+mat b=e(b)'
+putexcel D78= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab smi_renal_ind criteria_b, column
+mat c=e(p_Pear)
+putexcel E78= matrix(c), nformat(number_d2)
+
+putexcel A81= "CHF"
+putexcel B82= "No"
+putexcel B83= "Yes"
+svy, subpop(keep): tab smi_chf_ind if criteria_b==0
+mat a=e(b)'
+putexcel C82= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab smi_chf_ind if criteria_b==1
+mat b=e(b)'
+putexcel D82= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab smi_chf_ind criteria_b, column
+mat c=e(p_Pear)
+putexcel E82= matrix(c), nformat(number_d2)
+
+putexcel A85= "COPD"
+putexcel B86= "No"
+putexcel B87= "Yes"
+svy, subpop(keep): tab smi_copd_ind if criteria_b==0
+mat a=e(b)'
+putexcel C86= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab smi_copd_ind if criteria_b==1
+mat b=e(b)'
+putexcel D86= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab smi_copd_ind criteria_b, column
+mat c=e(p_Pear)
+putexcel E86= matrix(c), nformat(number_d2)
+
+putexcel A89= "Diabetes with complications"
+putexcel B90= "No"
+putexcel B91= "Yes"
+svy, subpop(keep): tab smi_diab_compl_ind if criteria_b==0
+mat a=e(b)'
+putexcel C90= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab smi_diab_compl_ind if criteria_b==1
+mat b=e(b)'
+putexcel D90= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab smi_diab_compl_ind criteria_b, column
+mat c=e(p_Pear)
+putexcel E90= matrix(c), nformat(number_d2)
+
+putexcel A93= "Liver failure"
+putexcel B94= "No"
+putexcel B95= "Yes"
+svy, subpop(keep): tab smi_liver_ind if criteria_b==0
+mat a=e(b)'
+putexcel C94= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab smi_liver_ind if criteria_b==1
+mat b=e(b)'
+putexcel D94= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab smi_liver_ind criteria_b, column
+mat c=e(p_Pear)
+putexcel E94= matrix(c), nformat(number_d2)
 
 
-svy, subpop(keep): logistic emailtext i.wave
-margins wave
-marginsplot
-graph save "Graph" "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\emailtext.gph", replace
+putexcel A97= "Hip fracture"
+putexcel B98= "No"
+putexcel B99= "Yes"
+svy, subpop(keep): tab smi_hip_ind if criteria_b==0
+mat a=e(b)'
+putexcel C98= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab smi_hip_ind if criteria_b==1
+mat b=e(b)'
+putexcel D98= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab smi_hip_ind criteria_b, column
+mat c=e(p_Pear)
+putexcel E98= matrix(c), nformat(number_d2)
 
-svy, subpop(keep): logistic online i.wave
-margins wave
-marginsplot
-graph save "Graph" "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\online.gph", replace
+putexcel A101= "Stroke"
+putexcel B102= "No"
+putexcel B103= "Yes"
+svy, subpop(keep): tab smi_cva_ind if criteria_b==0
+mat a=e(b)'
+putexcel C102= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab smi_cva_ind if criteria_b==1
+mat b=e(b)'
+putexcel D102= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab smi_cva_ind criteria_b, column
+mat c=e(p_Pear)
+putexcel E102= matrix(c), nformat(number_d2)
 
-graph combine "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\cellphone.gph" ///
-"D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\computer.gph" ///
-"D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\tablet.gph" ///
-"D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\emailtext.gph" ///
-"D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\online.gph"
+putexcel A105= "Depression"
+putexcel B106= "No"
+putexcel B107= "Yes"
+svy, subpop(keep): tab sr_phq2_depressed if criteria_b==0
+mat a=e(b)'
+putexcel C106= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab sr_phq2_depressed if criteria_b==1
+mat b=e(b)'
+putexcel D106= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab sr_phq2_depressed criteria_b, column
+mat c=e(p_Pear)
+putexcel E106= matrix(c), nformat(number_d2)
+
+putexcel A109= "Anxiety"
+putexcel B110= "No"
+putexcel B111= "Yes"
+svy, subpop(keep): tab sr_gad2_anxiety if criteria_b==0
+mat a=e(b)'
+putexcel C110= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab sr_gad2_anxiety if criteria_b==1
+mat b=e(b)'
+putexcel D110= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab sr_gad2_anxiety criteria_b, column
+mat c=e(p_Pear)
+putexcel E110= matrix(c), nformat(number_d2)
 
 
-svy, subpop(keep): logistic no_device_et_online i.wave##i.sr_hosp_ind
-margins wave#sr_hosp_ind
-marginsplot
+putexcel A113= "Cellphone at home"
+putexcel B114= "No"
+putexcel B115= "Yes"
+svy, subpop(keep): tab cellphone if criteria_b==0
+mat a=e(b)'
+putexcel C114= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab cellphone if criteria_b==1
+mat b=e(b)'
+putexcel D114= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab cellphone criteria_b, column
+mat c=e(p_Pear)
+putexcel E114= matrix(c), nformat(number_d2)
 
-svy, subpop(keep): logistic no_device_et_online i.wave##i.white
-margins wave#white
-marginsplot
+putexcel A117= "Computer at home"
+putexcel B118= "No"
+putexcel B119= "Yes"
+svy, subpop(keep): tab computer if criteria_b==0
+mat a=e(b)'
+putexcel C118= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab computer if criteria_b==1
+mat b=e(b)'
+putexcel D118= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab computer criteria_b, column
+mat c=e(p_Pear)
+putexcel E118= matrix(c), nformat(number_d2)
 
-no_device_et_online
+putexcel A121= "Tablet at home"
+putexcel B122= "No"
+putexcel B123= "Yes"
+svy, subpop(keep): tab tablet if criteria_b==0
+mat a=e(b)'
+putexcel C122= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab tablet if criteria_b==1
+mat b=e(b)'
+putexcel D122= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab tablet criteria_b, column
+mat c=e(p_Pear)
+putexcel E122= matrix(c), nformat(number_d2)
+
+putexcel A125= "Email or text"
+putexcel B126= "No"
+putexcel B127= "Yes"
+svy, subpop(keep): tab emailtext if criteria_b==0
+mat a=e(b)'
+putexcel C126= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab emailtext if criteria_b==1
+mat b=e(b)'
+putexcel D126= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab emailtext criteria_b, column
+mat c=e(p_Pear)
+putexcel E126= matrix(c), nformat(number_d2)
+
+
+putexcel A129= "Go online other than email/text"
+putexcel B130= "No"
+putexcel B131= "Yes"
+svy, subpop(keep): tab online if criteria_b==0
+mat a=e(b)'
+putexcel C130= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab online if criteria_b==1
+mat b=e(b)'
+putexcel D130= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab online criteria_b, column
+mat c=e(p_Pear)
+putexcel E130= matrix(c), nformat(number_d2)
+
+putexcel A133= "Online grocery shopping"
+putexcel B134= "No"
+putexcel B135= "Yes"
+svy, subpop(keep): tab online_grocery if criteria_b==0
+mat a=e(b)'
+putexcel C134= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab online_grocery if criteria_b==1
+mat b=e(b)'
+putexcel D134= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab online_grocery criteria_b, column
+mat c=e(p_Pear)
+putexcel E134= matrix(c), nformat(number_d2)
+
+putexcel A137= "Online banking"
+putexcel B138= "No"
+putexcel B139= "Yes"
+svy, subpop(keep): tab online_banking if criteria_b==0
+mat a=e(b)'
+putexcel C138= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab online_banking if criteria_b==1
+mat b=e(b)'
+putexcel D138= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab online_banking criteria_b, column
+mat c=e(p_Pear)
+putexcel E138= matrix(c), nformat(number_d2)
+
+putexcel A141= "Online Rx refills"
+putexcel B142= "No"
+putexcel B143= "Yes"
+svy, subpop(keep): tab online_rxrefill if criteria_b==0
+mat a=e(b)'
+putexcel C142= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab online_rxrefill if criteria_b==1
+mat b=e(b)'
+putexcel D142= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab online_rxrefill criteria_b, column
+mat c=e(p_Pear)
+putexcel E142= matrix(c), nformat(number_d2)
+
+putexcel A145= "Social networking websites"
+putexcel B146= "No"
+putexcel B147= "Yes"
+svy, subpop(keep): tab socialnet if criteria_b==0
+mat a=e(b)'
+putexcel C146= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab socialnet if criteria_b==1
+mat b=e(b)'
+putexcel D146= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab socialnet criteria_b, column
+mat c=e(p_Pear)
+putexcel E146= matrix(c), nformat(number_d2)
+
+putexcel A149= "Go online to communicate with health provider"
+putexcel B150= "No"
+putexcel B151= "Yes"
+svy, subpop(keep): tab online_healthprvdr if criteria_b==0
+mat a=e(b)'
+putexcel C150= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab online_healthprvdr if criteria_b==1
+mat b=e(b)'
+putexcel D150= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab online_healthprvdr criteria_b, column
+mat c=e(p_Pear)
+putexcel E150= matrix(c), nformat(number_d2)
+
+
+putexcel A153= "Go online to get health insurance information"
+putexcel B154= "No"
+putexcel B155= "Yes"
+svy, subpop(keep): tab online_healthinsur if criteria_b==0
+mat a=e(b)'
+putexcel C154= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab online_healthinsur if criteria_b==1
+mat b=e(b)'
+putexcel D154= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab online_healthinsur criteria_b, column
+mat c=e(p_Pear)
+putexcel E154= matrix(c), nformat(number_d2)
+
+putexcel A157= "Go online to look up information about health conditions"
+putexcel B158= "No"
+putexcel B159= "Yes"
+svy, subpop(keep): tab online_healthconds if criteria_b==0
+mat a=e(b)'
+putexcel C158= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab online_healthconds if criteria_b==1
+mat b=e(b)'
+putexcel D158= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab online_healthconds criteria_b, column
+mat c=e(p_Pear)
+putexcel E158= matrix(c), nformat(number_d2)
+
+
+
+
+
+
+*************TRENDS OVER TIME************
+
+putexcel set "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\fig1_sept27.xls", replace
+putexcel B2:D2= "Data for Figure 1. % with no device by wave and serious illness status", merge bold border(bottom)
+putexcel B3= "Wave",  bold border(bottom)
+putexcel C3= "No serious illness",  bold border(bottom)
+putexcel D3= "Serious illness",  bold border(bottom)
+
+putexcel B4= "1"
+putexcel B5= "2"
+putexcel B6= "3"
+putexcel B7= "4"
+putexcel B8= "5"
+putexcel B9= "6"
+
+
+svy, subpop(keep): logistic no_device i.wave##i.criteria_b
+margins i.wave#i.criteria_b
+matlist r(table)
+matrix results=r(table)
+scalar aa=results[1,1]
+putexcel C4=matrix(aa), nformat(percent_d2)
+scalar ab=results[1,2]
+putexcel D4=matrix(ab), nformat(percent_d2)
+
+scalar aa=results[1,3]
+putexcel C5=matrix(aa), nformat(percent_d2)
+scalar ab=results[1,4]
+putexcel D5=matrix(ab), nformat(percent_d2)
+
+scalar aa=results[1,5]
+putexcel C6=matrix(aa), nformat(percent_d2)
+scalar ab=results[1,6]
+putexcel D6=matrix(ab), nformat(percent_d2)
+
+scalar aa=results[1,7]
+putexcel C7=matrix(aa), nformat(percent_d2)
+scalar ab=results[1,8]
+putexcel D7=matrix(ab), nformat(percent_d2)
+
+scalar aa=results[1,9]
+putexcel C8=matrix(aa), nformat(percent_d2)
+scalar ab=results[1,10]
+putexcel D8=matrix(ab), nformat(percent_d2)
+
+scalar aa=results[1,11]
+putexcel C9=matrix(aa), nformat(percent_d2)
+scalar ab=results[1,12]
+putexcel D9=matrix(ab), nformat(percent_d2)
+
+
+
+putexcel K2:M2= "Lower limits (for adding error bars)", merge bold border(bottom)
+putexcel K3= "Wave",  bold border(bottom)
+putexcel L3= "No serious illness",  bold border(bottom)
+putexcel M3= "Serious illness",  bold border(bottom)
+
+putexcel K4= "1"
+putexcel K5= "2"
+putexcel K6= "3"
+putexcel K7= "4"
+putexcel K8= "5"
+putexcel K9= "6"
+
+
+svy, subpop(keep): logistic no_device i.wave##i.criteria_b
+margins i.wave#i.criteria_b
+matlist r(table)
+matrix results=r(table)
+scalar aa=results[5,1]
+putexcel L4=matrix(aa)
+scalar ab=results[5,2]
+putexcel M4=matrix(ab)
+
+scalar aa=results[5,3]
+putexcel L5=matrix(aa), nformat(percent_d2)
+scalar ab=results[5,4]
+putexcel M5=matrix(ab), nformat(percent_d2)
+
+scalar aa=results[5,5]
+putexcel L6=matrix(aa), nformat(percent_d2)
+scalar ab=results[5,6]
+putexcel M6=matrix(ab), nformat(percent_d2)
+
+scalar aa=results[5,7]
+putexcel L7=matrix(aa), nformat(percent_d2)
+scalar ab=results[5,8]
+putexcel M7=matrix(ab), nformat(percent_d2)
+
+scalar aa=results[5,9]
+putexcel L8=matrix(aa), nformat(percent_d2)
+scalar ab=results[5,10]
+putexcel M8=matrix(ab), nformat(percent_d2)
+
+scalar aa=results[5,11]
+putexcel L9=matrix(aa), nformat(percent_d2)
+scalar ab=results[5,12]
+putexcel M9=matrix(ab), nformat(percent_d2)
+
+
+
+
+
+
+
+
+

@@ -118,10 +118,20 @@ gsort id start_dt
 by id: gen num=_n
 drop start_dt
 reshape wide ffs ma, i(id) j(num)
-egen ma_n_mos=rowtotal(ma1 ma2 ma3 ma4)
+if core_year<2016 {
+egen ma_p_mos=rowtotal(ma1 ma2 ma3 ma4)
 gen cont_ffs_p_mos=0
 forvalues y=1/4 {
 	replace cont_ffs_p_mos=cont_ffs_p_mos+3 if ffs`y'==1 & cont_ffs_p_mos==`y'*3-3
+}
+}
+
+else {
+egen ma_p_mos=rowtotal(ma1 ma2 ma3)
+gen cont_ffs_p_mos=0
+forvalues y=1/3 {
+	replace cont_ffs_p_mos=cont_ffs_p_mos+3 if ffs`y'==1 & cont_ffs_p_mos==`y'*3-3
+}
 }
 drop ffs*
 tempfile ffs`i'
@@ -10435,31 +10445,26 @@ if index_date = . then delete;
 run;
 
 
-data proj_int.index;
-set proj_int.index;
-if bid_hrs_22 =" " then delete;
-run;
-
 
 proc sql; 
 create table tomerge as select * from
 proj_int.index a left join
-proj_int.ffs_before b 
+/*proj_int.ffs_before b 
 on a.bid_hrs_22=b.bid_hrs_22 and a.index_year=b.index_year
 left join 
 proj_int.ffs_after c
 on a.bid_hrs_22=c.bid_hrs_22 and a.index_year=c.index_year
-left join 
-proj_int.elix_0_6m_2 d
+left join */
+proj_int.elix_0_1yr_2 d
 on a.bid_hrs_22=d.bid_hrs_22 and a.index_year=d.index_year
 left join 
-proj_int.charls_0_6m e
+proj_int.charls_0_1yr e
 on a.bid_hrs_22=e.bid_hrs_22 and a.index_year=e.index_year
 left join
-proj_int.dmouth_0_6m f
+proj_int.dmouth_0_1yr f
 on a.bid_hrs_22=f.bid_hrs_22 and a.index_year=f.index_year
 left join
-proj_int.chronic_21_6m3_0 g
+proj_int.chronic_21_1yr3_0 g
 on a.bid_hrs_22=g.bid_hrs_22 and a.index_year=g.index_year
 left join 
 proj_int.utilization_pre h
@@ -10489,30 +10494,19 @@ quit;
 
 proc sql;
 create table proj_int.serious_ill_int_dataset as select * from
-proj_int.nhats a 
+hrs.core_00_to_16 a 
 left join
 tomerge b 
-on a.id=b.id and a.ivw_year=b.index_year;
+on a.id=b.id and a.c_ivw_year=b.index_year;
 quit;
 
-proc export data=proj_int.serious_ill_int_dataset outfile="D:\nhats\projects\serious_illness\ask_identifying_serious_illness_icd9_to_10\data\int_data\serious_ill_int_dataset.dta" 
+proc export data=proj_int.serious_ill_int_dataset 
+outfile="D:\HRS\Projects\serious_illness\ask_serious_illness_update_2016\data\int_data\serious_ill_int_dataset.dta" 
 replace;
 run;
 
 H="var clean and check criteria"
-/*
 
-Created by: EBL
-Date Created: 2/7/19
-
-Updated by:
-Date Updated:
-
-
-
-
-**************************************************
-*/
 
 
 
@@ -10534,66 +10528,66 @@ set proj_int.serious_ill_int_dataset;
 
 
 /*any elixhauser cancer dx*/
-if comorb_17_0_6m=1 | comorb_18_0_6m=1 | comorb_19_0_6m=1 then el_cancer_6m=1;
-if comorb_17_0_6m=0 & comorb_18_0_6m=0 & comorb_19_0_6m=0 then el_cancer_6m=0;
+if comorb_17_0_1yr=1 | comorb_18_0_1yr=1 | comorb_19_0_1yr=1 then el_cancer_1yr=1;
+if comorb_17_0_1yr=0 & comorb_18_0_1yr=0 & comorb_19_0_1yr=0 then el_cancer_1yr=0;
 
 /*3 or more Elixhauser comorbidities*/
-if comorb_all_0_6m>2 then el_ge3_comorb_6m=1;
-if 0=<comorb_all_0_6m<=2 then el_ge3_comorb_6m=0;
+if comorb_all_0_1yr>2 then el_ge3_comorb_1yr=1;
+if 0=<comorb_all_0_1yr<=2 then el_ge3_comorb_1yr=0;
 
 /*4 or more comorbidities - needs to be reevaluated once other defs are defined!*/
-if comorb_all_0_6m>3 then el_ge4_comorb_6m=1;
-if 0=<comorb_all_0_6m<=3 then el_ge4_comorb_6m=0;
+if comorb_all_0_1yr>3 then el_ge4_comorb_1yr=1;
+if 0=<comorb_all_0_1yr<=3 then el_ge4_comorb_1yr=0;
 
-cc_all_count_6m = cc_1_ami_6m + cc_2_alzh_6m + cc_3_alzhdmta_6m + 
-cc_4_atrialfb_6m + cc_5_cataract_6m + cc_6_chrnkidn_6m + 
-cc_7_copd_6m + cc_8_chf_6m + cc_9_diabetes_6m + cc_10_glaucoma_6m + 
-cc_11_hipfrac_6m + cc_12_ischmcht_6m + cc_13_depressn_6m + 
-cc_14_osteoprs_6m + cc_15_ra_oa_6m + cc_16_strketia_6m + 
-cc_17_cncrbrst_6m + cc_18_cncrclrc_6m + cc_19_cncrprst_6m + 
-cc_20_cncrlung_6m + cc_21_cncrendm_6m;
+cc_all_count_1yr = cc_1_ami_1yr + cc_2_alzh_1yr + cc_3_alzhdmta_1yr + 
+cc_4_atrialfb_1yr + cc_5_cataract_1yr + cc_6_chrnkidn_1yr + 
+cc_7_copd_1yr + cc_8_chf_1yr + cc_9_diabetes_1yr + cc_10_glaucoma_1yr + 
+cc_11_hipfrac_1yr + cc_12_ischmcht_1yr + cc_13_depressn_1yr + 
+cc_14_osteoprs_1yr + cc_15_ra_oa_1yr + cc_16_strketia_1yr + 
+cc_17_cncrbrst_1yr + cc_18_cncrclrc_1yr + cc_19_cncrprst_1yr + 
+cc_20_cncrlung_1yr + cc_21_cncrendm_1yr;
 
-if cc_all_count_6m >3 then cc_ge4_comorb_6m=1;
-if 0=<cc_all_count_6m <=3 then cc_ge4_comorb_6m=0;
+if cc_all_count_1yr >3 then cc_ge4_comorb_1yr=1;
+if 0=<cc_all_count_1yr <=3 then cc_ge4_comorb_1yr=0;
 
 /*cc's excluding cataract and glaucoma*/
-cc_all_count_6m_2 = cc_1_ami_6m + cc_2_alzh_6m + cc_3_alzhdmta_6m + 
-cc_4_atrialfb_6m + /*cc_5_cataract_6m +*/ cc_6_chrnkidn_6m + 
-cc_7_copd_6m + cc_8_chf_6m + cc_9_diabetes_6m + /*cc_10_glaucoma_6m +*/ 
-cc_11_hipfrac_6m + cc_12_ischmcht_6m + cc_13_depressn_6m + 
-cc_14_osteoprs_6m + cc_15_ra_oa_6m + cc_16_strketia_6m + 
-cc_17_cncrbrst_6m + cc_18_cncrclrc_6m + cc_19_cncrprst_6m + 
-cc_20_cncrlung_6m + cc_21_cncrendm_6m;
-label cc_all_count_6m_2="Count of cc's, excludes cataract and glaucoma";
+cc_all_count_1yr_2 = cc_1_ami_1yr + cc_2_alzh_1yr + cc_3_alzhdmta_1yr + 
+cc_4_atrialfb_1yr + /*cc_5_cataract_1yr +*/ cc_6_chrnkidn_1yr + 
+cc_7_copd_1yr + cc_8_chf_1yr + cc_9_diabetes_1yr + /*cc_10_glaucoma_1yr +*/ 
+cc_11_hipfrac_1yr + cc_12_ischmcht_1yr + cc_13_depressn_1yr + 
+cc_14_osteoprs_1yr + cc_15_ra_oa_1yr + cc_16_strketia_1yr + 
+cc_17_cncrbrst_1yr + cc_18_cncrclrc_1yr + cc_19_cncrprst_1yr + 
+cc_20_cncrlung_1yr + cc_21_cncrendm_1yr;
+label cc_all_count_1yr_2="Count of cc's, excludes cataract and glaucoma";
 
-if cc_all_count_6m_2>3 then cc2_ge4_comorb_6m=1;
-if 0=<cc_all_count_6m_2<=3 then cc2_ge4_comorb_6m=0;
+if cc_all_count_1yr_2>3 then cc2_ge4_comorb_1yr=1;
+if 0=<cc_all_count_1yr_2<=3 then cc2_ge4_comorb_1yr=0;
 
-label el_ge3_comorb_6m="3+ Elixhauser comorbidities";
-label el_ge4_comorb_6m="4+ Elixhauser comorbidities";
-label cc_ge4_comorb_6m="4+ DW Chronic Conditions";
-label cc2_ge4_comorb_6m="4+ DW Chronic Conditions, excl cataract and glaucoma";
+label el_ge3_comorb_1yr="3+ Elixhauser comorbidities";
+label el_ge4_comorb_1yr="4+ Elixhauser comorbidities";
+label cc_ge4_comorb_1yr="4+ DW Chronic Conditions";
+label cc2_ge4_comorb_1yr="4+ DW Chronic Conditions, excl cataract and glaucoma";
 
 /***************************************************/
 /*create indicators for any indication of the serious medical illnesses across
 variables (cc's elix hrs survey) */
 /*dementia requires more than 1 dementia diagnosis 1 year before ivw*/
-if dem_dx_6m>=2 and dem_dx_6m~=. then smi_dem_ind=1;
-if dem_dx_6m=0 or dem_dx_6m=1 then smi_dem_ind=0;
+if dem_dx_1yr>=2 and dem_dx_1yr~=. then smi_dem_ind=1;
+if dem_dx_1yr=0 or dem_dx_1yr=1 then smi_dem_ind=0;
 label smi_dem_ind="Indicator of Dementia 6m, Elixhauser 2+dx req.";
 
 /*old def commented out
-if el_cancer_6m=1 | CC_cncr_chronic_6m=1 | cancer_hrs=1 then cancer_any_ind=1;
-if el_cancer_6m=0 & CC_cncr_chronic_6m=0 & cancer_hrs=0 then cancer_any_ind=0; */
+if el_cancer_1yr=1 | CC_cncr_chronic_1yr=1 | cancer_hrs=1 then cancer_any_ind=1;
+if el_cancer_1yr=0 & CC_cncr_chronic_1yr=0 & cancer_hrs=0 then cancer_any_ind=0; */
 /*cancer flagged as serious medical illness if metastatic cancer 
 or blood cancers new def to be provided from Amy*/
-if comorb_18_0_6m=1 | cancer_icd10=1 then smi_cancer_ind=1;
-if comorb_18_0_6m=0 & smi_cancer_ind~=1 then smi_cancer_ind=0;
+if comorb_18_0_1yr=1 | cancer_icd10=1 then smi_cancer_ind=1;
+if comorb_18_0_1yr=0 & smi_cancer_ind~=1 then smi_cancer_ind=0;
 label smi_cancer_ind="Indicator of Metastatic Cancer 6m";
 
 /*ESRD from either dx code per elixhauser or denominator file flag*/
-if comorb_13_0_6m=1 | esrd_icd10=1 | esrd_ind_n=1 then smi_esrd_ind=1;
-if comorb_13_0_6m=0 & esrd_ind_n=0  & smi_esrd_ind~=1 then smi_esrd_ind=0;
+if comorb_13_0_1yr=1 | esrd_icd10=1 | esrd_ind_n=1 then smi_esrd_ind=1;
+if comorb_13_0_1yr=0 & esrd_ind_n=0  & smi_esrd_ind~=1 then smi_esrd_ind=0;
 label smi_esrd_ind="Indicator of ESRD 6m, Elix and claims DN file";
 
 /*chf, use dx list for Elixhauser, but as primary DX from a hospitalization only*/
@@ -10605,35 +10599,35 @@ label smi_chf_ind="Indicator of CHF 6m, Primary dx from IP claim or O2 and ICD-1
 /*COPD indicator meets following criteria:
 1. COPD from Elix (any dx field) and Oxygen use from DME claims or
 2. COPD as a primary diagnosis from a hospitalization*/
-if ((comorb_9_0_6m=1 | copd_icd10=1) & oxygen=1) | copd_pri_dx=1 then smi_copd_ind=1;
-if (comorb_9_0_6m=0 | oxygen=0) & copd_pri_dx=0 & smi_copd_ind~=1 then smi_copd_ind=0;
+if ((comorb_9_0_1yr=1 | copd_icd10=1) & oxygen=1) | copd_pri_dx=1 then smi_copd_ind=1;
+if (comorb_9_0_1yr=0 | oxygen=0) & copd_pri_dx=0 & smi_copd_ind~=1 then smi_copd_ind=0;
 label smi_copd_ind="Indicator of COPD 6m, copd any dx and home o2 use or copd as prim dx";
 
 /*diabetes, Elix 11 (diabetes with complications) if criteria for 
 renal disease (comorb 34), ischemic heart disease (cc 12) or 
 peripheral vascular disease (comorb 5) are present*/
-if comorb_11_0_6m=1 & (comorb_5_0_6m=1 | comorb_34_0_6m=1 | CC_12_ISCHMCHT_6m =1) then
+if comorb_11_0_1yr=1 & (comorb_5_0_1yr=1 | comorb_34_0_1yr=1 | CC_12_ISCHMCHT_1yr =1) then
 	smi_diab_compl_ind=1;
-if comorb_11_0_6m=0 | (comorb_5_0_6m=0 & comorb_34_0_6m=0 & CC_12_ISCHMCHT_6m =0) 
+if comorb_11_0_1yr=0 | (comorb_5_0_1yr=0 & comorb_34_0_1yr=0 & CC_12_ISCHMCHT_1yr =0) 
 	and smi_diab_compl_ind~=1 then
 	smi_diab_compl_ind=0;
 if diabetes_icd10=1 & (renal_icd10=1 | cad_icd10=1 | pvd_icd10=1) and smi_diab_compl_ind~=1 then 
 	smi_diab_compl_ind=1;
 label smi_diab_compl_ind="Elix compl diabetes + peripheral vas, renal or ischem, 6m";
 
-if comorb_14_0_6m=1 | liver_icd10=1 then smi_liver_ind=1;
-if comorb_14_0_6m=0 and smi_liver_ind~=1 then smi_liver_ind=0;
+if comorb_14_0_1yr=1 | liver_icd10=1 then smi_liver_ind=1;
+if comorb_14_0_1yr=0 and smi_liver_ind~=1 then smi_liver_ind=0;
 label smi_liver_ind="Indicator of Advanced liver disease/cirrhosis 6m, elix";
 
 /*Update 6/9/14 - HIV not included in final list of serious medical illnesses for
 the criteria definition
 4/2/15 - Added HIV back into list*/
-if comorb_16_0_6m=1 | hiv_icd10=1 then smi_hiv_ind=1;
-if comorb_16_0_6m=0 & smi_hiv_ind~=1 then smi_hiv_ind=0;
+if comorb_16_0_1yr=1 | hiv_icd10=1 then smi_hiv_ind=1;
+if comorb_16_0_1yr=0 & smi_hiv_ind~=1 then smi_hiv_ind=0;
 label smi_hiv_ind="Indicator of HIV with and AIDS defining illness 6m, elix";
 
 /*Update 2/1/19- Including codes Huntington's & other neurodegenerative disease in for ICD-9*/
-if comorb_33_0_6m=1 | neurodeg=1 | als_icd10=1 then smi_neurodeg_ind=1;
+if comorb_33_0_1yr=1 | neurodeg=1 | als_icd10=1 then smi_neurodeg_ind=1;
 if  smi_neurodeg_ind~=1 then smi_neurodeg_ind=0;
 label smi_neurodeg_ind="Indicator of neurodegenerative disease, 6m";
 
@@ -10641,7 +10635,7 @@ label smi_neurodeg_ind="Indicator of neurodegenerative disease, 6m";
 surgery or follow up carrier claim within 2 days*/
 if hip_adm_dx=1 | hf_w_visit_2d=1 | hf_w_surgery=1 then smi_hip_ind=1;
 if hip_adm_dx=0 & hf_w_visit_2d=0 & hf_w_surgery=0 then smi_hip_ind=0;
-if hip_icd10=1 & age>=70 then smi_hip_ind=1;
+if hip_icd10=1 then smi_hip_ind=1;
 label smi_hip_ind="Indicator of Hip fracture 6m, any ICD10, or adm dx or from physician claims";
 
 if cva_adm_dx=1 | cva_pri_dx=1 then smi_cva_ind=1;
@@ -10650,9 +10644,9 @@ label smi_cva_ind="Indicator of stroke primary or admitting diagnosis, 6m"
 /*******************************************************************/
 /*******************************************************************/
 
-/*doesn't use the cc definition excluding cataract,glaucoma cc2_ge4_comorb_6m */
-if el_ge4_comorb_6m=1 | cc_ge4_comorb_6m=1 /*| comor_c_hrs=1*/ then multi_any_ind=1;
-if el_ge4_comorb_6m=0 & cc_ge4_comorb_6m=0 /*& comor_c_hrs=0*/ then multi_any_ind=0;
+/*doesn't use the cc definition excluding cataract,glaucoma cc2_ge4_comorb_1yr */
+if el_ge4_comorb_1yr=1 | cc_ge4_comorb_1yr=1 /*| comor_c_hrs=1*/ then multi_any_ind=1;
+if el_ge4_comorb_1yr=0 & cc_ge4_comorb_1yr=0 /*& comor_c_hrs=0*/ then multi_any_ind=0;
 label multi_any_ind="Any indicator of Multimorbidity 4+ chronic conditions 6m";
 
 /*total number of serious medical illnesses per these definitions*/
@@ -10679,8 +10673,8 @@ label ser_med_illness="Any indicator of serious medical illness 6m";
 /*Indicator for any SNF stays 12m prior to interview or current nh res
 Update 6/2/14 - nursing home use will be included only if current nh residence reported,
 not if any SNF claims found*/
-if /*ind_snf_use_6m=1 |*/ nhres=1 then smi_nh_ind=1;
-if /*ind_snf_use_6m=0 &*/ nhres=0 then smi_nh_ind=0;
+if /*ind_snf_use_1yr=1 |*/ nhres=1 then smi_nh_ind=1;
+if /*ind_snf_use_1yr=0 &*/ nhres=0 then smi_nh_ind=0;
 label smi_nh_ind="Nursing home resident self report in ivw";
 
 /*indicator for adl helper*/
@@ -10689,7 +10683,7 @@ label smi_nh_ind="Nursing home resident self report in ivw";
 *label smi_helper_ind="Indicator of having any helpers with ADL, core";
 
 /*backfill adl status if adl helper variable is complete*/
-adl_ind = adl_independent;
+adl_ind = adl_independent_core;
 *if adl_independent=. and smi_helper_ind=1 then adl_ind_core_n=0;
 *if adl_independent=. and smi_helper_ind=0 then adl_ind_core_n=1;
 label adl_ind = "ADL independent at interview";
@@ -10699,10 +10693,10 @@ if adl_ind=0 then adl_impair = 1;
 label adl_impair = "ADL impairment at core interview";
 
 /*indicator for any ED visit, either OP or IP*/
-ind_ed_op_6m=0;
-if ind_ed_op_6m=1 | ind_ED_adm_6m=1 then ind_ed_op_or_ip_6m=1;
-if ind_ed_op_6m=0 & ind_ED_adm_6m=0 then ind_ed_op_or_ip_6m=0;
-label ind_ed_op_or_ip_6m="Indicator any ED use 6m pre ivw";
+ind_ed_op_1yr=0;
+if ind_ed_op_1yr=1 | ind_ED_adm_12m=1 then ind_ed_op_or_ip_12m=1;
+if ind_ed_op_1yr=0 & ind_ED_adm_12m=0 then ind_ed_op_or_ip_12m=0;
+label ind_ed_op_or_ip_12m="Indicator any ED use 6m pre ivw";
 
 /*criteria (A) serious medical illness and/or ADL impairment*/
 if (ser_med_illness=1 | adl_impair=1) then criteria_a=1;
@@ -10715,13 +10709,13 @@ if (ser_med_illness=0 | adl_impair=0) then smi_and_adl=0;
 label smi_and_adl="SMI and ADL impairment";
 
 /*criteria (B) serious medical illness and/or ADL impairment AND nh res or urgent/emergent hosp*/
-if (ser_med_illness=1 | adl_impair=1) & (ind_em_ur_adm_6m=1 | smi_nh_ind=1) then criteria_b=1;
-if (ser_med_illness=0 & adl_impair=0) | (ind_em_ur_adm_6m=0 & smi_nh_ind=0) then criteria_b=0;
+if (ser_med_illness=1 | adl_impair=1) & (ind_em_ur_adm_12m=1 | smi_nh_ind=1) then criteria_b=1;
+if (ser_med_illness=0 & adl_impair=0) | (ind_em_ur_adm_12m=0 & smi_nh_ind=0) then criteria_b=0;
 label criteria_b="Crit B SMI or ADL impair and hospital admit or nh use";
 
 /*criteria (C) serious medical illness and adl impairment AND nh res or urgent/emergent hosp*/
-if (ser_med_illness=1 & adl_impair=1) & (ind_em_ur_adm_6m=1 | smi_nh_ind=1) then criteria_c=1;
-if (ser_med_illness=0 | adl_impair=0) | (ind_em_ur_adm_6m=0 & smi_nh_ind=0) then criteria_c=0;
+if (ser_med_illness=1 & adl_impair=1) & (ind_em_ur_adm_12m=1 | smi_nh_ind=1) then criteria_c=1;
+if (ser_med_illness=0 | adl_impair=0) | (ind_em_ur_adm_12m=0 & smi_nh_ind=0) then criteria_c=0;
 label criteria_c="Crit C SMI and ADL impair and hospital admit or nh use";
 
 /*serious medical illness criteria variable defined, so name matches format of other criteria indicators*/
@@ -10734,7 +10728,7 @@ run;
 
 
 proc export data=proj_int.serious_ill_int_dataset1
-outfile="D:\nhats\projects\serious_illness\ask_identifying_serious_illness_icd9_to_10\data\int_data\serious_ill_int_dataset1.dta" replace;
+outfile="D:\HRS\Projects\serious_illness\ask_serious_illness_update_2016\data\int_data\serious_ill_int_dataset1.dta" replace;
 run;
 
 H="dataset cleaning and sample derivation"
