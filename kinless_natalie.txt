@@ -1307,6 +1307,12 @@ egen location_of_death=rowmax(*a124)
 
 merge 1:1 hhid pn core_year using "`weight'", nogen keep(match)
 
+//9/29/20--update to correct for discrepancy in nursing home weights
+
+gen regwt=wgtr
+replace regwt=wgtrnh if !regwt & !missing(wgtrnh)
+drop if !regwt
+/*
 gen regwt = .
 
 replace regwt=wgtr if year==1998 // no nursing home weight for 1998
@@ -1327,7 +1333,7 @@ replace regwt=wgtrnh if year==2008 & nhres==1
 replace regwt=wgtrnh if year==2010 & nhres==1
 replace regwt=wgtrnh if year==2012 & nhres==1
 replace regwt=wgtrnh if year==2014 & nhres==1
-
+*/
 
 
 label var liv_alone "Live-alone"
