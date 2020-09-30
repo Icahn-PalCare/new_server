@@ -85,19 +85,16 @@ gen no_device=1
 replace no_device=0 if cellphone==1 | computer==1 | tablet==1
 tab no_device
 
-gen no_device_et=no_cell_computer_tablet
+gen no_device_et=no_device
 replace no_device_et= 0 if emailtext==1
 
 gen no_device_et_online= no_device_et
 replace no_device_et_online= 0 if online==1
 
-*define subpop-- check with evan on if this is correct
+*define subpop- over age 70, 6 mnths preceding ffs medicare
 gen keep=1
 replace keep=0 if age<70
 replace keep=0 if ffs_6m!=1 
-replace keep=0 if ab_6m!=1  
-replace keep=0 if hmo_6m!=1
-tab keep
 
 
 *the following tech vars aren't asked if online==0. making them 0 not missing
@@ -131,10 +128,10 @@ recode adl_index (0=0 "0")(1=1 "1")(2/6=2 "2+"), gen (adl_3cat)
 H="analysis"
 
 ****ANALYSIS***********
-putexcel set "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\table1_sept27.xls", replace
+putexcel set "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\table1_sept30.xls", replace
 putexcel A1:E1= "Table 1. Characteristics of those with and without serious illness, waves 1-6 (N=19,580)", merge bold border(bottom)
-putexcel C2= "No Serious Illness (17,877 obs)",  bold border(bottom)
-putexcel D2= "Serious Illness (1,693 obs)",  bold border(bottom)
+putexcel C2= "No Serious Illness (20,519 obs)",  bold border(bottom)
+putexcel D2= "Serious Illness (2,003 obs)",  bold border(bottom)
 putexcel E2= "p-value",  bold border(bottom)
 
 tab criteria_b if keep==1
@@ -638,7 +635,7 @@ putexcel E158= matrix(c), nformat(number_d2)
 
 *************TRENDS OVER TIME************
 
-putexcel set "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\fig1_sept27.xls", replace
+putexcel set "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\output\fig1_sept 30.xls", replace
 putexcel B2:D2= "Data for Figure 1. % with no device by wave and serious illness status", merge bold border(bottom)
 putexcel B3= "Wave",  bold border(bottom)
 putexcel C3= "No serious illness",  bold border(bottom)
@@ -650,7 +647,7 @@ putexcel B6= "3"
 putexcel B7= "4"
 putexcel B8= "5"
 putexcel B9= "6"
-
+putexcel B10= "7"
 
 svy, subpop(keep): logistic no_device i.wave##i.criteria_b
 margins i.wave#i.criteria_b
@@ -686,7 +683,10 @@ putexcel C9=matrix(aa), nformat(percent_d2)
 scalar ab=results[1,12]
 putexcel D9=matrix(ab), nformat(percent_d2)
 
-
+scalar aa=results[1,13]
+putexcel C10=matrix(aa), nformat(percent_d2)
+scalar ab=results[1,14]
+putexcel D10=matrix(ab), nformat(percent_d2)
 
 putexcel K2:M2= "Lower limits (for adding error bars)", merge bold border(bottom)
 putexcel K3= "Wave",  bold border(bottom)
@@ -699,16 +699,16 @@ putexcel K6= "3"
 putexcel K7= "4"
 putexcel K8= "5"
 putexcel K9= "6"
-
+putexcel K10= "7"
 
 svy, subpop(keep): logistic no_device i.wave##i.criteria_b
 margins i.wave#i.criteria_b
 matlist r(table)
 matrix results=r(table)
 scalar aa=results[5,1]
-putexcel L4=matrix(aa)
+putexcel L4=matrix(aa), nformat(percent_d2)
 scalar ab=results[5,2]
-putexcel M4=matrix(ab)
+putexcel M4=matrix(ab), nformat(percent_d2)
 
 scalar aa=results[5,3]
 putexcel L5=matrix(aa), nformat(percent_d2)
@@ -735,9 +735,10 @@ putexcel L9=matrix(aa), nformat(percent_d2)
 scalar ab=results[5,12]
 putexcel M9=matrix(ab), nformat(percent_d2)
 
-
-
-
+scalar aa=results[5,13]
+putexcel L10=matrix(aa), nformat(percent_d2)
+scalar ab=results[5,14]
+putexcel M10=matrix(ab), nformat(percent_d2)
 
 
 
