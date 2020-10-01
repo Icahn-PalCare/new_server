@@ -1253,7 +1253,7 @@ label var age "Age at last core interview"
 
 gen age1=c_ivw_year-birthyr
 
-drop if age1<50
+drop if age1<51
 
 keep if death_all-c_ivw_date<=(365.25*4) & death_all-c_ivw_date>=0
 

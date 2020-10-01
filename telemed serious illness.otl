@@ -31,11 +31,12 @@ global outpath "D:\HRS\Projects\medicare_advantage\cka_telemed access serious il
 D:\NHATS\Projects\serious_illness\cka_telemed access serious illness
 
 H="making ser ill file"
- use "D:\NHATS\Projects\serious_illness\ask_identifying_serious_illness_icd9_to_10\data\final_data\serious_ill_nhats_1_6_full_6m.dta" 
+
+ use "D:\NHATS\Projects\serious_illness\serious_illness_2017_update\data\final_data\serious_ill_nhats_1_7_full_6m.dta"
  
  keep spid wave ffs_6m ab_6m hmo_6m ind_smi_any smi_count ind_hs_p12m ind_icu_p12m mult_ed_vis_p12m ind_ed_vis_p12m n_ed_vis_p12m mult_ip_adm_p12m ind_hs_p6m ind_icu_p6m mult_ed_vis_p6m ind_ed_vis_p6m n_ed_vis_p6m mult_ip_adm_p6m criteria_none criteria_all criteria_smi criteria_c criteria_b smi_and_adl criteria_a ind_ed_op_or_ip_6m ind_ed_op_6m adl_ind ser_med_illness multi_any_ind smi_cva_ind smi_hip_ind smi_neurodeg_ind smi_hiv_ind smi_liver_ind smi_diab_compl_ind smi_copd_ind smi_chf_ind smi_renal_ind smi_cancer_ind smi_dem_ind el_cancer_6m hip_icd10 dementia_icd10 cva_icd10 chf_icd10 cad_icd10 renal_icd10 liver_icd10 pvd_icd10 als_icd10 hiv_icd10 diabetes_icd10 copd_icd10 esrd_icd10 cancer_icd10 park neurodeg park_count
  
- save "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\data\int_data\ser ill vars.dta"
+ save "D:\NHATS\Projects\serious_illness\cka_telemed access serious illness\data\int_data\ser ill vars.dta", replace
 
 H="get telemed data from nhats, merge in rest"
  *PULLING NHATS TELEMED DATA
@@ -143,7 +144,7 @@ putexcel B6= "75-80"
 putexcel B7= "80-85"
 putexcel B8= "85+"
 
-svy, subpop(keep): tab criteria_b
+svy, subpop(keep): tab criteria_b, count format(%13.2fc)
 mat a=e(b)
 putexcel C3=matrix(a), nformat(percent_d2)
 
@@ -741,6 +742,13 @@ scalar ab=results[5,14]
 putexcel M10=matrix(ab), nformat(percent_d2)
 
 
-
+*statistics for trends over time by serious illness
+*overall % w no device
+svy, subpop(keep): tab criteria_b no_device, row
+*trend over time
+svy, subpop(if keep==1 & criteria_b==0): logistic no_device wave
+margins, dydx(wave) 
+svy, subpop(if keep==1 & criteria_b==1): logistic no_device wave
+margins, dydx(wave) 
 
 

@@ -14900,12 +14900,18 @@ drop a
 label define hs_admit_cat 1 "Dementia" 2 "Cancer" 3 "Heart failure" 4 "Other"
 label values hs_admit_cat hs_admit_cat
 
-drop _m admit_date stus_cd *los disch lteq3 same last los_sofar obsnum pdgns_cd ad
+sort bid_hrs_22 admit_date disch_date
+by bid_hrs_22: gen last_status_hs=stus_cd[_N]
+label var last_status_hs "Last hospice claim discharge code"
+
+drop _m admit_date stus_cd *los disch lteq3 same last los_sofar obsnum pdgns_cd ad 
 duplicates drop
 merge 1:1 bid using `mds', nogen
 
 
 save "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\aim2_outcomes.dta", replace
+
+saveold "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\aim2_outcomes_12.dta", replace version(12)
 
 H="Final Sample "
 
