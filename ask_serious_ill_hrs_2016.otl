@@ -8373,7 +8373,7 @@ run;
 data oxygen1(keep=bid_hrs_22 index_year oxygen);
 set proj_int.dm_meet_365;
 oxygen=0;
-array list betos1 : betos13;
+array list betos01 : betos13;
 do over list;
 if list='D1C' then oxygen=1;
 end;
@@ -10696,7 +10696,7 @@ label adl_impair = "ADL impairment at core interview";
 ind_ed_op_1yr=0;
 if ind_ed_op_1yr=1 | ind_ED_adm_12m=1 then ind_ed_op_or_ip_12m=1;
 if ind_ed_op_1yr=0 & ind_ED_adm_12m=0 then ind_ed_op_or_ip_12m=0;
-label ind_ed_op_or_ip_12m="Indicator any ED use 6m pre ivw";
+label ind_ed_op_or_ip_12m="Indicator any ED use 12m pre ivw";
 
 /*criteria (A) serious medical illness and/or ADL impairment*/
 if (ser_med_illness=1 | adl_impair=1) then criteria_a=1;
