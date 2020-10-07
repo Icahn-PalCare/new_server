@@ -630,7 +630,21 @@ mat c=e(p_Pear)
 putexcel E158= matrix(c), nformat(number_d2)
 
 
+local r=158+4
 
+putexcel A`=`r'-1'= "Female"
+putexcel B`=`r''= "No"
+putexcel B`=`r'+1'= "Yes"
+local `r'=`r'+1
+svy, subpop(keep): tab female if criteria_b==0
+mat a=e(b)'
+putexcel C`r'= matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab female if criteria_b==1
+mat b=e(b)'
+putexcel D`r'= matrix(b), nformat(percent_d2)
+svy, subpop(keep): tab female criteria_b, column
+mat c=e(p_Pear)
+putexcel E`r'= matrix(c), nformat(number_d2)
 
 
 
