@@ -906,7 +906,7 @@ set dx_all_last_1yr_post;
 run;
 
 proc sort data=cancer_dx_1_yr_aft out=cancer_dx_1_yr_aft_s;
-by spid opid index_year cg_ivw_date admit_date;
+by spid opid index_year cg_ivw_date;
 run;
 
 data cancer_dx_1_yr_aft_time;
@@ -928,13 +928,13 @@ set cancer_dx_1_yr_aft_first;
 if keep=1;
 run;
 */
-/*
+
 proc sql;
 create table cancer_dx_1_yr_aft_tot as 
-select distinct spid, opid, index_year, index_month, 
+select distinct spid, opid, index_year, 
 sum(cancer) as cancer_ind
 from cancer_dx_1_yr_aft_s
-group by spid, opid, index_year, index_month;
+group by spid, opid, index_year;
 quit;
 
 proc freq data=cancer_dx_1_yr_aft_tot;
@@ -945,13 +945,13 @@ data cancer_1yr_aft;
 set cancer_dx_1_yr_aft_tot;
 if cancer_ind>0 ;
 run;
-*/
+
 
 proc sql;
 create table cancer as select a.spid, a.opid, a.index_year, b.*
 from no_cancer_1yr a
 inner join
-cancer_dx_1_yr_aft_tot b
+cancer_1yr_aft b
 on a.spid=b.spid and a.index_year=b.index_year and a.opid=b.opid;
 quit;
 
@@ -959,7 +959,8 @@ data proj_fin.cancer ;
 set cancer;
 run;
 
-
+proc export data=proj_fin.cancer outfile="D:\NHATS\Projects\exploratory\cancer_caregivers_naomi\data\final_data\cancer.dta" DBMS=STATA REPLACE;
+run;
 
 
 H="cancer stata final step"
