@@ -2314,7 +2314,7 @@ H="************Stata***************"
 
 
 H="variable creation: utilization variables"
-use "E:\nhats\data\Projects\traj util after disability\util_post_disability.dta", clear
+use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\util_post_disability_may 2020.dta" , clear
 
 //generate total paid from individual amounts
 
@@ -2403,58 +2403,18 @@ forvalues i=15(3)24 {
 
 forvalues i=1/8 {
 	gen ffsqp`i'=cont_ffs_p_mos>=`i'*3
-	label var ffsqn`i' "Continuous FFS `=`i'*3' months after datefirsthelp" 
+	label var ffsqp`i' "Continuous FFS `=`i'*3' months after datefirsthelp" 
 }
 
 
 keep spid index_date exp* edq* ipadm* *ffs* 
 
-merge 1:m spid using "E:\nhats\data\nhats cleaned\sp_round_1_7.dta", ///
+merge 1:m spid using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" , ///
 keep(match) keepusing(death_date) nogen
 
 duplicates drop
 
-save "E:\nhats\data\Projects\traj util after disability\util_post_disability_w_util.dta", replace
-
-
-H="merging in other relevent stata files"
-*this starts with the disability_w_util file and builds a workingfile to be used for future analyses.
-
-use "E:\nhats\data\Projects\traj util after disability\util_post_disability_w_util.dta"
-
-merge 1:1 spid using "E:\nhats\data\Projects\traj util after disability\discat spid.dta"
-
-drop _merge
-merge 1:1 spid  using "E:\nhats\data\Projects\traj util after disability\date of first disability v12.dta", keepusing(indhelpstop)
-
-drop _merge
-merge 1:1 spid using "E:\nhats\data\Projects\traj util after disability\nsoc date.dta"
-drop if _merge==2
-
-*merge in date of disability to extract the survey wave
-
-drop _merge
-merge 1:1 spid using "E:\nhats\data\Projects\traj util after disability\date of first disability v12.dta", keepusing(ds2datehelp dm2datehelp ds3datehelp dm3datehelp ds4datehelp dm4datehelp ds5datehelp dm5datehelp ds6datehelp dm6datehelp ds7datehelp dm7datehelp)
-
-gen wave=.
-	foreach n of numlist 2/6 {
-	replace wave=`n' if dm`n'datehelp==index_date
-	replace wave=`n' if wave==. & ds`n'datehelp==index_date
-	}
-
-drop _merge
-merge 1:1 spid wave using "E:\nhats\data\Projects\traj util after disability\wellbeing before after.dta"
-drop if _merge==2
-
-
-drop _merge
-merge 1:1 spid wave using "E:\nhats\data\Projects\traj util after disability\mood before after.dta"
-drop if _merge==2
-
-
-save "E:\nhats\data\Projects\traj util after disability\util_post_disability_w_util_workingfile.dta", replace
-
-
+save "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\util_post_disability_w util_may 2020.dta", replace
 
 H="further variable cleaning"
 use "E:\nhats\data\Projects\traj util after disability\util_post_disability_w_util_workingfile.dta"
@@ -2791,3 +2751,8 @@ H="changelog"
 1/25/19-EBL-fixed coding errors in utilization 
 
 1/11/19-EBL-set up dataset
+
+H="strip dates to pull off server"
+use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\util_post_disability_w_util_workingfile.dta" , clear
+drop ivw_date* death_date index_date
+save "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\util_post_disability_w_util_workingfile_unr.dta" , replace

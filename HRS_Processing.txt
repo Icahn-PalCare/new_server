@@ -13628,7 +13628,9 @@ H="*************************"
 
 
 H="pull unrestricted datasets"
-
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_16.dta"
+drop c_ivw_da*
+save "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_16_unr.dta", replace
 
 H="Chaneglog"
 ********************Change Log******************** 

@@ -748,3 +748,10 @@ tabstat total_oop_last_yr, statistics (mean sd) by(full_ma)
 
 
 tabstat total_oop_last_yr hospital_oop_last_yr doctor_oop_last_yr rx_oop_last_yr nh_oop_last_yr helper_oop_last_yr home_oop_last_yr other_oop_last_yr, statistics (mean ) by(full_ma)
+
+H="strip dates to pull unrestricted dataset"
+use "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\cka_ma_oop_at_eol.dta" , clear
+desc, fulln
+drop bid index_date
+tab race
+save "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\data\final_data\cka_ma_oop_at_eol_unr.dta" , replace
