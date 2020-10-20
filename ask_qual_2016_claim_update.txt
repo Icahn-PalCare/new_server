@@ -15428,7 +15428,7 @@ sort bid_hrs_22 admit_date disch_date
 by bid_hrs_22: gen last_status_hs=stus_cd[_N]
 label var last_status_hs "Last hospice claim discharge code"
 */
-drop _m admit_date stus_cd *los disch_date lteq3 same last los_sofar obsnum pdgns_cd ad 
+drop _m admit_date stus_cd disch_date lteq3 same last los_sofar obsnum pdgns_cd ad los los_sofar
 duplicates drop
 merge 1:1 bid using `mds', nogen
 
@@ -17338,7 +17338,7 @@ replace ind_hs_suboptimal_1=1 if (ind_hs_gt6m_1==1 | ind_hs_lteq3d_dth_all==1) &
 label var ind_hs_suboptimal_1 "<3 or >183 days on hospice"
 
 
-keep id hisp_eth age_at_death female_exit srh_pf adl_independent_core dem_cohort ind_hs_gt6m ind_hs_live_disch ind_hs ind_hs_lteq3d_dth_all ind_hs_suboptimal ind_hs_suboptimal_1 hs_admit_cat black age_ivw ind_nw_remaining ind_fw_remaining married married_exit nflag exit_year ind_hs_gt6m_then_live_disch  hs_loc
+keep id hisp_eth age_at_death female_exit srh_pf adl_independent_core dem_cohort ind_hs_gt6m ind_hs_live_disch ind_hs ind_hs_lteq3d_dth_all ind_hs_suboptimal ind_hs_suboptimal_1 hs_admit_cat black age_ivw ind_nw_remaining ind_fw_remaining married married_exit nflag exit_year ind_hs_gt6m_then_live_disch  hs_loc totlos
 
 save "$final\sa2_vulnerable_offserver`c(current_date)'.dta", replace
 
