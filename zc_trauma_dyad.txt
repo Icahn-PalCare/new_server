@@ -10723,6 +10723,163 @@ outreg, varlabels stats(b ci p)  ctitles("" "ln(LOS)")
 reg los iss9 `xvars'
 outreg  using "${outpath}\sensitivity_regs", addtable varlabels stats(b ci p) merge ctitles("" "ln(LOS)") note( "Regressions are on the natural log of the LOS of the index stay, among full sample")
 
+H="sample derivation"
+//all sps, with inpatient claim following interview, trauma, with p1 ivw
+
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta", clear
+keep if sp_ivw==1 & lml==0
+keep spid ivw_date wave died_12
+gen n=1
+merge m:1 spid using "D:\NHATS\Shared\base_data\CMS_claims\Stata\xwalk_2016.dta", nogen
+
+tempfile t1
+save `t1'
+
+forvalues i=1/7 {
+	use spid ivw_date wave bene_id using `t1' if wave==`i'
+	merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\ip_06_17.dta", keep(match master) keepusing(admit_date) nogen
+	gen inr=inrange(admit_date,ivw_date,ivw_date+365)
+	drop admit
+	keep if inr
+	duplicates drop
+	tempfile ip`i'
+	save `ip`i''
+}
+
+clear
+forvalues i=1/7 {
+	append using `ip`i''
+}
+
+
+merge 1:1 spid wave using "${intpath}\index_staypost", gen(indm) keepusing(index_date wave iss niss)
+duplicates drop
+
+replace iss=niss
+
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", gen(thism) keepusing(died_12 r*status)
+gen n=1
+
+replace wave=wave+1
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", gen(p1m) keep(match master)
+
+
+replace inr=0 if missing(inr)
+gsort spid -inr -indm wave
+by spid: keep if _n==1
+
+gen hasp1=p1m==3 & !lml & sp_ivw==1 & indm==3 & !inlist(iss,0,99)
+gen hastraum=indm==3 & !inlist(iss,0,99)
+
+gen died=died_12 & !hasp1 
+replace died=1 if lml==1
+forvalues i=2/8 {
+	replace died=1 if r`i'status==86 & wave==`i'
+}
+
+replace died=0 if hasp1 | !hastraum
+
+local sampvars n inr hastraum hasp1 died
+
+local rn : word count `sampvars'
+
+mat tab=J(`rn',2,.)
+
+local r=1
+
+foreach x of local sampvars {
+	sum n if `x'==1
+	mat tab[`r',1]=r(N)
+	local r=`r'+1
+}
+
+label var n "All NHATS sample persons"
+label var inr "With an inpatient stay <=1 year post-interview"
+label var hastraum "With a trauma stay"
+label var hasp1 "With a follow-up interview"
+label var died "No follow up interview because deceased"
+
+mat rownames tab=`sampvars'
+
+frmttable using "${outpath}\sample_derivation`c(current_date)'.rtf", statmat(tab) varlabels sdec(0) title("Sample Derivation") replace
+
+gen status=.
+forvalues i=1/8 {
+replace status = r`i'status if wave==`i'
+}
+label values status r4status
+tab status if indm==3 & !died & !hasp1
+
+
+
+
+forvalues i=1/7 {
+	use spid ivw_date wave bene_id using `t1' if wave==`i', clear
+	merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\ip_06_17.dta", keep(match master) keepusing(admit_date) nogen
+	gen inr=inrange(admit_date,ivw_date-365,ivw_date)
+	drop admit
+	keep if inr
+	duplicates drop
+	tempfile ip`i'
+	save `ip`i''
+}
+
+clear
+forvalues i=1/7 {
+	append using `ip`i''
+}
+
+
+merge 1:1 spid wave using "${intpath}\index_staypre", gen(indm) keepusing(index_date wave iss niss)
+duplicates drop
+
+replace iss=niss
+
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", gen(thism) keepusing(died_12 r*status)
+replace wave=. if missing(index_date)
+duplicates drop spid wave, force
+gen n=1
+
+gsort spid -inr -indm wave
+by spid: keep if _n==1
+replace wave=wave-1
+merge 1:1 spid using "${datapath}\sample_final_unr.dta", gen(p1m) keep(match master)
+
+replace inr=0 if missing(inr)
+
+
+
+gen hasn1=p1m==3 
+gen hastraum=inlist(indm,2,3) & !inlist(iss,0,99)
+
+local sampvars n inr hastraum hasn1
+
+local rn : word count `sampvars'
+
+mat tab2=J(`rn',1,.)
+local r=1
+
+foreach x of local sampvars {
+	sum n if `x'==1
+	mat tab2[`r',1]=r(N)
+	local r=`r'+1
+}
+
+label var n "All NHATS sample persons"
+label var inr "With an inpatient stay <=1 year pre-interview"
+label var hastraum "With a trauma stay"
+label var hasn1 "With a prior interview"
+gen hasp1=.
+gen died=.
+label var hasp1 "With a follow-up interview" 
+label var died "No follow up because deceased"
+
+mat rownames tab2=`sampvars'
+
+frmttable, statmat(tab) varlabels sdec(0) title("Sample Derivation, from interview prior to trauma") 
+
+frmttable using "${outpath}\sample_derivation`c(current_date)'.rtf", statmat(tab2) varlabels sdec(0) title("Sample Derivation, from interview following trauma") addtable
+
 H="Changelog"
 
 
