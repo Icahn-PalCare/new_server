@@ -2307,14 +2307,14 @@ left join proj_int.utilization_post h
 on a.bene_id=h.bene_id and a.index_year=h.index_year;
 quit;
 
-proc export data=util_post_disability outfile="E:\nhats\data\Projects\traj util after disability\util_post_disability.dta" replace;
+proc export data=util_post_disability outfile="D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_oct 27.dta" replace;
 run;
 
 H="************Stata***************"
 
 
 H="variable creation: utilization variables"
-use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\util_post_disability_may 2020.dta" , clear
+use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_oct 27.dta" 
 
 //generate total paid from individual amounts
 
@@ -2414,10 +2414,12 @@ keep(match) keepusing(death_date) nogen
 
 duplicates drop
 
-save "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\util_post_disability_w util_may 2020.dta", replace
+save "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_w_util_oct 27.dta" , replace
+
+
 
 H="further variable cleaning"
-use "E:\nhats\data\Projects\traj util after disability\util_post_disability_w_util_workingfile.dta"
+use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_w_util_oct 27.dta"
 
 *make a value missing if person died at least half way through quarter
 
@@ -2486,49 +2488,9 @@ gen diedqp8=0
 replace diedqp8=1 if days_index_death<730 & days_index_death!=.
 
 
-*make a variable for the days from disability to nsoc interview (so negative means interviewed before disability)
-gen dis_nsoc_days1= cg_ivw_date1-index_date if cg_ivw_date1!=.
-gen dis_nsoc_days2= cg_ivw_date2-index_date if cg_ivw_date2!=.
-gen dis_nsoc_days3= cg_ivw_date3-index_date if cg_ivw_date3!=.
-gen dis_nsoc_days4= cg_ivw_date4-index_date if cg_ivw_date4!=.
-gen dis_nsoc_days5= cg_ivw_date5-index_date if cg_ivw_date5!=.
-gen dis_nsoc_days6= cg_ivw_date6-index_date if cg_ivw_date6!=.
-
-foreach var of varlist dis_nsoc_days1 dis_nsoc_days2 dis_nsoc_days3 dis_nsoc_days4 dis_nsoc_days5 dis_nsoc_days6 {
-replace `var'=. if `var'<-365
-replace `var'=. if `var'>730
-}
-
-gen dis_nsoc_mnths1= floor(dis_nsoc_days1/30)
-gen dis_nsoc_mnths2= floor(dis_nsoc_days2/30)
-gen dis_nsoc_mnths3= floor(dis_nsoc_days3/30)
-gen dis_nsoc_mnths4= floor(dis_nsoc_days4/30)
-gen dis_nsoc_mnths5= floor(dis_nsoc_days5/30)
-
-*variable for the days from disability to nsoc only for the nsoc closest to disability
-
-gen closest_dis_nsoc_days= dis_nsoc_days1
-replace closest_dis_nsoc_days= dis_nsoc_days2 if dis_nsoc_days2!=. & abs(dis_nsoc_days2)<abs(dis_nsoc_days1)
-replace closest_dis_nsoc_days= dis_nsoc_days3 if dis_nsoc_days3!=. & abs(dis_nsoc_days3)<abs(closest_dis_nsoc_days)
-replace closest_dis_nsoc_days= dis_nsoc_days4 if dis_nsoc_days4!=. & abs(dis_nsoc_days4)<abs(closest_dis_nsoc_days)
-replace closest_dis_nsoc_days= dis_nsoc_days5 if dis_nsoc_days5!=. & abs(dis_nsoc_days5)<abs(closest_dis_nsoc_days)
-
-gen closest_dis_nsoc_mnths= floor(closest_dis_nsoc_days/30)
 
 
-*make a variable for the months between index date and interview date and last year's interview date
-drop index_ivw_mnths
-gen index_ivw_mnths= round((ivw_date-index_date)/30)
-gen index_ivw_mnths_n= round((index_date-ivw_date_n)/30)
-*6 obs are negative 1, likely from rounding: make them zero
-replace index_ivw_mnths_n=0 if index_ivw_mnths_n==-1
 
-*make a variable for count of adls as well as binary adl vs no adl (so can examine over time)
-egen ADLcount= rowtotal (adl_eat_help adl_bath_help adl_toil_help adl_dres_help adl_ins_help adl_bed_help)
-recode ADLcount (0=0)(1/max=1), gen(ADLbi)
-
-
-save "E:\nhats\data\Projects\traj util after disability\util_post_disability_w_util_workingfile.dta", replace
 
 H="****below this heading: analysis. okay to run more than once***"
 
