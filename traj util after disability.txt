@@ -2307,14 +2307,14 @@ left join proj_int.utilization_post h
 on a.bene_id=h.bene_id and a.index_year=h.index_year;
 quit;
 
-proc export data=util_post_disability outfile="D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_oct 27.dta" replace;
+proc export data=util_post_disability outfile="D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_claims.dta" replace;
 run;
 
-H="************Stata***************"
+H="************Stata: RUN BELOW THIS EVERY TIME***************"
 
 
-H="variable creation: utilization variables"
-use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_oct 27.dta" 
+H="clean util vars and combine with nhats"
+use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_claims.dta"
 
 //generate total paid from individual amounts
 
@@ -2406,21 +2406,44 @@ forvalues i=1/8 {
 	label var ffsqp`i' "Continuous FFS `=`i'*3' months after datefirsthelp" 
 }
 
+forvalues i=1/8 {
+	gen ffsqn`i'=cont_ffs_n_mos>=`i'*3
+	label var ffsqn`i' "Continuous FFS `=`i'*3' months before datefirsthelp" 
+}
 
 keep spid index_date exp* edq* ipadm* *ffs* 
 
 merge 1:m spid using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" , ///
-keep(match) keepusing(death_date) nogen
+keep(match)  nogen
 
-duplicates drop
+*make variables to label each observation as the interview before or after disability
+gen dis_ivw= ivw_date-index_date
+sort spid dis_ivw
+by spid: gen post=1 if dis_ivw>0
+by spid: gen pre=1 if dis_ivw<=0
+gen dis_ivw_abs= abs(
 
-save "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_w_util_oct 27.dta" , replace
+*make wave_np, which is pos count for waves after disability, neg for waves before
+gen wave_np=.
+
+foreach num of numlist 1 2 3 4 5 6 7 8 {
+by spid: gen post_days=dis_ivw if dis_ivw>0 & wave_np==.
+egen min_post=min(post_days), by(spid)
+replace wave_np=`num' if min_post==dis_ivw
+drop min_post post_days
+}
+
+foreach num of numlist -1 -2 -3 -4 -5 -6 -7 -8 {
+by spid: gen pre_days=abs(dis_ivw) if dis_ivw<=0 & wave_np==.
+egen min_pre=min(pre_days), by(spid)
+replace wave_np=`num' if min_pre==pre_days & wave_np==.
+drop min_pre pre_days
+}
+
 
 
 
 H="further variable cleaning"
-use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_w_util_oct 27.dta"
-
 *make a value missing if person died at least half way through quarter
 
 gen days_index_death= death_date-index_date if death_date!=.
@@ -2492,209 +2515,6 @@ replace diedqp8=1 if days_index_death<730 & days_index_death!=.
 
 
 
-H="****below this heading: analysis. okay to run more than once***"
-
-
-H="examining trends before/after disability"
-use "E:\nhats\data\Projects\traj util after disability\util_post_disability_w_util_workingfile.dta"
-
-
-*total expenditures before and after disability
-
-sum expqn4 
-sum expqn3 
-sum expqn2 
-sum expqn1 
-sum c2_expqp1 
-sum c2_expqp2 
-sum c2_expqp3 
-sum c2_expqp4 
-sum c2_expqp5 
-sum c2_expqp6 
-sum c2_expqp7 
-sum c2_expqp8
-
-tab edqn4 
-tab edqn3 
-tab edqn2 
-tab edqn1 
-tab c2_edqp1 
-tab c2_edqp2 
-tab c2_edqp3 
-tab c2_edqp4 
-tab c2_edqp5 
-tab c2_edqp6 
-tab c2_edqp7 
-tab c2_edqp8
-
-tab ipadmqn4 
-tab ipadmqn3 
-tab ipadmqn2 
-tab ipadmqn1 
-tab c2_ipadmqp1 
-tab c2_ipadmqp2 
-tab c2_ipadmqp3 
-tab c2_ipadmqp4 
-tab c2_ipadmqp5 
-tab c2_ipadmqp6 
-tab c2_ipadmqp7 
-tab c2_ipadmqp8
-
-
-H="examining trends by sc vs mob and whether help ended"
-use "E:\nhats\data\Projects\traj util after disability\util_post_disability_w_util_workingfile.dta"
-
-*trends of expenditures by whether sc or mob came first
-
-tab discat, sum(expqn4)
-tab discat, sum(expqn3) 
-tab discat, sum(expqn2) 
-tab discat, sum(expqn1) 
-tab discat, sum(c2_expqp1) 
-tab discat, sum(c2_expqp2) 
-tab discat, sum(c2_expqp3) 
-tab discat, sum(c2_expqp4) 
-tab discat, sum(c2_expqp5) 
-tab discat, sum(c2_expqp6)
-tab discat, sum(c2_expqp7) 
-tab discat, sum(c2_expqp8)
-
-*trends of expenditures by whether help ended
-
-tab indhelpstop, sum(expqn4)
-tab indhelpstop, sum(expqn3) 
-tab indhelpstop, sum(expqn2) 
-tab indhelpstop, sum(expqn1) 
-tab indhelpstop, sum(c2_expqp1) 
-tab indhelpstop, sum(c2_expqp2) 
-tab indhelpstop, sum(c2_expqp3) 
-tab indhelpstop, sum(c2_expqp4) 
-tab indhelpstop, sum(c2_expqp5) 
-tab indhelpstop, sum(c2_expqp6)
-tab indhelpstop, sum(c2_expqp7) 
-tab indhelpstop, sum(c2_expqp8)
-
-
-*rates of death by quarter
-
-tab diedqp1
-tab diedqp2
-tab diedqp3
-tab diedqp4
-tab diedqp5
-tab diedqp6
-tab diedqp7
-tab diedqp8
-
-tab discat, sum(diedqp1)
-tab discat, sum(diedqp2) 
-tab discat, sum(diedqp3) 
-tab discat, sum(diedqp4) 
-tab discat, sum(diedqp5) 
-tab discat, sum(diedqp6) 
-tab discat, sum(diedqp7) 
-tab discat, sum(diedqp8) 
-
-
-tab discat diedqp1
-tab discat diedqp2 
-tab discat diedqp3
-tab discat diedqp4 
-tab discat diedqp5
-tab discat diedqp6
-tab discat diedqp7 
-tab discat diedqp8
-
-
-tab indhelpstop, sum(diedqp1)
-tab indhelpstop, sum(diedqp2) 
-tab indhelpstop, sum(diedqp3) 
-tab indhelpstop, sum(diedqp4) 
-tab indhelpstop, sum(diedqp5) 
-tab indhelpstop, sum(diedqp6) 
-tab indhelpstop, sum(diedqp7) 
-tab indhelpstop, sum(diedqp8) 
-
-H="analysis of nsoc interviews"
-use "E:\nhats\data\Projects\traj util after disability\util_post_disability_w_util_workingfile.dta"
-
-*allowing people multiple nsoc interviews
-tab dis_nsoc_mnths1
-tab dis_nsoc_mnths2
-tab dis_nsoc_mnths3
-tab dis_nsoc_mnths4
-tab dis_nsoc_mnths5
-
-*allowing person only the nsoc interview closest to disability
-tab closest_dis_nsoc_mnths
-
-H="rates of wellbeing before and after disability"
-*examine rates of wellbeing by month before and after disability
-				
-tab index_ivw_mnths_n cheerbi_n, row
-tab index_ivw_mnths cheerbi, row
-
-tab index_ivw_mnths_n boredbi_n, row
-tab index_ivw_mnths boredbi, row
-
-tab index_ivw_mnths_n folbi_n, row
-tab index_ivw_mnths folbi, row
-
-tab index_ivw_mnths_n upsetbi_n, row
-tab index_ivw_mnths upsetbi, row
-
-tab index_ivw_mnths_n meanpurpbi_n, row
-tab index_ivw_mnths meanpurpbi, row
-
-tab index_ivw_mnths_n confidentbi_n, row
-tab index_ivw_mnths confidentbi, row
-
-tab index_ivw_mnths_n giveupbi_n, row
-tab index_ivw_mnths giveupbi, row
-
-tab index_ivw_mnths_n livingsitbi_n, row
-tab index_ivw_mnths livingsitbi, row
-
-tab index_ivw_mnths_n mealskip_n, row
-tab index_ivw_mnths mealskip, row
-
-tab index_ivw_mnths_n nopaymed_n, row
-tab index_ivw_mnths nopaymed, row
-
-
-tab index_ivw_mnths_n ind_pain_n, row
-tab index_ivw_mnths ind_pain, row
-
-tab index_ivw_mnths_n sr_phq2_depressed_n, row
-tab index_ivw_mnths sr_phq2_depressed, row
-
-tab index_ivw_mnths_n sr_gad2_anxiety_n, row
-tab index_ivw_mnths sr_gad2_anxiety, row
-
-
-H="rates of adl impairments before and after onset help"
-tab index_ivw_mnths_n adl_eat_help_n, row
-tab index_ivw_mnths adl_eat_help, row
-
-tab index_ivw_mnths_n adl_bath_help_n, row
-tab index_ivw_mnths adl_bath_help, row
-
-tab index_ivw_mnths_n adl_toil_help_n, row
-tab index_ivw_mnths adl_toil_help, row
-
-tab index_ivw_mnths_n adl_dres_help_n, row
-tab index_ivw_mnths adl_dres_help, row
-
-tab index_ivw_mnths_n adl_ins_help_n, row
-tab index_ivw_mnths adl_ins_help, row
-
-tab index_ivw_mnths_n adl_bed_help_n, row
-tab index_ivw_mnths adl_bed_help, row
-
-
-tab index_ivw_mnths ADLbi, row
-tabstat  ADLcount if ADLbi==1, by(index_ivw_mnths) stat (mean sd)
-
 H="changelog"
 2/18- CKA- looked at inpatient claims- made separate file and brief analysis
 
@@ -2713,6 +2533,8 @@ H="changelog"
 1/25/19-EBL-fixed coding errors in utilization 
 
 1/11/19-EBL-set up dataset
+
+11/3/20- CKA reorg.  Now a dataset named util_post_disability_claims.dta is made from SAS- run stata cleaning code each time to clean
 
 H="strip dates to pull off server"
 use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\util_post_disability_w_util_workingfile.dta" , clear
