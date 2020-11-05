@@ -1,0 +1,151 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Overview"
+
+
+H="***** SETTING UP DATA FILES: RUN THESE ONCE*****"
+
+
+H="MAKE VARIABLE FOR DATE OF FIRST DISABILITY"
+*MAKING VARIABLE FOR DATE OF FIRST HELP
+
+use "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_9\NHATS_Round_9_SP_File.dta"
+keep spid dm9helpendmo dm9helpendyr ds9helpendmo ds9helpendyr dm9helpstmo dm9helpstyr ds9helpstmo ds9helpstyr
+
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_8\NHATS_Round_8_SP_File.dta", ///
+keepusing (dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr dm8helpstmo dm8helpstyr ds8helpstmo ds8helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_7\NHATS_Round_7_SP_File.dta", ///
+keepusing (dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_6\NHATS_Round_6_SP_File.dta", ///
+keepusing (dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_5\NHATS_Round_5_SP_File.dta", ///
+keepusing (dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_4\NHATS_Round_4_SP_File.dta", ///
+keepusing (dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_3\NHATS_Round_3_SP_File.dta", ///
+keepusing (dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr)
+
+drop _merge
+merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_2\NHATS_Round_2_SP_File.dta", ///
+keepusing (dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr)
+
+
+*make missing if "inapplicable"
+foreach var of varlist dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
+		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
+		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr  dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
+		dm8helpstmo dm8helpstyr ds8helpstmo ds8helpstyr  dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr ///
+		dm9helpstmo dm9helpstyr ds9helpstmo ds9helpstyr  dm9helpendmo dm9helpendyr ds9helpendmo ds9helpendyr{
+		replace `var'=. if `var'==-1
+		replace `var'=. if `var'==-9
+		replace `var'=. if `var'==-8
+		replace `var'=. if `var'==90
+		}
+		
+*fix the wave 2 year variables
+replace dm2helpstyr= 2011 if dm2helpstyr==1
+replace dm2helpstyr= 2012 if dm2helpstyr==2
+replace dm2helpendyr= 2011 if dm2helpendyr==1
+replace dm2helpendyr= 2012 if dm2helpendyr==2
+replace ds2helpstyr= 2011 if ds2helpstyr==1
+replace ds2helpstyr= 2012 if ds2helpstyr==2
+replace ds2helpendyr= 2011 if ds2helpendyr==1
+replace ds2helpendyr= 2012 if ds2helpendyr==2
+
+*make an indicator for never needing help
+gen indhelp=0 
+foreach var of varlist dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr ///
+dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr ///
+dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr dm8helpstmo dm8helpstyr ds8helpstmo ds8helpstyr dm9helpstmo dm9helpstyr ds9helpstmo ds9helpstyr {
+		replace indhelp=1 if `var'!=.
+		}
+		
+*drop people who never report a start date for help
+drop if indhelp==0
+*left with 4,339 observations
+
+*make an indicator for the people with a stop date
+gen indhelpstop=0 
+foreach var of varlist dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
+		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
+		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
+		dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr dm9helpendmo dm9helpendyr ds9helpendmo ds9helpendyr{
+		replace indhelpstop=1 if `var'!=.
+		}
+		
+*turn the variables for dates of help starting into a date format
+foreach n of numlist 2 3 4 5 6 7 8 9 {
+gen dm`n'datehelp=mdy(dm`n'helpstmo, 1, dm`n'helpstyr)
+format dm`n'datehelp %td
+}
+
+foreach n of numlist 2 3 4 5 6 7 8 9 {
+gen ds`n'datehelp=mdy(ds`n'helpstmo, 1, ds`n'helpstyr)
+format ds`n'datehelp %td
+}
+
+*turn the variables for dates of help ending into a date format
+foreach n of numlist 2 3 4 5 6 7 8 9 {
+gen dm`n'datehelpend=mdy(dm`n'helpendmo, 1, dm`n'helpendyr)
+format dm`n'datehelpend %td
+}
+
+foreach n of numlist 2 3 4 5 6 7 8 9 {
+gen ds`n'datehelpend=mdy(ds`n'helpendmo, 1, ds`n'helpendyr)
+format ds`n'datehelpend %td
+}
+
+*drop the other date variables
+drop dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
+		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
+		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
+		dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr dm9helpendmo dm9helpendyr ds9helpendmo ds9helpendyr
+
+gen datefirsthelp= dm9datehelp 
+	replace datefirsthelp= ds9datehelp if ds9datehelp!=. & ds9datehelp<datefirsthelp
+	
+	replace datefirsthelp= dm8datehelp if dm8datehelp!=. & dm8datehelp<datefirsthelp
+	replace datefirsthelp= ds8datehelp if ds8datehelp!=. & ds8datehelp<datefirsthelp
+	
+	replace datefirsthelp= dm7datehelp if dm7datehelp!=. & dm7datehelp<datefirsthelp
+	replace datefirsthelp= ds7datehelp if ds7datehelp!=. & ds7datehelp<datefirsthelp
+	
+	replace datefirsthelp= dm6datehelp if dm6datehelp!=. & dm6datehelp<datefirsthelp
+	replace datefirsthelp= ds6datehelp if ds6datehelp!=. & ds6datehelp<datefirsthelp
+	
+	replace datefirsthelp= dm5datehelp if dm5datehelp!=. & dm5datehelp<datefirsthelp
+	replace datefirsthelp= ds5datehelp if ds5datehelp!=. & ds5datehelp<datefirsthelp
+
+	replace datefirsthelp= dm4datehelp if dm4datehelp!=. & dm4datehelp<datefirsthelp
+	replace datefirsthelp= ds4datehelp if ds4datehelp!=. & ds4datehelp<datefirsthelp
+
+	replace datefirsthelp= dm3datehelp if dm3datehelp!=. & dm3datehelp<datefirsthelp
+	replace datefirsthelp= ds3datehelp if ds3datehelp!=. & ds3datehelp<datefirsthelp
+	
+	replace datefirsthelp= dm2datehelp if dm2datehelp!=. & dm2datehelp<datefirsthelp
+	replace datefirsthelp= ds2datehelp if ds2datehelp!=. & ds2datehelp<datefirsthelp
+format datefirsthelp %td	
+
+drop if datefirsthelp==.
+
+*make a variable called wave_firsthelp that is the wave of first reporting help
+gen wave_firsthelp=.
+foreach n of numlist 2 3 4 5 6 7 8 9 {
+	replace wave_firsthelp=`n' if datefirsthelp==dm`n'datehelp
+	replace wave_firsthelp=`n' if datefirsthelp==ds`n'datehelp
+	}
+
+
+
+
+save "D:\NHATS\Projects\trajectories and disability\cka_traj adl after disability\data\initial\date first help_w2_w9.dta"
