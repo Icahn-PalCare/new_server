@@ -149,3 +149,114 @@ foreach n of numlist 2 3 4 5 6 7 8 9 {
 
 
 save "D:\NHATS\Projects\trajectories and disability\cka_traj adl after disability\data\initial\date first help_w2_w9.dta"
+
+H="MERGE IN NHATS DATA, MAKE A RAW DATA FILE"
+use "D:\NHATS\Projects\trajectories and disability\cka_traj adl after disability\data\initial\date first help_w2_w9.dta"
+rename wave_firsthelp wave
+
+drop _merge
+sort spid wave
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_9.dta", keepusing(varstrat varunit anfinwgt agecat race_cat female marriedpartnered ivw_type proxy_ivw freq_go_out homebound_cat education income_cat medicaid residence livealone srh sr_ami_ever sr_stroke_ever sr_ami_new sr_stroke_new sr_cancer_ever sr_cancer_new sr_hip_ever sr_hip_new sr_heart_dis_ever sr_heart_dis_new sr_htn_ever sr_htn_new sr_ra_ever sr_ra_new sr_osteoprs_ever sr_osteoprs_new sr_diabetes_ever sr_diabetes_new sr_lung_dis_ever sr_lung_dis_new sr_dementia_ever sr_dementia_new sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 fall_last_month sr_hosp_ind sr_hosp_stays tot_hrsmonth_help_i n_helpers tot_hrswk_help_i n_family_helpers n_paid_helpers ind_paid_helper ind_family_helper num_helpers_cat metro_ind rehab surgery income_quart bmi community_dwelling nhres res_care sp_status ivw_date adl_index death_date division region n_children)
+
+gen adlp1= adl_index
+sort spid wave
+by spid: gen adlp2=adl_index[_n+1]
+by spid: gen adlp3=adl_index[_n+2]
+by spid: gen adlp4=adl_index[_n+3]
+by spid: gen adlp5=adl_index[_n+4]
+by spid: gen adlp6=adl_index[_n+5]
+by spid: gen adlp7=adl_index[_n+6]
+by spid: gen adlp8=adl_index[_n+7]
+by spid: gen adlp9=adl_index[_n+8]
+
+by spid: gen adln1=adl_index[_n-1]
+by spid: gen adln2=adl_index[_n-2]
+by spid: gen adln3=adl_index[_n-3]
+by spid: gen adln4=adl_index[_n-4]
+by spid: gen adln5=adl_index[_n-5]
+by spid: gen adln6=adl_index[_n-6]
+by spid: gen adln7=adl_index[_n-7]
+by spid: gen adln8=adl_index[_n-8]
+
+*set up to make a variable of days from onset disability to ADL report
+gen ref_date= ivw_date if lml_ivw_yes==0
+replace ref_date= death_date if lml_ivw==1
+
+gen ref_date_p1=ref_date
+sort spid wave
+by spid: gen ref_date_p2=ref_date[_n+1]
+by spid: gen ref_date_p3=ref_date[_n+2]
+by spid: gen ref_date_p4=ref_date[_n+3]
+by spid: gen ref_date_p5=ref_date[_n+4]
+by spid: gen ref_date_p6=ref_date[_n+5]
+by spid: gen ref_date_p7=ref_date[_n+6]
+by spid: gen ref_date_p8=ref_date[_n+7]
+by spid: gen ref_date_p9=ref_date[_n+8]
+
+sort spid wave
+by spid: gen ref_date_n1=ref_date[_n-1]
+by spid: gen ref_date_n2=ref_date[_n-2]
+by spid: gen ref_date_n3=ref_date[_n-3]
+by spid: gen ref_date_n4=ref_date[_n-4]
+by spid: gen ref_date_n5=ref_date[_n-5]
+by spid: gen ref_date_n6=ref_date[_n-6]
+by spid: gen ref_date_n7=ref_date[_n-7]
+by spid: gen ref_date_n8=ref_date[_n-8]
+
+*now limit to those at first wave w new disability
+keep if datefirsthelp!=.
+
+*now replace the date var with the days between index and ivw
+foreach n of numlist 1 2 3 4 5 6 7 8 9 {
+gen mnths_p`n'= [ref_date_p`n'- datefirsthelp]/30
+}
+foreach n of numlist 1 2 3 4 5 6 7 8  {
+gen mnths_n`n'= [ref_date_n`n'- datefirsthelp]/30
+}
+
+drop dm9helpstmo dm9helpstyr ds9helpstmo ds9helpstyr dm8helpstmo dm8helpstyr ds8helpstmo ds8helpstyr dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr ivw_day ivw_month ivw_year nhats_death_day nhats_death_date nhats_death_month nhats_death_year ref_date_n8 ref_date_n7 ref_date_n6 ref_date_n5 ref_date_n4 ref_date_n3 ref_date_n2 ref_date_n1 ref_date_p9 ref_date_p8 ref_date_p7 ref_date_p6 ref_date_p5 ref_date_p4 ref_date_p3 ref_date_p2 ref_date_p1 ref_date _merge1 _merge
+
+save "D:\NHATS\Projects\trajectories and disability\cka_traj adl after disability\data\final\raw_file.dta", replace
+
+H="VARIABLE CLEANING"
+*VARIABLE CLEANING
+use "D:\NHATS\Projects\trajectories and disability\cka_traj adl after disability\data\final\raw_file.dta"
+*gen variable for died within 6 years after disability
+gen days_dis_death= death_date-datefirsthelp
+replace days_dis_death=1 if days_dis_death<0
+gen died_6yrs=0
+replace died_6yrs=1 if days_dis_death<2190
+
+
+
+save "D:\NHATS\Projects\trajectories and disability\cka_traj adl after disability\data\final\working_file.dta", replace
+
+H="ANALYSIS"
+*ANALYSIS FILE
+use "D:\NHATS\Projects\trajectories and disability\cka_traj adl after disability\data\final\working_file.dta"
+
+*
+
+*num and form trajectories
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(2 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(2 2 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(2 2 2 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(2 2 2 2 2) min(0) max(6)
+
+
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(2 2 2 1) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(2 2 2 1) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(2 2 1 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(2 1 2 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 2 2 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 3 2 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 2 3 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 2 2 3) min(0) max(6)
+
+
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 2 2 2) min(0) max(6)
+trajplot, xtitle("Months after new disability") ytitle ("Number of ADLs") ci
+
+
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 2 2 2) min(0) max(6) outcome(died_6yrs) omodel(logit)

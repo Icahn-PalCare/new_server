@@ -10841,7 +10841,7 @@ replace adl_cat=2 if inrange(adl_index,1,2)
 replace adl_cat=3 if inrange(adl_index,3,6)
 label var adl_cat "ADLs, categorical"
 label values adl_cat adl_cat
-
+ 
 gen ivw2traum=index_date-ivw_date
 label var ivw2 "Days from interview to trauma"
 foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus {
