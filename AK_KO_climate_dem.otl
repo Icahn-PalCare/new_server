@@ -576,7 +576,7 @@ drop  rescode urbrur1993 urbrur2003 urbrur2013 countyname10 countyname10 linkcen
 
 save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\climate_merged_public.dta", replace
 
-H="EBL merging multiple years"
+H="xxxxxEBL merging multiple years"
 *use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14_unr.dta", clear
 //note--half of disaster counties don't match with anybody in HRS, just 5 counties in HRS don't match (74 obs total)
 use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\climate_clean_new", clear
@@ -647,7 +647,7 @@ drop if ivw_type==2
 drop ivw_type
 save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_14.dta", replace
 
-H="EBL merging multiple years by n1 address"
+H="xxxxxEBL merging multiple years by n1 address"
 *use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14_unr.dta", clear
 //note--half of disaster counties don't match with anybody in HRS, just 5 counties in HRS don't match (74 obs total)
 use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\climate_clean_new", clear
@@ -656,13 +656,13 @@ tempfile t1
 save `t1'
 
 //get a dataset with all of the interviews, core and exit
-use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_16.dta", clear
 gen ivw_type=1
 append using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta"
 replace ivw_type=2 if missing(ivw_type)
 label define ivw_type 1 "Core" 2 "Exit"
 replace core_year=exit_year if missing(core_year)
-merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta", keep(match master)
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2016.dta", keep(match master)
 replace c_ivw_date=death_all if ivw_type==2
 gen ind_died_24m=death_all<=c_ivw_date+730
 
@@ -671,7 +671,7 @@ keep if ivw_type==1
 tempfile ivws
 save `ivws'
 
-use hhid pn stcty wave using "D:\HRS\Shared\raw\HRS\hrs_restricted_2014\Detail\2014\hrsxdetail2014(2nd try unzip)\stata\HRSXGEO14b_R.dta", clear
+use hhid pn stcty year using "D:\HRS\Shared\raw\HRS\hrs_restricted_2016\GeoCode\Detail\2016\hrsxdetail2016\stata\HRSXGEO16V7B_R.dta", clear
 gen id=hhid+pn
 rename wave core_year
 destring core_year, replace
@@ -722,7 +722,7 @@ drop if ivw_type==2
 drop ivw_type
 save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_14_n1loc.dta", replace
 
-H="new merge on june 24th"
+H="xxxxxnew merge on nov 4"
 *use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14_unr.dta", clear
 //note--half of disaster counties don't match with anybody in HRS, just 5 counties in HRS don't match (74 obs total)
 use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\climate_clean_new_06242020", clear
@@ -731,13 +731,13 @@ tempfile t1
 save `t1'
 
 //get a dataset with all of the interviews, core and exit
-use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta", clear
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_16.dta", clear
 gen ivw_type=1
 append using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta"
 replace ivw_type=2 if missing(ivw_type)
 label define ivw_type 1 "Core" 2 "Exit"
 replace core_year=exit_year if missing(core_year)
-merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2015.dta", keep(match master)
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2016.dta", keep(match master)
 replace c_ivw_date=death_all if ivw_type==2
 gen ind_died_24m=death_all<=c_ivw_date+730
 
@@ -746,9 +746,9 @@ keep if ivw_type==1
 tempfile ivws
 save `ivws'
 
-use hhid pn stcty wave using "D:\HRS\Shared\raw\HRS\hrs_restricted_2014\Detail\2014\hrsxdetail2014(2nd try unzip)\stata\HRSXGEO14b_R.dta", clear
+use hhid pn stcty year using "D:\HRS\Shared\raw\HRS\hrs_restricted_2016\GeoCode\Detail\2016\hrsxdetail2016\stata\HRSXGEO16V7B_R.dta", clear
 gen id=hhid+pn
-rename wave core_year
+rename year core_year
 destring core_year, replace
 gen wave=(core_year-1990)/2
 merge 1:1 id core_year using `ivws', keep(match) nogen
@@ -795,7 +795,194 @@ order id year ivw_type
 
 drop if ivw_type==2
 drop ivw_type
-save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_14_n1loc_06242020.dta", replace
+save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_14_n1loc_110420.dta", replace
+
+H="xxxxxMH adding vars"
+use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data\zip fips.dta", clear
+
+tostring zipcode, replace
+
+replace zipcode="00"+zipcode if strlen(zipcode)==3
+replace zipcode="0"+zipcode if strlen(zipcode)==4
+
+tempfile zipcode
+save `zipcode'
+
+import excel "D:\SSH Transfer\New Files moved on\Mohammed\20200728\ruralurbancodes2013.xls", sheet("Rural-urban Continuum Code 2013") firstrow case(lower) clear
+
+tempfile metro
+save `metro'
+
+
+use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_14_n1loc_110420.dta", clear
+
+destring id, replace
+
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", keep(master matched) nogen 
+
+
+gen state="."
+gen zipcode="."
+replace state=stateusps98 if year==1998
+replace zipcode=zipcode98 if year==1998
+
+foreach i in 00 02 04 06 08 10 12 14{
+	replace state=stateusps`i' if year==20`i'
+	replace zipcode=zipcode`i' if year==20`i'
+}
+sort id year
+by id: carryforward id year, replace 
+
+gen region=1 if inlist(state, "CT","ME","MA","NH","RI","VT","NJ","NY","PA")
+replace region=2 if inlist(state, "IN","IL","MI","OH","WI","IA","KS","MN","MO")
+replace region=2 if inlist(state,"NE","ND","SD")
+replace region=3 if inlist(state, "DE","DC","FL","GA","MD","NC","SC","VA","WV")
+replace region=3 if inlist(state,"AL","KY","MS","TN", "AR","LA","OK","TX")
+replace region=4 if inlist(state, "AZ","CO","ID","NM","MT","UT","NV","WY","AK")
+replace region=4 if inlist(state,"CA","HI","OR","WA")
+
+merge m:1 zipcode using "`zipcode'", keep(master matched) nogen
+
+merge m:1 fips using `metro', keep(master matched) nogen
+
+gen metro=0
+replace metro=1 if inlist(rucc_2013, 1,2 ,3)
+
+
+keep id-ind_disaster white black other_na_api_race region hisp_eth metro
+
+save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_14_n1loc_110420.dta", replace 
+
+H="Merging multiple years by n1 address"
+*use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14_unr.dta", clear
+//note--half of disaster counties don't match with anybody in HRS, just 5 counties in HRS don't match (74 obs total)
+use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\climate_clean_new_06242020", clear
+rename st stctyfips10 
+tempfile t1
+save `t1'
+
+//get a dataset with all of the interviews, core and exit
+use "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_16.dta", clear
+gen ivw_type=1
+append using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta"
+replace ivw_type=2 if missing(ivw_type)
+label define ivw_type 1 "Core" 2 "Exit"
+replace core_year=exit_year if missing(core_year)
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\death_date_2016.dta", keep(match master)
+replace c_ivw_date=death_all if ivw_type==2
+gen ind_died_24m=death_all<=c_ivw_date+730
+
+keep id core_year c_ivw_date ivw_type death_all ind_died_24m
+keep if ivw_type==1
+tempfile ivws
+save `ivws'
+
+use hhid pn stcty year using "D:\HRS\Shared\raw\HRS\hrs_restricted_2016\GeoCode\Detail\2016\hrsxdetail2016\stata\HRSXGEO16V7B_R.dta", clear
+gen id=hhid+pn
+rename year core_year
+destring core_year, replace
+gen wave=(core_year-1990)/2
+merge 1:1 id core_year using `ivws', keep(match) nogen
+sort id core_year
+by id: gen ivw_date_n1=c_ivw_date
+
+forvalues i=5/13 {
+	preserve
+	keep if wave==`i'
+	joinby stc using `t1', unmatched(both) _merge(_merge)
+	keep if _merge==3
+	keep if inrange(inc_date,ivw_date_n1,ivw_date_n1+730)
+	drop if death_all<inc_date & !missing(inc_date)
+	drop inc_date death_all
+	duplicates drop
+	tempfile t`i'
+	save `t`i''
+	restore
+}
+
+clear 
+forvalues i=5/13 {
+	append using `t`i''
+}
+
+keep id hhid pn core_year hurricane sev_storm mete* hydro geo climate ivw_type 
+duplicates drop
+duplicates report id core_year
+merge m:1 id core_year using `ivws', nogen keepusing(ivw_type ind_died_24m)
+
+
+foreach x of varlist hurricane sev_storm mete_storm mete_ext hydro geo climate {
+replace `x'=0 if missing(`x') 
+replace `x'=. if core_year==1998
+by id core_year, sort: egen a=max(`x')
+replace `x'=a
+drop a
+}
+duplicates drop
+
+egen ind_disaster=rowmax(hurricane sev_storm mete_* hydro geo climate)
+rename core_year year
+order id year ivw_type
+
+drop if ivw_type==2
+drop ivw_type
+save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_16_n1loc_111220.dta", replace
+
+H="adding vars"
+use "D:\HRS\Shared\raw\HRS\hrs_restricted_2016\GeoCode\Detail\2016\hrsxdetail2016\stata\HRSXGEO16V7B_R.dta", clear
+gen id=hhid+pn
+
+tempfile geo
+save `geo'
+
+use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\ref_data\zip fips.dta", clear
+
+tostring zipcode, replace
+
+replace zipcode="00"+zipcode if strlen(zipcode)==3
+replace zipcode="0"+zipcode if strlen(zipcode)==4
+
+tempfile zipcode
+save `zipcode'
+
+import excel "D:\SSH Transfer\New Files moved on\Mohammed\20200728\ruralurbancodes2013.xls", sheet("Rural-urban Continuum Code 2013") firstrow case(lower) clear
+
+tempfile metro
+save `metro'
+
+
+use "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_16_n1loc_111220.dta", clear
+
+
+merge 1:1 id year using "`geo'", keep(master matched)  nogen
+
+
+gen state=stateusps
+
+sort id year
+by id: carryforward id year, replace 
+
+gen region=1 if inlist(state, "CT","ME","MA","NH","RI","VT","NJ","NY","PA")
+replace region=2 if inlist(state, "IN","IL","MI","OH","WI","IA","KS","MN","MO")
+replace region=2 if inlist(state,"NE","ND","SD")
+replace region=3 if inlist(state, "DE","DC","FL","GA","MD","NC","SC","VA","WV")
+replace region=3 if inlist(state,"AL","KY","MS","TN", "AR","LA","OK","TX")
+replace region=4 if inlist(state, "AZ","CO","ID","NM","MT","UT","NV","WY","AK")
+replace region=4 if inlist(state,"CA","HI","OR","WA")
+
+merge m:1 zipcode using "`zipcode'", keep(master matched) nogen
+
+merge m:1 fips using `metro', keep(master matched) nogen
+
+gen metro=0
+replace metro=1 if inlist(rucc_2013, 1,2 ,3)
+
+destring id, replace
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta"
+
+keep id-ind_disaster white black other_na_api_race region hisp_eth metro
+
+save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_16_n1loc_111220.dta", replace 
 
 H="Change log"
 ********************Change Log******************** 
@@ -804,6 +991,13 @@ H="Change log"
 
 Updates:
 
+11/12/2020 MH
+------------
+Updating the code and fixing the restricted file issue. 
+
+11/4/2020 MH
+------------
+Adding in 2016 HRS data. 
 
 5/7/2020 CY
 -------------

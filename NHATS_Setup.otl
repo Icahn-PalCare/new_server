@@ -227,7 +227,6 @@ append using round_`w'_ltd.dta
 
 preserve
 
-// 6/26/2020-commenting this out until we have r9 sens file
 
 forvalues w=1/$w{
 use "${r`w's}NHATS_Round_`w'_SP_Sen_Dem_File.dta", clear
@@ -5834,7 +5833,7 @@ Created by: --
 Date Created: --
 
 Updated by: MH
-Date Updated: 12/18/2019
+Date Updated: 07/21/2020
 
 Description: NSOC cleaning, combing NSOC dataset with OP file, tracker file, and SP file. 
 Round 7 removed
@@ -5877,12 +5876,12 @@ foreach w in 1 5 7{
 
 	else if `w'==5 {
 		use "${r`w'nsoc}/NSOC_Round_`w'_File.dta", clear
-		rename  (c`w'* cca`w'* cdc`w'* w`w'* chd`w'*) (*)
+		rename  (c`w'* cca`w'* cdc`w'* w`w'* chd`w'* crl`w'd*) (*)
 	}
 	
 	else if `w'==7 {
 		use "${r`w'nsoc}/NSOC_Round_`w'_File.dta", clear
-		rename  (c`w'* cca`w'* cdc`w'* w`w'* chd`w'* chc`w'* cdi`w'*) (*)
+		rename  (c`w'* cca`w'* cdc`w'* w`w'* chd`w'* chc`w'* cdi`w'* crl`w'*) (*)
 	}
 	
 gen wave=`w'
@@ -5926,6 +5925,31 @@ use nsoc_1.dta, clear
 foreach w in 5 7{
 append using nsoc_`w'.dta
 }
+
+replace cgracehisp=dcgracehisp if cgracehisp==.
+replace cgracehisp=. if inlist(cgracehisp, 5, 6)
+
+gen white=.
+replace white=0 if cgracehisp!=1 & !missing(cgracehisp)
+replace white=1 if cgracehisp==1
+label var white "White, non-Hispanic"
+
+
+gen black=.
+replace black=0 if cgracehisp!=2 & !missing(cgracehisp)
+replace black=1 if cgracehisp==2
+label var black "Black, non-Hispanic"
+
+gen other=.
+replace other=0 if cgracehisp!=3 & !missing(cgracehisp)
+replace other=1 if cgracehisp==3
+label var other "Other (Am Indian/Asian/Native Hawaiian), non-Hispanic"
+
+gen hispanic=.
+replace hispanic=0 if cgracehisp!=4 & !missing(cgracehisp)
+replace hispanic=1 if cgracehisp==4
+label var black "Hispanic"
+
 
 gen cgfinwgt=cgfinwgt0
 note cgfinwgt: cgfinwgt0
@@ -6792,7 +6816,7 @@ label values cg_dist_cat cg_dist_cat
 		drop c5relatnshp c5intmonth c5dintdays cca5hwoftchs cca5hwoftshp cca5hlpordmd cca5hlpbnkng cca5cmpgrcry cca5cmpordrx cca5cmpbnkng cca5hwoftpc cca5hwofthom cca5hlplft cca5hlpspt cca5hlpstd cca5hwoftlft cca5hwoftspt cca5hwoftstd cca5hwoftdrv cca5hwoftott cca5hlpmed cca5hlpshot cca5hlpmdtk cca5hlpexrcs cca5hlpdiet cca5hlpteeth cca5hlpfeet cca5hlpskin cca5hlpmdapt cca5hlpspkdr cca5hlpinsrn cca5hlpothin cca5hlpdramt cca5hwget2sp cca5tm2spunt cca5tm2spmin cca5tm2sphrs flcca5routing cca5hlplstyr cca5lstmhlpd cdc5hlpsched cdc5hlpdyswk cdc5hlpdysmt cdc5hlphrsdy cdc5hlphrmvf cdc5hlphrlmt cdc5hlphrpc cdc5hlphrpce cdc5hlpyrpls cdc5hlpmthst cdc5hlpunit cdc5hlpyrs cdc5hlpyrst cdc5hlpyrs5p cac5joylevel cac5arguelv cac5spapprlv cac5nerveslv cac5moreconf cac5dealbetr cac5closr2sp cac5moresat cac5diffinc cac5diffemo cac5diffphy cac5diffinlv cac5diffemlv cac5diffphlv cac5fmlydisa cac5careamt flcac5routing cac5exhaustd cac5toomuch cac5notime cac5uroutchg cse5frfamtlk cse5frfamact cse5frfamhlp cse5spptgrp cse5srv2hlp cse5training cse5fndfnhlp cse5hwfnd1 cse5hwfnd2 cse5hwfnd3 cse5hwfnd4 cse5hwfnd5 cse5hwfnd6 cse5look4hlp cse5look1 cse5look2 cse5look3 cse5look4 cse5look5 cse5look6 cse5hlpgtdev cse5homsafer cse5hlppdhlp cpp5vstfrfam cpp5hlpkptvs cpp5impvst cpp5gorelgs cpp5hlpkptrl cpp5imprel cpp5prtgroup cpp5hlpkptgr cpp5impgroup cpp5go4fun cpp5hlpkptgo cpp5impgo cpp5wrk4pay cpp5hlpkptwk cpp5volun cpp5hlpkptvo cpp5careothr cpp5hlpkptca che5health che5hrtattck che5othheart che5highbld che5arthrits che5osteoprs che5diabetes che5lungdis che5cancer che5seeing che5hearing che5cncrskin che5cncrbrst che5cncrpros che5cncroth che5pain che5painlmt che5brethprb che5brethlmt che5armstr che5armlmt che5legstr che5leglmt che5lowenrgy che5enrgylmt che5sleeptrb che5sleepint flche5routing che5weight che5heightft che5heightin che5lost10lb che5try2lose che5moodcher che5moodpcfl che5moodfull che5moodbord che5moodlone che5moodupst che5fltltlin che5fltdown che5fltnervs che5fltworry che5lifemng che5feelconf che5gaveup che5lifegood che5lifelone che5easychng che5rcvrqick chd5martstat chd5dmartstat chd5marendmt chd5marendyr chd5chldlvng chd5numchild chd5dnumchild chd5numchu18 chd5numinhh chd5dnuminhh flchd5routing chd5educ chd5deduc chd5educsprt chd5deducsprt chd5cgbrthmt chd5dcgbrthmt chd5cgbrthyr chd5dcgbrthyr chd5age chd5spbrthmt chd5dspbrthmt chd5spbrthyr chd5dspbrthyr chd5dspouage c5dgender crl5dcgracehisp /*crl5draceimpfl*/ cec5wrk4pay cec5ownbusns cec5unpdwrk cec5misswork cec5look4wrk cec5wrkmulti cec5hrsweek cec5hrslstwk cec5hrslast cec5hrswork cec5flexhrs cec5wrksched cec5msswrkmt cec5mswkvctn cec5mswksick cec5mswkhelp cec5mswkfmly cec5mswkpers cec5mswkunit cec5mswkhlph cec5mswkhlpd cec5wkhrperd cec5hlpafwk1 cec5hlpafwk2 cec5busntype cec5occuptn cec5worktype cec5occpdscr chi5medicare chi5medigap chi5medicaid chi5privinsr chi5tricare chi5uninsurd chi5insrtype chi5ownhome chi5chckacct chi5svgsacct chi5certdpst chi5retrplan chi5mutlfnds chi5income chi5inc200pv chi5inc100pv chi5inc400pv chi5paymeds chi5payinsur chi5paymbdvc chi5paysfty chi5payasdvc chi5payhmhlp chi5pay1000 chi5pay2000 chi5pay500 chi5gifttosp chi5gift500 chi5gift1000 chi5gift100 chi5fromsp chi5frsp500 chi5frsp1000 chi5frsp100 c5varstrat c5varunit w5cgfinwgt0 w5cgfinwgt1 w5cgfinwgt2 w5cgfinwgt3 w5cgfinwgt4 w5cgfinwgt5 w5cgfinwgt6 w5cgfinwgt7 w5cgfinwgt8 w5cgfinwgt9 w5cgfinwgt10 w5cgfinwgt11 w5cgfinwgt12 w5cgfinwgt13 w5cgfinwgt14 w5cgfinwgt15 w5cgfinwgt16 w5cgfinwgt17 w5cgfinwgt18 w5cgfinwgt19 w5cgfinwgt20 w5cgfinwgt21 w5cgfinwgt22 w5cgfinwgt23 w5cgfinwgt24 w5cgfinwgt25 w5cgfinwgt26 w5cgfinwgt27 w5cgfinwgt28 w5cgfinwgt29 w5cgfinwgt30 w5cgfinwgt31 w5cgfinwgt32 w5cgfinwgt33 w5cgfinwgt34 w5cgfinwgt35 w5cgfinwgt36 w5cgfinwgt37 w5cgfinwgt38 w5cgfinwgt39 w5cgfinwgt40 w5cgfinwgt41 w5cgfinwgt42 w5cgfinwgt43 w5cgfinwgt44 w5cgfinwgt45 w5cgfinwgt46 w5cgfinwgt47 w5cgfinwgt48 w5cgfinwgt49 w5cgfinwgt50 w5cgfinwgt51 w5cgfinwgt52 w5cgfinwgt53 w5cgfinwgt54 w5cgfinwgt55 w5cgfinwgt56
 	}
 */
-keep spid opid wave birthmth_op birthyear_op age_op catgryage_op m8 op_doc_help op_nonadl_out op_nonadl_money op_nonadl_tkpl op_age op_sn n_sn death_source cgfinwgt-cg_dist_cat
+keep spid opid wave birthmth_op birthyear_op age_op catgryage_op m8 op_doc_help op_nonadl_out op_nonadl_money op_nonadl_tkpl op_age op_sn n_sn death_source cgfinwgt-cg_dist_cat white black other hispanic source-cgracehisp
 
 foreach x of varlist * {
 if "`x'"!="opid" {
@@ -7469,6 +7493,10 @@ H="Changelog"
 
 
 Updates:
+
+07/7/2020 MH
+----------
+Added in race for NSOC. 
 
 07/7/2020 MH
 ----------
