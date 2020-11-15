@@ -258,5 +258,17 @@ traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 m
 traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 2 2 2) min(0) max(6)
 trajplot, xtitle("Months after new disability") ytitle ("Number of ADLs") ci
 
-
+*outcome of death in 6 years
 traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 2 2 2) min(0) max(6) outcome(died_6yrs) omodel(logit)
+
+
+*sensitivity analysis: 3 time points
+*num and form trajectories
+traj, model (cnorm) var(adlp1 adlp2 adlp3) indep(mnths_p1 mnths_p2 mnths_p3) order(2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3) indep(mnths_p1 mnths_p2 mnths_p3) order(2 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3) indep(mnths_p1 mnths_p2 mnths_p3) order(2 2 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3) indep(mnths_p1 mnths_p2 mnths_p3) order(2 2 2 2) min(0) max(6)
+traj, model (cnorm) var(adlp1 adlp2 adlp3) indep(mnths_p1 mnths_p2 mnths_p3) order(2 2 2 2 2) min(0) max(6)
+
+traj, model (cnorm) var(adlp1 adlp2 adlp3) indep(mnths_p1 mnths_p2 mnths_p3) order(2 2 2 2) min(0) max(6)
+trajplot, xtitle("Months after new disability") ytitle ("Number of ADLs") ci
