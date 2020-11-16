@@ -1,0 +1,1086 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Intro"
+
+
+H="merging files"
+*merging all covid data files into on
+
+use "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20cova_r.dta" 
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covb_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covc_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covcov_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covd_r.dta", nogen
+
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20cove_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covf_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covg_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covh_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covj_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covj3_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covlb_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covm1_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covm2_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covn_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covp_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covpr_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covq_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covr_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covs_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covt_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covtn_r.dta", nogen
+merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covw_r.dta", nogen
+
+
+
+/*the below files were not merged:
+*merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20cove_fc.dta", nogen
+*merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20cove_mc.dta", nogen
+*merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20cove_tc.dta", nogen
+*merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covf_sb.dta", nogen
+*merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covj2_p.dta", nogen
+*merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covpr_mc.dta", nogen
+*merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data\raw\coviddta\h20covpr_sb.dta", nogen
+
+*/
+
+save "D:\HRS\Projects\coronavirus\data\merged\covid merged.dta", replace
+
+H="Step 1: basic demographics"
+/*variable cleaning for coronavirus data drop november 2020
+adapted from "variable cleaning for HRS core 2006-2014"
+Most code is taken from the HRS Outline_11_22_11.txt file
+and modified to clean 2006-2012 core dataset
+*/
+
+capture log close
+
+clear all
+set mem 1g
+set matsize 800
+set more off
+
+//Amy's PC
+local logpath D:\HRS\Projects\coronavirus\logs
+local datapath D:\HRS\Projects\coronavirus\data\merged
+
+
+//RG PC
+//local logpath C:\HRS\hrs_cleaned\logs
+//local datapath C:\HRS\hrs_cleaned\working
+
+log using "`logpath'\covid clean log.txt", text replace
+
+cd `datapath'
+
+use "D:\HRS\Projects\coronavirus\data\merged\covid_merged.dta"
+
+/*
+merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\working\ivw_9814.dta", keepus(c_ivw_date)
+drop if _m==2
+drop _m
+
+
+gsort id -core_year
+by id: gen days_be_core = c_ivw_date - c_ivw_date[_n+1]
+*/
+
+*********************************************************************************
+// Proxy for core interview
+*********************************************************************************
+generate proxy_core = .
+replace  proxy_core = 1 if (RA009==2)|(RA009==3)
+replace  proxy_core = 0 if RA009==1
+label variable proxy_core "Proxy Respondent for Core Interview"
+//label define proxy_core 0 "No" 1 "Proxy", modify
+//label values proxy_core proxy_core
+*tab proxy_core core_year, missing
+
+*********************************************************************************
+// Gender - from core interview
+*********************************************************************************
+
+
+generate female = .
+replace female = 1 if RX060_R==2
+replace female = 0 if RX060_R==1
+label variable female "Female"
+//label define female 0 "Male" 1 "Female", modify
+//label values female female
+
+*********************************************************************************
+//Education variables
+*********************************************************************************
+// Education: categorical, dummies or dichotomous (>highschool vs <=highschool) - from core
+// Education variables only complete 2004 and earlier
+*******************************************************************************************
+generate educ = .
+replace educ = 0 if RB014==0
+replace educ = 1 if ((RB014>=1)& (RB014<=11))
+
+
+replace educ = 2 if RB014==12
+
+replace educ = 3 if ((RB014>=13)& (RB014<=15))
+
+
+replace educ = 4 if RB014==16
+replace educ = 5 if RB014==17
+label variable educ "Eduction, Highest Level"
+label define educ 0 "No Formal Education" 1 "Grades 1-11" 2 "High School" 3 "Some College" 4 "College" ///
+      5 "Post College", modify
+label values educ educ
+tab educ, missing 
+
+*********************************************************************************
+// Marital status from core interview
+// Note: There are also marital status variables generated in the 
+// exit interview cleaning
+*********************************************************************************
+gen marital = .
+replace marital = 1 if(RB063==1) //married
+replace marital = 2 if(RB063==3) //separated
+replace marital = 3 if(RB063==4) //divorced
+replace marital = 4 if(RB063==5) //widowed
+replace marital = 5 if(RB063==6) //never married
+
+//unknown or other
+replace marital = 6 if (inlist(RB063,2,7,8,9,.)  )
+
+label variable marital "Marital Status"
+label define marital 1 "Married" 2 "Separated" 3 "Divorced" 4 "Widowed" 5 "Never Married" 6 "Other/Don't Know", modify
+label values marital marital
+tab marital, missing
+
+generate byte married = .
+replace married = 1 if (marital==1)
+replace married = 0 if (marital!=1 & marital <.)
+label variable married "Married"
+//label define married 1 "Married" 0 "Not Married", modify
+//label values married married
+tab married , missing 
+
+
+*********************************************************************************
+// Ethnicity from core interview
+// Maybe use restricted file for race and ethnicity?
+*********************************************************************************
+generate hisp = .
+replace hisp = 1 if (RB028==1)
+replace hisp = 0 if (RB028==5)
+label variable hisp "Hispanic Ethnicity"
+//label define hisp 1 "Hispanic- yes" 0 "Non-Hispanic", modify
+//label values hisp hisp
+tab hisp, missing 
+
+*********************************************************************************
+*********************************************************************************
+// Religious preference and importance from core interview
+*********************************************************************************
+*********************************************************************************
+**Religion: this variable is of limited value because many did not answer due to a skip pattern that is unclear**
+*********************************************************************************
+// Religious preference from core interview
+*********************************************************************************
+
+generate relig = .
+replace relig = 1 if (RB050==1)
+replace relig = 2 if (RB050==2)
+replace relig = 3 if (RB050==3)
+replace relig = 4 if (RB050==4)
+replace relig = 5 if (RB050==7)
+label variable relig "Religion"
+label define relig 1 "Protestant" 2 "Catholic" 3 "Jewish" 4 "No Pref" 5 "Other", modify
+label values relig relig
+tab relig, missing 
+
+*********************************************************************************
+// Importance of religion from core interview
+// 2014 discontinued
+*********************************************************************************
+
+
+*********************************************************************************
+// Good Friends Nearby from core interview, for covid coded missing as missingcode missing as no
+*********************************************************************************
+generate friend = .
+replace friend = 1 if (RF175==1)
+replace friend = 0 if (RF175==5)
+label variable friend "Good Friends Nearby"
+label define friend 0 "No" 1 "Yes", modify
+label values friend friend
+tab friend , missing
+
+*********************************************************************************
+// Number of social visits, code missing as no
+*********************************************************************************
+/*How often do you get together with  (/people in or near the facility/any of
+        your neighbors) just to chat or for a social visit? 
+1998 Core 	F2246
+2000 Core 	G2497
+2002 Core 	HF176
+2004 Core 	JF176
+2006 Core 	KF176
+2008 Core 	LF176
+2010 Core 	MF176
+2012 Core 	NF176
+2014 Core 	OF176
+
+Next question clarifies contact per xxx
+D156A.FREQ OF CONTACT PER                 
+          Section: D            Level: Household       CAI Reference: Q2498
+          Type: Numeric         Width: 1               Decimals: 0
+          ................................................................................
+           2343         1. DAY
+           4675         2. WEEK
+            547         3. EVERY TWO WEEKS
+           1367         4. MONTH
+            364         5. YEAR
+           3613         6. ALMOST NEVER
+            120         7. OTHER (SPECIFY) (**other = 97 in 1998)
+              1         8. DK (don't know); NA (not ascertained) (**1998: 98, 99 for dk, rf)
+              1         9. RF (refused)
+*/
+//only asked in alternate waves for 2004 and later
+
+//indicator for any visits
+generate soc_visit = .
+replace soc_visit = 1 if (0<RF176 & RF176 <998) 
+replace soc_visit = 0 if RF176==0 
+//if reported almost never, then set to 0
+replace soc_visit = 0 if soc_visit==. & RF177==6 
+
+label variable soc_visit "Social visits with neighbors?"
+//label define soc_visit 0 "No" 1 "Yes", modify
+//label values soc_visit friend
+tab soc_visit , missing
+
+
+//convert values to a common number of visits per year
+//this is then split into categories to get the categorical variable
+gen soc_visit_yr = .
+
+replace soc_visit_yr = RF176*365 if RF177==1 //daily response
+replace soc_visit_yr = RF176*52 if  RF177==2 //weekly
+replace soc_visit_yr = RF176*26 if RF177==3 //bi weekly
+replace soc_visit_yr = RF176*12 if  RF177==4 //monthly
+replace soc_visit_yr = RF176 if RF177==5 //year
+
+replace soc_visit_yr = . if soc_visit==.
+
+tab soc_visit_yr , missing
+
+//categorical variable
+gen soc_visit_cat = .
+replace soc_visit_cat = 3 if (364)<=soc_visit_yr & soc_visit_yr!=. //every day or more
+replace soc_visit_cat = 2 if 52<=soc_visit_yr & soc_visit_yr<364 //less than every day up to 1x/week
+replace soc_visit_cat = 1 if 0<soc_visit_yr & soc_visit_yr<52 // less than 1/week 
+replace soc_visit_cat = 0 if soc_visit ==0 | RF177==6  //none or almost never
+la var soc_visit_cat "Frequency of social visits, categorical"
+tab soc_visit_cat , missing
+tab soc_visit_cat soc_visit, missing
+
+//some are missing the categorical variable because units weren't provided
+tab  soc_visit_cat if soc_visit==1, missing
+
+
+
+*********************************************************************************
+// Relatives Nearby from core interview, code missing as no
+*********************************************************************************
+gen rel_nb = .
+replace rel_nb = 1 if (RF174==1)
+replace rel_nb = 0 if (RF174==5)
+label variable rel_nb "Relatives Nearby"
+//label define rel_nb 0 "No" 1 "Yes", modify
+//label values rel_nb rel_nb
+tab rel_nb , missing 
+
+*********************************************************************************
+// Overnight hospital stay in past 2 years core interview
+*********************************************************************************
+gen byte hosp_last_2yr = .
+replace hosp_last_2yr = 1 if (RN099==1)
+replace hosp_last_2yr = 0 if (RN099==5)
+label variable hosp_last_2yr "Overnight hospitalization since previous core interview"
+//label define hosp_last_2yr 0 "No" 1 "Yes", modify
+//label values hosp_last_2yr hosp_last_2yr 
+tab hosp_last_2yr  , missing 
+
+*********************************************************************************
+//  Insurance status information - from coreinterview
+*********************************************************************************
+// Covered by Medicare currently?
+// r2585
+generate byte medicare = .
+replace medicare= 1 if (RN001==1) //yes
+replace medicare= 0 if (RN001==5) //no
+label variable medicare "Medicare, 1=yes"
+
+//Covered by Medicare Part B currently?
+// r2587
+generate byte medicareb = .
+replace medicareb= 1 if  (RN004==1) //yes
+replace medicareb= 0 if  (RN004==5) //no
+replace medicareb= 0 if ((medicare== 0))
+label variable medicareb "Medicare Part B, 1=yes"
+
+//Medicaid coverage any time since last core interview or last 2 years ?
+// r2588 r2589
+generate byte medicaid = .
+replace medicaid= 1 if (RN005==1) //yes
+replace medicaid= 0 if (RN005==5) //no
+label variable medicaid "Medicaid, 1=yes"
+
+// CHAMPUS or other veterans health care at time of death?
+// r2598
+generate byte champus = .
+replace champus = 1 if (RN007==1) //yes
+replace champus = 0 if (RN007==5) //no
+label variable champus "CHAMPUS, 1=yes"
+
+// HMO for Medicare / Medicaid coverage?
+// r2601
+//only asked if report medicare or medicaid coverage
+generate byte hmo = .
+replace hmo = 1 if (RN009==1) //yes
+replace hmo = 0 if (RN009==5) //no
+label variable hmo "HMO, 1=yes"
+
+// Private health insurance plans?
+// r2623
+
+generate medigap = .
+replace medigap= 1 if (RN023>=1&RN023<98) //yes
+replace medigap= 0 if (RN023==0) //no
+label variable medigap "Medigap, 1=yes"
+tab medigap, missing
+
+
+tab medicare , missing
+tab medicareb , missing
+tab medicaid , missing
+tab champus , missing
+tab hmo , missing
+tab medigap , missing
+
+egen catinsur= concat(medicare medicareb medicaid champus hmo medigap)
+tab catinsur
+
+*********************************************************************************
+//LTC Insurance
+/* Not including government programs, do you now have any insurance which 
+specifically covers any part of personal or medical care in your home or in a 
+nursing home for a year or more?
+1. Yes
+5. No
+8. DK/NA
+9. RF
+Blank.*/
+gen ltc_ins=.
+replace ltc_ins=0 if RN071==5  
+replace ltc_ins=1 if RN071==1 
+replace ltc_ins=8 if RN071==8 
+replace ltc_ins=. if RN071==9 
+label var ltc_ins "LTC Insurance, 1=yes"
+
+*********************************************************************************
+//LTC Benefits Received
+/* Have you ever received benefits under your long-term care policy?
+1. Yes
+5. No
+8. DK/NA
+9. RF
+Blank.*/
+gen ltc_bene=.
+replace ltc_bene=0 if RN077==5 
+replace ltc_bene=1 if RN077==1 
+replace ltc_bene=8 if RN077==8 
+replace ltc_bene=. if RN077==9 
+label var ltc_bene "LTC Benefits Recd., 1=yes"
+
+*********************************************************************************
+*********************************************************************************
+//Nursing home use variables - core interview
+*********************************************************************************
+*********************************************************************************
+
+*********************************************************************************
+// Nursing home residence currently - core interview
+*********************************************************************************
+//coding changes 1=yes, 5=no
+//different from exit interview which asks about hospice for some years
+generate nhres = .
+replace nhres = 1 if (RA028==1)
+replace nhres = 0 if (RA028==5)
+label variable nhres "Nursing Home Resident"
+//label define nhres 0 "No" 1 "Yes", modify
+//label values nhres nhres
+tab nhres , missing
+
+*********************************************************************************
+// Nursing home residence currently - start month, year
+*********************************************************************************
+/*
+Month:
+1998 Core 	F718
+2000 Core 	G789
+2002-10 Core 	xA065
+Year:
+1998 Core 	F719
+2000 Core 	G790
+2002-10 Core 	xA066
+*/
+gen nhres_start_mo = .
+replace nhres_start_mo = RA065 
+replace nhres_start_mo = . if inlist(nhres_start_mo,98,99)
+la var nhres_start_mo "Start month for curr. NH residents"
+tab nhres_start_mo , missing
+
+gen nhres_start_yr = .
+replace nhres_start_yr = RA066 
+replace nhres_start_yr = . if inlist(nhres_start_yr,9998,9999)
+la var nhres_start_yr "Start year for curr. NH residents"
+tab nhres_start_yr , missing
+
+
+
+*********************************************************************************
+// Nursing home in past 2 years - core interview
+// If responded currently in nh, this is coded as yes
+*********************************************************************************
+/*
+2000 Core 	G2571
+2002 Core 	HN114
+2004 Core 	JN114
+2006 Core 	KN114
+2008 Core 	LN114
+2010 Core 	MN114
+2012 Core 	NN114
+2014 Core 	ON114
+*/
+generate nhres_2yr = .
+replace nhres_2yr = 1 if (RN114==1)
+replace nhres_2yr = 0 if (RB114==5)
+label variable nhres_2yr "Nursing Home Resident in the past 2 years"
+//label define nhres_2yr 0 "No" 1 "Yes", modify
+//label values nhres_2yr nhres
+tab nhres_2yr  , missing
+tab nhres_2yr nhres, missing
+*********************************************************************************
+// Number of times in a nursing home in past 2 years - core interview
+*********************************************************************************
+/*
+2000 Core 	G2572
+2002 Core 	HN115
+2004 Core 	JN115
+2006 Core 	KN115
+2008 Core 	LN115
+2010 Core 	MN115
+2012 Core 	NN115
+2014 Core 	ON115
+*/
+generate nh_stays = .
+replace nh_stays = RN115 
+replace nh_stays = 0 if nhres_2yr ==0
+replace nh_stays = . if inlist(nh_stays,98,99)
+label variable nh_stays "Number of times a patient in NH past 2 years"
+tab nh_stays ,missing
+
+*********************************************************************************
+// Total nursing home nights in the past 2 years - core interview
+*********************************************************************************
+/*Nights response:
+2000 Core 	G2573
+2002 Core 	HN116
+2004 Core 	JN116
+2006 Core 	KN116
+2008 Core 	LN116
+2010 Core 	MN116
+2012 Core 	NN116
+2014 Core 	ON116
+996 = continuous since last core interview; 998, 999 = dont know / refused
+Months response:
+2000 Core 	G2574
+2002 Core 	HN117
+2004 Core 	JN117
+2006 Core 	KN117
+2008 Core 	LN117
+2010 Core 	MN117
+2012 Core 	NN117
+2014 Core 	ON117
+998, 999 = dont know / refused
+Variable coded here is in nights, convert months * 30.5 = number of nights,
+continuous = 365*2 = 730
+Some respondants report values greater than 2 years, in those cases, cap at 730 days / 2 years
+*/
+gen nh_nights=.
+replace nh_nights= RN116 if RN117==.
+replace nh_nights=730 if nh_nights==996
+replace nh_nights=. if inlist(RN116,998,999)
+sum nh_nights, detail
+
+gen nh_start = mdy(nhres_start_mo,1,nhres_start_yr)
+
+gen nh_mos=.
+replace nh_mos= RN117 if RN116==.
+replace nh_mos=. if inlist(RN117,98,99)
+tab nh_mos , missing
+sum nh_mos, detail
+
+/*
+I DIDN'T DO THIS FOR COVID BC I DIDN'T HAVE THE INTERVIEW DATE....
+replace nh_nights=ceil(30.5*nh_mos) if nh_mos!=.
+replace nh_nights=days_be_core if nh_nights>days_be_core  & nh_nights!=. // capping nh_nights by maximum number of days since last ivw
+replace nh_nights = c_ivw_date - nh_start if nh_nights==.
+replace nh_nights=0 if nhres_2yr==0
+sum nh_nights, detail
+sum nh_nights if(nhres_2yr==1), detail
+tab nh_nights core_year, missing
+*/
+drop nh_mos
+
+*********************************************************************************
+// Nursing home covered by insurance - core interview
+// missing if no nursing home
+*********************************************************************************
+/*
+I DIDN'T DO THIS FOR COVID BC DON'T SEEM TO HAVE THESE VARIABLES.
+gen nh_ins = .
+replace nh_ins = 1 if ((kn118==1)|(ln118==1)|(mn118==1)|(nn118==1)/*|(on118==1)*/)
+replace nh_ins = 2 if (inlist(kn118,2,3)|inlist(ln118,2,3)|inlist(mn118,2,3)| ///
+   inlist(nn118,2,3) /*| inlist(on118,2,3)*/)
+replace nh_ins = 3 if ((kn118==5)|(ln118==5)|(mn118==5)|(nn118==5)/*|(on118==5)*/)
+replace nh_ins = 4 if (inlist(kn118,7,8,9)| inlist(ln118,7,8,9)| inlist(mn118,7,8,9)| ///     
+   inlist(nn118,7,8,9) /*| inlist(on118,7,8,9)*/)
+la var nh_ins "Nursing home covered by insurance"
+// la define nh_ins 1 "Fully covered by insurance" 2 "Partially covered (or covered w/ copay)" 3 ///
+//	"Not covered" 4 "Unknown, not provided"
+// la val nh_ins nh_ins
+tab nh_ins core_year, missing
+tab nh_ins core_year if nhres_2yr ==1, missing
+*/
+
+*********************************************************************************
+// Living with spouse - core interview
+*********************************************************************************
+generate resspouse = .
+replace resspouse = 0 if ((RA030==5) |(married==0))
+replace resspouse = 1 if RA030==1
+label variable resspouse "Living with Spouse/Partner"
+//label define resspouse 1 "Live with Spouse" 0 "No", modify
+tab resspouse , missing
+
+*********************************************************************************
+// Number of household members - core interview
+*********************************************************************************
+generate hhm = .
+replace hhm = RA098 
+
+label variable hhm "Number of Household Members"
+sum hhm, detail
+tab hhm, missing
+*********************************************************************************
+// Number of Children - core interview
+*********************************************************************************
+generate child = .
+replace child = RA101
+label variable child "Number of Children, not their children's spouses"
+sum child, detail
+
+*********************************************************************************
+// Number of Grandchildren - core
+*********************************************************************************
+//var = 95 if none assumed, otherwise 0-80 max
+generate gchil = .
+replace gchil = RE046 
+replace gchil = 0 if inlist(gchil,95,995)
+replace gchil = . if inlist(gchil,98,99,998,999)
+label variable gchil "Number of Grandchildren (capped at 80)"
+sum gchil, detail
+
+*********************************************************************************
+// Total Number of Children, Children-in-law, and Grandchildren
+*********************************************************************************
+/*
+DO NOT SEEM TO HAVE THIS IN COVID***
+generate allchil = .
+replace allchil = ka113 if (core_year==2006)
+replace allchil = la113 if (core_year==2008)
+replace allchil = ma113 if (core_year==2010)
+replace allchil = na113 if (core_year==2012)
+replace allchil = oa113 if (core_year==2014)
+replace allchil = pa113 if (core_year==2016)
+label variable allchil "Total Number of Children, Children-in-law, and Grandchildren"
+sum allchil, detail
+*/
+*********************************************************************************
+// Number of Resident Children
+*********************************************************************************
+generate reschil = .
+replace reschil = RA099
+label variable reschil "Number of Resident Children"
+sum reschil, detail
+
+/*******************************************************************************************
+** Self reported health status
+*******************************************************************************************/
+
+/**Self Rated Health "Don't Know/Refused" (only 2 cases) included with missing 
+Cross-Wave Equivalents for:
+C001 RATE HEALTH 
+2000 Core 	G1226
+2002 Core 	HC001
+2004 Core 	JC001
+2006 Core 	KC001
+2008 Core 	LC001
+2010 Core 	MC001
+2012 Core 	NC001
+2014 Core 	OC001
+*/
+
+gen srh = .
+replace srh = RC001 
+replace srh = . if inlist(srh,8,9)
+label var srh "Self Rated Health"
+//label define srh 1 "Excellent" 2 "Very Good" 3 "Good" 4 "Fair" 5 "Poor"
+//label val srh srh
+tab srh ,missing
+
+/**********************************************************************/
+// CESD - depression scale, from katherine
+/**********************************************************************/
+/*variable list used:
+cesd questions:
+g169 / 110 depressed
+g1670 / 111 effort
+g1671 / 112 restless sleep
+g1672 / 113 happy (this is a switch happy=yes=1 - not depressed)
+g1673 / 114 lonely
+g1674 / 115 enjoyed life (yes=1=not depressed)
+g1675 / 116 sad
+g1676 / 117 unmotivated - could not get going
+other questions:
+psych treatment 1=yes 5=no, only asked if reported having psych problems (psych_hrs==1)
+2000 Core 	G1324
+2002 Core 	HC067
+2004 Core 	JC067
+2006 Core 	KC067
+2008 Core 	LC067
+2010 Core 	MC067
+2012 Core 	NC067
+2014 Core 	OC067
+psych medications 1=yes 5 = no, only asked if reported having psych problems (psych_hrs==1)
+2000 Core 	G1325
+2002 Core 	HC068
+2004 Core 	JC068
+2006 Core 	KC068
+2008 Core 	LC068
+2010 Core 	MC068
+2012 Core 	NC068
+2014 Core 	OC068
+Note: the above 2 variables are processed in the section on HRS comorbidities and not here
+because of their skip pattern! Different from spouse_data_mar11_2013 code
+ever drink alcohol 1 = yes ; 3,5 =no
+2000 Core 	G1415
+2002 Core 	HC128
+2004 Core 	JC128
+2006 Core 	KC128
+2008 Core 	LC128
+2010 Core 	MC128
+2012 Core 	NC128
+2014 Core 	OC128
+number of drinks per day in past 3 months; 98-99=dont know or refused
+2000 Core 	G1417
+2002 Core 	HC130
+2004 Core 	JC130
+2006 Core 	KC130
+2008 Core 	LC130
+2010 Core 	MC130
+2012 Core 	NC130
+2014 Core 	OC130
+//days per week drink if 0 don't ask above question re drinks/day
+2000 Core 	G1416
+2002 Core 	HC129
+2004 Core 	JC129
+2006 Core 	KC129
+2008 Core 	LC129
+2010 Core 	MC129
+2012 Core 	NC129
+2014 Core 	OC129
+
+2000: g1669-g1677 (1= yes, 5=no) section c
+2002: h110-117 section d
+*/
+//cesd1 - depressed in the last week
+gen byte cesd1 = .
+replace cesd1 = 1 if (kd110==1)|(ld110==1)|(md110==1)|(nd110==1)|(od110==1)|(pd110==1)
+replace cesd1 = 0 if (kd110==5)|(ld110==5)|(md110==5)|(nd110==5)|(od110==5)|(pd110==5)
+la var cesd1 "CESD - Depressed in last week"
+tab cesd1 core_year,missing
+
+//cesd2 - felt activities were effort in the last week
+gen byte cesd2 = .
+replace cesd2 = 1 if RD111==1
+replace cesd2 = 0 if RD111==5
+la var cesd2 "CESD - Activities were effort in last week"
+tab cesd2 ,missing
+
+//cesd3 - restless sleep in the last week
+gen byte cesd3 = .
+replace cesd3 = 1 if RD112==1
+replace cesd3 = 0 if RD112==5
+la var cesd3 "CESD - Restless Sleep in last week"
+tab cesd3 ,missing
+
+//cesd4 - was happy in the last week
+//this one is reversed 0 = was happy 1 = was not happy
+gen byte cesd4 = .
+replace cesd4 = 0 if (RD113==1)
+replace cesd4 = 1 if (RD113==5)
+la var cesd4 "CESD - Was not happy in last week"
+tab cesd4 ,missing
+
+//cesd5 - lonely in the last week
+gen byte cesd5 = .
+replace cesd5 = 1 if (RD114==1)
+replace cesd5 = 0 if (RD114==5)
+la var cesd5 "CESD - Lonely in last week"
+tab cesd5 ,missing
+
+//cesd6 - enjoyed life in the last week
+gen byte cesd6 = .
+replace cesd6 = 0 if (RD115==1)
+replace cesd6 = 1 if (RD115==5)
+la var cesd6 "CESD - Did not enjoy life in last week"
+tab cesd6 ,missing
+
+//cesd7 - felt sad in the last week
+gen byte cesd7 = .
+replace cesd7 = 1 if (RD116==1)
+replace cesd7 = 0 if (RD116==5)
+la var cesd7 "CESD - Sad in last week"
+tab cesd7 ,missing
+
+//cesd8 - unmotivated in the last week
+gen byte cesd8 = .
+replace cesd8 = 1 if (RD117==1)
+replace cesd8 = 0 if (RD117==5)
+la var cesd8 "CESD - Unmotivated in last week"
+tab cesd8 ,missing
+
+//ever drink alcohol
+gen byte ever_drink = .
+replace ever_drink = 1 if (RC128==1)
+replace ever_drink = 0 if inlist(RC128,3,5)
+la var ever_drink "Ever drink alcoholic beverages"
+tab ever_drink ,missing
+
+//days per week drink
+gen days_drink = .
+replace days_drink = RC129 
+replace days_drink = . if inlist(days_drink,8,9)
+replace days_drink = 0 if ever_drink==0
+la var days_drink "Days per week drink alcoholic beverages"
+tab days_drink ,missing
+
+
+//number of drinks per day, coded to 0 if don't drink, . if missing
+//different from how Ling had it initally coded where . = missing or don't drink (not asked)
+gen n_drinks_3m = .
+replace n_drinks_3m = RC130 
+replace n_drinks_3m = . if inlist(n_drinks_3m,98,99)
+replace n_drinks_3m = 0 if (ever_drink==0 | days_drink==0)
+la var n_drinks_3m "Number of alcoholic drinks per day"
+tab n_drinks_3m core_year,missing
+
+/**********************************************************************/
+// Smoker status variables
+/**********************************************************************/
+
+// Ever smoked?
+gen smoke_ever=.
+replace smoke_ever=.
+replace smoke_ever=0 if (RZ205==5 | RC116==5)
+replace smoke_ever=1 if (RZ205==1 | RC116==1)
+
+
+la var smoke_ever "Ever smoked?"
+tab smoke_ever , missing
+
+// Currently smoke
+/* JC117    SMOKE CIGARETTES NOW
+         Section: C     Level: Respondent      Type: Numeric    Width: 1   Decimals: 0
+         CAI Reference: SecC.Smoking.C117_
+         2000 Link: G1400 2002 Link: HC117
+
+        Do you smoke cigarettes now?
+        ..................................................................................
+         3012           1. YES
+         8460           5. NO
+            1           8. DK (Don't Know); NA (Not Ascertained)
+            1           9. RF (Refused)
+         8655       Blank. INAP (Inapplicable)
+
+
+2000 core: G1400
+2002 core: HC117
+2004 core: JC117
+2006 core: KC117
+2008 core: LC117
+2010 core: MC117
+2012 core: NC117
+2014 core: OC117
+Only ask if reported ever smoked in previous question or past wave
+*/
+gen smoke_curr=.
+replace smoke_curr = 0 if RC117==5
+replace smoke_curr = 1 if RC117==1
+
+replace smoke_curr = 0 if smoke_ever==0
+la var smoke_curr "Currently smoke cigarettes?"
+tab smoke_curr ,missing
+
+/**********************************************************************/
+//Vigorous exercise
+/**********************************************************************/
+/*question in 2000,2002: Do you do vigorous physical activity 3x per
+week or more? 1=yes, 5=no
+Question changed in 2004-2014: How often do you do vigorous
+physical activity? 
+1=more than 1xper week
+2=1xper week
+3=1-3 times a month
+4 = hardly ever or never
+7 = every day
+8 = dont know
+9 = refused
+Here coded as every day or more than 1x per week = yes*/
+gen byte vig_phy_act=.
+replace vig_phy_act=1 if inlist(RC223,1,7)
+replace vig_phy_act=0 if inlist(RC223,2,3,4)
+la var vig_phy_act "Vigorous physical activity more than 1x per week"
+tab vig_phy_act ,missing
+
+
+
+/**********************************************************************/
+// Body mass index variables, calculated from height and weight
+// These variables have a lot of missingness, need to
+// clean up for each beneficiary if required for analysis
+/**********************************************************************/
+//current weight, lbs, asked every interview
+gen wgt_curr = .
+replace wgt_curr = RC139 
+replace wgt_curr = . if inlist(wgt_curr,998,999)
+la var wgt_curr "Weight current wave, in pounds"
+sum wgt_curr
+
+//current height, ft, only asked first interview
+gen height_ft_temp = .
+replace height_ft_temp = RC141
+replace height_ft_temp = . if inlist(height_ft,8,9)
+la var height_ft_temp "Height, feet"
+tab height_ft_temp , missing
+
+//current height, inches, only asked first interview
+gen height_in_temp = .
+replace height_in_temp = RC142 
+replace height_in_temp = . if (height_in_temp >12)
+la var height_in_temp "Height, inches"
+tab height_in_temp , missing
+
+/********************************************************************/
+// Hours spent helping relatives or friends
+/********************************************************************/
+/*
+Refer to codebooks as questions changed between waves 2000, 2002 and 2004
+2006:
+G198: Have you spent any time in the past 12 months helping friends, neighbors, or
+         relatives who did not live with you and did not pay you for the help?0-9000 = hours
+1 = Yes, 5 = No, 8,9 Don't know, refused
+
+G199: If G198=Yes, then ask:
+Altogether, would you say the time amounted to less than 100 hours, more than
+         100 hours or what?
+1 = Less than 100 hours
+3 = About 100 hours
+5 = More than 100 hours
+8,9 = DK, Refused
+
+G200: If G199 = more than 100 hours, then ask:
+Would it be less than 200 hours, more than 200 hours or what?
+
+G201: If G199 = less than 100 hours, then ask:
+Would it be less than 50 hours, more than 50 hours or what?
+*/
+//indicator variable
+//note that for 1998-2002 if response was not provided as 0 in first question, code
+//as being a helper for response < 100 hours
+//this likely overestimates the number of people who are helpers in these years
+gen help_friends = .
+replace help_friends = 1 if RG198==1 
+replace help_friends = 0 if RG198==5 
+tab help_friends , missing
+
+//categorical variable, driven by 2004 and later survey format
+gen help_friends_hours = .
+replace help_friends_hours = 0 if help_friends ==0 //none
+
+replace help_friends_hours = 1 if inlist(RG199,1,3)
+replace help_friends_hours = 2 if inlist(RG200,1,3)
+replace help_friends_hours = 3 if RG200==5 
+
+tab help_friends_hours, missing
+tab help_friends, missing
+tab help_friends_hours ,missing
+tab help_friends ,missing
+tab help_friends help_friends_hours, missing
+
+*drop c_ivw_date days_be_core nh_start
+
+
+
+H="Step x: cleaning covid module data"
+*****CLEANING COVID MODULE DATA*******
+
+gen level_concern=.
+replace level_concern= RCOVW550 if (RCOVW550>0 & RCOVW550<11)
+tab level_concern, m
+
+gen had_covid=.
+replace had_covid=RCOVW551 if (RCOVW551>0 & RCOVW551<8)
+label define hc1 1 "YES" 2 "PROBABLY YES" 5 "NO" 6 "PROBABLY NO" 7 "UNSURE" 
+label values had_covid hc1
+tab had_covid, m
+
+recode had_covid (1/2=1) (5/7=0), gen(prob_def_covid)
+tab prob_def_covid, m
+
+gen tested_covid=RCOVW552
+gen md_confirm= RCOVW557
+gen ed_covid= RCOVW558
+gen hosp_covid= RCOVW559
+gen ling_sxs= RCOVW565
+gen wanted_test= RCOVW567
+gen ask_test= RCOVW568
+gen hh_covid= RCOVW574
+gen known_covid= RCOVW577
+gen died_covid= RCOVW578
+gen delay_care= RCOVW579
+gen delay_surg= RCOVW582
+gen delay_doc= RCOVW584
+gen delay_rx= RCOVW586
+gen delay_dent= RCOVW587
+gen delay_other= RCOVW588
+gen moved_covid= RCOVW625
+gen movein_covid= RCOVW628
+gen finhlp_cvd= RCOVW631
+gen chrhlp_cvd= RCOVW634
+gen hlpd_fin= RCOVW637
+gen hlpd_chr= RCOVW640
+
+
+foreach var of varlist tested_covid md_confirm ed_covid hosp_covid ling_sxs wanted_test ask_test hh_covid known_covid died_covid delay_care delay_surg delay_doc delay_rx delay_dent delay_other moved_covid movein_covid finhlp_cvd chrhlp_cvd hlpd_fin hlpd_chr {
+replace `var'= 0 if `var'==5
+replace `var'= . if `var'==8 | `var'==9
+tab `var', m
+}
+
+*make every var for care delay type= 0 if they report no care delays
+foreach var of varlist delay_surg delay_doc delay_rx delay_dent delay_other {
+replace `var'=0 if delay_care==0
+}
+
+*FINANCIAL HARDSHIP VARIABLES 
+
+recode RCOVW623M1 (1/6=1)(7=0)(97=1)(98/99=.), gen(hrdshp_any)
+*two ppl say no hardship but then say had trouble getting food regardless of money
+replace hrdshp_any=1 if RCOVW623M2==6
+
+gen hrdshp_rent=0
+replace hrdshp_rent=. if hrdshp_any==.
+replace hrdshp_rent=1 if ((RCOVW623M1==1)|(RCOVW623M2==1)|(RCOVW623M3==1)|(RCOVW623M4==1)|(RCOVW623M5==1)|(RCOVW623M6==1)|(RCOVW623M7==1))
+
+gen hrdshp_debt=0
+replace hrdshp_debt=. if hrdshp_any==.
+replace hrdshp_debt=1 if ((RCOVW623M1==2)|(RCOVW623M2==2)|(RCOVW623M3==2)|(RCOVW623M4==2)|(RCOVW623M5==2)|(RCOVW623M6==2)|(RCOVW623M7==2))
+
+gen hrdshp_utils=0
+replace hrdshp_utils=. if hrdshp_any==.
+replace hrdshp_utils=1 if ((RCOVW623M1==3)|(RCOVW623M2==3)|(RCOVW623M3==3)|(RCOVW623M4==3)|(RCOVW623M5==3)|(RCOVW623M6==3)|(RCOVW623M7==3))
+
+gen hrdshp_medbls=0
+replace hrdshp_medbls=. if hrdshp_any==.
+replace hrdshp_medbls=1 if ((RCOVW623M1==4)|(RCOVW623M2==4)|(RCOVW623M3==4)|(RCOVW623M4==4)|(RCOVW623M5==4)|(RCOVW623M6==4)|(RCOVW623M7==4))
+
+gen hrdshp_food=0
+replace hrdshp_food=. if hrdshp_any==.
+replace hrdshp_food=1 if ((RCOVW623M1==5)|(RCOVW623M2==5)|(RCOVW623M3==5)|(RCOVW623M4==5)|(RCOVW623M5==5)|(RCOVW623M6==5)|(RCOVW623M7==5))
+
+gen hrdshp_getfood=0
+replace hrdshp_getfood=. if hrdshp_any==.
+replace hrdshp_getfood=1 if ((RCOVW623M1==6)|(RCOVW623M2==6)|(RCOVW623M3==6)|(RCOVW623M4==6)|(RCOVW623M5==6)|(RCOVW623M6==6)|(RCOVW623M7==6))
+
+gen hrdshp_other=0
+replace hrdshp_other=. if hrdshp_any==.
+replace hrdshp_other=1 if ((RCOVW623M1==97)|(RCOVW623M2==97)|(RCOVW623M3==97)|(RCOVW623M4==97)|(RCOVW623M5==97)|(RCOVW623M6==97)|(RCOVW623M7==97))
+
+
+foreach var of varlist hrdshp_any hrdshp_debt hrdshp_food hrdshp_getfood hrdshp_medbls hrdshp_other hrdshp_rent hrdshp_utils {
+tab `var'
+}
+
+gen any_hrdshp_food=0
+replace any_hrdshp_food=. if hrdshp_any==.
+replace any_hrdshp_food=1 if (hrdshp_food==1) | (hrdshp_getfood)
+
+
+*NOW RECODING OTHER VARIABLES THAT AREN'T 0/1
+recode RCOVW566 (1=1 "physical") (2=2 "mental")(3=3 "both")(8/9=.), gen(type_ling_sxs)
+
+*reasons for delaying care
+gen why_delay_afford=0
+replace why_delay_afford=. if (delay_care==0)|(RCOVW580M1==8)|(RCOVW580M1==9)
+replace why_delay_afford=1 if (RCOVW580M1==1)|(RCOVW580M2==1)|(RCOVW580M3==1)|(RCOVW580M4==1)|(RCOVW580M5==1)|(RCOVW580M6==1)
+tab why_delay_afford, m
+
+gen why_delay_avail=0
+replace why_delay_avail=. if (delay_care==0)|(RCOVW580M1==8)|(RCOVW580M1==9)
+replace why_delay_avail=1 if (RCOVW580M1==2)|(RCOVW580M2==2)|(RCOVW580M3==2)|(RCOVW580M4==2)|(RCOVW580M5==2)|(RCOVW580M6==2)
+tab why_delay_avail, m
+
+gen why_delay_advised=0
+replace why_delay_advised=. if (delay_care==0)|(RCOVW580M1==8)|(RCOVW580M1==9)
+replace why_delay_advised=1 if (RCOVW580M1==3)|(RCOVW580M2==3)|(RCOVW580M3==3)|(RCOVW580M4==3)|(RCOVW580M5==3)|(RCOVW580M6==3)
+tab why_delay_advised, m
+
+gen why_delay_nonurgent=0
+replace why_delay_nonurgent=. if (delay_care==0)|(RCOVW580M1==8)|(RCOVW580M1==9)
+replace why_delay_nonurgent=1 if (RCOVW580M1==4)|(RCOVW580M2==4)|(RCOVW580M3==4)|(RCOVW580M4==4)|(RCOVW580M5==4)|(RCOVW580M6==4)
+tab why_delay_nonurgent, m
+
+gen why_delay_fear=0
+replace why_delay_fear=. if (delay_care==0)|(RCOVW580M1==8)|(RCOVW580M1==9)
+replace why_delay_fear=1 if (RCOVW580M1==5)|(RCOVW580M2==5)|(RCOVW580M3==5)|(RCOVW580M4==5)|(RCOVW580M5==5)|(RCOVW580M6==5)
+tab why_delay_fear, m
+
+gen why_delay_other=0
+replace why_delay_other=. if (delay_care==0)|(RCOVW580M1==8)|(RCOVW580M1==9)
+replace why_delay_other=1 if (RCOVW580M1==7)|(RCOVW580M2==7)|(RCOVW580M3==7)|(RCOVW580M4==7)|(RCOVW580M5==7)|(RCOVW580M6==7)
+tab why_delay_other, m
+
+*income change
+recode RCOVW619 (1=1 "went up")(3=2 "same")(2=3 "went down") (8/9=.), gen(covid_inc_chng)
+tab covid_inc_chng
+
+*spend change
+recode RCOVW622 (1=1 "went up")(3=2 "same")(2=3 "went down") (8/9=.), gen(covid_spend_chng)
+tab covid_spend_chng
+
+tab covid_spend_chng covid_inc_chng, column
+
+
+
+
+save "D:\HRS\Projects\coronavirus\data\merged\covid_clean.dta", replace
