@@ -941,7 +941,2085 @@ tab help_friends help_friends_hours, missing
 
 
 
-H="Step x: cleaning covid module data"
+H="Step 2: cleaning ADL/IADLs"
+***CLEANING PART 2: ADLs and IADLs***
+*Modified by HRS core survey cleaning code.
+/*variable cleaning for HRS core 2006-2012
+Most code is taken from the HRS Outline_11_22_11.txt file
+and modified to clean 2006-2014 core dataset
+
+2nd part of core variable cleaning
+*/
+
+capture log close
+clear all
+set more off
+
+/*
+//Amy's PC
+local logpath D:\HRS\Shared\base_data\hrs_cleaned\logs
+local datapath D:\HRS\Shared\base_data\hrs_cleaned\working
+
+//RG PC
+//local logpath C:\HRS\hrs_cleaned\logs
+//local datapath C:\HRS\hrs_cleaned\working
+
+log using "`logpath'\2_HRS_Core_06_16_clean2-LOG.txt", text replace
+
+cd `datapath'
+
+use core_06_16_clean1.dta
+*/
+*************************************************************************
+//   ADLs from core interviews
+*************************************************************************
+
+*******************************************************************************************
+** These variables are drawn from the Core interview. In general the questions 
+** were framed "Because of a health or memory problem, do you have any difficulty...
+** .. Does anyone ever help you...?"
+** " Each ADL is coded "Yes- need help" if the 
+** response was "Yes"; and "No" if the item was skipped in the interview.  ADL questions 
+** were skipped if respondents were able to do all higher level function in the 
+** preceding series of questions, such as climb stairs. "Don't Know" "Not Ascertained" 
+** and "Refused" responses are coded as missing. 
+*******************************************************************************************
+
+** ADLs **
+//Exit interviews include variable for adl_bedbound, not present in core interviews
+//so not included here
+
+/*ADL questions are skipped if the adl check variable indicates no difficulty
+with first set of questions asked, therefore assign an adl_core_check variable to capture this 
+This variable = 0 if the ADL questions are NOT asked because person assumed
+to have no adl difficulties
+
+For 2002-2014 - ADL questions only asked if G013TNagiCkpt_A > 0
+So assign ADL = 0 if G013TNagiCkpt_A=0
+
+2002 Core 	HG013
+2002 Exit 	N/A
+2004 Core 	JG013
+2004 Exit 	N/A
+2006 Core 	KG013
+2006 Exit 	N/A
+2008 Core 	LG013
+2008 Exit 	N/A
+2010 Core 	MG013
+2012 Core 	NG013
+2014 Core 	OG013
+*/
+
+/* KMCK FL prefix difficulty data coded 7 = 'don't do' added to the summary variables coded 'YES' 05142015 */
+
+//create adl count flag variable, values = 0-10
+
+//create combined count variable for all years
+gen adl_core_check=.
+replace adl_core_check=RG013 
+tab adl_core_check , missing
+sum adl_core_check, detail
+
+/**Dressing, g2724 hg015 jg015
+Help dressing?
+2000 Core 	G2724
+2002 Core 	HG015
+2002 Exit 	SG015
+2004 Core 	JG015
+2004 Exit 	TG015
+2006 Core 	KG015
+2006 Exit 	UG015
+2008 Core 	LG015
+2008 Exit 	VG015
+2010 Core 	MG015
+2012 Core 	NG015
+2014 Core 	OG015
+
+Difficulty dressing?
+2000 Core 	G2723
+2002 Core 	HG014
+2002 Exit 	N/A
+2004 Core 	JG014
+2004 Exit 	N/A
+2006 Core 	KG014
+2006 Exit 	N/A
+2008 Core 	LG014
+2008 Exit 	N/A
+2010 Core 	MG014
+2012 Core 	NG014
+2014 Core 	OG014
+1 = yes
+5 = no
+6 = can't do
+7 = don't do
+8,9 = refused, not asked
+
+1 = if need help (only asked report having difficulty)
+0 if don't need help
+0 if report don't have difficulty
+*/ 
+
+//report no difficulty dressing, used as flag for asking other adl questions
+//can't do set to yes, don't do set to missing
+gen byte adl_diff_dr = .
+replace adl_diff_dr = 1 if (RG014==1)|(RG014==6)
+replace adl_diff_dr = 0 if (RG014==5)
+replace adl_diff_dr = 0 if adl_core_check==0
+la var adl_diff_dr "Difficulty dressing 1=yes"
+tab adl_diff_dr , missing
+
+generate adl_dr_core = .
+//not asked if need help but report no difficulty dressing
+replace adl_dr_core = 0 if adl_diff_dr==0
+//not asked because adl check flag = 0
+replace adl_dr_core = 0 if adl_core_check==0
+//report need help
+replace adl_dr_core = 1 if (RG015==1)
+//asked if need help, say no
+replace adl_dr_core = 0 if (RG015==5)
+//asked if need help, refused, don't respond
+replace adl_dr_core = . if (RG015==8)|(RG015==9)
+label variable adl_dr_core "Help Dressing - Core int."
+//label define adl_dr_core 0 "No" 1 "Yes", modify
+//label values adl_dr_core adl_dr_core
+tab adl_dr_core , missing
+
+//Walking, g2729 hg020 jg020 
+/*not asked if adl_core_check==1 and adl_dr_core==0
+so not asked if have an adl difficulty but report no difficulty getting dressed*/
+gen adl_diff_wk = .
+replace adl_diff_wk = 1 if (RG016==1)|(RG016==6)
+replace adl_diff_wk = 0 if (RG016==5)
+replace adl_diff_wk = 0 if (adl_diff_dr==0 & adl_core_check==1) | adl_core_check==0
+la var adl_diff_wk "Difficulty walking? 1=yes"
+tab adl_diff_wk , missing
+
+gen adl_equip_wk = .
+replace adl_equip_wk = 1 if (RG017==1)
+replace adl_equip_wk = 0 if (RG017==5)
+la var adl_equip_wk "Use equipment to walk? 1=yes"
+tab adl_equip_wk , missing
+
+generate adl_wk_core = .
+//set = 0 if not asked because of adl flags
+replace adl_wk_core = 0 if adl_core_check==0
+replace adl_wk_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
+tab adl_wk_core, missing 
+// set = 0 if not asked b/c report no difficulty walking
+replace adl_wk_core = 0 if adl_diff_wk==0
+// set based on repsonses
+replace adl_wk_core = 1 if (RG020==1)
+replace adl_wk_core = 0 if (RG020==5)
+replace adl_wk_core = . if ((RG020==8)|(RG020==9))
+label var adl_wk_core "Help Walking - core"
+//label define adl_wk_core 0 "No" 1 "Yes", modify
+//label values adl_wk_core adl_wk_core
+tab adl_wk_core , missing 
+tab adl_wk_core adl_equip_wk, missing
+
+//Bathing, g2745 hg022 jg022 
+/*Cross-Wave Equivalents for:
+G022 ADL BATHE HELP 
+1995 Core D1897 
+1996 Core E1921 
+1998 Core F2447 
+2000 Core G2745 
+2002 Core HG022 
+2002 Exit SG022 
+2004 Core JG022 
+2004 Exit TG022 
+2006 Core KG022 
+2006 Exit UG022 
+2008 Core LG022 
+2008 Exit VG022 
+2010 Core MG022 
+2010 Exit WG022 
+2012 Core NG022 
+2012 Exit XG022 
+2014 Core OG022 
+2014 Exit YG022 
+Not asked if adl_count_flag = 1 and difficulty dressing = no
+*/
+
+gen byte adl_diff_bh = .
+replace adl_diff_bh = 1 if (RG021==1)|(RG021==6)
+replace adl_diff_bh = 0 if (RG021==5)
+replace adl_diff_bh = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
+la var adl_diff_bh "Difficulty bathing? 1=yes"
+tab adl_diff_bh , missing
+
+generate adl_bh_core = .
+//set = 0 if not asked because of adl flags or no difficulty reported
+replace adl_bh_core = 0 if adl_core_check==0
+replace adl_bh_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
+// set based on responses
+replace adl_bh_core = 1 if RG022==1
+replace adl_bh_core = 0 if RG022==5
+replace adl_bh_core = . if ((RG022==8)|(RG022==9))
+replace adl_bh_core = 0 if adl_diff_bh==0
+label var adl_bh_core "Help Bathing - core"
+//label define adl_bh_core 0 "No" 1 "Yes", modify
+//label values adl_bh_core adl_bh_core
+tab adl_bh_core , missing 
+
+/*
+**Eating, g2755 hg024 jg024 
+Cross-Wave Equivalents for:
+G024 ADL EAT HELP 
+1995 Core D1907 
+1996 Core E190 
+1998 Core F2457 
+2000 Core G2755 
+2002 Core HG024 
+2002 Exit SG024 
+2004 Core JG024 
+2004 Exit TG024 
+2006 Core KG024 
+2006 Exit UG024 
+2008 Core LG024 
+2008 Exit VG024 
+2010 Core MG024 
+2010 Exit WG024 
+2012 Core NG024 
+2012 Exit XG024 
+2014 Core OG024 
+2014 Exit YG024 
+*/
+
+gen byte adl_diff_e = .
+replace adl_diff_e = 1 if (RG023==1)|(RG023==6)
+replace adl_diff_e = 0 if (RG023==5)
+replace adl_diff_e = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
+la var adl_diff_e "Difficulty eating? 1=yes"
+tab adl_diff_e , missing
+
+generate adl_e_core = .
+//set = 0 if not asked because of adl flags or no difficulty reported
+replace adl_e_core = 0 if adl_core_check==0
+replace adl_e_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
+//set based on responses
+replace adl_e_core = 1 if (RG024==1)
+replace adl_e_core = 0 if (RG024==5)
+replace adl_e_core = . if (RG024==8)|(RG024==9)
+replace adl_e_core = 0 if adl_diff_e==0
+label var adl_e_core "Help Eating - core"
+//label define adl_e_core 0 "No" 1 "Yes", modify
+//label values adl_e_core adl_e_core
+tab adl_e_core , missing
+
+//Transfers to Bed, g2768 hg029 jg029
+gen byte adl_diff_tx = .
+replace adl_diff_tx = 1 if (RG025==1)|(RG025==6)
+replace adl_diff_tx = 0 if (RG025==5)
+replace adl_diff_tx = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
+la var adl_diff_tx "Difficulty transfers to bed? 1=yes"
+tab adl_diff_tx , missing
+
+gen byte adl_equip_tx = .
+replace adl_equip_tx = 1 if (RG026==1)
+replace adl_equip_tx = 0 if (RG026==5)
+la var adl_equip_tx "Use equipment transfers to bed? 1=yes"
+tab adl_equip_tx , missing
+
+generate adl_tx_core = .
+//set = 0 if not asked because of adl flags or no difficulty reported
+replace adl_tx_core = 0 if adl_core_check==0
+replace adl_tx_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
+//set based on responses
+replace adl_tx_core = 1 if (RG029==1)
+replace adl_tx_core = 0 if (RG029==5)
+replace adl_tx_core = . if ((RG029==8)|(RG029==9))
+replace adl_tx_core = 0 if adl_diff_tx == 0
+label var adl_tx_core "Help with Transfers to Bed - core"
+//label define adl_tx_core 0 "No" 1 "Yes", modify
+//label values adl_tx_core adl_tx_core
+tab adl_tx_core , missing
+
+//Toileting, g2778 hg00 jg00 
+/*2000 Core 	G2778
+2002 Core 	HG031
+2002 Exit 	SG031
+2004 Core 	JG031
+2004 Exit 	TG031
+2006 Core 	KG031
+2006 Exit 	UG031
+2008 Core 	LG031
+2008 Exit 	VG031
+2010 Core 	MG031
+2010 Exit 	WG031 
+2012 Core 	NG031
+2012 Exit 	XG031
+2014 Core 	OG031
+2014 Exit 	YG031
+*/
+
+gen byte adl_diff_t = .
+replace adl_diff_t = 1 if ((RG030==1)|(RG030==6))
+replace adl_diff_t = 0 if (RG030==5)
+replace adl_diff_t = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
+la var adl_diff_t "Difficulty toileting? 1=yes"
+tab adl_diff_t , missing
+
+generate adl_t_core = .
+//set = 0 if not asked because of adl flags or no difficulty reported
+replace adl_t_core = 0 if adl_core_check==0
+replace adl_t_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
+
+//set based on responses
+replace adl_t_core = 1 if (RG031==1)
+replace adl_t_core = 0 if (RG031==5)
+replace adl_t_core = . if ((RG031==8)|(RG031==9))
+replace adl_t_core = 0 if (RG030==5)
+replace adl_t_core = 0 if adl_core_check==0
+label var adl_t_core "Help Toileting - core"
+//label define adl_t_core 0 "No" 1 "Yes", modify
+//label values adl_t_core adl_t_core
+tab adl_t_core , missing
+
+/**********************************************************************************/
+/**********************************************************************************/
+// IADLs
+/**********************************************************************************/
+/**********************************************************************************/
+
+/*Difficulty using maps
+1998 Core 	F2553
+2000 Core 	G2851
+2002-2014 	HG040-OG040*/
+gen byte iadl_diff_map = .
+replace iadl_diff_map = 1 if (RG040==1)|(RG040==6)
+replace iadl_diff_map = 0 if (RG040==5)
+la var iadl_diff_map "Difficulty using maps? 1=yes"
+tab iadl_diff_map , missing
+
+/*Meal Prep, r2002 
+Cross-Wave Equivalents for:
+
+G043 IADL MEAL PREPARATION HELP 
+1998 Core F2565 
+2000 Core G2863 
+2002 Core HG043 
+2002 Exit SG043 
+2004 Core JG043 
+2004 Exit TG043 
+2006 Core KG043 
+2006 Exit UG043 
+2008 Core LG043 
+2008 Exit VG043 
+2010 Core MG043 
+2010 Exit WG043 
+2012 Core NG043 
+2012 Exit XG043 
+2014 Core OG043 
+2014 Exit YG043 
+Not asked if
+1. Live in nursing home g558 / _a028
+2. Report no difficulty with task g2860 or
+3. Report can't / don't do task (g2860) but that its not because of a health problem
+Assign yes, need help, if live in nursing home
+Assign no, no help meeded, if no difficulty or can't / don't do but not b/c of health prob.
+*/
+//difficulty with task b/c of health or memory problem?
+gen byte iadl_diff_mp=.
+replace iadl_diff_mp = 1 if (RG041==1)
+replace iadl_diff_mp = 1 if inlist(RG041,6,7) & RG042==1	
+replace iadl_diff_mp = 0 if (RG041==5)
+replace iadl_diff_mp = 0 if inlist(RG041,6,7) & RG042==5
+
+
+la var iadl_diff_mp "Difficulty meal prep? 1=yes"
+tab iadl_diff_mp , missing
+
+gen byte iadl_mp_core=.
+//set for those that report no difficulty with task
+replace iadl_mp_core = 0 if iadl_diff_mp==0
+//set yes for if live in nursing home
+replace iadl_mp_core = 1 if	nhres ==1
+// set for response help = no
+replace iadl_mp_core = 0 if (RG043==5)
+//set for response help = yes
+replace iadl_mp_core = 1 if (RG043==1)
+label var iadl_mp_core "Help with Meal Prep"
+// la def iadl_mp_core 0 "No" 1 "Yes", modify
+// la val iadl_mp_core iadl_mp_core 
+tab iadl_mp_core ,missing
+
+//Grocery Shopping, r2012
+/*Cross-Wave Equivalents for:
+G046 IADL GROC SHOP HELP 
+1995 Core D2029 
+1996 Core E2044 
+1998 Core F2570 
+2000 Core G2868 
+2002 Core HG046 
+2002 Exit SG046 
+2004 Core JG046 
+2004 Exit TG046 
+2006 Core KG046 
+2006 Exit UG046 
+2008 Core LG046 
+2008 Exit VG046 
+2010 Core MG046 
+2010 Exit WG046
+2012 Core NG046 
+2012 Exit XG046
+2014 Core OG046 
+2014 Exit YG046
+*/
+
+//difficulty with task b/c of health or memory problem?
+gen byte iadl_diff_gr=.
+replace iadl_diff_gr = 1 if (RG044==1)
+replace iadl_diff_gr = 1 if inlist(RG044,6,7) & RG045==1	
+replace iadl_diff_gr = 0 if (RG044==5)
+replace iadl_diff_gr = 0 if inlist(RG044,6,7) & RG045==5	
+la var iadl_diff_gr "Difficulty grocery shopping? 1=yes"
+tab iadl_diff_gr , missing
+
+gen byte iadl_gr_core=.
+//set for those that report no difficulty with task
+replace iadl_gr_core = 0 if iadl_diff_gr==0
+//set yes for if live in nursing home
+replace iadl_gr_core = 1 if nhres ==1
+//set for response help = yes
+replace iadl_gr_core = 1 if (RG046==1)
+// set for response help = no
+replace iadl_gr_core = 0 if (RG046==5)
+//set for response help = yes
+replace iadl_gr_core = 1 if (RG046==1)
+label var iadl_gr_core "Help with Grocery Shopping"
+// la def iadl_gr_core 0 "No" 1 "Yes", modify
+// la val iadl_gr_core iadl_gr_core 
+tab iadl_gr_core ,missing
+
+/*Phone Calls, r2022
+Cross-Wave Equivalents for:
+G049 IADL MAKING PHONE CALLS HELP 
+1995 Core D2034 
+1996 Core E2049 
+1998 Core F2575 
+2000 Core G2873 
+2002 Core HG049 
+2002 Exit SG049 
+2004 Core JG049 
+2004 Exit TG049 
+2006 Core KG049 
+2006 Exit UG049 
+2008 Core LG049 
+2008 Exit VG049 
+2010 Core MG049 
+2010 Exit WG049 
+2012 Core NG049 
+2012 Exit XG049 
+2014 Core OG049 
+2014 Exit YG049 
+This one is different from other iadls because ask regardless of 
+nursing home resident status
+*/
+
+//difficulty with task b/c of health or memory problem?
+gen byte iadl_diff_ph=.
+replace iadl_diff_ph = 1 if (RG047==1)
+replace iadl_diff_ph = 1 if inlist(RG047,6,7) & RG048==1	
+replace iadl_diff_ph = 0 if (RG047==5)
+replace iadl_diff_ph = 0 if inlist(RG047,6,7) & RG048==5
+la var iadl_diff_ph "Difficulty phone calls? 1=yes"
+tab iadl_diff_ph , missing
+
+gen byte iadl_ph_core=.
+//set for those that report no difficulty with task
+replace iadl_ph_core = 0 if (RG047==5)
+//set for those that report cant / dont do but not bc of health problem
+replace iadl_ph_core = 0 if (inlist(RG047,6,7) & RG048==5)
+// set for response help = no
+replace iadl_ph_core = 0 if (RG049==5)
+//set for response help = yes
+replace iadl_ph_core = 1 if (RG049==1)
+label var iadl_ph_core "Help Making Phone Calls"
+// la def iadl_ph_core 0 "No" 1 "Yes", modify
+// la val iadl_ph_core iadl_ph_core 
+tab iadl_ph_core ,missing
+
+/*Medications, r2032
+Cross-Wave Equivalents for:
+G053 IADL TAKING MEDICATIONS HELP 
+1995 Core D2039 
+1996 Core E2054 
+1998 Core F2580 
+2000 Core G2878 
+2002 Core HG053 
+2002 Exit SG053 
+2004 Core JG053 
+2004 Exit TG053 
+2006 Core KG053 
+2006 Exit UG053 
+2008 Core LG053 
+2008 Exit VG053 
+2010 Core MG053 
+2010 Exit WG053 
+2012 Core NG053 
+2012 Exit XG053 
+2014 Core OG053 
+2014 Exit YG053 
+
+Different than other iadls because question sequence has addltional question
+1. Difficulty taking meds? g050 / g2875
+2. If dont take(7), if had to take, anticipate difficulty? g051 / g2876
+3. Difficulty b/c of health problem (if g050 = 6 OR [g050=7 and g051=1] )
+4. Help with medications? 
+5. Not asked if nursing home (like others)
+*/
+
+//difficulty with task b/c of health or memory problem?
+gen byte iadl_diff_rx=.
+//yes, difficulty
+replace iadl_diff_rx = 1 if (RG050==1)
+//can't do, b/c of health problems
+replace iadl_diff_rx = 1 if RG050==6 & RG052==1
+//don't do, if had to take, yes would have difficulty b/c of health prob.
+replace iadl_diff_rx = 1 if RG050==7 & RG051==1 & RG052==1
+//no, no difficulty	
+replace iadl_diff_rx = 0 if (RG050==5)
+//can't do, not b/c of health problems
+replace iadl_diff_rx = 0 if RG050==6 & RG052==5
+//don't do, if had to take, no difficulty anticipated
+replace iadl_diff_rx = 0 if RG050==7 & RG051==5
+la var iadl_diff_rx "Difficulty taking medications? 1=yes"
+tab iadl_diff_rx , missing
+
+gen byte iadl_rx_core=.
+//set for those that report no difficulty with task
+replace iadl_rx_core = 0 if iadl_diff_rx==0
+//set yes for if live in nursing home
+replace iadl_rx_core = 1 if nhres ==1
+// set for response help = no
+replace iadl_rx_core = 0 if (RG053==5)
+//set for response help = yes
+replace iadl_rx_core = 1 if (RG053==1)
+label var iadl_rx_core "Help with Medications"
+// la def iadl_rx_core 0 "No" 1 "Yes", modify
+// la val iadl_rx_core iadl_rx_core 
+tab iadl_rx_core ,missing
+
+/*Money, r2077
+Cross-Wave Equivalents for:
+G061 IADL MANAGING MONEY HELP 
+1995 Core D2102 
+1996 Core E2096 
+1998 Core F2620 
+2000 Core G2918 
+2002 Core HG061 
+2002 Exit SG061 
+2004 Core JG061 
+2004 Exit TG061 
+2006 Core KG061 
+2006 Exit UG061 
+2008 Core LG061 
+2008 Exit VG061 
+2010 Core MG061 
+2010 Exit WG061 
+2012 Core NG061 
+2012 Exit XG061 
+2014 Core OG061 
+2014 Exit YG061 
+Asked for those in nursing home*/
+
+//difficulty with task b/c of health or memory problem?
+gen byte iadl_diff_m = .
+replace iadl_diff_m = 1 if (RG059==1)
+replace iadl_diff_m = 1 if inlist(RG059,6,7) & RG060==1
+replace iadl_diff_m = 0 if (RG059==5)
+replace iadl_diff_m = 0 if inlist(RG059,6,7) & RG060==5
+la var iadl_diff_m "Difficulty managing money? 1=yes"
+tab iadl_diff_m , missing
+
+gen byte iadl_m_core=.
+//set for those that report no difficulty with task
+replace iadl_m_core = 0 if (RG059==5)
+//set for those that report cant / dont do but not bc of health problem
+replace iadl_m_core = 0 if (inlist(RG059,6,7) & RG060==5)
+// set for response help = no
+replace iadl_m_core = 0 if (RG061==5)
+//set for response help = yes
+replace iadl_m_core = 1 if (RG061==1)
+label var iadl_m_core "Help with Money"
+// la def iadl_m_core 0 "No" 1 "Yes", modify
+// la val iadl_m_core iadl_m_core 
+tab iadl_m_core ,missing
+
+*************************************************************************
+//   Functional limitations from core interviews
+*************************************************************************
+/*Responses of difficulty = yes or can't do coded as 1
+difficulty = no = 0; don't do left missing since no follow up question is asked
+to verify why don't do*/
+
+/*Difficulty walking several blocks?
+1998 Core 	F2391
+2000 Core 	G2689
+2002 Core 	HG001
+2004 Core 	JG001
+2006 Core 	KG001
+2008 Core 	LG001
+2010 Core 	MG001
+2012 Core 	NG001
+2014 Core 	OG001
+*/
+
+gen byte fl_diff_wk_many = .
+replace fl_diff_wk_many = 1 if RG001==1 | RG001==6 | RG001==7 
+replace fl_diff_wk_many = 0 if RG001==5 
+la var fl_diff_wk_many "Difficulty walking several blocks? 1=yes"
+tab fl_diff_wk_many , missing
+
+/*Difficulty walking 1 block?
+Only asked if do not report no difficulty walking many blocks
+1998 Core 	F2394
+2000 Core 	G2692
+2002 Core 	HG003
+2004 Core 	JG003
+2006 Core 	KG003
+2008 Core 	LG003
+2010 Core 	MG003
+2012 Core 	NG003
+2014 Core 	OG003
+*/
+
+gen byte fl_diff_wk_one = .
+replace fl_diff_wk_one = 1 if RG003==1 | RG003==6 | RG003==7 
+replace fl_diff_wk_one = 0 if RG003==5 
+replace fl_diff_wk_one = 0 if fl_diff_wk_many==0
+la var fl_diff_wk_one "Difficulty walking one block? 1=yes"
+tab fl_diff_wk_one , missing 
+
+/*Difficulty sitting for 2 hours?
+1998 Core 	F2397
+2000 Core	G2695
+2002 Core 	HG004
+2004 Core 	JG004
+2006 Core 	KG004
+2008 Core 	LG004
+2010 Core 	MG004
+2012 Core 	NG004
+2014 Core 	OG004
+*/
+gen byte fl_diff_sit = .
+replace fl_diff_sit = 1 if RG004==1 | RG004==6 | RG004==7 
+replace fl_diff_sit = 0 if RG004==5 
+la var fl_diff_sit "Difficulty sitting 2 hours? 1=yes"
+tab fl_diff_sit , missing
+
+/*Difficulty getting up from a chair after sitting?
+1998 Core 	F2400
+2000 Core 	G2698
+2002 Core 	HG005
+2004 Core 	JG005
+2006 Core 	KG005
+2008 Core 	LG005
+2010 Core 	MG005
+2012 Core 	NG005
+2014 Core 	OG005
+*/
+gen byte fl_diff_gu = .
+replace fl_diff_gu = 1 if RG005==1 | RG005==6 | RG005==7 
+replace fl_diff_gu = 0 if RG005==5 
+la var fl_diff_gu "Difficulty standing up after sitting? 1=yes"
+tab fl_diff_gu , missing
+
+/*Difficutly climbing up many flights of stairs?
+1998 Core 	F2403
+2000 Core 	G2701
+2002 Core 	HG006
+2004 Core 	JG006
+2006 Core 	KG006
+2008 Core 	LG006
+2010 Core 	MG006
+2012 Core 	NG006
+2014 Core 	OG006
+*/
+gen byte fl_diff_sta_many = .
+replace fl_diff_sta_many = 1 if RG006==1 | RG006==6 | RG006==7 
+replace fl_diff_sta_many = 0 if RG006==5 
+la var fl_diff_sta_many "Difficulty climbing stairs - many flights? 1=yes"
+tab fl_diff_sta_many , missing
+
+/*Difficulty climbing one flight of stairs?
+Only asked if response to many stairs is not no
+1998 Core 	F2406
+2000 Core 	G2704
+2002 Core 	HG007
+2004 Core 	JG007
+2006 Core 	KG007
+2008 Core 	LG007
+2010 Core 	MG007
+2012 Core 	NG007
+2014 Core 	OG007
+*/
+gen byte fl_diff_sta_one = .
+replace fl_diff_sta_one = 1 if RG007==1 | RG007==6 | RG007==7 
+replace fl_diff_sta_one = 0 if RG007==5
+replace fl_diff_sta_one = 0 if fl_diff_sta_many==0
+la var fl_diff_sta_one "Difficulty climbing stairs - one flight? 1=yes"
+tab fl_diff_sta_one , missing
+
+/*Difficulty stooping, kneeling or crouching?
+1998 Core 	F2409
+2000 Core 	G2707
+2002 Core 	HG008
+2004 Core 	JG008
+2006 Core 	KG008
+2008 Core 	LG008
+2010 Core 	MG008
+2012 Core 	NG008
+20142 Core 	OG008
+*/
+gen byte fl_diff_stp = .
+replace fl_diff_stp = 1 if RG008==1 | RG008==6 | RG008==7 
+replace fl_diff_stp = 0 if RG008==5 
+la var fl_diff_stp "Difficulty stooping? 1=yes"
+tab fl_diff_stp , missing
+
+/*Difficulty reaching or extending arms above shoulder level?
+1998 Core 	F2412
+2000 Core 	G2710
+2002 Core 	HG009
+2004 Core 	JG009
+2006 Core 	KG009
+2008 Core 	LG009
+2010 Core 	MG009
+2012 Core 	NG009
+2014 Core 	OG009
+*/
+gen byte fl_diff_reach = .
+replace fl_diff_reach = 1 if RG009==1 | RG009==6 | RG009==7
+replace fl_diff_reach = 0 if RG009==5 
+la var fl_diff_reach "Difficulty reaching with arms? 1=yes"
+tab fl_diff_reach , missing
+
+/*Difficulty pulling or pushing large objects?
+1998 Core 	F2415
+2000 Core 	G2713
+2002 Core 	HG010
+2004 Core 	JG010
+2006 Core 	KG010
+2008 Core 	LG010
+2010 Core 	MG010
+2012 Core 	NG010
+2014 Core 	OG010
+*/
+gen byte fl_diff_push = .
+replace fl_diff_push = 1 if RG010==1 | RG010==6 | RG010==7
+replace fl_diff_push = 0 if RG010==5 
+la var fl_diff_push "Difficulty pushing/pulling large objects? 1=yes"
+tab fl_diff_push , missing
+
+/*Difficulty lifting weights over 10lbs?
+1998 Core 	F2418
+2000 Core 	G2716
+2002 Core 	HG011
+2004 Core 	JG011
+2006 Core 	KG011
+2008 Core 	LG011
+2010 Core 	MG011
+2012 Core 	NG011
+2014 Core 	OG011
+*/
+gen byte fl_diff_lift = .
+replace fl_diff_lift = 1 if RG011==1 | RG011==6 | RG011==7 
+replace fl_diff_lift = 0 if RG011==5
+la var fl_diff_lift "Difficulty lifting weights over 10lb? 1=yes"
+tab fl_diff_lift , missing
+
+/*Difficulty picking up a dime?
+1998 Core 	F2421
+2000 Core 	G2719
+2002 Core 	HG012
+2004 Core 	JG012
+2006 Core 	KG012
+2008 Core 	LG012
+2010 Core 	MG012
+2012 Core 	NG012
+2014 Core 	OG012
+assign can't do = yes, don't do = .*/
+gen fl_diff_dime = .
+replace fl_diff_dime = 1 if inlist(RG012,1,6,7) 
+replace fl_diff_dime = 0 if RG012==5 
+la var fl_diff_dime "Any difficulty picking up a dime? 1=yes"
+tab fl_diff_dime , missing
+
+*************************************************************
+//Helper information for ADLs and IADLs
+*************************************************************
+
+/*ADL Helper relationship to R
+1998 Core 	F2508
+2000 Core 	G2806
+2002 Core 	HG033_1
+2004 Core 	JG033_1
+2006 Core 	KG033_1
+2008 Core 	LG033_1
+2010 Core 	MG033_1
+2012 Core 	NG033_1
+2014 Core 	OG033_1
+*/
+gen byte adl_sp_helper = 0
+replace adl_sp_helper = 1 if RG033_1==2
+la var adl_sp_helper "ADL Spouse Main Helper, 1=yes"
+tab adl_sp_helper , missing
+
+gen byte adl_oth_helper = 0
+replace adl_oth_helper = 1 if (2< RG033_1 & RG033_1<21)
+la var adl_oth_helper "ADL Other Main Helper, 1=yes"
+tab adl_oth_helper , missing
+
+//max number of helpers = 7
+//create common helper variables across all years
+/*LEFT OUT BECAUSE DON'T HAVE RG032 to ID PN of helper*
+forvalues i = 1/7{
+gen adl_helper_`i' = kg032_`i' if (core_year==2006)
+replace adl_helper_`i' = lg032_`i' if (core_year==2008)
+replace adl_helper_`i' = mg032_`i' if (core_year==2010)
+replace adl_helper_`i' = ng032_`i' if (core_year==2012)
+replace adl_helper_`i' = og032_`i' if (core_year==2014)
+replace adl_helper_`i' = pg032_`i' if (core_year==2016)
+la var adl_helper_`i' "ADL Helper `i' PN"
+}
+*/
+
+/*IADL Helpers*/
+gen byte iadl_sp_helper = 0
+replace iadl_sp_helper = 1 if (RG055_1==2)
+la var iadl_sp_helper "IADL Spouse Main Helper, 1=yes"
+tab iadl_sp_helper , missing
+
+gen byte iadl_oth_helper = 0
+replace iadl_oth_helper = 1 if (2< RG055_1 & RG055_1<21)
+la var iadl_oth_helper "IADL Other Main Helper, 1=yes"
+tab iadl_oth_helper , missing
+
+//max number of helpers = 6
+//create common helper variables across all years
+/*
+
+NOT AVAIL IN COVID 
+forvalues i = 1/6{
+gen iadl_helper_`i' = kg054_`i' if (core_year==2006)
+replace iadl_helper_`i' = lg054_`i' if (core_year==2008)
+replace iadl_helper_`i' = mg054_`i' if (core_year==2010)
+replace iadl_helper_`i' = ng054_`i' if (core_year==2012)
+replace iadl_helper_`i' = og054_`i' if (core_year==2014)
+replace iadl_helper_`i' = pg054_`i' if (core_year==2016)
+la var iadl_helper_`i' "IADL Helper `i' PN"
+}
+
+*/
+// Home health worker
+/*
+(Since [PREV WAVE IW MONTH], [PREV WAVE IW YEAR]/Since [PREV WAVE IW YEAR]/In
+        the last two years), has any medically-trained person come to your home to
+        help you, yourself?
+1998 Core 	F2357
+2000 Core 	G2634
+2002 Core 	HN189
+2002 Exit 	SN189
+2004 Core 	JN189
+2004 Exit 	TN189
+2006 Core 	KN189
+2006 Exit 	UN189
+2008 Core 	LN189
+2008 Exit 	VN189
+2010 Core 	MN189
+2010 Exit 	WN189
+2012 Core 	NN189
+2012 Exit 	XN189
+2014 Core 	ON189
+2014 Exit 	YN189
+*/
+gen hh_worker = .
+replace hh_worker=1 if RN189==1 
+replace hh_worker=0 if RN189==5 
+la var hh_worker "Home health worker help? 1=yes"
+tab hh_worker , missing
+
+
+
+H="Step 3: cleaning comorbidities"
+*COVID DATASET CLEAN: COMORBIDITIES
+*ADAPTED FROM HRS DATA CLEANING FILE*
+
+/*variable cleaning for HRS core 2006-2014
+Most code is taken from the HRS Outline_11_22_11.txt file
+and modified to clean 2006-2014 core dataset
+
+3rd part of core variable cleaning - comorbidities from core interviews
+
+See notes re. variable chf_hrs - criteria for asking this quesiton
+changed in 2010/12 and this results in a lot more missing-ness for 2010/12 
+core year, need to address if need to use this variable for final analysis
+*/
+*capture log close
+
+*clear all
+*set more off
+
+//Amy's PC
+*local logpath D:\HRS\Shared\base_data\hrs_cleaned\logs
+*local datapath D:\HRS\Shared\base_data\hrs_cleaned\working
+
+//RG PC
+//local logpath C:\HRS\hrs_cleaned\logs
+//local datapath C:\HRS\hrs_cleaned\working
+
+*log using "`logpath'\2_HRS_Core_06_16_clean3-LOG.txt", text replace
+
+*cd `datapath'
+
+*use core_06_16_clean2.dta
+
+/************************************************************/
+/* Comorbidities from core interviews  */
+/************************************************************/
+
+/*Cancer
+2000 Core 	G1262
+2002 Core 	HC018
+2002 Exit 	SC018
+2004 Core 	JC018
+2004 Exit 	TC018
+2006 Core 	KC018
+2006 Exit 	UC018
+2008 Core 	LC018
+2008 Exit 	VC018
+2010 Core 	MC018
+2010 Exit 	WC018 
+2012 Core 	NC018
+2012 Exit 	XC018 
+2014 Core 	OC018
+2014 Exit 	YC018 
+*/
+generate byte cancer_hrs = .
+replace cancer_hrs = 1 if inlist(RC018,1,3)
+replace cancer_hrs = 0 if inlist(RC018,4,5)
+label variable cancer_hrs "Cancer - core"
+//label define cancer_hrs 0 "No" 1 "Yes", modify
+//label values cancer_hrs cancer_hrs
+tab cancer_hrs , missing 
+
+/*Cancer treatment - HRS core
+These questions are only asked for new r's and alternate waves (2002,2006,2010, 2012)
+2 levels of questions, only asked if cancer_hrs=yes:
+1. Since last interview, received any treatment for cancer?
+2000 Core 	G1264
+2002 Core 	HC020
+2002 Exit 	SC020
+2004 Core 	JC020
+2004 Exit 	TC020
+2006 Core 	KC020
+2006 Exit 	UC020
+2008 Core 	LC020
+2008 Exit 	VC020
+2010 Core 	MC020
+2010 Exit 	WC020
+2012 Core 	NC020
+2012 Exit 	XC020
+2014 Core 	OC020
+2014 Exit 	YC020
+2. Type of treatment,
+2000 Core	G1265M1-M4 (note only 4 for 2000)
+2002 Core 	HC021M1-M5 (5 in 2002) 
+2002 Exit 	SC021M1-M6
+2004 Core 	JC021M1-M4 (4 in 2004)
+2004 Exit 	TC021M1-M6
+2006 Core 	KC021M1-M6 (6 in 2006)
+2006 Exit 	UC021M1-M6
+2008 Core 	LC021M1-M4 (4 in 2008)
+2008 Exit 	VC021M1-M6
+2010 Core 	MC021M1-M6 (6 in 2010)
+2010 Exit 	WC021M1-M6
+ 			 1.  CHEMOTHERAPY OR MEDICATION
+                         2.  SURGERY OR BIOPSY
+                         3.  RADIATION/ X-RAY
+                         4.  MEDICATIONS/TREATMENT FOR SYMPTOMS (PAIN, NAUSEA, RASHES)
+                         5.  NONE
+                         7.  OTHER (SPECIFY)
+                         8.  DK (Don't Know); NA (Not Ascertained)
+                         9.  RF (Refused)
+                     Blank.  INAP (Inapplicable); Partial Interview
+NOTE: Greater number of values at 2012
+2012 Core 	NC021M1-M6 (6 in 2012)
+2012 Exit 	XC021M1-M6
+2014 Core 	OC021M1-M6 (6 in 2012)
+2014 Exit 	YC021M1-M6
+              1.  CHEMOTHERAPY or other therapies (e.g., adjuvant therapies)
+                             that are either intended to treat a tumor or prevent its
+                             recurrence.
+              2.  SURGERY
+              3.  RADIATION
+              4.  MEDICATIONS/TREATMENT FOR SYMPTOMS (PAIN, NAUSEA, RASHES)
+              5.  BIOPSY
+              6.  X-RAY
+              7.  OTHER (SPECIFY)
+              8.  NONE
+             98.  DK (Don't Know); NA (Not Ascertained)
+             9.  RF (Refused)
+         Blank.  INAP (Inapplicable); Partial Interview
+
+*/
+//cancer treatment in last 2 years indicator variable
+****THIS IS ALL MISSING
+/*
+gen byte cancer_treat_hrs=.
+replace cancer_treat_hrs=1 if ( RC020==1 )
+replace cancer_treat_hrs=0 if ( RC020==5)
+replace cancer_treat_hrs=0 if (cancer_hrs==0) //if no cancer, show no cancer treatment
+tab cancer_treat_hrs , missing
+*/
+//create empty variables for 2008 so can run through for loop
+*gen lc021m5=.
+*gen lc021m6=.
+
+/* condense 2012 values to be consistent with other years
+          2 Surgery AND 5 Biopsy = 2 Surgery/Biopsy 
+          3 Radiation AND 6 Xray = 3 Radiation/Xray
+*/
+*recode nc021m1-nc021m6 (5=2) (6=3) 
+//cancer treatment type variables, not not mutually exclusive
+gen byte cancer_chemo_med=.
+gen byte cancer_surg=.
+gen byte cancer_xray=.
+gen byte cancer_symp=.
+gen byte cancer_other_treat=.
+/*local waves k l m n o p
+foreach i of numlist 1/6 {
+foreach w of local waves{
+	replace cancer_chemo_med=1 if `w'c021m`i'==1
+	replace cancer_surg=1 if `w'c021m`i'==2
+	replace cancer_xray=1 if `w'c021m`i'==3
+	replace cancer_symp=1 if `w'c021m`i'==4
+	replace cancer_other_treat=1 if `w'c021m`i'==7
+	}
+}
+
+*/
+foreach i of numlist 1/6 {
+replace cancer_chemo_med=1 if RC021M`i'==1
+	replace cancer_surg=1 if RC021M`i'==2
+	replace cancer_xray=1 if RC021M`i'==3
+	replace cancer_symp=1 if RC021M`i'==4
+	replace cancer_other_treat=1 if RC021M`i'==7
+}
+
+local cancertreat cancer_chemo_med cancer_surg cancer_xray cancer_symp cancer_other_treat
+foreach var of local cancertreat{
+replace `var'=0 if `var'==. 
+tab `var' ,missing
+}
+
+/*Lung Disease, r1191
+Cross-Wave Equivalents for:
+C030 LUNG DISEASE 
+1995 Core D818 
+1996 Core E818 
+1998 Core F1146 
+2000 Core G1279 
+2002 Core HC030 
+2002 Exit SC030 
+2004 Core JC030 
+2004 Exit TC030 
+2006 Core KC030 
+2006 Exit UC030 
+2008 Core LC030 
+2008 Exit VC030 
+2010 Core MC030 
+2010 Exit WC030
+2012 Core NC030 
+2012 Exit XC030
+2014 Core OC030 
+2014 Exit YC030
+*/
+generate lung_hrs = .
+replace lung_hrs = 1 if (inlist(RC030,1,3))
+replace lung_hrs = 0 if (inlist(RC030,4,5))
+label variable lung_hrs "Lung Disease - core"
+//label define lung_hrs 0 "No" 1 "Yes" , modify
+//label values lung_hrs lung_hrs
+tab lung_hrs , missing 
+
+/*Oxygen for lung condition - c033
+2000 Core 	G1285
+2002 Core 	HC033
+2002 Exit 	SC033
+2004 Core 	JC033
+2004 Exit 	TC033
+2006 Core 	KC033
+2006 Exit 	UC033
+2008 Core 	LC033
+2008 Exit 	VC033
+2010 Core 	MC033
+2010 Exit 	WC033
+2012 Core 	NC033
+2012 Exit 	XC033
+2014 Core 	OC033
+2014 Exit 	YC033
+*/
+gen byte lung_o2_hrs = .
+replace lung_o2_hrs = 0 if lung_hrs==0
+replace lung_o2_hrs = 0 if RC033==5
+replace lung_o2_hrs = 1 if RC033==1
+la var lung_o2_hrs "Oxygen for lung condition"
+tab lung_o2_hrs ,missing
+
+/*Lung condition limit activities?
+2000 Core 	G1287
+2002 Core 	HC035
+2004 Core 	JC035
+2006 Core 	KC035
+2008 Core 	LC035
+2010 Core 	MC035
+2012 Core 	NC035
+2014 discontiued
+*/
+/*NOT IN COVID QUESTIONS
+gen byte lung_lim_hrs = .
+replace lung_lim_hrs = 0 if lung_hrs==0 & core_year!=2014
+replace lung_lim_hrs = 0 if (core_year==2006 & kc035==5)
+replace lung_lim_hrs = 0 if (core_year==2008 & lc035==5)
+replace lung_lim_hrs = 0 if (core_year==2010 & mc035==5)
+replace lung_lim_hrs = 0 if (core_year==2012 & nc035==5)
+replace lung_lim_hrs = 1 if (core_year==2006 & kc035==1)
+replace lung_lim_hrs = 1 if (core_year==2008 & lc035==1)
+replace lung_lim_hrs = 1 if (core_year==2010 & mc035==1)
+replace lung_lim_hrs = 1 if (core_year==2012 & nc035==1)
+la var lung_lim_hrs "Activity limited due to lung condition (no 2014)"
+tab lung_lim_hrs core_year,missing
+
+*/
+/*Heart Condition: "heart attack, coronary heart disease, angina, congestive heart failure, or other heart problems?", r1201
+Cross-Wave Equivalents for:
+C036 HEART CONDITION 
+1995 Core D828 
+1996 Core E828 
+1998 Core F1156 
+2000 Core G1289 
+2002 Core HC036 
+2002 Exit SC036 
+2004 Core JC036 
+2004 Exit TC036 
+2006 Core KC036 
+2006 Exit UC036 
+2008 Core LC036 
+2008 Exit VC036 
+2010 Core MC036 
+2010 Exit WC036 
+2012 Core NC036 
+2012 Exit XC036 
+2014 Core OC036 
+2014 Exit YC036 
+*/
+generate heart_hrs = .
+replace heart_hrs = 1 if inlist(RC036,1,3)
+replace heart_hrs = 0 if inlist(RC036,4,5)
+
+label variable heart_hrs "Heart Condition - core"
+//label define heart_hrs 0 "No" 1 "Yes" 9 "Don't Know/Refused", modify
+//label values heart_hrs heart_hrs
+tab heart_hrs , missing 
+
+/**CHF: Criteria for asking this question:
+1. heart_hrs = yes (1)
+2. c037 <> no OR c038 <> no
+r1216
+Ask if criteria change in 2010 so coded differently here to match, otherwise, if just match
+on heart_hrs, get many more missing responses in 2010
+If this variable is used in the analysis, may want to review this code with Amy since
+2010 results in much lower rates of chf being reported than other years.
+
+Cross-Wave Equivalents for:
+C048 CONGESTIVE HEART FAILURE 
+1995 Core D843 
+1996 Core E843 
+1998 Core F1171 
+2000 Core G1304 
+2002 Core HC048 
+2002 Exit SC048 
+2004 Core JC048 
+2004 Exit TC048 
+2006 Core KC048 
+2006 Exit UC048 
+2008 Core LC048 
+2008 Exit VC048
+2010 Core MC048
+2010 Exit WC048
+2012 Core NC048
+2012 Exit XC048
+2014 Core OC048
+2014 Exit YC048
+
+addl 2010 variables (2012 follows similar pattern)
+mc263 - has a doctor ever told you you've had chf? if reply no = don't ask mc048 
+mc264 - year chf first diagnosed 9998, 9999 are non responses
+mz093 - previous wave interview year
+mz255 - baseline heart disease (1=yes, 5=no)
+ma501 - current interview year (to get 2 years ago year)
+{PREVIOUS ASK} SecC.Heartattack.C036_ 
+
+         IF SecC.Heartattack.C036_ IN [YES, DISPUTPWRECORDHASCOND] THEN 
+
+         IF (SecC.Heartattack.C036_ IN [YES, DISPUTPWRECORDHASCOND]) AND 
+         ((SecC.Heartattack.C037_HeartMeds <> NO) OR (SecC.Heartattack.C038_ <> NO)) 
+         THEN 
+
+         IF (SecC.Heartattack.C263_EverHadHeartFailure <> NO) AND 
+         SecC.Heartattack.C263_EverHadHeartFailure <> NONRESPONSE THEN 
+
+         IF ((SecC.Heartattack.C264_YrFirstHeartFailure = NONRESPONSE OR 
+         (((piRVarsZ076_ReIwR_V = REIWR) AND (SecC.Heartattack.C264_YrFirstHeartFailure 
+         < piRvarsZ093_IwYr_V)) OR ((piRVarsZ076_ReIwR_V <> REIWR) AND 
+         (SecC.Heartattack.C264_YrFirstHeartFailure < piINITA062T2YrsAgo_A)))) OR 
+         ((piRVarsZ076_ReIwR_V = REIWR) AND (piRVarsZ255_HrtDiseaseBsline <> 
+         Blinewaveprior))) OR ((ACTIVELANGUAGE = EXTENG) AND (ACTIVELANGUAGE = EXTSPN)) 
+         THEN 
+Note: Not sure how to get the Blinewaveprior variable since there is no
+lz255 in 2008, so that or statement is missing from the code below
+Something to investigate further if this missingness becomes a problem
+in future analysis
+
+generate chf_hrs = .
+//code for c036 response, no heart problems
+replace chf_hrs =0 if (heart_hrs==0)
+//code for heart_hrs==1 but c037 and c038 == no
+replace chf_hrs = 0 if core_year==2006 & heart_hrs==1 & ///
+	(kc037==5 & kc038==5) | (kz105!=1 & kz076==1)
+replace chf_hrs = 0 if core_year==2008 & heart_hrs==1 & ///
+	(lc037==5 & lc038==5) | (lz105!=1 & lz076==1)
+replace chf_hrs = 0 if core_year==2010 & heart_hrs==1 & ///
+	(mc037==5 & mc038==5) & (mc263==5) 
+replace chf_hrs = 0 if core_year==2012 & heart_hrs==1 & ///
+	(nc037==5 & nc038==5) & (nc263==5) 
+replace chf_hrs = 0 if core_year==2014 & heart_hrs==1 & ///
+	(oc037==5 & oc038==5) & (oc263==5) 
+
+//2010 ask...
+gen chf_ask_10 = 0
+replace chf_ask_10 = 1 if (inlist(mc264,9998,9999,.) | (mz076 == 1 & ///
+	(mc264 < mz093) | (mz076!=1 & mc264 < (ma501-2))))
+tab chf_ask_10
+replace chf_hrs = 0 if chf_ask_10 ==0
+
+//code for c048 responses
+replace chf_hrs = 0 if (core_year==2006 & kc048==5)
+replace chf_hrs = 0 if (core_year==2008 & lc048==5)
+replace chf_hrs = 0 if (core_year==2010 & mc048==5)
+replace chf_hrs = 0 if (core_year==2012 & nc048==5)
+replace chf_hrs = 0 if (core_year==2014 & oc048==5)
+
+replace chf_hrs = 1 if (core_year==2006 & kc048==1)
+replace chf_hrs = 1 if (core_year==2008 & lc048==1)
+replace chf_hrs = 1 if (core_year==2010 & mc048==1)
+replace chf_hrs = 1 if (core_year==2012 & nc048==1)
+replace chf_hrs = 1 if (core_year==2014 & oc048==1)
+label variable chf_hrs "CHF"
+//label define chf_hrs 0 "No" 1 "Yes" , modify
+//label values chf_hrs chf_hrs
+tab chf_hrs core_year, missing
+*/
+//code for c036 response, no heart problems
+gen chf_hrs=.
+replace chf_hrs =0 if (heart_hrs==0)
+//code for heart_hrs==1 but c037 and c038 == no
+replace chf_hrs = 0 if heart_hrs==1 & (RC037==5 & RC038==5) | (RZ105!=1 & RZ076==1)
+
+//code for c048 responses
+replace chf_hrs = 0 if (RC048==5)
+replace chf_hrs = 1 if (RC048==1)
+
+tab chf_hrs , missing
+
+/*Hospitalized for CHF?
+2000 Core 	G1305
+2002 Core 	HC049
+2002 Exit 	N/A
+2004 Core 	JC049
+2004 Exit 	N/A
+2006 Core 	KC049
+2006 Exit 	N/A
+2008 Core 	LC049
+2008 Exit 	N/A
+2010 Core 	MC049
+2012 Core 	NC049
+2014 Core 	OC049
+Ask if chf reported, ie if chf_hrs ==1
+*/
+gen byte chfadmit_ask = 0
+
+gen byte chfadmit_hrs = .
+replace chfadmit_hrs = 0 if chfadmit_ask == 0
+replace chfadmit_hrs = 0 if RC049 ==5
+replace chfadmit_hrs = 1 if RC049 ==1
+
+la var chfadmit_hrs "Hospital admission due to CHF"
+tab chfadmit_hrs ,missing
+
+/*CHF Ever? c263
+Only asked in 2010,12, 14
+Ask criteria:
+         IF SecC.Heartattack.C036_ IN [YES, DISPUTPWRECORDHASCOND] THEN 
+         IF (piRVarsZ076_ReIwR_V <> REIWR) OR (piRVarsZ255_HrtDiseaseBsline = 
+         Blinewaveprior) THEN
+Has a doctor ever told you that you have congestive heart failure?
+Again, can't get Blinewaveprior so don't include that in coding variable = 0*/
+
+*****weirdly, RC263 is all missing in COVID dataset...
+gen byte chfdrever_hrs = .
+replace chfdrever_hrs = 0 if heart_hrs == 0
+replace chfdrever_hrs = 0 if (RC263==5)
+replace chfdrever_hrs = 1 if (RC263==1)
+la var chfdrever_hrs "Ever diagnosed with chf?"
+tab chfdrever_hrs , missing
+
+/**Stroke, missing r1221
+generate stroke_hrs = .
+ then stroke_hrs = 1; 
+if ((sc053=1)|(tc053=1)|(uc053=1)| (vc053=1)|(wc053=1)|(xc053=1)|(yc053=1)| ///
+    (sc053=3)|(tc053=3)|(uc053=3)| (vc053=3)|(wc053=3)|(xc053=3)|(yc053=3))
+    then stroke_hrs = 0; 
+if ((sc053=5)|(tc053=5)|(uc053=5)| (vc053=5)|(wc053=5)|(xc053=5)|(yc053=5)| ///
+    (sc053=4)|(tc053=4)|(uc053=4)| (vc053=4)|(wc053=4)|(xc053=4)|(yc053=4))
+label stroke_hrs "Stroke"
+Cross-Wave Equivalents for:
+C053 STROKE 
+1995 Core D848 
+1996 Core E848 
+1998 Core F1176 
+2000 Core G1309 
+2002 Core HC053 
+2002 Exit SC053 
+2004 Core JC053 
+2004 Exit TC053 
+2006 Core KC053 
+2006 Exit UC053 
+2008 Core LC053 
+2008 Exit VC053 
+2010 Core MC053 
+2010 Exit WC053 
+2012 Core NC053 
+2012 Exit XC053 
+2014 Core OC053 
+2014 Exit YC053 
+*/
+generate stroke_hrs = .
+replace stroke_hrs = 1 if (inlist(RC053,1,2,3))
+replace stroke_hrs = 0 if (inlist(RC053,4,5))
+
+label variable stroke_hrs "Stroke / TIA - core"
+//label define stroke_hrs 0 "No" 1 "Yes", modify
+//label values stroke_hrs stroke_hrs
+tab stroke_hrs , missing
+
+/*Memory Disease (diagnosed by a doctor, per the proxy report) r1240
+Question not asked in 2010-2014 core interviews, so just use previous wave
+memory disease for 2010-2014 core, may want to check this against
+other variables if it is a problem.
+2010-2014 ask specifically Alzheimers (MC272-OC272) or Dementia (MC273-OC273)
+
+Cross-Wave Equivalents for:
+C069 MEMORY RELATED DISEASE 
+1995 Core N/A 
+1996 Core N/A 
+1998 Core F1193 
+2000 Core G1326 
+2002 Core HC069 
+2002 Exit SC069 
+2004 Core JC069 
+2004 Exit TC069 
+2006 Core KC069 
+2006 Exit UC069 
+2008 Core LC069 
+2008 Exit VC069 
+2010 Core N/A
+2012 Exit WC069 
+2012 Core N/A 
+2012 Exit XC069 
+2014 Core N/A 
+2014 Exit YC069 
+
+Cross-Wave Equivalents for:
+Z117 PREV WAVE R HAS MEMORY DISEASE 
+1995 Core N/A 
+1996 Core N/A 
+1998 Core N/A 
+2000 Core g262 
+2002 Core HZ117 
+2002 Exit SZ117 
+2004 Core JZ117 
+2004 Exit TZ117 
+2006 Core KZ117 
+2006 Exit UZ117 
+2008 Core LZ117 
+2008 Exit VZ117 
+2010 Core MZ117 
+2010 Exit WZ117 
+2012 Core NZ117 
+2012 Exit XZ117 
+2014 Core OZ117 
+2014 Exit YZ117 
+Set memory_hrs = yes if current survey or previous survey (via z117 var) indicates
+memory disease
+*/
+generate memory_hrs = .
+*replace memory_hrs = 0 if (core_year==2006 & kc069==5)
+*replace memory_hrs = 0 if (core_year==2008 & inlist(lc069,4,5))
+*replace memory_hrs = 0 if (core_year==2010 & mz117==5)
+*replace memory_hrs = 0 if (core_year==2012 & (nc272==5 & nc273==5) & (nz117==5 | nz117==.))
+replace memory_hrs = 0 if ((RC272==5 & RC273==5) & (RZ117==5 | RZ117==.))
+*replace memory_hrs = 1 if (core_year==2006 & (kc069==1 | kz117==1 ))
+*replace memory_hrs = 1 if (core_year==2008 & (inlist(lc069,1,3) | lz117==1 ))
+*replace memory_hrs = 1 if (core_year==2010 & (mc272==1 | mc273==1 | mz117==1 ))
+*replace memory_hrs = 1 if (core_year==2012 & (inlist(nc272,1,3) | inlist(nc273,1,3) | nz117==1 ))
+*replace memory_hrs = 1 if (core_year==2014 & (inlist(oc272,1,3) | inlist(oc273,1,3) | oz117==1 ))
+replace memory_hrs = 1 if ((inlist(RC272,1,3) | inlist(RC273,1,3) | RZ117==1 ))
+label variable memory_hrs "Memory Disease - core"
+//label define memory_hrs 0 "No" 1 "Yes", modify
+//label values memory_hrs memory_hrs
+tab memory_hrs , missing
+
+/*Alzheimer's disease
+2010-2014 HRS survey only
+MC272
+Not included in overall comorbidity index
+           343           1.  YES
+         21648           5.  NO
+            20           7.  [VOL] NOT ALZHEIMER'S DISEASE
+            24           8.  DK (Don't Know); NA (Not Ascertained)
+             2           9.  RF (Refused)
+                     Blank.  INAP (Inapplicable); Partial Interview
+
+gen alz_hrs = .
+replace alz_hrs = 1 if (core_year==2016 & RC272==1)
+replace alz_hrs = 0 if (core_year==2016 & inlist(RC272,5,7))
+la var alz_hrs "Alzheimer's disease - core, 2010-2014 only"
+tab alz_hrs , missing
+*/
+/*Dementia
+2010-2014 HRS survey only
+MC273, not asked if report having alzheimer's
+Not included in overall comorbidity index
+    436           1.  YES
+         21206           5.  NO
+            28           8.  DK (Don't Know); NA (Not Ascertained)
+             4           9.  RF (Refused)
+           363       Blank.  INAP (Inapplicable); Partial Interview
+*/
+gen dem_hrs = .
+replace dem_hrs = 1 if (RC273==1)
+replace dem_hrs = 1 if (RC272==1)
+replace dem_hrs = 0 if (RC273==5 & RC272==5)
+
+la var dem_hrs "Dementia - core, 2010+ only"
+tab dem_hrs , missing
+
+/* Falls r1230
+generate falls_hrs = .
+ then falls_hrs = 1 ; if ((sc079=1)|(tc079=1)|(uc079=1)| (vc079=1)|(wc079=1)|(xc079=1)|(yc079=1)|
+                          (sc079=3)|(tc079=3)|(uc079=3)| (vc079=3)|(wc079=3)|(xc079=3)|(yc079=3))
+ then falls_hrs = 0 ; if ((sc079=5)|(tc079=5)|(uc079=5)| (vc079=5)|(wc079=5)|(xc079=5)|(yc079=5)|
+                          (sc079=4)|(tc079=4)|(uc079=4)| (vc079=4)|(wc079=4)|(xc079=4)|(yc079=4))
+label falls_hrs "Falls"
+Cross-Wave Equivalents for:
+C079 FALLEN IN PAST TWO YEARS 
+1995 Core D878 
+1996 Core E878 
+1998 Core F1206 
+2000 Core G1339 
+2002 Core HC079 
+2002 Exit SC079 
+2004 Core JC079 
+2004 Exit TC079 
+2006 Core KC079 
+2006 Exit UC079 
+2008 Core LC079 
+2008 Exit VC079 
+2010 Core MC079 
+2010 Exit WC079 
+2012 Core NC079 
+2012 Exit XC079 
+2014 Core OC079 
+2014 Exit YC079 
+ only asked for those who were greater than 65 when interviewed
+ not compared to previous interview response
+*/
+generate falls_hrs = .
+replace falls_hrs = 1 if (RC079==1)
+replace falls_hrs = 0 if (RC079==5)
+
+label variable falls_hrs "Falls - core"
+//label define falls_hrs 0 "No" 1 "Yes", modify
+//label values falls_hrs falls_hrs
+tab falls_hrs , missing
+
+/** Incontinence
+C087 INCONTINENCE 
+2000 Core 	G1353
+2002 Core 	HC087
+2002 Exit 	N/A
+2004 Core 	JC087
+2004 Exit 	N/A
+2006 Core 	KC087
+2006 Exit 	N/A
+2008 Core 	LC087
+2008 Exit 	N/A
+2010 Core 	MC087
+2010 Exit 	N/A
+2012 Core 	NC087
+2012 Exit 	N/A
+2014 Core 	OC087
+2014 Exit 	N/A
+*/
+generate incont_hrs = .
+replace incont_hrs = 1 if (RC087==1)
+replace incont_hrs = 0 if (RC087==5)
+label var incont_hrs "Incontinence"
+tab incont_hrs , missing
+
+/* 
+Pain r1246
+Cross-Wave Equivalents for:
+C104 TROUBLED WITH PAIN 
+2000 Core 	G1372
+2002 Core 	HC104
+2002 Exit 	SC104
+2004 Core 	JC104
+2004 Exit 	TC104
+2006 Core 	KC104
+2006 Exit 	UC104
+2008 Core 	LC104
+2008 Exit 	VC104
+2010 Core 	MC104
+2010 Exit 	WC104
+2012 Core 	NC104
+2012 Exit 	XC104
+2014 Core 	OC104
+2014 Exit 	YC104
+*/
+gen byte pain_hrs = .
+replace pain_hrs=1 if (RC104==1)
+replace pain_hrs=0 if (RC104==5)
+label var pain_hrs "Pain"
+tab pain_hrs , missing
+
+/*How bad is pain if yes above?
+1 = mild, 2 = moderate, 3 = severe, 8,9 = don't know, refused
+1998 Core 	F1241
+2000 Core 	G1374
+2002 Core 	HC105
+2002 Exit 	SC105
+2004 Core 	JC105
+2004 Exit 	TC105
+2006 Core 	KC105
+2006 Exit 	UC105
+2008 Core 	LC105
+2008 Exit 	VC105
+2010 Core 	MC105
+2010 Exit 	WC105 
+2012 Core 	NC105
+2012 Exit 	XC105 
+2014 Core 	OC105
+2014 Exit 	YC105 
+*/
+gen pain_level_hrs = .
+replace pain_level_hrs = RC105 
+replace pain_level_hrs = . if inlist(pain_level_hrs,8,9)
+la var pain_level_hrs "How bad was pain? 1=mild, 2=mod, 3=severe"
+tab pain_level_hrs  , missing
+
+/*Does pain limit activities?
+1998 Core 	F1242
+2000 Core 	G1375
+2002 Core 	HC106
+2004 Core 	JC106
+2006 Core 	KC106
+2008 Core 	LC106
+2010 Core 	MC106
+2012 Core 	NC106
+2014 Core 	OC106
+Coded as 0 if answer=no or if not applicable b/c no pain
+*/
+gen pain_limit_act_hrs = .
+replace pain_limit_act_hrs =1 if RC106==1
+replace pain_limit_act_hrs =0 if RC106==5
+replace pain_limit_act_hrs =0 if pain_hrs==0
+la var pain_limit_act_hrs "Does pain limit usual activities?"
+tab pain_limit_act_hrs , missing
+
+/** HTN
+Ever had high blood pressure?
+2000 Core 	G1238
+2002 Core 	HC005
+2002 Exit 	N/A
+2004 Core 	JC005
+2004 Exit 	N/A
+2006 Core 	KC005
+2006 Exit 	N/A
+2008 Core 	LC005
+2008 Exit 	N/A
+2010 Core 	MC005
+2010 Exit 	N/A
+2012 Core 	NC005
+2012 Exit 	N/A
+2014 Core 	OC005
+2014 Exit 	N/A
+*/
+generate byte htn_hrs = .
+replace htn_hrs = 1 if (inlist(RC005,1,3))
+replace htn_hrs = 0 if (inlist(RC005,4,5))
+label var htn_hrs "Hypertension"
+tab htn_hrs , missing
+
+/** Diabetes
+Cross-Wave Equivalents for:
+C010 DIABETES 
+2000 Core 	G1245
+2002 Core 	HC010
+2002 Exit 	N/A
+2004 Core 	JC010
+2004 Exit 	N/A
+2006 Core 	KC010
+2006 Exit 	N/A
+2008 Core 	LC010
+2008 Exit 	N/A
+2010 Core 	MC010
+2010 Exit 	N/A
+2012 Core 	NC010
+2012 Exit 	N/A
+2014 Core 	NC010
+2014 Exit 	N/A
+*/
+generate byte dm_hrs = .
+replace dm_hrs = 1 if (inlist(RC010,1,3))
+replace dm_hrs = 0 if (inlist(RC010,4,5))
+
+label var dm_hrs "Diabetes"
+tab dm_hrs , missing
+
+/* Taking Insulin for Diabetes
+Cross-Wave Equivalents for:
+2000 Core 	G1249
+2002 Core 	HC012
+2002 Exit 	N/A
+2004 Core 	JC012
+2004 Exit 	N/A
+2006 Core 	KC012
+2006 Exit 	N/A
+2008 Core 	LC012
+2008 Exit 	N/A
+2010 Core 	MC012
+2010 Exit 	N/A
+2012 Core 	NC012
+2012 Exit 	N/A
+2014 Core 	NC012
+2014 Exit 	N/A
+*/
+generate byte dm_ins_hrs = .
+replace dm_ins_hrs = 0 if dm_hrs ==0
+replace dm_ins_hrs = 1 if (RC012==1)
+replace dm_ins_hrs = 0 if (RC012==5)
+label var dm_ins_hrs "Insulin for diabetes"
+tab dm_ins_hrs , missing
+
+/*Kidney trouble due to diabetes
+2000 Core 	G1256
+2002 Core 	HC017
+2004 Core 	JC017
+2006 Core 	KC017
+2008 Core 	LC017
+2010 Core 	MC017
+2012 Core 	NC017
+2014 discontinued
+*/
+/*NOT IN COVID
+generate byte dm_kidn_hrs = .
+replace dm_kidn_hrs = 0 if dm_hrs ==0 
+replace dm_kidn_hrs = 1 if (RC017==1)
+replace dm_kidn_hrs = 0 if (RC017==5)
+label var dm_kidn_hrs "Kidney trouble due to diabetes (no 2014)"
+tab dm_kidn_hrs , missing
+
+*/
+
+/** Psychiatric Condition ("doctor ever told... emotional, nervous or psychiatric problems?")
+Cross-Wave Equivalents for:
+C065 EMOTIONAL/PSYCHIATRIC PROBLEMS 
+2000 Core 	G1322
+2002 Core 	HC065
+2002 Exit 	N/A
+2004 Core 	JC065
+2004 Exit 	N/A
+2006 Core 	KC065
+2006 Exit 	N/A
+2008 Core 	LC065
+2008 Exit 	N/A
+2010 Core 	MC065
+2010 Exit 	N/A
+2012 Core 	NC065
+2012 Exit 	N/A
+2014 Core 	OC065
+2014 Exit 	N/A
+*/
+generate psych_hrs = .
+replace psych_hrs = 1 if (inlist(RC065,1,3))
+replace psych_hrs = 0 if (inlist(RC065,4,5))
+label var psych_hrs "Psychiatric Condition"
+tab psych_hrs , missing
+
+/*additional psych questions, not part of comorbidities but cleaned here anyway
+psych treatment 1=yes 5=no, only asked if reported having psych problems (psych_hrs==1)
+2000 Core 	G1324
+2002 Core 	HC067
+2004 Core 	JC067
+2006 Core 	KC067
+2008 Core 	LC067
+2010 Core 	MC067
+2012 Core 	NC067
+2014 Core 	OC067
+psych medications 1=yes 5 = no, only asked if reported having psych problems (psych_hrs==1)
+2000 Core 	G1325
+2002 Core 	HC068
+2004 Core 	JC068
+2006 Core 	KC068
+2008 Core 	LC068
+2010 Core 	MC068
+2012 Core 	NC068
+2014 discontinued
+*/
+/*NOT IN COVID DATA
+gen byte PSYCH_treat = .
+replace PSYCH_treat = 0 if psych_hrs==0 
+replace PSYCH_treat = 0 if (RC067==5)
+replace PSYCH_treat = 1 if (RC067==1)
+la var PSYCH_treat "Receives Psychiatric treatment"
+tab PSYCH_treat, missing
+
+gen byte PSYCH_med = .
+replace PSYCH_med = 0 if psych_hrs==0 & core_year!=2014
+replace PSYCH_med = 0 if (kc068==5)|(lc068==5)|(mc068==5)|(nc068==5)
+replace PSYCH_med = 1 if (kc068==1)|(lc068==1)|(mc068==1)|(nc068==1)
+la var PSYCH_med "Psychiatric medication (no 2014)"
+tab PSYCH_med core_year,missing
+*/
+
+/** Arthritis
+C070 ARTHRITIS 
+2000 Core 	G1327
+2002 Core 	HC070
+2004 Core 	JC070
+2006 Core 	KC070
+2008 Core 	LC070
+2010 Core 	MC070
+2012 Core 	NC070
+2014 Core 	OC070
+*/
+generate arth_hrs = .
+replace arth_hrs = 1 if (inlist(RC070,1,3))
+replace arth_hrs = 0 if (inlist(RC070,4,5))
+
+label var arth_hrs "Arthritis"
+tab arth_hrs , missing
+
+/*Hip fracture since last interview
+Only asked for those 65 and older
+1998 Core 	F1215
+2000 Core 	G1348
+2002 Core 	HC082
+2002 Exit 	SC082
+2004 Core 	JC082
+2004 Exit 	TC082
+2006 Core 	KC082
+2006 Exit 	UC082
+2008 Core 	LC082
+2008 Exit 	VC082
+2010 Core 	MC082
+2010 Exit 	WC082 
+2012 Core 	NC082
+2012 Exit 	XC082 
+2014 Core 	OC082
+2014 Exit 	YC082 
+*/
+gen byte hip_frac_hrs = .
+replace hip_frac_hrs=1 if RC082==1 
+replace hip_frac_hrs=0 if RC082==5 
+la var hip_frac_hrs "Hip fracture"
+tab hip_frac_hrs  , missing
+
+*********************************************************************
+//Questions re other symptoms since last intervew
+*********************************************************************
+
+/*Shortness of breath since last interview?
+1998 Core 	F1305
+2000 Core 	G1438
+2002 Core 	HC144
+2004 Core 	JC144
+2006 Core 	KC144
+2008 Core 	LC144
+2010 Core 	MC144
+2012 Core 	NC144
+2014 Core 	OC144
+*/
+gen byte dyspnea_hrs = .
+replace dyspnea_hrs = 1 if RC144==1 
+replace dyspnea_hrs = 0 if RC144==5 
+la var dyspnea_hrs "Dyspnea since last interview? 1=yes"
+tab dyspnea_hrs , missing
+
+/* Persistant swelling in feet or ankles?
+1998 Core 	F1304
+2000 Core 	G1437
+2002 Core 	HC143
+2004 Core 	JC143
+2006 Core 	KC143
+2008 Core 	LC143
+2010 Core 	MC143
+2012 Core 	NC143
+2014 Core 	OC143
+*/
+gen byte swelling_feet_hrs = .
+replace swelling_feet_hrs = 1 if RC143==1 
+replace swelling_feet_hrs = 0 if RC143==5 
+la var swelling_feet_hrs "Swelling feet or ankles since last interview? 1=yes"
+tab swelling_feet_hrs , missing
+
+/* Persistant dizziness or lightheadedness
+1998 Core 	F1306
+2000 Core 	G1439
+2002 Core 	HC145
+2004 Core 	JC145
+2006 Core 	KC145
+2008 Core 	LC145
+2010 Core 	MC145
+2012 Core 	NC145
+2014 Core 	OC145
+*/
+gen byte dizzy_hrs = .
+replace dizzy_hrs = 1 if RC145==1 
+replace dizzy_hrs = 0 if RC145==5 
+la var dizzy_hrs "Dizziness or lightheadedness since last interview? 1=yes"
+tab dizzy_hrs , missing
+
+/* Back pain or problems
+1998 Core 	F1307
+2000 Core 	G1440
+2002 Core 	HC146
+2004 Core 	JC146
+2006 Core 	KC146
+2008 Core 	LC146
+2010 Core 	MC146
+2012 Core 	NC146
+2014 Core 	OC146
+*/
+gen byte back_pain_hrs = .
+replace back_pain_hrs = 1 if RC146==1 
+replace back_pain_hrs = 0 if RC146==5 
+la var back_pain_hrs "Back pain or problems since last interview? 1=yes"
+tab back_pain_hrs , missing
+
+/* Persisent headaches
+1998 Core 	F1308
+2000 Core 	G1441
+2002 Core 	HC147
+2004 Core 	JC147
+2006 Core 	KC147
+2008 Core 	LC147
+2010 Core 	MC147
+2012 Core 	NC147
+2014 Core 	OC147
+*/
+gen byte headache_hrs = .
+replace headache_hrs = 1 if RC147==1 
+replace headache_hrs = 0 if RC147==5
+la var headache_hrs "Persistent headaches since last interview? 1=yes"
+tab headache_hrs , missing
+
+/* Severe fatigue or exhaustion
+1998 Core 	F1309
+2000 Core 	G1442
+2002 Core 	HC148
+2004 Core 	JC148
+2006 Core 	KC148
+2008 Core 	LC148
+2010 Core 	MC148
+2012 Core 	NC148
+2014 Core 	OC148
+*/
+gen byte fatigue_hrs = .
+replace fatigue_hrs = 1 if RC148==1
+replace fatigue_hrs = 0 if RC148==5
+la var fatigue_hrs "Severe fatigue or exhaustion since last interview? 1=yes"
+tab fatigue_hrs , missing
+
+/* Persistent wheezing, cough or phlegm
+1998 Core 	F1310
+2000 Core 	G1443
+2002 Core 	HC149
+2004 Core 	JC149
+2006 Core 	KC149
+2008 Core 	LC149
+2010 Core 	MC149
+2012 Core 	NC149
+2014 Core 	OC149
+*/
+gen byte cough_hrs = .
+replace cough_hrs = 1 if RC149==1 
+replace cough_hrs = 0 if RC149==5 
+la var cough_hrs "Persistent wheezing, coughing since last interview? 1=yes"
+tab cough_hrs , missing
+
+********************************************************************************
+//Insomnia symptoms
+********************************************************************************
+/*How often trouble falling asleep?  xC083
+1=most of the time, 2=sometimes, 3=rarely or never
+Not asked before 2002
+*/
+gen insom_falling_asleep = .
+replace insom_falling_asleep = 1 if RC083==1 
+replace insom_falling_asleep = 2 if RC083==2
+replace insom_falling_asleep = 3 if RC083==3 
+la var insom_falling_asleep "Trouble falling asleep? 1=Most of the time, 2=Sometimes, 3=Rarely,Never"
+tab insom_falling_asleep , missing
+
+/*How often trouble waking up during the night?  xC084
+1=most of the time, 2=sometimes, 3=rarely or never
+Not asked before 2002
+*/
+gen insom_waking_up = .
+replace insom_waking_up = 1 if RC084==1 
+replace insom_waking_up = 2 if RC084==2 
+replace insom_waking_up = 3 if RC084==3 
+la var insom_waking_up "Trouble waking up during night? 1=Most of the time, 2=Sometimes, 3=Rarely,Never"
+tab insom_waking_up , missing
+
+/*How often trouble waking up too early and not being able to fall asleep again?  xC085
+1=most of the time, 2=sometimes, 3=rarely or never
+Not asked before 2002
+*/
+gen insom_too_early = .
+replace insom_too_early = 1 if RC085==1
+replace insom_too_early = 2 if RC085==2 
+replace insom_too_early = 3 if RC085==3
+la var insom_too_early "Trouble waking up too early? 1=Most of the time, 2=Sometimes, 3=Rarely,Never"
+tab insom_too_early , missing
+
+/*How often feel really rested when you wake up in the morning?  xC086
+1=most of the time, 2=sometimes, 3=rarely or never
+Not asked before 2002
+Note when create overall insomnia variable, this one is opposite, 1,most of the time==good
+*/
+gen insom_rested = .
+replace insom_rested = 1 if RC086==1 
+replace insom_rested = 2 if RC086==2
+replace insom_rested = 3 if RC086==3 
+la var insom_rested "Feel rested when wake up? 1=Most of the time, 2=Sometimes, 3=Rarely,Never"
+tab insom_rested , missing
+
+/*In the past 2 weeks, taken medication or treatment to help sleep?
+xc232u2 - 1=yes, 5=no
+Not asked before 2006*/
+/*
+****COULDN'T GET THIS TO RUN IN COVID
+gen byte insom_med_sleep = .
+replace insom_med_sleep = 1 if RC232U2==1 
+replace insom_med_sleep = 0 if RC232U2==5 
+la var insom_med_sleep "Take medic. or other treatment to help sleep, no 2016"
+tab insom_med_sleep , missing
+*/
+/*Medication recommended by a doctor?
+xc233 - 1=yes, 5=no (asked if yes above, left missing if no medication taken)
+Not asked before 2006*/
+/*COULDN'T GET THIS TO RUN IN COVID*******
+gen byte insom_med_dr = .
+replace insom_med_dr = 1 if RC233==1
+replace insom_med_dr = 0 if RC233==5
+la var insom_med_dr "Medications or treatment to help sleep recommended by a doctor, no 2016"
+tab insom_med_dr , missing
+*/
+
+
+/*depression, period of 2 weeks in the last year when felt sad, blue or depressed?
+Skip pattern changed after 1998, if find need to backfill, then need to check 1998 variable
+1998 Core 	F1323
+2000 Core 	G1456
+2002 Core 	HC150
+2004 Core 	JC150
+2006 Core 	KC150
+2008 Core 	LC150
+2010 Core 	MC150
+2012 Core 	NC150
+2014 Core 	OC150
+not asked for proxy interviews
+*/
+gen byte depr_2_wks_hrs = .
+replace depr_2_wks_hrs = 1 if RC150==1 | RC150==3 
+replace depr_2_wks_hrs = 0 if  RC150==5 
+la var depr_2_wks_hrs "Depressed 2 week period in last year? 1=yes"
+tab depr_2_wks_hrs  , missing
+tab depr_2_wks_hrs  if proxy_core==0, missing
+
+
+
+
+
+H="STEP 4: cognition, memory"
+***STEP 4- COGNITION, DEMENTIA
+
+//RG PC
+//local logpath C:\HRS\hrs_cleaned\logs
+//local datapath C:\HRS\hrs_cleaned\working
+
+
+
+/*Rate memory
+2002-2012: d101
+1 = excellent, 5=poor*/
+gen sr_memory = .
+replace sr_memory = RD101 
+
+replace sr_memory = . if inlist(sr_memory,8,9)
+la var sr_memory "Self rated memory, 1=Excel, 5=Poor"
+tab sr_memory  if proxy_core==0
+
+/*Compare memory now to self rating at last interview
+1=better, 2=same, 3=worse
+2002-2014: d102*/
+gen sr_mem_change = .
+replace sr_mem_change = RD102
+replace sr_mem_change = . if inlist(sr_mem_change,8,9)
+la var sr_mem_change "Self rated memory now vs last ivw, 1=Better,2=Same,3=Worse"
+tab sr_mem_change  if proxy_core==0
+
+/*Proxy Rate memory
+2002-2012: d151
+1 = excellent, 5=poor*/
+gen pr_memory = .
+replace pr_memory = RD501 
+replace pr_memory = . if inlist(pr_memory,8,9)
+la var pr_memory "Proxy rated memory, 1=Excel, 5=Poor"
+tab pr_memory , missing
+tab pr_memory proxy_core, missing
+
+/*Proxy Compare memory now to self rating at last interview
+1=better, 2=same, 3=worse
+2002-2012: d152
+Only asked if R age >65*/
+gen pr_mem_change = .
+replace pr_mem_change = RD502 
+replace pr_mem_change = . if inlist(pr_mem_change,8,9)
+la var pr_mem_change "Proxy rated memory now vs last ivw, 1=Better,2=Same,3=Worse"
+tab pr_mem_change , missing
+tab pr_mem_change proxy_core, missing
+tab pr_mem_change  if proxy_core==1, missing
+
+
+H="Step 5: cleaning covid module data"
 *****CLEANING COVID MODULE DATA*******
 
 gen level_concern=.
@@ -1084,3 +3162,9 @@ tab covid_spend_chng covid_inc_chng, column
 
 
 save "D:\HRS\Projects\coronavirus\data\merged\covid_clean.dta", replace
+
+H="keep only cleaned vars"
+keep hhid pn cvwgtr rversion adl_bh_core adl_core_check adl_diff_bh adl_diff_dr adl_diff_e adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core adl_e_core adl_equip_tx adl_equip_wk adl_oth_helper adl_sp_helper adl_t_core adl_tx_core adl_wk_core allchil any_hrdshp_food arth_hrs ask_test back_pain_hrs cancer_chemo_med cancer_hrs cancer_other_treat cancer_surg cancer_symp cancer_xray catinsur cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8 champus chf_hrs chfadmit_ask chfadmit_hrs chfdrever_hrs child chrhlp_cvd cough_hrs covid_inc_chng covid_spend_chng cvwgtr days_drink delay_care delay_dent delay_doc delay_other delay_rx delay_surg dem_hrs depr_2_wks_hrs died_covid dizzy_hrs dm_hrs dm_ins_hrs dyspnea_hrs ed_covid educ ever_drink falls_hrs fatigue_hrs female finhlp_cvd fl_diff_dime fl_diff_lift fl_diff_push fl_diff_reach fl_diff_sit fl_diff_sta_many fl_diff_sta_one fl_diff_stp fl_diff_wk_many fl_diff_wk_one friend gchil had_covid headache_hrs heart_hrs height_ft_temp height_in_temp help_friends help_friends_hours hh_covid hh_worker hhid hhm hip_frac_hrs hisp hlpd_chr hlpd_fin hmo hosp_covid hosp_last_2yr hrdshp_any hrdshp_debt hrdshp_food hrdshp_getfood hrdshp_medbls hrdshp_other hrdshp_rent hrdshp_utils htn_hrs iadl_diff_gr iadl_diff_m iadl_diff_map iadl_diff_mp iadl_diff_ph iadl_diff_rx iadl_gr_core iadl_m_core iadl_mp_core iadl_oth_helper iadl_ph_core iadl_rx_core iadl_sp_helper incont_hrs insom_falling_asleep insom_med_dr insom_rested insom_too_early insom_waking_up known_covid level_concern ling_sxs ltc_bene ltc_ins lung_hrs lung_o2_hrs marital married md_confirm medicaid medicare medicareb medigap memory_hrs moved_covid movein_covid n_drinks_3m nh_ins nh_mos nh_nights nh_start nh_stays nhres nhres_2yr nhres_start_mo nhres_start_yr pain_hrs pain_level_hrs pain_limit_act_hrs pn pr_mem_change pr_memory prob_def_covid proxy_core psych_hrs rel_nb relig reschil resspouse rewidowed rvdate rversion smoke_curr smoke_ever soc_visit soc_visit_cat soc_visit_yr sr_mem_change sr_memory srh stroke_hrs swelling_feet_hrs tested_covid type_ling_sxs vig_phy_act wanted_test wgt_curr why_delay_advised why_delay_afford why_delay_avail why_delay_fear why_delay_nonurgent why_delay_other
+
+
+save "D:\HRS\Projects\coronavirus\data\merged\covid_keep only cleaned.dta", replace
