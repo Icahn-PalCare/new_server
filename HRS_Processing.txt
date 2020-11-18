@@ -73,23 +73,7 @@ libname rest_wk "D:\HRS\Shared\raw\HRS\hrs_restricted_2014";
 /*final HRS data files*/
 libname hrs_fnl 'D:\HRS\Shared\base_data\hrs_cleaned';
 
-/********************************************/
-/*RG PC file paths*/
-/********************************************/
 
-/*sas data files, before the merge into year files*/
-libname core_pre 'C:\HRS\hrs_core\raw_sas';
-libname exit_pre 'C:\HRS\hrs_exit\all_sas';
-
-/*data files, single file per year*/
-libname core_raw 'C:\HRS\hrs_core';
-libname exit_raw 'C:\HRS\hrs_exit';
-
-/*HRS working data files*/
-libname hrs_int 'C:\HRS\hrs_cleaned\working';
-
-/*HRS final cleaned data files*/
-libname hrs_fnl 'C:\HRS\hrs_cleaned';
 
 
 H="Core - 1998"
@@ -963,6 +947,88 @@ merge Core2016sub1 core16_h;
 by hhid nsubhh;
 run;
 
+H="Core - 2018"
+/*******************************************************************/
+/*******************************************************************/
+/*   2018 data   
+Section RC data is required to be added*/
+/*******************************************************************/
+/*******************************************************************/
+/**Core 2018:a_h, a_r, b_r, c_r, d_r, e_h, f_r, g_r, m1_r, n_r, pr_r, rc_r **/
+%let year=18;
+
+proc sort data=core_pre.H18a_r;
+by hhid pn qsubhh;
+proc sort data=core_pre.H18b_r;
+by hhid pn qsubhh;
+proc sort data=core_pre.H18c_r;
+by hhid pn qsubhh;
+proc sort data=core_pre.H18d_r;
+by hhid pn qsubhh;
+proc sort data=core_pre.H18f_r;
+by hhid pn qsubhh;
+proc sort data=core_pre.H18g_r;
+by hhid pn qsubhh;
+proc sort data=core_pre.H18m1_r;
+by hhid pn qsubhh;
+proc sort data=core_pre.H18n_r;
+by hhid pn qsubhh;
+proc sort data=core_pre.H18pr_r;
+by hhid pn qsubhh;
+*proc sort data=core_pre.H18rc_r;
+*by hhid pn qsubhh;
+
+proc sort data=core_pre.H18a_h;
+by hhid qsubhh;
+proc sort data=core_pre.H18e_h;
+by hhid qsubhh;
+
+run;
+
+/*******************************************************************/
+/*merge respondent level files*/
+
+option cleanup;
+
+data Core2018sub1;
+merge  core_pre.H18a_r
+core_pre.H18b_r
+core_pre.H18c_r
+core_pre.H18d_r
+core_pre.H18f_r
+core_pre.H18g_r
+core_pre.H18m1_r
+core_pre.H18n_r
+core_pre.H18pr_r
+/*core_pre.H18rc_r*/;
+by hhid pn;
+run;
+
+proc sort data=Core2018sub1;
+by hhid qsubhh;
+run;
+
+/*******************************************************************/
+
+/*merge household level files*/
+/*core*/
+data core18_h;
+merge core_pre.H18a_h core_pre.H18e_h;
+by hhid qsubhh;
+run;
+
+proc sort data=core18_h;
+by hhid qsubhh;
+run;
+
+/*******************************************************************/
+
+/*merge resp and hh level files*/
+data core_raw.Core2018;
+merge Core2018sub1 core18_h;
+by hhid qsubhh;
+run;
+
 H="Exit - 2002"
 /*
 Use raw data downloaded on 10/22/13 to
@@ -1407,6 +1473,20 @@ px060_r pz076 pz093 pz105 pz117 pz205 pa030 pa098 pe046
 ;
 run;
 
+data hrs_int.core2018limited;
+set core_raw.core2018;
+keep hhid qsubhh pn qa009 qa019 qa028  qa065 qa066 qa099 qa101 qa113 qa500 qa501
+ qb002 qb014 qb028 qb033 qb050  qb063  qc001 qc005 qc010 qc012 
+ qc018 qc020 qc021m1-qc021m6 qc030 qc033 qc036 qc037 qc038 qc048 qc049 
+ qc053 qc065 qc067 qc070 qc079 qc082-qc087 qc104 qc105 qc106 qc116 qc117 
+ qc128 qc129 qc130 qc139 qc141-qc150 qc223 qc232u2 qc233 qc263 qc264 qc272 qc273
+ qd101 qd102 qd110-qd117 qd151 qd152 qd501 qd502 qf174 qf175 qf176 qf177 qg001 qg003-qg017 qg020-qg026 qg029 
+ qg030 qg031 qg032_1-qg032_7 qg033_1-qg033_7  qg040-qg053 qg054_1-qg054_6 qg055_1-qg055_6 
+ qg059 qg060 qg061 qg198 qg199 qg200 qg201 qm006 qn001 qn004 qn005 qn006 qn007 
+ qn023 qn009 qn071 qn077 qn099-qn101 qn114 qn115 qn116 qn117 qn147 qn189
+qx060_r qz076 qz093 qz105 qz117 qz205 qa030 qa098 qe046
+;
+run;
 
 /*********************************************/
 /* Exit */
@@ -1539,6 +1619,9 @@ run;
 proc sort data=core_pre.H16g_hp;
 by hhid psubhh pn;
 run;
+proc sort data=core_pre.H18g_hp;
+by hhid psubhh pn;
+run;
 
 proc sort data=exit_pre.x02g_hp;
 by hhid ssubhh pn;
@@ -1658,14 +1741,15 @@ run;
 %keep_helpers(yr=12,pre=N);
 %keep_helpers(yr=14,pre=O);
 %keep_helpers(yr=16,pre=P);
+%keep_helpers(yr=18,pre=Q);
 
 /*append individual years to get 2 files, one with all adl helpers, one with all iadl helpers*/
 data adlhelper_0216;
-set adlhelper02_3 adlhelper04_3 adlhelper06_3 adlhelper08_3 adlhelper10_3 adlhelper12_3 adlhelper14_3 adlhelper16_3;
+set adlhelper02_3 adlhelper04_3 adlhelper06_3 adlhelper08_3 adlhelper10_3 adlhelper12_3 adlhelper14_3 adlhelper16_3 adlhelper18_3;
 run;
 
 data iadlhelper_0216;
-set iadlhelper02_3 iadlhelper04_3 iadlhelper06_3 iadlhelper08_3 iadlhelper10_3 iadlhelper12_3 iadlhelper14_3 iadlhelper16_3;
+set iadlhelper02_3 iadlhelper04_3 iadlhelper06_3 iadlhelper08_3 iadlhelper10_3 iadlhelper12_3 iadlhelper14_3 iadlhelper16_3 iadlhelper18_3;
 run;
 
 proc sort data=adlhelper_0216 nodupkey;
@@ -1676,16 +1760,16 @@ proc sort data=iadlhelper_0216 nodupkey;
 by hhid pn core_year;
 run;
 
-data hrs_int.helpers_core_0216;
+data hrs_int.helpers_core_0218;
 merge adlhelper_0216 iadlhelper_0216;
 by hhid pn core_year;
 run;
 
-proc sort data=hrs_int.helpers_core_0216 nodupkey;
+proc sort data=hrs_int.helpers_core_0218 nodupkey;
 by hhid pn core_year;
 run;
 
-proc export data=hrs_int.helpers_core_0216 outfile="D:\HRS\Shared\base_data\hrs_cleaned\working\helpers_core_0216.dta" replace; run;
+proc export data=hrs_int.helpers_core_0218 outfile="D:\HRS\Shared\base_data\hrs_cleaned\working\helpers_core_0218.dta" replace; run;
 
 H="Convert SAS to Stata"
 /*There are two versions of this code,
@@ -1747,6 +1831,11 @@ run;
 
 proc export data=hrs_int.core2016limited
 outfile="D:\HRS\Shared\base_data\hrs_cleaned\working\Core2016.dta"
+replace;
+run;
+
+proc export data=hrs_int.core2018limited
+outfile="D:\HRS\Shared\base_data\hrs_cleaned\working\Core2018.dta"
 replace;
 run;
 
@@ -1822,7 +1911,7 @@ cd `datapath'
 //  Clean ID to create single ID variable for each person/unit of analysis.**
 
 //local for years
-local c_years 1998 2000 2002 2004 2006 2008 2010 2012 2014 2016
+local c_years 1998 2000 2002 2004 2006 2008 2010 2012 2014 2016 2018
 
 //Create id variable core dataset for each year
 foreach v in `c_years' {
@@ -1863,7 +1952,8 @@ append using core2010_id.dta
 append using core2012_id.dta
 append using core2014_id.dta
 append using core2016_id.dta
-save core_06_16.dta, replace
+append using core2018_id.dta
+save core_06_18.dta, replace
 
 clear
 use exit2002_id.dta
@@ -5504,11 +5594,11 @@ local datapath D:\HRS\Shared\base_data\hrs_cleaned\working
 //local logpath C:\HRS\hrs_cleaned\logs
 //local datapath C:\HRS\hrs_cleaned\working
 
-log using "`logpath'\2_HRS_Core_06_16_clean1-LOG.txt", text replace
+log using "`logpath'\2_HRS_Core_06_18_clean1-LOG.txt", text replace
 
 cd `datapath'
 
-use core_06_16.dta
+use core_06_18.dta
 
 
 merge 1:1 id core_year using "D:\HRS\Shared\base_data\hrs_cleaned\working\ivw_9814.dta", keepus(c_ivw_date)
@@ -5525,7 +5615,7 @@ by id: gen days_be_core = c_ivw_date - c_ivw_date[_n+1]
 generate proxy_core = .
 replace  proxy_core = 1 if ((ka009==2)|(ka009==3)|(la009==2)|(la009==3) | ///
         (ma009==2)|(ma009==3) | (na009==2)|(na009==3) | (oa009==2)|(oa009==3)|(pa009==3))
-replace  proxy_core = 0 if ((ka009==1)|(la009==1)|(ma009==1)|(na009==1)|(oa009==1)|(pa009==1))
+replace  proxy_core = 0 if ((ka009==1)|(la009==1)|(ma009==1)|(na009==1)|(oa009==1)|(pa009==1)|(qa009==1))
 label variable proxy_core "Proxy Respondent for Core Interview"
 //label define proxy_core 0 "No" 1 "Proxy", modify
 //label values proxy_core proxy_core
@@ -5534,15 +5624,15 @@ tab proxy_core core_year, missing
 *********************************************************************************
 // Gender - from core interview
 *********************************************************************************
-foreach x in kx060_r lx060_r mx060_r nx060_r ox060_r px060_r{
+foreach x in kx060_r lx060_r mx060_r nx060_r ox060_r px060_r  qx060_r{
 tab `x'
 }
 
 generate female = .
 replace female = 1 if ((kx060_r==2)| (lx060_r==2)| (mx060_r==2)| ///
-   (nx060_r==2)| (ox060_r==2) | (px060_r==2))
+   (nx060_r==2)| (ox060_r==2) | (px060_r==2) | (qx060_r==2))
 replace female = 0 if ((kx060_r==1)| (lx060_r==1)| (mx060_r==1)| ///
-   (nx060_r==1)| (ox060_r==1) | (px060_r==1))
+   (nx060_r==1)| (ox060_r==1) | (px060_r==1) | (qx060_r==1))
 label variable female "Female"
 //label define female 0 "Male" 1 "Female", modify
 //label values female female
@@ -5562,8 +5652,9 @@ replace educ = 1 if ((mb014>=1)& (mb014<=11))
 replace educ = 1 if ((nb014>=1)& (nb014<=11))
 replace educ = 1 if ((ob014>=1)& (ob014<=11))
 replace educ = 1 if ((pb014>=1)& (pb014<=11))
+replace educ = 1 if ((qb014>=1)& (qb014<=11))
 
-replace educ = 2 if ( (kb014==12) | (lb014==12) |(mb014==12) |(nb014==12) |(ob014==12) |(pb014==12))
+replace educ = 2 if ( (kb014==12) | (lb014==12) |(mb014==12) |(nb014==12) |(ob014==12) |(pb014==12)|(qb014==12))
 
 replace educ = 3 if ((kb014>=13)& (kb014<=15))
 replace educ = 3 if ((lb014>=13)& (lb014<=15))
@@ -5571,9 +5662,10 @@ replace educ = 3 if ((mb014>=13)& (mb014<=15))
 replace educ = 3 if ((nb014>=13)& (nb014<=15))
 replace educ = 3 if ((ob014>=13)& (ob014<=15))
 replace educ = 3 if ((pb014>=13)& (pb014<=15))
+replace educ = 3 if ((qb014>=13)& (qb014<=15))
 
-replace educ = 4 if ((kb014==16) | (lb014==16) | (mb014==16)| (nb014==16)| (ob014==16)| (pb014==16))
-replace educ = 5 if ((kb014==17) | (lb014==17)| (mb014==17)| (nb014==17)| (ob014==17)| (pb014==17))
+replace educ = 4 if ((kb014==16) | (lb014==16) | (mb014==16)| (nb014==16)| (ob014==16)| (pb014==16)| (qb014==16))
+replace educ = 5 if ((kb014==17) | (lb014==17)| (mb014==17)| (nb014==17)| (ob014==17)| (pb014==17)| (qb014==17))
 label variable educ "Eduction, Highest Level"
 //label define educ 0 "No Formal Education" 1 "Grades 1-11" 2 "High School" 3 "Some College" 4 "College" ///
 //      5 "Post College", modify
@@ -5586,18 +5678,18 @@ tab educ core_year, missing
 // exit interview cleaning
 *********************************************************************************
 gen marital = .
-replace marital = 1 if((kb063==1)| (lb063==1)| (mb063==1)| (nb063==1)| (ob063==1)| (pb063==1)) //married
-replace marital = 2 if((kb063==3)| (lb063==3)| (mb063==3)| (nb063==3)| (ob063==3)| (pb063==3)) //separated
-replace marital = 3 if((kb063==4)| (lb063==4)| (mb063==4)| (nb063==4)| (ob063==4)| (pb063==4)) //divorced
-replace marital = 4 if((kb063==5)| (lb063==5)| (mb063==5)| (nb063==5)| (ob063==5)| (pb063==5)) //widowed
-replace marital = 5 if((kb063==6)| (lb063==6)| (mb063==6)| (nb063==6)| (ob063==6)| (pb063==6)) //never married
+replace marital = 1 if((kb063==1)| (lb063==1)| (mb063==1)| (nb063==1)| (ob063==1)| (pb063==1)| (qb063==1)) //married
+replace marital = 2 if((kb063==3)| (lb063==3)| (mb063==3)| (nb063==3)| (ob063==3)| (pb063==3)| (qb063==3)) //separated
+replace marital = 3 if((kb063==4)| (lb063==4)| (mb063==4)| (nb063==4)| (ob063==4)| (pb063==4)| (qb063==4)) //divorced
+replace marital = 4 if((kb063==5)| (lb063==5)| (mb063==5)| (nb063==5)| (ob063==5)| (pb063==5)| (qb063==5)) //widowed
+replace marital = 5 if((kb063==6)| (lb063==6)| (mb063==6)| (nb063==6)| (ob063==6)| (pb063==6)| (qb063==6)) //never married
 
 //unknown or other
 replace marital = 6 if ( (inlist(kb063,2,7,8,9,.) & core_year==2006) | ///
        (inlist(lb063,2,7,8,9,.) & core_year==2008) | ///
        (inlist(mb063,7,8,9,.) & core_year==2010) | ///
        (inlist(nb063,2,7,8,9,.) & core_year==2012) | ///
-       (inlist(ob063,2,7,8,9,.) & core_year==2014) |       (inlist(pb063,2,7,8,9,.) & core_year==2016))
+       (inlist(ob063,2,7,8,9,.) & core_year==2014) |       (inlist(pb063,2,7,8,9,.) & core_year==2016) |       (inlist(qb063,2,7,8,9,.) & core_year==2018))
 
 label variable marital "Marital Status"
 //label define marital 1 "Married" 2 "Separated" 3 "Divorced" 4 "Widowed" 5 "Never Married" 6 "Other/Don't Know", modify
@@ -5618,8 +5710,8 @@ tab married core_year, missing
 // Maybe use restricted file for race and ethnicity?
 *********************************************************************************
 generate hisp = .
-replace hisp = 1 if ((kb028==1)| (lb028==1)| (mb028==1)| (nb028==1)| (ob028==1)| (pb028==1))
-replace hisp = 0 if ((kb028==5)| (lb028==5)| (mb028==5)| (nb028==5)| (ob028==5)| (pb028==5))
+replace hisp = 1 if ((kb028==1)| (lb028==1)| (mb028==1)| (nb028==1)| (ob028==1)| (pb028==1)| (qb028==1))
+replace hisp = 0 if ((kb028==5)| (lb028==5)| (mb028==5)| (nb028==5)| (ob028==5)| (pb028==5)| (qb028==5))
 label variable hisp "Hispanic Ethnicity"
 //label define hisp 1 "Hispanic- yes" 0 "Non-Hispanic", modify
 //label values hisp hisp
@@ -5636,11 +5728,11 @@ tab hisp core_year, missing
 *********************************************************************************
 
 generate relig = .
-replace relig = 1 if ((kb050==1)|(lb050==1)|(mb050==1)|(nb050==1)|(ob050==1)|(pb050==1))
-replace relig = 2 if ((kb050==2)|(lb050==2)|(mb050==2)|(nb050==2)|(ob050==2) |(pb050==2))
-replace relig = 3 if ((kb050==3)|(lb050==3)|(mb050==3)|(nb050==3)|(ob050==3)|(pb050==3))
-replace relig = 4 if ((kb050==4)|(lb050==4)|(mb050==4)|(nb050==4)|(ob050==4)|(pb050==4))
-replace relig = 5 if ((kb050==7)|(lb050==7)|(mb050==7)|(nb050==7)|(ob050==7)|(pb050==7))
+replace relig = 1 if ((kb050==1)|(lb050==1)|(mb050==1)|(nb050==1)|(ob050==1)|(pb050==1)|(qb050==1))
+replace relig = 2 if ((kb050==2)|(lb050==2)|(mb050==2)|(nb050==2)|(ob050==2) |(pb050==2) |(qb050==2))
+replace relig = 3 if ((kb050==3)|(lb050==3)|(mb050==3)|(nb050==3)|(ob050==3)|(pb050==3)|(qb050==3))
+replace relig = 4 if ((kb050==4)|(lb050==4)|(mb050==4)|(nb050==4)|(ob050==4)|(pb050==4)|(qb050==4))
+replace relig = 5 if ((kb050==7)|(lb050==7)|(mb050==7)|(nb050==7)|(ob050==7)|(pb050==7)|(qb050==7))
 label variable relig "Religion"
 //label define relig 1 "Protestant" 2 "Catholic" 3 "Jewish" 4 "No Pref" 5 "Other", modify
 //label values relig relig
@@ -5666,8 +5758,8 @@ tab imprelig core_year, missing
 // Good Friends Nearby from core interview, code missing as no
 *********************************************************************************
 generate friend = 0
-replace friend = 1 if ((kf175==1)|(lf175==1)|(mf175==1)|(nf175==1)|(of175==1)|(pf175==1))
-replace friend = 0 if ((kf175==5)|(lf175==5)|(mf175==5)|(nf175==5)|(of175==5)|(pf175==5))
+replace friend = 1 if ((kf175==1)|(lf175==1)|(mf175==1)|(nf175==1)|(of175==1)|(pf175==1)|(qf175==1))
+replace friend = 0 if ((kf175==5)|(lf175==5)|(mf175==5)|(nf175==5)|(of175==5)|(pf175==5)|(qf175==5))
 label variable friend "Good Friends Nearby"
 //label define friend 0 "No" 1 "Yes", modify
 //label values friend friend
@@ -5708,10 +5800,10 @@ D156A.FREQ OF CONTACT PER
 //indicator for any visits
 generate soc_visit = .
 replace soc_visit = 1 if ((0<kf176 & kf176 <998) | (0<lf176 & lf176<998) | ///
-	(0<mf176 & mf176<998) | (0<nf176 & nf176<998) | (0<of176 & of176<998)| (0<pf176 & pf176<998))
-replace soc_visit = 0 if kf176==0 | lf176==0 |mf176==0 |nf176==0 |of176==0|pf176==0
+	(0<mf176 & mf176<998) | (0<nf176 & nf176<998) | (0<of176 & of176<998)| (0<pf176 & pf176<998)| (0<qf176 & qf176<998))
+replace soc_visit = 0 if kf176==0 | lf176==0 |mf176==0 |nf176==0 |of176==0|pf176==0|qf176==0
 //if reported almost never, then set to 0
-replace soc_visit = 0 if soc_visit==. & (kf177==6 | lf177==6 | mf177==6| nf177==6| of177==6| pf177==6)
+replace soc_visit = 0 if soc_visit==. & (kf177==6 | lf177==6 | mf177==6| nf177==6| of177==6| pf177==6| qf177==6)
 
 label variable soc_visit "Social visits with neighbors?"
 //label define soc_visit 0 "No" 1 "Yes", modify
@@ -5759,6 +5851,12 @@ replace soc_visit_yr = pf176*26 if core_year==2014 & pf177==3 //bi weekly
 replace soc_visit_yr = pf176*12 if core_year==2014 & pf177==4 //monthly
 replace soc_visit_yr = pf176 if core_year==2014 & pf177==5 //year
 
+replace soc_visit_yr = qf176*365 if core_year==2014 & qf177==1 //daily response
+replace soc_visit_yr = qf176*52 if core_year==2014 & qf177==2 //weekly
+replace soc_visit_yr = qf176*26 if core_year==2014 & qf177==3 //bi weekly
+replace soc_visit_yr = qf176*12 if core_year==2014 & qf177==4 //monthly
+replace soc_visit_yr = qf176 if core_year==2014 & qf177==5 //year
+
 replace soc_visit_yr = . if soc_visit==.
 
 tab soc_visit_yr core_year, missing
@@ -5768,7 +5866,7 @@ gen soc_visit_cat = .
 replace soc_visit_cat = 3 if (364)<=soc_visit_yr & soc_visit_yr!=. //every day or more
 replace soc_visit_cat = 2 if 52<=soc_visit_yr & soc_visit_yr<364 //less than every day up to 1x/week
 replace soc_visit_cat = 1 if 0<soc_visit_yr & soc_visit_yr<52 // less than 1/week 
-replace soc_visit_cat = 0 if soc_visit ==0 | kf177==6 | lf177==6 | mf177==6 | nf177==6 | of177==6 | pf177==6 //none or almost never
+replace soc_visit_cat = 0 if soc_visit ==0 | kf177==6 | lf177==6 | mf177==6 | nf177==6 | of177==6 | pf177==6| qf177==6 //none or almost never
 la var soc_visit_cat "Frequency of social visits, categorical"
 tab soc_visit_cat core_year, missing
 tab soc_visit_cat soc_visit, missing
@@ -5782,8 +5880,8 @@ tab core_year soc_visit_cat if soc_visit==1, missing
 // Relatives Nearby from core interview, code missing as no
 *********************************************************************************
 gen rel_nb = .
-replace rel_nb = 1 if ((kf174==1)|(lf174==1)|(mf174==1)|(nf174==1)|(of174==1)|(pf174==1))
-replace rel_nb = 0 if ((kf174==5)|(lf174==5)|(mf174==5)|(nf174==5)|(of174==5)|(pf174==5))
+replace rel_nb = 1 if ((kf174==1)|(lf174==1)|(mf174==1)|(nf174==1)|(of174==1)|(pf174==1)|(qf174==1))
+replace rel_nb = 0 if ((kf174==5)|(lf174==5)|(mf174==5)|(nf174==5)|(of174==5)|(pf174==5)|(qf174==5))
 label variable rel_nb "Relatives Nearby"
 //label define rel_nb 0 "No" 1 "Yes", modify
 //label values rel_nb rel_nb
@@ -5793,8 +5891,8 @@ tab rel_nb core_year, missing
 // Overnight hospital stay in past 2 years core interview
 *********************************************************************************
 gen byte hosp_last_2yr = .
-replace hosp_last_2yr = 1 if ((kn099==1)|(ln099==1)|(mn099==1)|(nn099==1)|(on099==1)|(pn099==1))
-replace hosp_last_2yr = 0 if ((kn099==5)|(ln099==5)|(mn099==5)|(nn099==5)|(on099==5)|(pn099==5))
+replace hosp_last_2yr = 1 if ((kn099==1)|(ln099==1)|(mn099==1)|(nn099==1)|(on099==1)|(pn099==1)|(qn099==1))
+replace hosp_last_2yr = 0 if ((kn099==5)|(ln099==5)|(mn099==5)|(nn099==5)|(on099==5)|(pn099==5)|(qn099==5))
 label variable hosp_last_2yr "Overnight hospitalization since previous core interview"
 //label define hosp_last_2yr 0 "No" 1 "Yes", modify
 //label values hosp_last_2yr hosp_last_2yr 
@@ -5806,38 +5904,38 @@ tab hosp_last_2yr  core_year, missing
 // Covered by Medicare currently?
 // r2585
 generate byte medicare = .
-replace medicare= 1 if ((kn001==1)| (ln001==1)| (mn001==1)| (nn001==1)| (on001==1)| (pn001==1)) //yes
-replace medicare= 0 if ((kn001==5)| (ln001==5)| (mn001==5)| (nn001==5)| (on001==5)| (pn001==5)) //no
+replace medicare= 1 if ((kn001==1)| (ln001==1)| (mn001==1)| (nn001==1)| (on001==1)| (pn001==1)| (qn001==1)) //yes
+replace medicare= 0 if ((kn001==5)| (ln001==5)| (mn001==5)| (nn001==5)| (on001==5)| (pn001==5)| (qn001==5)) //no
 label variable medicare "Medicare, 1=yes"
 
 //Covered by Medicare Part B currently?
 // r2587
 generate byte medicareb = .
-replace medicareb= 1 if ( (kn004==1)| (ln004==1)| (mn004==1)| (nn004==1)| (on004==1)| (pn004==1)) //yes
-replace medicareb= 0 if ( (kn004==5)| (ln004==5)| (mn004==5)| (nn004==5)| (on004==5)| (pn004==5)) //no
+replace medicareb= 1 if ( (kn004==1)| (ln004==1)| (mn004==1)| (nn004==1)| (on004==1)| (pn004==1)| (qn004==1)) //yes
+replace medicareb= 0 if ( (kn004==5)| (ln004==5)| (mn004==5)| (nn004==5)| (on004==5)| (pn004==5)| (qn004==5)) //no
 replace medicareb= 0 if ((medicare== 0))
 label variable medicareb "Medicare Part B, 1=yes"
 
 //Medicaid coverage any time since last core interview or last 2 years ?
 // r2588 r2589
 generate byte medicaid = .
-replace medicaid= 1 if ((kn005==1)| (ln005==1)| (mn005==1)| (nn005==1)| (on005==1)| (pn005==1)) //yes
-replace medicaid= 0 if ((kn005==5)| (ln005==5)| (mn005==5)| (nn005==5)| (on005==5)| (pn005==5)) //no
+replace medicaid= 1 if ((kn005==1)| (ln005==1)| (mn005==1)| (nn005==1)| (on005==1)| (pn005==1)| (qn005==1)) //yes
+replace medicaid= 0 if ((kn005==5)| (ln005==5)| (mn005==5)| (nn005==5)| (on005==5)| (pn005==5)| (qn005==5)) //no
 label variable medicaid "Medicaid, 1=yes"
 
 // CHAMPUS or other veterans health care at time of death?
 // r2598
 generate byte champus = .
-replace champus = 1 if ((kn007==1)|(ln007==1)|(mn007==1)|(nn007==1)|(on007==1)|(pn007==1)) //yes
-replace champus = 0 if ((kn007==5)|(ln007==5)|(mn007==5)|(nn007==5)|(on007==5)| (on007==5))  //no
+replace champus = 1 if ((kn007==1)|(ln007==1)|(mn007==1)|(nn007==1)|(on007==1)|(pn007==1)|(qn007==1)) //yes
+replace champus = 0 if ((kn007==5)|(ln007==5)|(mn007==5)|(nn007==5)|(on007==5)| (pn007==5)| (qn007==5))  //no
 label variable champus "CHAMPUS, 1=yes"
 
 // HMO for Medicare / Medicaid coverage?
 // r2601
 //only asked if report medicare or medicaid coverage
 generate byte hmo = .
-replace hmo = 1 if ((kn009==1)|(ln009==1)|(mn009==1)|(nn009==1)|(on009==1)|(pn009==1)) //yes
-replace hmo = 0 if ((kn009==5)|(ln009==5)|(mn009==5)|(nn009==5)|(on009==5)|(pn009==5)) //no
+replace hmo = 1 if ((kn009==1)|(ln009==1)|(mn009==1)|(nn009==1)|(on009==1)|(pn009==1)|(qn009==1)) //yes
+replace hmo = 0 if ((kn009==5)|(ln009==5)|(mn009==5)|(nn009==5)|(on009==5)|(pn009==5)|(qn009==5)) //no
 label variable hmo "HMO, 1=yes"
 
 // Private health insurance plans?
@@ -5845,8 +5943,8 @@ label variable hmo "HMO, 1=yes"
 
 generate medigap = .
 replace medigap= 1 if ((kn023>=1&kn023<98) | (ln023>=1&ln023<98) | (mn023>=1&mn023<98)| ///
- (nn023>=1&nn023<98) | (on023>=1&on023<98)| (pn023>=1&pn023<98)) //yes
-replace medigap= 0 if ((kn023==0)| (ln023==0)| (mn023==0)| (nn023==0)| (on023==0)| (pn023==0)) //no
+ (nn023>=1&nn023<98) | (on023>=1&on023<98)| (pn023>=1&pn023<98)| (qn023>=1&qn023<98)) //yes
+replace medigap= 0 if ((kn023==0)| (ln023==0)| (mn023==0)| (nn023==0)| (on023==0)| (pn023==0)| (qn023==0)) //no
 label variable medigap "Medigap, 1=yes"
 tab medigap, missing
 
@@ -5872,13 +5970,13 @@ nursing home for a year or more?
 Blank.*/
 gen ltc_ins=.
 replace ltc_ins=0 if (kn071==5 & core_year==2006) | (ln071==5 & core_year==2008) | ///
-(mn071==5 & core_year==2010) | (nn071==5 & core_year==2012) | (on071==5 & core_year==2014) | (pn071==5 & core_year==2016) 
+(mn071==5 & core_year==2010) | (nn071==5 & core_year==2012) | (on071==5 & core_year==2014) | (pn071==5 & core_year==2016)  | (qn071==5 & core_year==2018) 
 replace ltc_ins=1 if (kn071==1 & core_year==2006) | (ln071==1 & core_year==2008) | ///
-(mn071==1 & core_year==2010) | (nn071==1 & core_year==2012) | (on071==1 & core_year==2014) | (pn071==1 & core_year==2016) 
+(mn071==1 & core_year==2010) | (nn071==1 & core_year==2012) | (on071==1 & core_year==2014) | (pn071==1 & core_year==2016) | (qn071==1 & core_year==2018) 
 replace ltc_ins=8 if (kn071==8 & core_year==2006) | (ln071==8 & core_year==2008) | ///
-(mn071==8 & core_year==2010) | (nn071==8 & core_year==2012) | (on071==8 & core_year==2014)  | (pn071==8 & core_year==2016) 
+(mn071==8 & core_year==2010) | (nn071==8 & core_year==2012) | (on071==8 & core_year==2014)  | (pn071==8 & core_year==2016) | (qn071==8 & core_year==2018) 
 replace ltc_ins=. if (kn071==9 & core_year==2006) | (ln071==9 & core_year==2008) | ///
-(mn071==9 & core_year==2010) | (nn071==9 & core_year==2012) | (on071==9 & core_year==2014) | (pn071==9 & core_year==2016) 
+(mn071==9 & core_year==2010) | (nn071==9 & core_year==2012) | (on071==9 & core_year==2014) | (pn071==9 & core_year==2016)| (qn071==9 & core_year==2018) 
 label var ltc_ins "LTC Insurance, 1=yes"
 
 *********************************************************************************
@@ -5891,13 +5989,13 @@ label var ltc_ins "LTC Insurance, 1=yes"
 Blank.*/
 gen ltc_bene=.
 replace ltc_bene=0 if (kn077==5 & core_year==2006) | (ln077==5 & core_year==2008) | ///
-(mn077==5 & core_year==2010) | (nn077==5 & core_year==2012) | (on077==5 & core_year==2014) | (pn077==5 & core_year==2016) 
+(mn077==5 & core_year==2010) | (nn077==5 & core_year==2012) | (on077==5 & core_year==2014) | (pn077==5 & core_year==2016) | (qn077==5 & core_year==2018) 
 replace ltc_bene=1 if (kn077==1 & core_year==2006) | (ln077==1 & core_year==2008) | ///
-(mn077==1 & core_year==2010) | (nn077==1 & core_year==2012) | (on077==1 & core_year==2014) | (pn077==1 & core_year==2016) 
+(mn077==1 & core_year==2010) | (nn077==1 & core_year==2012) | (on077==1 & core_year==2014) | (pn077==1 & core_year==2016)  | (qn077==1 & core_year==2018) 
 replace ltc_bene=8 if (kn077==8 & core_year==2006) | (ln077==8 & core_year==2008) | ///
-(mn077==8 & core_year==2010) | (nn077==8 & core_year==2012) | (on077==8 & core_year==2014) | (pn077==8 & core_year==2016) 
+(mn077==8 & core_year==2010) | (nn077==8 & core_year==2012) | (on077==8 & core_year==2014) | (pn077==8 & core_year==2016)  | (qn077==8 & core_year==2018) 
 replace ltc_bene=. if (kn077==9 & core_year==2006) | (ln077==9 & core_year==2008) | ///
-(mn077==9 & core_year==2010) | (nn077==9 & core_year==2012) | (on077==9 & core_year==2014) | (pn077==9 & core_year==2016) 
+(mn077==9 & core_year==2010) | (nn077==9 & core_year==2012) | (on077==9 & core_year==2014) | (pn077==9 & core_year==2016) | (qn077==9 & core_year==2018) 
 label var ltc_bene "LTC Benefits Recd., 1=yes"
 
 *********************************************************************************
@@ -5912,8 +6010,8 @@ label var ltc_bene "LTC Benefits Recd., 1=yes"
 //coding changes 1=yes, 5=no
 //different from exit interview which asks about hospice for some years
 generate nhres = .
-replace nhres = 1 if ((ka028==1)| (la028==1)| (ma028==1)| (na028==1)| (oa028==1)| (pa028==1))
-replace nhres = 0 if ((ka028==5)| (la028==5)| (ma028==5)| (na028==5)| (oa028==5)| (pa028==5))
+replace nhres = 1 if ((ka028==1)| (la028==1)| (ma028==1)| (na028==1)| (oa028==1)| (pa028==1)| (qa028==1))
+replace nhres = 0 if ((ka028==5)| (la028==5)| (ma028==5)| (na028==5)| (oa028==5)| (pa028==5)| (qa028==5))
 label variable nhres "Nursing Home Resident"
 //label define nhres 0 "No" 1 "Yes", modify
 //label values nhres nhres
@@ -5939,6 +6037,7 @@ replace nhres_start_mo = ma065 if core_year==2010
 replace nhres_start_mo = na065 if core_year==2012
 replace nhres_start_mo = oa065 if core_year==2014
 replace nhres_start_mo = pa065 if core_year==2016
+replace nhres_start_mo = qa065 if core_year==2018
 replace nhres_start_mo = . if inlist(nhres_start_mo,98,99)
 la var nhres_start_mo "Start month for curr. NH residents"
 tab nhres_start_mo core_year, missing
@@ -5950,6 +6049,7 @@ replace nhres_start_yr = ma066 if core_year==2010
 replace nhres_start_yr = na066 if core_year==2012
 replace nhres_start_yr = oa066 if core_year==2014
 replace nhres_start_yr = pa066 if core_year==2016
+replace nhres_start_yr = qa066 if core_year==2018
 replace nhres_start_yr = . if inlist(nhres_start_yr,9998,9999)
 la var nhres_start_yr "Start year for curr. NH residents"
 tab nhres_start_yr core_year, missing
@@ -5971,8 +6071,8 @@ tab nhres_start_yr core_year, missing
 2014 Core 	ON114
 */
 generate nhres_2yr = .
-replace nhres_2yr = 1 if ( (kn114==1)| (ln114==1)| (mn114==1)| (nn114==1)| (on114==1)| (pn114==1))
-replace nhres_2yr = 0 if ( (kn114==5)| (ln114==5)| (mn114==5)| (nn114==5)| (on114==5)| (pn114==5))
+replace nhres_2yr = 1 if ( (kn114==1)| (ln114==1)| (mn114==1)| (nn114==1)| (on114==1)| (pn114==1)| (qn114==1))
+replace nhres_2yr = 0 if ( (kn114==5)| (ln114==5)| (mn114==5)| (nn114==5)| (on114==5)| (pn114==5)| (qn114==5))
 label variable nhres_2yr "Nursing Home Resident in the past 2 years"
 //label define nhres_2yr 0 "No" 1 "Yes", modify
 //label values nhres_2yr nhres
@@ -5998,6 +6098,7 @@ replace nh_stays = mn115 if core_year==2010
 replace nh_stays = nn115 if core_year==2012
 replace nh_stays = on115 if core_year==2014
 replace nh_stays = pn115 if core_year==2016
+replace nh_stays = qn115 if core_year==2018
 replace nh_stays = 0 if nhres_2yr ==0
 replace nh_stays = . if inlist(nh_stays,98,99)
 label variable nh_stays "Number of times a patient in NH past 2 years"
@@ -6038,9 +6139,9 @@ replace nh_nights= mn116 if (core_year==2010 & mn117==.)
 replace nh_nights= nn116 if (core_year==2012 & nn117==.)
 replace nh_nights= on116 if (core_year==2014 & on117==.)
 replace nh_nights= pn116 if (core_year==2016 & pn117==.)
+replace nh_nights= qn116 if (core_year==2018 & qn117==.)
 replace nh_nights=730 if nh_nights==996
-replace nh_nights=. if inlist(kn116,998,999)|inlist(ln116,998,999)|inlist(mn116,998,999)|inlist(nn116,998,999) ///
-   |inlist(on116,998,999)|inlist(pn116,998,999)
+replace nh_nights=. if inlist(nh_nights,998,999)
 sum nh_nights, detail
 sum nh_nights if core_year==2014 & nh_nights<730
 
@@ -6053,8 +6154,9 @@ replace nh_mos= mn117 if (core_year==2010 & mn116==.)
 replace nh_mos= nn117 if (core_year==2012 & nn116==.)
 replace nh_mos= on117 if (core_year==2014 & on116==.)
 replace nh_mos= pn117 if (core_year==2014 & on116==.)
-replace nh_mos=. if inlist(kn117,98,99)|inlist(ln117,98,99)|inlist(mn117,98,99)| ///
-   inlist(nn117,98,99) | inlist(on117,98,99)| inlist(pn117,98,99)
+replace nh_mos= pn117 if (core_year==2016 & pn116==.)
+replace nh_mos= pn117 if (core_year==2016 & qn116==.)
+replace nh_mos=. if inlist(nh_mos,98,99)
 tab nh_mos core_year, missing
 sum nh_mos, detail
 sum nh_mos if core_year==2012
@@ -6092,8 +6194,8 @@ tab nh_ins core_year if nhres_2yr ==1, missing
 // Living with spouse - core interview
 *********************************************************************************
 generate resspouse = .
-replace resspouse = 0 if ((ka030==5)|(la030==5)|(ma030==5)|(na030==5)|(oa030==5)|(pa030==5) |(married==0))
-replace resspouse = 1 if ((ka030==1)|(la030==1)|(ma030==1)|(na030==1)|(oa030==1)|(pa030==1))
+replace resspouse = 0 if ((ka030==5)|(la030==5)|(ma030==5)|(na030==5)|(oa030==5)|(pa030==5) |(married==0)|(qa030==5) |(married==0))
+replace resspouse = 1 if ((ka030==1)|(la030==1)|(ma030==1)|(na030==1)|(oa030==1)|(pa030==1)|(qa030==1))
 label variable resspouse "Living with Spouse/Partner"
 //label define resspouse 1 "Live with Spouse" 0 "No", modify
 tab resspouse core_year, missing
@@ -6108,6 +6210,7 @@ replace hhm = ma098 if (core_year==2010)
 replace hhm = na098 if (core_year==2012)
 replace hhm = oa098 if (core_year==2014)
 replace hhm = pa098 if (core_year==2016)
+replace hhm = qa098 if (core_year==2018)
 label variable hhm "Number of Household Members"
 sum hhm, detail
 tab hhm, missing
@@ -6122,6 +6225,7 @@ replace child = ma101 if (core_year==2010)
 replace child = na101 if (core_year==2012)
 replace child = oa101 if (core_year==2014)
 replace child = pa101 if (core_year==2016)
+replace child = qa101 if (core_year==2018)
 label variable child "Number of Children, not their children's spouses"
 sum child, detail
 sum child if core_year==2014
@@ -6137,6 +6241,7 @@ replace gchil = me046 if (core_year==2010)
 replace gchil = ne046 if (core_year==2012)
 replace gchil = oe046 if (core_year==2014)
 replace gchil = pe046 if (core_year==2016)
+replace gchil = qe046 if (core_year==2018)
 replace gchil = 0 if inlist(gchil,95,995)
 replace gchil = . if inlist(gchil,98,99,998,999)
 label variable gchil "Number of Grandchildren (capped at 80)"
@@ -6153,6 +6258,7 @@ replace allchil = ma113 if (core_year==2010)
 replace allchil = na113 if (core_year==2012)
 replace allchil = oa113 if (core_year==2014)
 replace allchil = pa113 if (core_year==2016)
+replace allchil = qa113 if (core_year==2018)
 label variable allchil "Total Number of Children, Children-in-law, and Grandchildren"
 sum allchil, detail
 
@@ -6166,6 +6272,7 @@ replace reschil = ma099 if (core_year==2010)
 replace reschil = na099 if (core_year==2012)
 replace reschil = oa099 if (core_year==2014)
 replace reschil = pa099 if (core_year==2016)
+replace reschil = qa099 if (core_year==2018)
 label variable reschil "Number of Resident Children"
 sum reschil, detail
 
@@ -6193,6 +6300,7 @@ replace srh = mc001 if core_year==2010
 replace srh = nc001 if core_year==2012
 replace srh = oc001 if core_year==2014
 replace srh = pc001 if core_year==2016
+replace srh = qc001 if core_year==2018
 replace srh = . if inlist(srh,8,9)
 label var srh "Self Rated Health"
 //label define srh 1 "Excellent" 2 "Very Good" 3 "Good" 4 "Fair" 5 "Poor"
@@ -6266,66 +6374,66 @@ number of drinks per day in past 3 months; 98-99=dont know or refused
 */
 //cesd1 - depressed in the last week
 gen byte cesd1 = .
-replace cesd1 = 1 if (kd110==1)|(ld110==1)|(md110==1)|(nd110==1)|(od110==1)|(pd110==1)
-replace cesd1 = 0 if (kd110==5)|(ld110==5)|(md110==5)|(nd110==5)|(od110==5)|(pd110==5)
+replace cesd1 = 1 if (kd110==1)|(ld110==1)|(md110==1)|(nd110==1)|(od110==1)|(pd110==1)|(qd110==1)
+replace cesd1 = 0 if (kd110==5)|(ld110==5)|(md110==5)|(nd110==5)|(od110==5)|(pd110==5)|(qd110==5)
 la var cesd1 "CESD - Depressed in last week"
 tab cesd1 core_year,missing
 
 //cesd2 - felt activities were effort in the last week
 gen byte cesd2 = .
-replace cesd2 = 1 if (kd111==1)|(ld111==1)|(md111==1)|(nd111==1)|(od111==1)|(pd111==1)
-replace cesd2 = 0 if (kd111==5)|(ld111==5)|(md111==5)|(nd111==5)|(od111==5)|(pd111==5)
+replace cesd2 = 1 if (kd111==1)|(ld111==1)|(md111==1)|(nd111==1)|(od111==1)|(pd111==1)|(qd111==1)
+replace cesd2 = 0 if (kd111==5)|(ld111==5)|(md111==5)|(nd111==5)|(od111==5)|(pd111==5)|(qd111==5)
 la var cesd2 "CESD - Activities were effort in last week"
 tab cesd2 core_year,missing
 
 //cesd3 - restless sleep in the last week
 gen byte cesd3 = .
-replace cesd3 = 1 if (kd112==1)|(ld112==1)|(md112==1)|(nd112==1)|(od112==1)|(pd112==1)
-replace cesd3 = 0 if (kd112==5)|(ld112==5)|(md112==5)|(nd112==5)|(od112==5)|(pd112==5)
+replace cesd3 = 1 if (kd112==1)|(ld112==1)|(md112==1)|(nd112==1)|(od112==1)|(pd112==1)|(qd112==1)
+replace cesd3 = 0 if (kd112==5)|(ld112==5)|(md112==5)|(nd112==5)|(od112==5)|(pd112==5)|(qd112==5)
 la var cesd3 "CESD - Restless Sleep in last week"
 tab cesd3 core_year,missing
 
 //cesd4 - was happy in the last week
 //this one is reversed 0 = was happy 1 = was not happy
 gen byte cesd4 = .
-replace cesd4 = 0 if (kd113==1)|(ld113==1)|(md113==1)|(nd113==1)|(od113==1)|(pd113==1)
-replace cesd4 = 1 if (kd113==5)|(ld113==5)|(md113==5)|(nd113==5)|(od113==5)|(pd113==5)
+replace cesd4 = 0 if (kd113==1)|(ld113==1)|(md113==1)|(nd113==1)|(od113==1)|(pd113==1)|(qd113==1)
+replace cesd4 = 1 if (kd113==5)|(ld113==5)|(md113==5)|(nd113==5)|(od113==5)|(pd113==5)|(qd113==5)
 la var cesd4 "CESD - Was not happy in last week"
 tab cesd4 core_year,missing
 
 //cesd5 - lonely in the last week
 gen byte cesd5 = .
-replace cesd5 = 1 if (kd114==1)|(ld114==1)|(md114==1)|(nd114==1)|(od114==1)|(pd114==1)
-replace cesd5 = 0 if (kd114==5)|(ld114==5)|(md114==5)|(nd114==5)|(od114==5)|(pd114==5)
+replace cesd5 = 1 if (kd114==1)|(ld114==1)|(md114==1)|(nd114==1)|(od114==1)|(pd114==1)|(qd114==1)
+replace cesd5 = 0 if (kd114==5)|(ld114==5)|(md114==5)|(nd114==5)|(od114==5)|(pd114==5)|(qd114==5)
 la var cesd5 "CESD - Lonely in last week"
 tab cesd5 core_year,missing
 
 //cesd6 - enjoyed life in the last week
 gen byte cesd6 = .
-replace cesd6 = 0 if (kd115==1)|(ld115==1)|(md115==1)|(nd115==1)|(od115==1)|(pd115==1)
-replace cesd6 = 1 if (kd115==5)|(ld115==5)|(md115==5)|(nd115==5)|(od115==5)|(pd115==5)
+replace cesd6 = 0 if (kd115==1)|(ld115==1)|(md115==1)|(nd115==1)|(od115==1)|(pd115==1)|(qd115==1)
+replace cesd6 = 1 if (kd115==5)|(ld115==5)|(md115==5)|(nd115==5)|(od115==5)|(pd115==5)|(qd115==5)
 la var cesd6 "CESD - Did not enjoy life in last week"
 tab cesd6 core_year,missing
 
 //cesd7 - felt sad in the last week
 gen byte cesd7 = .
-replace cesd7 = 1 if (kd116==1)|(ld116==1)|(md116==1)|(nd116==1)|(od116==1)|(pd116==1)
-replace cesd7 = 0 if (kd116==5)|(ld116==5)|(md116==5)|(nd116==5)|(od116==5)|(pd116==5)
+replace cesd7 = 1 if (kd116==1)|(ld116==1)|(md116==1)|(nd116==1)|(od116==1)|(pd116==1)|(qd116==1)
+replace cesd7 = 0 if (kd116==5)|(ld116==5)|(md116==5)|(nd116==5)|(od116==5)|(pd116==5)|(qd116==5)
 la var cesd7 "CESD - Sad in last week"
 tab cesd7 core_year,missing
 
 //cesd8 - unmotivated in the last week
 gen byte cesd8 = .
-replace cesd8 = 1 if (kd117==1)|(ld117==1)|(md117==1)|(nd117==1)|(od117==1)|(pd117==1)
-replace cesd8 = 0 if (kd117==5)|(ld117==5)|(md117==5)|(nd117==5)|(od117==5)|(pd117==5)
+replace cesd8 = 1 if (kd117==1)|(ld117==1)|(md117==1)|(nd117==1)|(od117==1)|(pd117==1)|(qd117==1)
+replace cesd8 = 0 if (kd117==5)|(ld117==5)|(md117==5)|(nd117==5)|(od117==5)|(pd117==5)|(qd117==5)
 la var cesd8 "CESD - Unmotivated in last week"
 tab cesd8 core_year,missing
 
 //ever drink alcohol
 gen byte ever_drink = .
-replace ever_drink = 1 if (kc128==1)|(lc128==1)|(mc128==1)|(nc128==1)|(oc128==1)|(pc128==1)
+replace ever_drink = 1 if (kc128==1)|(lc128==1)|(mc128==1)|(nc128==1)|(oc128==1)|(pc128==1)|(qc128==1)
 replace ever_drink = 0 if (inlist(kc128,3,5)|inlist(lc128,3,5)|inlist(mc128,3,5) ///
-  |inlist(nc128,3,5) |inlist(oc128,3,5)|inlist(pc128,3,5))
+  |inlist(nc128,3,5) |inlist(oc128,3,5)|inlist(pc128,3,5)|inlist(qc128,3,5))
 la var ever_drink "Ever drink alcoholic beverages"
 tab ever_drink core_year,missing
 
@@ -6337,6 +6445,7 @@ replace days_drink = mc129 if(core_year==2010)
 replace days_drink = nc129 if(core_year==2012)
 replace days_drink = oc129 if(core_year==2014)
 replace days_drink = pc129 if(core_year==2016)
+replace days_drink = qc129 if(core_year==2018)
 replace days_drink = . if inlist(days_drink,8,9)
 replace days_drink = 0 if ever_drink==0
 la var days_drink "Days per week drink alcoholic beverages"
@@ -6352,6 +6461,7 @@ replace n_drinks_3m = mc130 if(core_year==2010)
 replace n_drinks_3m = nc130 if(core_year==2012)
 replace n_drinks_3m = oc130 if(core_year==2014)
 replace n_drinks_3m = pc130 if(core_year==2016)
+replace n_drinks_3m = qc130 if(core_year==2018)
 replace n_drinks_3m = . if inlist(n_drinks_3m,98,99)
 replace n_drinks_3m = 0 if (ever_drink==0 | days_drink==0)
 la var n_drinks_3m "Number of alcoholic drinks per day"
@@ -6375,6 +6485,9 @@ replace smoke_ever=1 if (nz205==1 | nc116==1) & core_year==2012
 replace smoke_ever=0 if (oz205==5 | oc116==5) & core_year==2014
 replace smoke_ever=1 if (oz205==1 | oc116==1) & core_year==2014
 replace smoke_ever=1 if (pz205==1 | pc116==1) & core_year==2016
+replace smoke_ever=1 if (qz205==1 | qc116==1) & core_year==2018
+replace smoke_ever=1 if (pz205==5 | pc116==5) & core_year==2016
+replace smoke_ever=1 if (qz205==5 | qc116==5) & core_year==2018
 
 la var smoke_ever "Ever smoked?"
 tab smoke_ever core_year, missing
@@ -6405,8 +6518,8 @@ tab smoke_ever core_year, missing
 Only ask if reported ever smoked in previous question or past wave
 */
 gen smoke_curr=.
-replace smoke_curr = 0 if (kc117==5|lc117==5|mc117==5|nc117==5|oc117==5|pc117==5)
-replace smoke_curr = 1 if (kc117==1|lc117==1|mc117==1|nc117==1|oc117==1|pc117==1)
+replace smoke_curr = 0 if (kc117==5|lc117==5|mc117==5|nc117==5|oc117==5|pc117==5|qc117==5)
+replace smoke_curr = 1 if (kc117==1|lc117==1|mc117==1|nc117==1|oc117==1|pc117==1|qc117==1)
 
 replace smoke_curr = 0 if smoke_ever==0
 la var smoke_curr "Currently smoke cigarettes?"
@@ -6429,10 +6542,11 @@ physical activity?
 Here coded as every day or more than 1x per week = yes*/
 gen byte vig_phy_act=.
 replace vig_phy_act=1 if inlist(kc223,1,7)|inlist(lc223,1,7)|inlist(mc223,1,7)| ///
-   inlist(nc223,1,7) | inlist(oc223,1,7) | inlist(pc223,1,7)
+   inlist(nc223,1,7) | inlist(oc223,1,7) | inlist(pc223,1,7)| inlist(qc223,1,7)
 replace vig_phy_act=0 if inlist(kc223,2,3,4)|inlist(lc223,2,3,4)|inlist(mc223,2,3,4)|inlist(nc223,2,3,4)| ///
    inlist(oc223,2,3,4)| ///
-   inlist(pc223,2,3,4)
+   inlist(pc223,2,3,4)| ///
+   inlist(qc223,2,3,4)
 la var vig_phy_act "Vigorous physical activity more than 1x per week"
 tab vig_phy_act core_year,missing
 
@@ -6451,6 +6565,7 @@ replace wgt_curr = mc139 if core_year==2010
 replace wgt_curr = nc139 if core_year==2012
 replace wgt_curr = oc139 if core_year==2014
 replace wgt_curr = pc139 if core_year==2016
+replace wgt_curr = qc139 if core_year==2018
 replace wgt_curr = . if inlist(wgt_curr,998,999)
 la var wgt_curr "Weight current wave, in pounds"
 sum wgt_curr
@@ -6463,6 +6578,7 @@ replace height_ft_temp = mc141 if core_year==2010
 replace height_ft_temp = nc141 if core_year==2012
 replace height_ft_temp = oc141 if core_year==2014
 replace height_ft_temp = pc141 if core_year==2016
+replace height_ft_temp = qc141 if core_year==2018
 replace height_ft_temp = . if inlist(height_ft,8,9)
 la var height_ft_temp "Height, feet"
 tab height_ft_temp core_year, missing
@@ -6475,6 +6591,7 @@ replace height_in_temp = mc142 if core_year==2010
 replace height_in_temp = nc142 if core_year==2012
 replace height_in_temp = oc142 if core_year==2014
 replace height_in_temp = pc142 if core_year==2016
+replace height_in_temp = qc142 if core_year==2018
 replace height_in_temp = . if (height_in_temp >12)
 la var height_in_temp "Height, inches"
 tab height_in_temp core_year, missing
@@ -6508,8 +6625,8 @@ Would it be less than 50 hours, more than 50 hours or what?
 //as being a helper for response < 100 hours
 //this likely overestimates the number of people who are helpers in these years
 gen help_friends = .
-replace help_friends = 1 if kg198==1 | lg198==1 | mg198==1 | ng198==1 | og198==1| pg198==1
-replace help_friends = 0 if kg198==5 | lg198==5 | mg198==5 | ng198==5 | og198==5| pg198==5
+replace help_friends = 1 if kg198==1 | lg198==1 | mg198==1 | ng198==1 | og198==1| pg198==1| qg198==1
+replace help_friends = 0 if kg198==5 | lg198==5 | mg198==5 | ng198==5 | og198==5| pg198==5| qg198==5
 tab help_friends core_year, missing
 
 //categorical variable, driven by 2004 and later survey format
@@ -6522,6 +6639,7 @@ replace help_friends_hours = 1 if core_year==2010 & inlist(mg199,1,3)
 replace help_friends_hours = 1 if core_year==2012 & inlist(ng199,1,3)
 replace help_friends_hours = 1 if core_year==2014 & inlist(og199,1,3)
 replace help_friends_hours = 1 if core_year==2016 & inlist(pg199,1,3)
+replace help_friends_hours = 1 if core_year==2018 & inlist(qg199,1,3)
 
 replace help_friends_hours = 2 if core_year==2006 & inlist(kg200,1,3)
 replace help_friends_hours = 2 if core_year==2008 & inlist(lg200,1,3)
@@ -6529,8 +6647,9 @@ replace help_friends_hours = 2 if core_year==2010 & inlist(mg200,1,3)
 replace help_friends_hours = 2 if core_year==2012 & inlist(ng200,1,3)
 replace help_friends_hours = 2 if core_year==2014 & inlist(og200,1,3)
 replace help_friends_hours = 2 if core_year==2016 & inlist(pg200,1,3)
+replace help_friends_hours = 2 if core_year==2018 & inlist(qg200,1,3)
 
-replace help_friends_hours = 3 if kg200==5 | lg200==5 | mg200==5 | ng200==5 | og200==5| pg200==5
+replace help_friends_hours = 3 if kg200==5 | lg200==5 | mg200==5 | ng200==5 | og200==5| pg200==5| qg200==5
 
 tab help_friends_hours, missing
 tab help_friends, missing
@@ -6540,7 +6659,7 @@ tab help_friends help_friends_hours, missing
 
 drop c_ivw_date days_be_core nh_start
 
-save core_06_16_clean1.dta, replace
+save core_06_18_clean1.dta, replace
 
 log close
 
@@ -6570,7 +6689,7 @@ log using "`logpath'\2_HRS_Core_06_16_clean2-LOG.txt", text replace
 
 cd `datapath'
 
-use core_06_16_clean1.dta
+use core_06_18_clean1.dta
 
 *************************************************************************
 //   ADLs from core interviews
@@ -6624,6 +6743,7 @@ replace adl_core_check=mg013 if core_year==2010
 replace adl_core_check=ng013 if core_year==2012
 replace adl_core_check=og013 if core_year==2014
 replace adl_core_check=pg013 if core_year==2016
+replace adl_core_check=qg013 if core_year==2018
 tab adl_core_check core_year, missing
 sum adl_core_check, detail
 
@@ -6671,7 +6791,7 @@ Difficulty dressing?
 gen byte adl_diff_dr = .
 replace adl_diff_dr = 1 if (kg014==1)|(kg014==6)| (lg014==1)|(lg014==6)| ///
 	(mg014==1)|(mg014==6) | (ng014==1)|(ng014==6)| (og014==1)|(og014==6)|(pg014==6)
-replace adl_diff_dr = 0 if (kg014==5)|(lg014==5)|(mg014==5) |(ng014==5)|(og014==5)|(pg014==5)
+replace adl_diff_dr = 0 if (kg014==5)|(lg014==5)|(mg014==5) |(ng014==5)|(og014==5)|(pg014==5)|(qg014==5)
 replace adl_diff_dr = 0 if adl_core_check==0
 la var adl_diff_dr "Difficulty dressing 1=yes"
 tab adl_diff_dr core_year, missing
@@ -6682,12 +6802,12 @@ replace adl_dr_core = 0 if adl_diff_dr==0
 //not asked because adl check flag = 0
 replace adl_dr_core = 0 if adl_core_check==0
 //report need help
-replace adl_dr_core = 1 if ((kg015==1)|(lg015==1)|(mg015==1)|(ng015==1)|(og015==1)|(pg015==1))
+replace adl_dr_core = 1 if ((kg015==1)|(lg015==1)|(mg015==1)|(ng015==1)|(og015==1)|(pg015==1)|(qg015==1))
 //asked if need help, say no
-replace adl_dr_core = 0 if ((kg015==5)|(lg015==5)|(mg015==5)|(ng015==5)|(og015==5)|(pg015==5))
+replace adl_dr_core = 0 if ((kg015==5)|(lg015==5)|(mg015==5)|(ng015==5)|(og015==5)|(pg015==5)|(qg015==5))
 //asked if need help, refused, don't respond
 replace adl_dr_core = . if ((kg015==8)|(lg015==8)|(mg015==8)|(ng015==8)|(kg015==9)| ///
-(lg015==9)| (mg015==9)|(ng015==9)|(og015==9)|(pg015==9))
+(lg015==9)| (mg015==9)|(ng015==9)|(og015==9)|(pg015==9)|(qg015==9))
 label variable adl_dr_core "Help Dressing - Core int."
 //label define adl_dr_core 0 "No" 1 "Yes", modify
 //label values adl_dr_core adl_dr_core
@@ -6699,14 +6819,14 @@ so not asked if have an adl difficulty but report no difficulty getting dressed*
 gen adl_diff_wk = .
 replace adl_diff_wk = 1 if (kg016==1)|(kg016==6)| (lg016==1)|(lg016==6)| ///
 	(mg016==1)|(mg016==6) | (ng016==1)|(ng016==6)| (og016==1)|(og016==6)|(pg016==6)
-replace adl_diff_wk = 0 if (kg016==5)|(lg016==5)|(mg016==5)|(ng016==5)|(og016==5)|(pg016==5)
+replace adl_diff_wk = 0 if (kg016==5)|(lg016==5)|(mg016==5)|(ng016==5)|(og016==5)|(pg016==5)|(qg016==5)
 replace adl_diff_wk = 0 if (adl_diff_dr==0 & adl_core_check==1) | adl_core_check==0
 la var adl_diff_wk "Difficulty walking? 1=yes"
 tab adl_diff_wk core_year, missing
 
 gen adl_equip_wk = .
-replace adl_equip_wk = 1 if (kg017==1)|(lg017==1)|(mg017==1) |(ng017==1)|(og017==1)| (pg017==1)
-replace adl_equip_wk = 0 if (kg017==5)|(lg017==5)|(mg017==5) |(ng017==5)|(og017==5)|(pg017==5)
+replace adl_equip_wk = 1 if (kg017==1)|(lg017==1)|(mg017==1) |(ng017==1)|(og017==1)| (pg017==1)| (qg017==1)
+replace adl_equip_wk = 0 if (kg017==5)|(lg017==5)|(mg017==5) |(ng017==5)|(og017==5)|(pg017==5)|(qg017==5)
 la var adl_equip_wk "Use equipment to walk? 1=yes"
 tab adl_equip_wk core_year, missing
 
@@ -6718,10 +6838,10 @@ tab adl_wk_core, missing
 // set = 0 if not asked b/c report no difficulty walking
 replace adl_wk_core = 0 if adl_diff_wk==0
 // set based on repsonses
-replace adl_wk_core = 1 if ((kg020==1)|(lg020==1)|(mg020==1)|(ng020==1)|(og020==1)|(pg020==1))
-replace adl_wk_core = 0 if ((kg020==5)|(lg020==5)|(mg020==5)|(ng020==5)|(og020==5)|(pg020==5))
+replace adl_wk_core = 1 if ((kg020==1)|(lg020==1)|(mg020==1)|(ng020==1)|(og020==1)|(pg020==1)|(qg020==1))
+replace adl_wk_core = 0 if ((kg020==5)|(lg020==5)|(mg020==5)|(ng020==5)|(og020==5)|(pg020==5)|(qg020==5))
 replace adl_wk_core = . if ((kg020==8)|(lg020==8)|(mg020==8)|(ng020==8)|(og020==8) | ///
- (kg020==9)|(lg020==9)|(mg020==9)|(ng020==9)|(og020==9)|(pg020==9))
+ (kg020==9)|(lg020==9)|(mg020==9)|(ng020==9)|(og020==9)|(pg020==9)|(qg020==9))
 label var adl_wk_core "Help Walking - core"
 //label define adl_wk_core 0 "No" 1 "Yes", modify
 //label values adl_wk_core adl_wk_core
@@ -6755,7 +6875,7 @@ Not asked if adl_count_flag = 1 and difficulty dressing = no
 gen byte adl_diff_bh = .
 replace adl_diff_bh = 1 if (kg021==1)|(kg021==6)| (lg021==1)|(lg021==6)| ///
 	(mg021==1)|(mg021==6) | (ng021==1)|(ng021==6) | (og021==1)|(og021==6)|(pg021==6)
-replace adl_diff_bh = 0 if (kg021==5)|(lg021==5)|(mg021==5) |(ng021==5) |(og021==5) |(pg021==5)
+replace adl_diff_bh = 0 if (kg021==5)|(lg021==5)|(mg021==5) |(ng021==5) |(og021==5) |(pg021==5) |(qg021==5)
 replace adl_diff_bh = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
 la var adl_diff_bh "Difficulty bathing? 1=yes"
 tab adl_diff_bh core_year, missing
@@ -6765,10 +6885,10 @@ generate adl_bh_core = .
 replace adl_bh_core = 0 if adl_core_check==0
 replace adl_bh_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
 // set based on responses
-replace adl_bh_core = 1 if ((kg022==1)|(lg022==1)|(mg022==1)|(ng022==1)|(og022==1)|(pg022==1))
-replace adl_bh_core = 0 if ((kg022==5)|(lg022==5)|(mg022==5)|(ng022==5)|(og022==5)|(pg022==5))
+replace adl_bh_core = 1 if ((kg022==1)|(lg022==1)|(mg022==1)|(ng022==1)|(og022==1)|(pg022==1)|(qg022==1))
+replace adl_bh_core = 0 if ((kg022==5)|(lg022==5)|(mg022==5)|(ng022==5)|(og022==5)|(pg022==5)|(qg022==5))
 replace adl_bh_core = . if ((kg022==8)|(lg022==8)|(mg022==8)|(ng022==8)|(og022==8) ///
- | (kg022==9)|(lg022==9)|(mg022==9)|(ng022==9)|(og022==9)|(pg022==9))
+ | (kg022==9)|(lg022==9)|(mg022==9)|(ng022==9)|(og022==9)|(pg022==9)|(qg022==9))
 replace adl_bh_core = 0 if adl_diff_bh==0
 label var adl_bh_core "Help Bathing - core"
 //label define adl_bh_core 0 "No" 1 "Yes", modify
@@ -6802,7 +6922,7 @@ G024 ADL EAT HELP
 gen byte adl_diff_e = .
 replace adl_diff_e = 1 if (kg023==1)|(kg023==6)| (lg023==1)|(lg023==6)| ///
 	(mg023==1)|(mg023==6) | (ng023==1)|(ng023==6) | (og023==1)|(og023==6)|(pg023==6)
-replace adl_diff_e = 0 if (kg023==5)|(lg023==5)|(mg023==5) |(ng023==5)|(og023==5)|(pg023==5)
+replace adl_diff_e = 0 if (kg023==5)|(lg023==5)|(mg023==5) |(ng023==5)|(og023==5)|(pg023==5)|(qg023==5)
 replace adl_diff_e = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
 la var adl_diff_e "Difficulty eating? 1=yes"
 tab adl_diff_e core_year, missing
@@ -6812,10 +6932,10 @@ generate adl_e_core = .
 replace adl_e_core = 0 if adl_core_check==0
 replace adl_e_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
 //set based on responses
-replace adl_e_core = 1 if ((kg024==1)|(lg024==1)|(mg024==1)|(ng024==1)|(og024==1)|(pg024==1))
-replace adl_e_core = 0 if ((kg024==5)|(lg024==5)|(mg024==5)|(ng024==5)|(og024==5)|(pg024==5))
+replace adl_e_core = 1 if ((kg024==1)|(lg024==1)|(mg024==1)|(ng024==1)|(og024==1)|(pg024==1)|(qg024==1))
+replace adl_e_core = 0 if ((kg024==5)|(lg024==5)|(mg024==5)|(ng024==5)|(og024==5)|(pg024==5)|(qg024==5))
 replace adl_e_core = . if ((kg024==8)|(lg024==8)|(mg024==8)|(ng024==8)|(og024==8) ///
- | (kg024==9)|(lg024==9)|(mg024==9)|(ng024==9)|(og024==9))
+ | (kg024==9)|(lg024==9)|(mg024==9)|(ng024==9)|(og024==9)|(qg024==9))
 replace adl_e_core = 0 if adl_diff_e==0
 label var adl_e_core "Help Eating - core"
 //label define adl_e_core 0 "No" 1 "Yes", modify
@@ -6825,15 +6945,15 @@ tab adl_e_core core_year, missing
 //Transfers to Bed, g2768 hg029 jg029
 gen byte adl_diff_tx = .
 replace adl_diff_tx = 1 if (kg025==1)|(kg025==6)| (lg025==1)|(lg025==6)| ///
-	(mg025==1)|(mg025==6) | (ng025==1)|(ng025==6) | (og025==1)|(og025==6)|(pg025==6)
-replace adl_diff_tx = 0 if (kg025==5)|(lg025==5)|(mg025==5) |(ng025==5) |(og025==5)|(pg025==5)
+	(mg025==1)|(mg025==6) | (ng025==1)|(ng025==6) | (og025==1)|(og025==6)|(pg025==6)|(qg025==6)
+replace adl_diff_tx = 0 if (kg025==5)|(lg025==5)|(mg025==5) |(ng025==5) |(og025==5)|(qg025==5)
 replace adl_diff_tx = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
 la var adl_diff_tx "Difficulty transfers to bed? 1=yes"
 tab adl_diff_tx core_year, missing
 
 gen byte adl_equip_tx = .
-replace adl_equip_tx = 1 if (kg026==1)|(lg026==1)|(mg026==1)|(ng026==1)|(og026==1)|(pg026==1)
-replace adl_equip_tx = 0 if (kg026==5)|(lg026==5)|(mg026==5)|(ng026==5)|(og026==5)|(pg026==5)
+replace adl_equip_tx = 1 if (kg026==1)|(lg026==1)|(mg026==1)|(ng026==1)|(og026==1)|(pg026==1)|(qg026==1)
+replace adl_equip_tx = 0 if (kg026==5)|(lg026==5)|(mg026==5)|(ng026==5)|(og026==5)|(pg026==5)|(qg026==5)
 la var adl_equip_tx "Use equipment transfers to bed? 1=yes"
 tab adl_equip_tx core_year, missing
 
@@ -6842,10 +6962,10 @@ generate adl_tx_core = .
 replace adl_tx_core = 0 if adl_core_check==0
 replace adl_tx_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
 //set based on responses
-replace adl_tx_core = 1 if ((kg029==1)|(lg029==1)|(mg029==1)|(ng029==1)|(og029==1)|(pg029==1))
-replace adl_tx_core = 0 if ((kg029==5)|(lg029==5)|(mg029==5)|(ng029==5)|(og029==5)|(pg029==5))
+replace adl_tx_core = 1 if ((kg029==1)|(lg029==1)|(mg029==1)|(ng029==1)|(og029==1)|(pg029==1)|(qg029==1))
+replace adl_tx_core = 0 if ((kg029==5)|(lg029==5)|(mg029==5)|(ng029==5)|(og029==5)|(pg029==5)|(qg029==5))
 replace adl_tx_core = . if ((kg029==8)|(lg029==8)|(mg029==8)|(ng029==8)|(og029==8) ///
- | (kg029==9)|(lg029==9)|(mg029==9)|(ng029==9)|(og029==9))
+ | (kg029==9)|(lg029==9)|(mg029==9)|(ng029==9)|(og029==9)|(pg029==9)|(qg029==9))
 replace adl_tx_core = 0 if adl_diff_tx == 0
 label var adl_tx_core "Help with Transfers to Bed - core"
 //label define adl_tx_core 0 "No" 1 "Yes", modify
@@ -6872,8 +6992,8 @@ tab adl_tx_core core_year, missing
 
 gen byte adl_diff_t = .
 replace adl_diff_t = 1 if (kg030==1)|(kg030==6)| (lg030==1)|(lg030==6)| ///
-	(mg030==1)|(mg030==6) | (ng030==1)|(ng030==6)| (og030==1) |(og030==6)|(pg030==6)
-replace adl_diff_t = 0 if (kg030==5)|(lg030==5)|(mg030==5)|(ng030==5)|(og030==5)|(pg030==5)
+	(mg030==1)|(mg030==6) | (ng030==1)|(ng030==6)| (og030==1) |(og030==6)|(pg030==6)|(qg030==6)
+replace adl_diff_t = 0 if (kg030==5)|(lg030==5)|(mg030==5)|(ng030==5)|(og030==5)|(pg030==5)|(qg030==5)
 replace adl_diff_t = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
 la var adl_diff_t "Difficulty toileting? 1=yes"
 tab adl_diff_t core_year, missing
@@ -6884,11 +7004,11 @@ replace adl_t_core = 0 if adl_core_check==0
 replace adl_t_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
 
 //set based on responses
-replace adl_t_core = 1 if ((kg031==1)|(lg031==1)|(mg031==1)|(ng031==1)|(og031==1)|(pg031==1))
-replace adl_t_core = 0 if ((kg031==5)|(lg031==5)|(mg031==5)|(ng031==5)|(og031==5)|(pg031==5))
+replace adl_t_core = 1 if ((kg031==1)|(lg031==1)|(mg031==1)|(ng031==1)|(og031==1)|(pg031==1)|(qg031==1))
+replace adl_t_core = 0 if ((kg031==5)|(lg031==5)|(mg031==5)|(ng031==5)|(og031==5)|(pg031==5)|(qg031==5))
 replace adl_t_core = . if ((kg031==8)|(lg031==8)|(mg031==8)|(ng031==8)|(og031==8) ///
- |(kg031==9)|(lg031==9)|(mg031==9)|(ng031==9)|(og031==9))
-replace adl_t_core = 0 if ((kg030==5)|(lg030==5)|(mg030==5)|(ng030==5)|(og030==5)|(pg030==5))
+ |(kg031==9)|(lg031==9)|(mg031==9)|(ng031==9)|(og031==9)|(pg031==9)|(qg031==9))
+replace adl_t_core = 0 if ((kg030==5)|(lg030==5)|(mg030==5)|(ng030==5)|(og030==5)|(pg030==5)|(qg030==5))
 replace adl_t_core = 0 if adl_core_check==0
 label var adl_t_core "Help Toileting - core"
 //label define adl_t_core 0 "No" 1 "Yes", modify
@@ -6907,8 +7027,8 @@ tab adl_t_core core_year, missing
 2002-2014 	HG040-OG040*/
 gen byte iadl_diff_map = .
 replace iadl_diff_map = 1 if (kg040==1)|(kg040==6)| (lg040==1)|(lg040==6)| ///
-	(mg040==1)|(mg040==6) | (ng040==1)|(ng040==6)| (og040==1)|(og040==6)|(pg040==6)
-replace iadl_diff_map = 0 if (kg040==5)|(lg040==5)|(mg040==5)|(ng040==5)|(og040==5)|(pg040==5)
+	(mg040==1)|(mg040==6) | (ng040==1)|(ng040==6)| (og040==1)|(og040==6)|(pg040==6)|(qg040==6)
+replace iadl_diff_map = 0 if (kg040==5)|(lg040==5)|(mg040==5)|(ng040==5)|(og040==5)|(pg040==5)|(qg040==5)
 la var iadl_diff_map "Difficulty using maps? 1=yes"
 tab iadl_diff_map core_year, missing
 
@@ -6948,6 +7068,7 @@ replace iadl_diff_mp = 1 if inlist(mg041,6,7) & mg042==1
 replace iadl_diff_mp = 1 if inlist(ng041,6,7) & ng042==1	
 replace iadl_diff_mp = 1 if inlist(og041,6,7) & og042==1	
 replace iadl_diff_mp = 1 if inlist(pg041,6,7) & pg042==1	
+replace iadl_diff_mp = 1 if inlist(qg041,6,7) & qg042==1	
 replace iadl_diff_mp = 0 if (kg041==5)|(lg041==5)|(mg041==5) |(ng041==5) |(og041==5)|(pg041==5)
 replace iadl_diff_mp = 0 if inlist(kg041,6,7) & kg042==5
 replace iadl_diff_mp = 0 if inlist(lg041,6,7) & lg042==5
@@ -6955,6 +7076,7 @@ replace iadl_diff_mp = 0 if inlist(mg041,6,7) & mg042==5
 replace iadl_diff_mp = 0 if inlist(ng041,6,7) & ng042==5	
 replace iadl_diff_mp = 0 if inlist(og041,6,7) & og042==5	
 replace iadl_diff_mp = 0 if inlist(pg041,6,7) & pg042==5	
+replace iadl_diff_mp = 0 if inlist(qg041,6,7) & qg042==5	
 
 la var iadl_diff_mp "Difficulty meal prep? 1=yes"
 tab iadl_diff_mp core_year, missing
@@ -6965,9 +7087,9 @@ replace iadl_mp_core = 0 if iadl_diff_mp==0
 //set yes for if live in nursing home
 replace iadl_mp_core = 1 if	nhres ==1
 // set for response help = no
-replace iadl_mp_core = 0 if ((kg043==5)|(lg043==5)|(mg043==5)|(ng043==5)|(og043==5)|(pg043==5))
+replace iadl_mp_core = 0 if ((kg043==5)|(lg043==5)|(mg043==5)|(ng043==5)|(og043==5)|(qg043==5))
 //set for response help = yes
-replace iadl_mp_core = 1 if ((kg043==1)|(lg043==1)|(mg043==1)|(ng043==1)|(og043==1)|(pg043==1))
+replace iadl_mp_core = 1 if ((kg043==1)|(lg043==1)|(mg043==1)|(ng043==1)|(og043==1)|(pg043==1)|(qg043==1))
 label var iadl_mp_core "Help with Meal Prep"
 // la def iadl_mp_core 0 "No" 1 "Yes", modify
 // la val iadl_mp_core iadl_mp_core 
@@ -7005,6 +7127,7 @@ replace iadl_diff_gr = 1 if inlist(mg044,6,7) & mg045==1
 replace iadl_diff_gr = 1 if inlist(ng044,6,7) & ng045==1	
 replace iadl_diff_gr = 1 if inlist(og044,6,7) & og045==1	
 replace iadl_diff_gr = 1 if inlist(pg044,6,7) & pg045==1	
+replace iadl_diff_gr = 1 if inlist(qg044,6,7) & qg045==1	
 replace iadl_diff_gr = 0 if (kg044==5)|(lg044==5)|(mg044==5)|(ng044==5)|(og044==5)|(pg044==5)
 replace iadl_diff_gr = 0 if inlist(kg044,6,7) & kg045==5
 replace iadl_diff_gr = 0 if inlist(lg044,6,7) & lg045==5
@@ -7012,6 +7135,7 @@ replace iadl_diff_gr = 0 if inlist(mg044,6,7) & mg045==5
 replace iadl_diff_gr = 0 if inlist(ng044,6,7) & ng045==5	
 replace iadl_diff_gr = 0 if inlist(og044,6,7) & og045==5	
 replace iadl_diff_gr = 0 if inlist(pg044,6,7) & pg045==5	
+replace iadl_diff_gr = 0 if inlist(qg044,6,7) & qg045==5	
 la var iadl_diff_gr "Difficulty grocery shopping? 1=yes"
 tab iadl_diff_gr core_year, missing
 
@@ -7021,11 +7145,11 @@ replace iadl_gr_core = 0 if iadl_diff_gr==0
 //set yes for if live in nursing home
 replace iadl_gr_core = 1 if nhres ==1
 //set for response help = yes
-replace iadl_gr_core = 1 if ((kg046==1)|(lg046==1)|(mg046==1)|(ng046==1)|(og046==1)|(pg046==1))
+replace iadl_gr_core = 1 if ((kg046==1)|(lg046==1)|(mg046==1)|(ng046==1)|(og046==1)|(pg046==1)|(qg046==1))
 // set for response help = no
-replace iadl_gr_core = 0 if ((kg046==5)|(lg046==5)|(mg046==5)|(ng046==5)|(og046==5)|(pg046==5))
+replace iadl_gr_core = 0 if ((kg046==5)|(lg046==5)|(mg046==5)|(ng046==5)|(og046==5)|(pg046==5)|(qg046==5))
 //set for response help = yes
-replace iadl_gr_core = 1 if ((kg046==1)|(lg046==1)|(mg046==1)|(ng046==1)|(og046==1))
+replace iadl_gr_core = 1 if ((kg046==1)|(lg046==1)|(mg046==1)|(ng046==1)|(og046==1)|(pg046==1)|(qg046==1))
 label var iadl_gr_core "Help with Grocery Shopping"
 // la def iadl_gr_core 0 "No" 1 "Yes", modify
 // la val iadl_gr_core iadl_gr_core 
@@ -7065,6 +7189,7 @@ replace iadl_diff_ph = 1 if inlist(mg047,6,7) & mg048==1
 replace iadl_diff_ph = 1 if inlist(ng047,6,7) & ng048==1	
 replace iadl_diff_ph = 1 if inlist(og047,6,7) & og048==1	
 replace iadl_diff_ph = 1 if inlist(pg047,6,7) & pg048==1	
+replace iadl_diff_ph = 1 if inlist(qg047,6,7) & qg048==1	
 replace iadl_diff_ph = 0 if (kg047==5)|(lg047==5)|(mg047==5) |(ng047==5)|(og047==5)|(pg047==5)
 replace iadl_diff_ph = 0 if inlist(kg047,6,7) & kg048==5
 replace iadl_diff_ph = 0 if inlist(lg047,6,7) & lg048==5
@@ -7072,12 +7197,13 @@ replace iadl_diff_ph = 0 if inlist(mg047,6,7) & mg048==5
 replace iadl_diff_ph = 0 if inlist(ng047,6,7) & ng048==5	
 replace iadl_diff_ph = 0 if inlist(og047,6,7) & og048==5	
 replace iadl_diff_ph = 0 if inlist(pg047,6,7) & pg048==5	
+replace iadl_diff_ph = 0 if inlist(qg047,6,7) & qg048==5	
 la var iadl_diff_ph "Difficulty phone calls? 1=yes"
 tab iadl_diff_ph core_year, missing
 
 gen byte iadl_ph_core=.
 //set for those that report no difficulty with task
-replace iadl_ph_core = 0 if ((kg047==5)|(lg047==5)|(mg047==5)|(ng047==5)|(og047==5)|(pg047==5))
+replace iadl_ph_core = 0 if ((kg047==5)|(lg047==5)|(mg047==5)|(ng047==5)|(og047==5)|(pg047==5)|(qg047==5))
 //set for those that report cant / dont do but not bc of health problem
 replace iadl_ph_core = 0 if ((inlist(kg047,6,7) & kg048==5)& ///
 	core_year==2006)
@@ -7091,10 +7217,12 @@ replace iadl_ph_core = 0 if ((inlist(og047,6,7) & og048==5)& ///
 	core_year==2014)
 replace iadl_ph_core = 0 if ((inlist(pg047,6,7) & pg048==5)& ///
 	core_year==2016)
+	replace iadl_ph_core = 0 if ((inlist(qg047,6,7) & qg048==5)& ///
+	core_year==2018)
 // set for response help = no
-replace iadl_ph_core = 0 if ((kg049==5)|(lg049==5)|(mg049==5)|(ng049==5)|(og049==5)|(pg049==5))
+replace iadl_ph_core = 0 if ((kg049==5)|(lg049==5)|(mg049==5)|(ng049==5)|(og049==5)|(pg049==5)|(qg049==5))
 //set for response help = yes
-replace iadl_ph_core = 1 if ((kg049==1)|(lg049==1)|(mg049==1)|(ng049==1)|(og049==1)|(pg049==1))
+replace iadl_ph_core = 1 if ((kg049==1)|(lg049==1)|(mg049==1)|(ng049==1)|(og049==1)|(pg049==1)|(qg049==1))
 label var iadl_ph_core "Help Making Phone Calls"
 // la def iadl_ph_core 0 "No" 1 "Yes", modify
 // la val iadl_ph_core iadl_ph_core 
@@ -7141,6 +7269,7 @@ replace iadl_diff_rx = 1 if mg050==6 & mg052==1
 replace iadl_diff_rx = 1 if ng050==6 & ng052==1
 replace iadl_diff_rx = 1 if og050==6 & og052==1
 replace iadl_diff_rx = 1 if pg050==6 & pg052==1
+replace iadl_diff_rx = 1 if qg050==6 & qg052==1
 //don't do, if had to take, yes would have difficulty b/c of health prob.
 replace iadl_diff_rx = 1 if kg050==7 & kg051==1 & kg052==1
 replace iadl_diff_rx = 1 if lg050==7 & lg051==1 & lg052==1
@@ -7148,8 +7277,9 @@ replace iadl_diff_rx = 1 if mg050==7 & mg051==1 & mg052==1
 replace iadl_diff_rx = 1 if ng050==7 & ng051==1 & ng052==1
 replace iadl_diff_rx = 1 if og050==7 & og051==1 & og052==1
 replace iadl_diff_rx = 1 if pg050==7 & pg051==1 & pg052==1
+replace iadl_diff_rx = 1 if qg050==7 & qg051==1 & qg052==1
 //no, no difficulty	
-replace iadl_diff_rx = 0 if (kg050==5)|(lg050==5)|(mg050==5)|(ng050==5)|(og050==5)|(pg050==5)
+replace iadl_diff_rx = 0 if (kg050==5)|(lg050==5)|(mg050==5)|(ng050==5)|(og050==5)|(pg050==5)|(qg050==5)
 //can't do, not b/c of health problems
 replace iadl_diff_rx = 0 if kg050==6 & kg052==5
 replace iadl_diff_rx = 0 if lg050==6 & lg052==5
@@ -7157,6 +7287,7 @@ replace iadl_diff_rx = 0 if mg050==6 & mg052==5
 replace iadl_diff_rx = 0 if ng050==6 & ng052==5	
 replace iadl_diff_rx = 0 if og050==6 & og052==5	
 replace iadl_diff_rx = 0 if pg050==6 & pg052==5	
+replace iadl_diff_rx = 0 if qg050==6 & qg052==5	
 //don't do, if had to take, no difficulty anticipated
 replace iadl_diff_rx = 0 if kg050==7 & kg051==5
 replace iadl_diff_rx = 0 if lg050==7 & lg051==5
@@ -7164,6 +7295,7 @@ replace iadl_diff_rx = 0 if mg050==7 & mg051==5
 replace iadl_diff_rx = 0 if ng050==7 & ng051==5
 replace iadl_diff_rx = 0 if og050==7 & og051==5
 replace iadl_diff_rx = 0 if pg050==7 & pg051==5
+replace iadl_diff_rx = 0 if qg050==7 & qg051==5
 la var iadl_diff_rx "Difficulty taking medications? 1=yes"
 tab iadl_diff_rx core_year, missing
 
@@ -7173,9 +7305,9 @@ replace iadl_rx_core = 0 if iadl_diff_rx==0
 //set yes for if live in nursing home
 replace iadl_rx_core = 1 if nhres ==1
 // set for response help = no
-replace iadl_rx_core = 0 if ((kg053==5)|(lg053==5)|(mg053==5)|(ng053==5)|(og053==5)|(pg053==5))
+replace iadl_rx_core = 0 if ((kg053==5)|(lg053==5)|(mg053==5)|(ng053==5)|(og053==5)|(pg053==5)|(qg053==5))
 //set for response help = yes
-replace iadl_rx_core = 1 if ((kg053==1)|(lg053==1)|(mg053==1)|(ng053==1)|(og053==1) |(pg053==1))
+replace iadl_rx_core = 1 if ((kg053==1)|(lg053==1)|(mg053==1)|(ng053==1)|(og053==1) |(pg053==1)|(qg053==1))
 label var iadl_rx_core "Help with Medications"
 // la def iadl_rx_core 0 "No" 1 "Yes", modify
 // la val iadl_rx_core iadl_rx_core 
@@ -7213,19 +7345,21 @@ replace iadl_diff_m = 1 if inlist(mg059,6,7) & mg060==1
 replace iadl_diff_m = 1 if inlist(ng059,6,7) & ng060==1	
 replace iadl_diff_m = 1 if inlist(og059,6,7) & og060==1	
 replace iadl_diff_m = 1 if inlist(pg059,6,7) & pg060==1	
-replace iadl_diff_m = 0 if (kg059==5)|(lg059==5)|(mg059==5)|(ng059==5)|(og059==5)| (pg059==5)
+replace iadl_diff_m = 1 if inlist(qg059,6,7) & qg060==1	
+replace iadl_diff_m = 0 if (kg059==5)|(lg059==5)|(mg059==5)|(ng059==5)|(og059==5)| (pg059==5)| (qg059==5)
 replace iadl_diff_m = 0 if inlist(kg059,6,7) & kg060==5
 replace iadl_diff_m = 0 if inlist(lg059,6,7) & lg060==5
 replace iadl_diff_m = 0 if inlist(mg059,6,7) & mg060==5	
 replace iadl_diff_m = 0 if inlist(ng059,6,7) & ng060==5	
 replace iadl_diff_m = 0 if inlist(og059,6,7) & og060==5	
 replace iadl_diff_m = 0 if inlist(pg059,6,7) & pg060==5	
+replace iadl_diff_m = 0 if inlist(qg059,6,7) & qg060==5	
 la var iadl_diff_m "Difficulty managing money? 1=yes"
 tab iadl_diff_m core_year, missing
 
 gen byte iadl_m_core=.
 //set for those that report no difficulty with task
-replace iadl_m_core = 0 if ((kg059==5)|(lg059==5)|(mg059==5)|(ng059==5)|(og059==5)|(pg059==5))
+replace iadl_m_core = 0 if ((kg059==5)|(lg059==5)|(mg059==5)|(ng059==5)|(og059==5)|(pg059==5)|(qg059==5))
 //set for those that report cant / dont do but not bc of health problem
 replace iadl_m_core = 0 if ((inlist(kg059,6,7) & kg060==5)& ///
 	core_year==2006)
@@ -7239,10 +7373,12 @@ replace iadl_m_core = 0 if ((inlist(og059,6,7) & og060==5)& ///
 	core_year==2014)
 replace iadl_m_core = 0 if ((inlist(pg059,6,7) & pg060==5)& ///
 	core_year==2016)
+	replace iadl_m_core = 0 if ((inlist(qg059,6,7) & qg060==5)& ///
+	core_year==2018)
 // set for response help = no
-replace iadl_m_core = 0 if ((kg061==5)|(lg061==5)|(mg061==5)|(ng061==5)|(og061==5) |(pg061==5))
+replace iadl_m_core = 0 if ((kg061==5)|(lg061==5)|(mg061==5)|(ng061==5)|(og061==5) |(pg061==5)|(qg061==5))
 //set for response help = yes
-replace iadl_m_core = 1 if ((kg061==1)|(lg061==1)|(mg061==1)|(ng061==1)|(og061==1)|(pg061==1))
+replace iadl_m_core = 1 if ((kg061==1)|(lg061==1)|(mg061==1)|(ng061==1)|(og061==1)|(pg061==1)|(qg061==1))
 label var iadl_m_core "Help with Money"
 // la def iadl_m_core 0 "No" 1 "Yes", modify
 // la val iadl_m_core iadl_m_core 
@@ -7268,10 +7404,10 @@ to verify why don't do*/
 */
 
 gen byte fl_diff_wk_many = .
-replace fl_diff_wk_many = 1 if kg001==1 | lg001==1 | mg001==1 | ng001==1 | og001==1 | ///
+replace fl_diff_wk_many = 1 if kg001==1 | lg001==1 | mg001==1 | ng001==1 | og001==1 |pg001==1 | ///
 	kg001==6 | lg001==6 | mg001==6 | ng001==6 | og001==6 | ///
-	kg001==7 | lg001==7 | mg001==7 | ng001==7 | og001==7| pg001==6| pg001==7
-replace fl_diff_wk_many = 0 if kg001==5 | lg001==5 | mg001==5 | ng001==5 | og001==5| pg001==5
+	kg001==7 | lg001==7 | mg001==7 | ng001==7 | og001==7| pg001==6| pg001==7| qg001==6| qg001==7 | inlist(qg001,1,6,7)
+replace fl_diff_wk_many = 0 if kg001==5 | lg001==5 | mg001==5 | ng001==5 | og001==5| pg001==5| qg001==5
 la var fl_diff_wk_many "Difficulty walking several blocks? 1=yes"
 tab fl_diff_wk_many core_year, missing
 
@@ -7289,10 +7425,10 @@ Only asked if do not report no difficulty walking many blocks
 */
 
 gen byte fl_diff_wk_one = .
-replace fl_diff_wk_one = 1 if kg003==1 | lg003==1 | mg003==1 | ng003==1 | og003==1 | ///
+replace fl_diff_wk_one = 1 if kg003==1 | lg003==1 | mg003==1 | ng003==1 | og003==1 |pg003==1 | ///
 	kg003==6 | lg003==6 | mg003==6 | ng003==6 | og003==6 | ///
-	kg003==7 | lg003==7 | mg003==7 | ng003==7 | og003==7| pg003==7| pg003==6
-replace fl_diff_wk_one = 0 if kg003==5 | lg003==5 | mg003==5 | ng003==5 | og003==5| pg003==5
+	kg003==7 | lg003==7 | mg003==7 | ng003==7 | og003==7| pg003==7| pg003==6| qg003==6 | inlist(qg003,1,6,7)
+replace fl_diff_wk_one = 0 if kg003==5 | lg003==5 | mg003==5 | ng003==5 | og003==5| pg003==5| qg003==5
 replace fl_diff_wk_one = 0 if fl_diff_wk_many==0
 la var fl_diff_wk_one "Difficulty walking one block? 1=yes"
 tab fl_diff_wk_one core_year, missing 
@@ -7311,8 +7447,8 @@ tab fl_diff_wk_one core_year, missing
 gen byte fl_diff_sit = .
 replace fl_diff_sit = 1 if kg004==1 | lg004==1 | mg004==1 | ng004==1 | og004==1 | ///
 	kg004==6 | lg004==6 | mg004==6 | ng004==6 | og004==6 | ///
-	kg004==7 | lg004==7 | mg004==7 | ng004==7 | og004==7 | pg004==7 | pg004==6
-replace fl_diff_sit = 0 if kg004==5 | lg004==5 | mg004==5 | ng004==5 | og004==5 | pg004==5
+	kg004==7 | lg004==7 | mg004==7 | ng004==7 | og004==7 | pg004==7 | pg004==6 | inlist(pg004,1,6,7) | inlist(qg004,1,6,7)
+replace fl_diff_sit = 0 if kg004==5 | lg004==5 | mg004==5 | ng004==5 | og004==5 | pg004==5| qg004==5
 la var fl_diff_sit "Difficulty sitting 2 hours? 1=yes"
 tab fl_diff_sit core_year, missing
 
@@ -7330,8 +7466,8 @@ tab fl_diff_sit core_year, missing
 gen byte fl_diff_gu = .
 replace fl_diff_gu = 1 if kg005==1 | lg005==1 | mg005==1 | ng005==1 | og005==1 | ///
 	kg005==6 | lg005==6 | mg005==6 | ng005==6 | og005==6 | ///
-	kg005==7 | lg005==7 | mg005==7 | ng005==7 | og005==7| pg005==7| pg005==6
-replace fl_diff_gu = 0 if kg005==5 | lg005==5 | mg005==5 | ng005==5 | og005==5| pg005==5
+	kg005==7 | lg005==7 | mg005==7 | ng005==7 | og005==7| pg005==7| pg005==6 | pg005==1 | inlist(qg005,1,6,7)
+replace fl_diff_gu = 0 if kg005==5 | lg005==5 | mg005==5 | ng005==5 | og005==5| pg005==5| qg005==5
 la var fl_diff_gu "Difficulty standing up after sitting? 1=yes"
 tab fl_diff_gu core_year, missing
 
@@ -7349,8 +7485,8 @@ tab fl_diff_gu core_year, missing
 gen byte fl_diff_sta_many = .
 replace fl_diff_sta_many = 1 if kg006==1 | lg006==1 | mg006==1 | ng006==1 | og006==1 | ///
 	kg006==6 | lg006==6 | mg006==6 | ng006==6 | og006==6 | ///
-	kg006==7 | lg006==7 | mg006==7 | ng006==7 | og006==7| pg006==7| pg006==6
-replace fl_diff_sta_many = 0 if kg006==5 | lg006==5 | mg006==5 | ng006==5 | og006==5| pg006==5
+	kg006==7 | lg006==7 | mg006==7 | ng006==7 | og006==7| pg006==7| pg006==6|pg006==1| qg006==7| qg006==6 |qg006==1
+replace fl_diff_sta_many = 0 if kg006==5 | lg006==5 | mg006==5 | ng006==5 | og006==5| pg006==5| qg006==5
 la var fl_diff_sta_many "Difficulty climbing stairs - many flights? 1=yes"
 tab fl_diff_sta_many core_year, missing
 
@@ -7369,8 +7505,8 @@ Only asked if response to many stairs is not no
 gen byte fl_diff_sta_one = .
 replace fl_diff_sta_one = 1 if kg007==1 | lg007==1 | mg007==1 | ng007==1 | og007==1 | ///
 	kg007==6 | lg007==6 | mg007==6 | ng007==6 | og007==6 | ///
-	kg007==7 | lg007==7 | mg007==7 | ng007==7 | og007==7| pg007==7| pg007==6
-replace fl_diff_sta_one = 0 if kg007==5 | lg007==5 | mg007==5 | ng007==5 | og007==5| pg007==5
+	kg007==7 | lg007==7 | mg007==7 | ng007==7 | og007==7| pg007==7| pg007==6 |pg007==1 | inlist(qg007,1,6,7)
+replace fl_diff_sta_one = 0 if kg007==5 | lg007==5 | mg007==5 | ng007==5 | og007==5| pg007==5| qg007==5
 replace fl_diff_sta_one = 0 if fl_diff_sta_many==0
 la var fl_diff_sta_one "Difficulty climbing stairs - one flight? 1=yes"
 tab fl_diff_sta_one core_year, missing
@@ -7389,8 +7525,9 @@ tab fl_diff_sta_one core_year, missing
 gen byte fl_diff_stp = .
 replace fl_diff_stp = 1 if kg008==1 | lg008==1 | mg008==1 | ng008==1 | og008==1 | ///
 	kg008==6 | lg008==6 | mg008==6 | ng008==6 | og008==6 | ///
-	kg008==7 | lg008==7 | mg008==7 | ng008==7 | og008==7 | pg008==7 | pg008==6
-replace fl_diff_stp = 0 if kg008==5 | lg008==5 | mg008==5 | ng008==5 | og008==5 | pg008==5
+	kg008==7 | lg008==7 | mg008==7 | ng008==7 | og008==7 | pg008==7 | pg008==6 |  pg008==1 | inlist(qg008,1,6,7)
+replace fl_diff_stp = 0 if kg008==5 | lg008==5 | mg008==5 | ng008==5 | og008==5 | pg008==5| qg008==5
+la var fl_diff_stp "Difficulty stooping? 1=yes"
 la var fl_diff_stp "Difficulty stooping? 1=yes"
 tab fl_diff_stp core_year, missing
 
@@ -7408,8 +7545,8 @@ tab fl_diff_stp core_year, missing
 gen byte fl_diff_reach = .
 replace fl_diff_reach = 1 if kg009==1 | lg009==1 | mg009==1 | ng009==1 | og009==1 | ///
 	kg009==6 | lg009==6 | mg009==6 | ng009==6 | og009==6 | ///
-	kg009==7 | lg009==7 | mg009==7 | ng009==7 | og009==7| pg009==7| pg009==6
-replace fl_diff_reach = 0 if kg009==5 | lg009==5 | mg009==5 | ng009==5 | og009==5| pg009==5
+	kg009==7 | lg009==7 | mg009==7 | ng009==7 | og009==7| pg009==7| pg009==6 | pg009==1 | inlist(qg009,1,6,7)
+replace fl_diff_reach = 0 if kg009==5 | lg009==5 | mg009==5 | ng009==5 | og009==5| pg009==5| qg009==5
 la var fl_diff_reach "Difficulty reaching with arms? 1=yes"
 tab fl_diff_reach core_year, missing
 
@@ -7425,10 +7562,10 @@ tab fl_diff_reach core_year, missing
 2014 Core 	OG010
 */
 gen byte fl_diff_push = .
-replace fl_diff_push = 1 if kg010==1 | lg010==1 | mg010==1 | ng010==1 | og010==1 | ///
+replace fl_diff_push = 1 if kg010==1 | lg010==1 | mg010==1 | ng010==1 | og010==1 |pg010==1 | ///
 	kg010==6 | lg010==6 | mg010==6 | ng010==6 | og010==6 | ///
-	kg010==7 | lg010==7 | mg010==7 | ng010==7 | og010==7| pg010==7| pg010==6
-replace fl_diff_push = 0 if kg010==5 | lg010==5 | mg010==5 | ng010==5 | og010==5| pg010==5
+	kg010==7 | lg010==7 | mg010==7 | ng010==7 | og010==7| pg010==7| pg010==6 | inlist(qg010,1,6,7)
+replace fl_diff_push = 0 if kg010==5 | lg010==5 | mg010==5 | ng010==5 | og010==5| pg010==5| qg010==5
 la var fl_diff_push "Difficulty pushing/pulling large objects? 1=yes"
 tab fl_diff_push core_year, missing
 
@@ -7446,8 +7583,8 @@ tab fl_diff_push core_year, missing
 gen byte fl_diff_lift = .
 replace fl_diff_lift = 1 if kg011==1 | lg011==1 | mg011==1 | ng011==1 | og011==1 | ///
 	kg011==6 | lg011==6 | mg011==6 | ng011==6 | og011==6 | ///
-	kg011==7 | lg011==7 | mg011==7 | ng011==7 | og011==7| pg011==7| pg011==6
-replace fl_diff_lift = 0 if kg011==5 | lg011==5 | mg011==5 | ng011==5 | og011==5| pg011==5
+	kg011==7 | lg011==7 | mg011==7 | ng011==7 | og011==7| pg011==7|pg011==1| pg011==6 | inlist(qg011,1,6,7)
+replace fl_diff_lift = 0 if kg011==5 | lg011==5 | mg011==5 | ng011==5 | og011==5| pg011==5| qg011==5
 la var fl_diff_lift "Difficulty lifting weights over 10lb? 1=yes"
 tab fl_diff_lift core_year, missing
 
@@ -7464,8 +7601,8 @@ tab fl_diff_lift core_year, missing
 assign can't do = yes, don't do = .*/
 gen fl_diff_dime = .
 replace fl_diff_dime = 1 if inlist(kg012,1,6,7) | inlist(lg012,1,6,7) | ///
-  inlist(mg012,1,6,7) | inlist(ng012,1,6,7) | inlist(og012,1,6,7)| inlist(pg012,1,6,7)
-replace fl_diff_dime = 0 if kg012==5 | lg012==5 | mg012==5 | ng012==5 | og012==5| inlist(pg012,5)
+  inlist(mg012,1,6,7) | inlist(ng012,1,6,7) | inlist(og012,1,6,7)| inlist(pg012,1,6,7)| inlist(qg012,1,6,7)
+replace fl_diff_dime = 0 if kg012==5 | lg012==5 | mg012==5 | ng012==5 | og012==5| inlist(pg012,5)| inlist(qg012,5)
 la var fl_diff_dime "Any difficulty picking up a dime? 1=yes"
 tab fl_diff_dime core_year, missing
 
@@ -7491,6 +7628,7 @@ replace adl_sp_helper = 1 if (core_year==2010 & mg033_1==2)
 replace adl_sp_helper = 1 if (core_year==2012 & ng033_1==2)
 replace adl_sp_helper = 1 if (core_year==2014 & og033_1==2)
 replace adl_sp_helper = 1 if (core_year==2016 & pg033_1==2)
+replace adl_sp_helper = 1 if (core_year==2018 & qg033_1==2)
 la var adl_sp_helper "ADL Spouse Main Helper, 1=yes"
 tab adl_sp_helper core_year, missing
 
@@ -7501,6 +7639,7 @@ replace adl_oth_helper = 1 if (core_year==2010 & 2< mg033_1 & mg033_1<21)
 replace adl_oth_helper = 1 if (core_year==2012 & 2< ng033_1 & ng033_1<21)
 replace adl_oth_helper = 1 if (core_year==2014 & 2< og033_1 & og033_1<21)
 replace adl_oth_helper = 1 if (core_year==2016 & 2< pg033_1 & pg033_1<21)
+replace adl_oth_helper = 1 if (core_year==2018 & 2< qg033_1 & qg033_1<21)
 la var adl_oth_helper "ADL Other Main Helper, 1=yes"
 tab adl_oth_helper core_year, missing
 
@@ -7513,6 +7652,7 @@ replace adl_helper_`i' = mg032_`i' if (core_year==2010)
 replace adl_helper_`i' = ng032_`i' if (core_year==2012)
 replace adl_helper_`i' = og032_`i' if (core_year==2014)
 replace adl_helper_`i' = pg032_`i' if (core_year==2016)
+replace adl_helper_`i' = qg032_`i' if (core_year==2018)
 la var adl_helper_`i' "ADL Helper `i' PN"
 }
 
@@ -7524,6 +7664,7 @@ replace iadl_sp_helper = 1 if (core_year==2010 & mg055_1==2)
 replace iadl_sp_helper = 1 if (core_year==2012 & ng055_1==2)
 replace iadl_sp_helper = 1 if (core_year==2014 & og055_1==2)
 replace iadl_sp_helper = 1 if (core_year==2016 & pg055_1==2)
+replace iadl_sp_helper = 1 if (core_year==2018 & qg055_1==2)
 la var iadl_sp_helper "IADL Spouse Main Helper, 1=yes"
 tab iadl_sp_helper core_year, missing
 
@@ -7534,6 +7675,7 @@ replace iadl_oth_helper = 1 if (core_year==2010 & 2< mg055_1 & mg055_1<21)
 replace iadl_oth_helper = 1 if (core_year==2012 & 2< ng055_1 & ng055_1<21)
 replace iadl_oth_helper = 1 if (core_year==2014 & 2< og055_1 & og055_1<21)
 replace iadl_oth_helper = 1 if (core_year==2016 & 2< pg055_1 & pg055_1<21)
+replace iadl_oth_helper = 1 if (core_year==2018 & 2< qg055_1 & qg055_1<21)
 la var iadl_oth_helper "IADL Other Main Helper, 1=yes"
 tab iadl_oth_helper core_year, missing
 
@@ -7546,6 +7688,7 @@ replace iadl_helper_`i' = mg054_`i' if (core_year==2010)
 replace iadl_helper_`i' = ng054_`i' if (core_year==2012)
 replace iadl_helper_`i' = og054_`i' if (core_year==2014)
 replace iadl_helper_`i' = pg054_`i' if (core_year==2016)
+replace iadl_helper_`i' = qg054_`i' if (core_year==2018)
 la var iadl_helper_`i' "IADL Helper `i' PN"
 }
 
@@ -7572,12 +7715,12 @@ la var iadl_helper_`i' "IADL Helper `i' PN"
 2014 Exit 	YN189
 */
 gen hh_worker = .
-replace hh_worker=1 if kn189==1 | ln189==1 | mn189==1 | nn189==1 | on189==1| pn189==1
-replace hh_worker=0 if kn189==5 | ln189==5 | mn189==5 | nn189==5 | on189==5| pn189==5
+replace hh_worker=1 if kn189==1 | ln189==1 | mn189==1 | nn189==1 | on189==1| pn189==1| qn189==1
+replace hh_worker=0 if kn189==5 | ln189==5 | mn189==5 | nn189==5 | on189==5| pn189==5| qn189==5
 la var hh_worker "Home health worker help? 1=yes"
 tab hh_worker core_year, missing
 
-save core_06_16_clean2.dta, replace
+save core_06_18_clean2.dta, replace
 
 log close
 
@@ -7609,7 +7752,7 @@ log using "`logpath'\2_HRS_Core_06_16_clean3-LOG.txt", text replace
 
 cd `datapath'
 
-use core_06_16_clean2.dta
+use core_06_18_clean2.dta
 
 /************************************************************/
 /* Comorbidities from core interviews  */
@@ -7644,6 +7787,7 @@ replace cancer_hrs = 0 if (core_year==2010 & inlist(mc018,4,5))
 replace cancer_hrs = 0 if (core_year==2012 & inlist(nc018,4,5))
 replace cancer_hrs = 0 if (core_year==2014 & inlist(oc018,4,5))
 replace cancer_hrs = 0 if (core_year==2016 & inlist(pc018,4,5))
+replace cancer_hrs = 0 if (core_year==2018 & inlist(qc018,4,5))
 label variable cancer_hrs "Cancer - core"
 //label define cancer_hrs 0 "No" 1 "Yes", modify
 //label values cancer_hrs cancer_hrs
@@ -7711,8 +7855,8 @@ NOTE: Greater number of values at 2012
 */
 //cancer treatment in last 2 years indicator variable
 gen byte cancer_treat_hrs=.
-replace cancer_treat_hrs=1 if ( kc020==1 | lc020==1 | mc020==1 | nc020==1 | oc020==1 | pc020==1 )
-replace cancer_treat_hrs=0 if ( kc020==5 | lc020==5 | mc020==5 | nc020==5 | oc020==5 | pc020==5)
+replace cancer_treat_hrs=1 if ( kc020==1 | lc020==1 | mc020==1 | nc020==1 | oc020==1 | pc020==1 | qc020==1 )
+replace cancer_treat_hrs=0 if ( kc020==5 | lc020==5 | mc020==5 | nc020==5 | oc020==5 | pc020==5| qc020==5)
 replace cancer_treat_hrs=0 if (cancer_hrs==0) //if no cancer, show no cancer treatment
 tab cancer_treat_hrs core_year, missing
 
@@ -7731,7 +7875,7 @@ gen byte cancer_surg=.
 gen byte cancer_xray=.
 gen byte cancer_symp=.
 gen byte cancer_other_treat=.
-local waves k l m n o p
+local waves k l m n o p q
 foreach i of numlist 1/6 {
 foreach w of local waves{
 	replace cancer_chemo_med=1 if `w'c021m`i'==1
@@ -7782,6 +7926,7 @@ replace lung_hrs = 0 if (core_year==2010 & inlist(mc030,4,5))
 replace lung_hrs = 0 if (core_year==2012 & inlist(nc030,4,5))
 replace lung_hrs = 0 if (core_year==2014 & inlist(oc030,4,5))
 replace lung_hrs = 0 if (core_year==2016 & inlist(pc030,4,5))
+replace lung_hrs = 0 if (core_year==2018 & inlist(qc030,4,5))
 label variable lung_hrs "Lung Disease - core"
 //label define lung_hrs 0 "No" 1 "Yes" , modify
 //label values lung_hrs lung_hrs
@@ -7817,6 +7962,7 @@ replace lung_o2_hrs = 1 if (core_year==2010 & mc033==1)
 replace lung_o2_hrs = 1 if (core_year==2012 & nc033==1)
 replace lung_o2_hrs = 1 if (core_year==2014 & oc033==1)
 replace lung_o2_hrs = 1 if (core_year==2016 & pc033==1)
+replace lung_o2_hrs = 1 if (core_year==2018 & qc033==1)
 la var lung_o2_hrs "Oxygen for lung condition"
 tab lung_o2_hrs core_year,missing
 
@@ -7878,6 +8024,7 @@ replace heart_hrs = 0 if (core_year==2010 & inlist(mc036,4,5))
 replace heart_hrs = 0 if (core_year==2012 & inlist(nc036,4,5))
 replace heart_hrs = 0 if (core_year==2014 & inlist(oc036,4,5))
 replace heart_hrs = 0 if (core_year==2016 & inlist(pc036,4,5))
+replace heart_hrs = 0 if (core_year==2018 & inlist(qc036,4,5))
 label variable heart_hrs "Heart Condition - core"
 //label define heart_hrs 0 "No" 1 "Yes" 9 "Don't Know/Refused", modify
 //label values heart_hrs heart_hrs
@@ -7995,8 +8142,10 @@ replace chf_hrs = 0 if core_year==2012 & heart_hrs==1 & ///
 	(nc037==5 & nc038==5) & (nc263==5) 
 replace chf_hrs = 0 if core_year==2014 & heart_hrs==1 & ///
 	(oc037==5 & oc038==5) & (oc263==5) 
-replace chf_hrs = 0 if core_year==2014 & heart_hrs==1 & ///
+replace chf_hrs = 0 if core_year==2016 & heart_hrs==1 & ///
 	(pc037==5 & pc038==5) & (pc263==5) 
+replace chf_hrs = 0 if core_year==2018 & heart_hrs==1 & ///
+	(qc037==5 & qc038==5) & (qc263==5) 
 //code for c048 responses
 replace chf_hrs = 0 if (core_year==2006 & kc048==5)
 replace chf_hrs = 0 if (core_year==2008 & lc048==5)
@@ -8004,6 +8153,7 @@ replace chf_hrs = 0 if (core_year==2010 & mc048!=1)
 replace chf_hrs = 0 if (core_year==2012 & nc048!=1)
 replace chf_hrs = 0 if (core_year==2014 & oc048!=1)
 replace chf_hrs = 0 if (core_year==2016 & pc048!=1)
+replace chf_hrs = 0 if (core_year==2018 & qc048!=1)
 
 replace chf_hrs = 1 if (core_year==2006 & kc048==1)
 replace chf_hrs = 1 if (core_year==2008 & lc048==1)
@@ -8011,6 +8161,7 @@ replace chf_hrs = 1 if (core_year==2010 & mc048==1)
 replace chf_hrs = 1 if (core_year==2012 & nc048==1)
 replace chf_hrs = 1 if (core_year==2014 & oc048==1)
 replace chf_hrs = 1 if (core_year==2016 & pc048==1)
+replace chf_hrs = 1 if (core_year==2018 & qc048==1)
 tab chf_hrs core_year, missing
 
 /*Hospitalized for CHF?
@@ -8035,6 +8186,7 @@ replace chfadmit_ask = 1 if (core_year==2010 & chf_hrs==1)
 replace chfadmit_ask = 1 if (core_year==2012 & chf_hrs==1)
 replace chfadmit_ask = 1 if (core_year==2014 & chf_hrs==1)
 replace chfadmit_ask = 1 if (core_year==2016 & chf_hrs==1)
+replace chfadmit_ask = 1 if (core_year==2018 & chf_hrs==1)
 
 gen byte chfadmit_hrs = .
 replace chfadmit_hrs = 0 if chfadmit_ask == 0
@@ -8044,6 +8196,7 @@ replace chfadmit_hrs = 0 if (core_year==2010 & mc049 ==5)
 replace chfadmit_hrs = 0 if (core_year==2012 & nc049 ==5)
 replace chfadmit_hrs = 0 if (core_year==2014 & oc049 ==5)
 replace chfadmit_hrs = 0 if (core_year==2016 & pc049 ==5)
+replace chfadmit_hrs = 0 if (core_year==2018 & qc049 ==5)
 
 replace chfadmit_hrs = 1 if (core_year==2006 & kc049 ==1)
 replace chfadmit_hrs = 1 if (core_year==2008 & lc049 ==1)
@@ -8051,6 +8204,7 @@ replace chfadmit_hrs = 1 if (core_year==2010 & mc049 ==1)
 replace chfadmit_hrs = 1 if (core_year==2012 & nc049 ==1)
 replace chfadmit_hrs = 1 if (core_year==2014 & oc049 ==1)
 replace chfadmit_hrs = 1 if (core_year==2016 & pc049 ==1)
+replace chfadmit_hrs = 1 if (core_year==2018 & qc049 ==1)
 la var chfadmit_hrs "Hospital admission due to CHF"
 tab chfadmit_hrs core_year,missing
 
@@ -8064,9 +8218,9 @@ Has a doctor ever told you that you have congestive heart failure?
 Again, can't get Blinewaveprior so don't include that in coding variable = 0*/
 
 gen byte chfdrever_hrs = .
-replace chfdrever_hrs = 0 if heart_hrs == 0 & inlist(core_year,2010,2012,2014,2016)
-replace chfdrever_hrs = 0 if (mc263==5| nc263==5| oc263==5| pc263==5)
-replace chfdrever_hrs = 1 if (mc263==1| nc263==1| oc263==1| pc263==1)
+replace chfdrever_hrs = 0 if heart_hrs == 0 & inlist(core_year,2010,2012,2014,2016,2018)
+replace chfdrever_hrs = 0 if (mc263==5| nc263==5| oc263==5| pc263==5| qc263==5)
+replace chfdrever_hrs = 1 if (mc263==1| nc263==1| oc263==1| pc263==1| qc263==1)
 la var chfdrever_hrs "Ever diagnosed with chf?"
 tab chfdrever_hrs core_year, missing
 
@@ -8107,6 +8261,7 @@ replace stroke_hrs = 1 if (core_year==2010 & inlist(mc053,1,2,3))
 replace stroke_hrs = 1 if (core_year==2012 & inlist(nc053,1,2,3))
 replace stroke_hrs = 1 if (core_year==2014 & inlist(oc053,1,2,3))
 replace stroke_hrs = 1 if (core_year==2016 & inlist(pc053,1,2,3))
+replace stroke_hrs = 1 if (core_year==2018 & inlist(qc053,1,2,3))
 
 replace stroke_hrs = 0 if (core_year==2006 & inlist(kc053,4,5))
 replace stroke_hrs = 0 if (core_year==2008 & inlist(lc053,4,5))
@@ -8114,6 +8269,7 @@ replace stroke_hrs = 0 if (core_year==2010 & inlist(mc053,4,5))
 replace stroke_hrs = 0 if (core_year==2012 & inlist(nc053,4,5))
 replace stroke_hrs = 0 if (core_year==2014 & inlist(oc053,4,5))
 replace stroke_hrs = 0 if (core_year==2016 & inlist(pc053,4,5))
+replace stroke_hrs = 0 if (core_year==2018 & inlist(qc053,4,5))
 label variable stroke_hrs "Stroke / TIA - core"
 //label define stroke_hrs 0 "No" 1 "Yes", modify
 //label values stroke_hrs stroke_hrs
@@ -8181,6 +8337,7 @@ replace memory_hrs = 1 if (core_year==2010 & (mc272==1 | mc273==1 | mz117==1 ))
 replace memory_hrs = 1 if (core_year==2012 & (inlist(nc272,1,3) | inlist(nc273,1,3) | nz117==1 ))
 replace memory_hrs = 1 if (core_year==2014 & (inlist(oc272,1,3) | inlist(oc273,1,3) | oz117==1 ))
 replace memory_hrs = 1 if (core_year==2016 & (inlist(pc272,1,3) | inlist(pc273,1,3) | pz117==1 ))
+replace memory_hrs = 1 if (core_year==2018 & (inlist(qc272,1,3) | inlist(qc273,1,3) | qz117==1 ))
 label variable memory_hrs "Memory Disease - core"
 //label define memory_hrs 0 "No" 1 "Yes", modify
 //label values memory_hrs memory_hrs
@@ -8202,11 +8359,13 @@ replace alz_hrs = 1 if (core_year==2010 & mc272==1)
 replace alz_hrs = 1 if (core_year==2012 & nc272==1)
 replace alz_hrs = 1 if (core_year==2014 & oc272==1)
 replace alz_hrs = 1 if (core_year==2016 & pc272==1)
+replace alz_hrs = 1 if (core_year==2018 & qc272==1)
 
 replace alz_hrs = 0 if (core_year==2010 & inlist(mc272,5,7))
 replace alz_hrs = 0 if (core_year==2012 & inlist(nc272,5,7))
 replace alz_hrs = 0 if (core_year==2014 & inlist(oc272,5,7))
 replace alz_hrs = 0 if (core_year==2016 & inlist(pc272,5,7))
+replace alz_hrs = 0 if (core_year==2018 & inlist(qc272,5,7))
 la var alz_hrs "Alzheimer's disease - core, 2010-2014 only"
 tab alz_hrs core_year, missing
 
@@ -8225,11 +8384,13 @@ replace dem_hrs = 1 if (core_year==2010 & mc273==1)
 replace dem_hrs = 1 if (core_year==2012 & nc273==1)
 replace dem_hrs = 1 if (core_year==2014 & oc273==1)
 replace dem_hrs = 1 if (core_year==2016 & pc273==1)
+replace dem_hrs = 1 if (core_year==2018 & qc273==1)
 
 replace dem_hrs = 0 if (core_year==2010 & mc272==5)
 replace dem_hrs = 0 if (core_year==2012 & nc272==5)
 replace dem_hrs = 0 if (core_year==2014 & oc272==5)
 replace dem_hrs = 0 if (core_year==2016 & pc272==5)
+replace dem_hrs = 0 if (core_year==2018 & qc272==5)
 la var dem_hrs "Dementia - core, 2010+ only"
 tab dem_hrs core_year, missing
 
@@ -8270,6 +8431,7 @@ replace falls_hrs = 1 if (core_year==2010 & mc079==1)
 replace falls_hrs = 1 if (core_year==2012 & nc079==1)
 replace falls_hrs = 1 if (core_year==2014 & oc079==1)
 replace falls_hrs = 1 if (core_year==2016 & pc079==1)
+replace falls_hrs = 1 if (core_year==2018 & qc079==1)
 
 replace falls_hrs = 0 if (core_year==2006 & kc079==5)
 replace falls_hrs = 0 if (core_year==2008 & lc079==5)
@@ -8277,6 +8439,7 @@ replace falls_hrs = 0 if (core_year==2010 & mc079==5)
 replace falls_hrs = 0 if (core_year==2012 & nc079==5)
 replace falls_hrs = 0 if (core_year==2014 & oc079==5)
 replace falls_hrs = 0 if (core_year==2016 & pc079==5)
+replace falls_hrs = 0 if (core_year==2018 & qc079==5)
 label variable falls_hrs "Falls - core"
 //label define falls_hrs 0 "No" 1 "Yes", modify
 //label values falls_hrs falls_hrs
@@ -8301,8 +8464,8 @@ C087 INCONTINENCE
 2014 Exit 	N/A
 */
 generate incont_hrs = .
-replace incont_hrs = 1 if ((kc087==1)|(lc087==1)|(mc087==1)|(nc087==1)|(oc087==1)|(pc087==1))
-replace incont_hrs = 0 if ((kc087==5)|(lc087==5)|(mc087==5)|(nc087==5)|(oc087==5)|(pc087==5))
+replace incont_hrs = 1 if ((kc087==1)|(lc087==1)|(mc087==1)|(nc087==1)|(oc087==1)|(pc087==1)|(qc087==1))
+replace incont_hrs = 0 if ((kc087==5)|(lc087==5)|(mc087==5)|(nc087==5)|(oc087==5)|(pc087==5)|(qc087==5))
 label var incont_hrs "Incontinence"
 tab incont_hrs core_year, missing
 
@@ -8327,8 +8490,8 @@ C104 TROUBLED WITH PAIN
 2014 Exit 	YC104
 */
 gen byte pain_hrs = .
-replace pain_hrs=1 if ((kc104==1)|(lc104==1)|(mc104==1)|(nc104==1)|(oc104==1)|(pc104==1))
-replace pain_hrs=0 if ((kc104==5)|(lc104==5)|(mc104==5)|(nc104==5)|(oc104==5)|(pc104==5))
+replace pain_hrs=1 if ((kc104==1)|(lc104==1)|(mc104==1)|(nc104==1)|(oc104==1)|(pc104==1)|(qc104==1))
+replace pain_hrs=0 if ((kc104==5)|(lc104==5)|(mc104==5)|(nc104==5)|(oc104==5)|(pc104==5)|(qc104==5))
 label var pain_hrs "Pain"
 tab pain_hrs core_year, missing
 
@@ -8358,6 +8521,7 @@ replace pain_level_hrs = mc105 if core_year==2010
 replace pain_level_hrs = nc105 if core_year==2012
 replace pain_level_hrs = oc105 if core_year==2014
 replace pain_level_hrs = pc105 if core_year==2016
+replace pain_level_hrs = qc105 if core_year==2018
 replace pain_level_hrs = . if inlist(pain_level_hrs,8,9)
 la var pain_level_hrs "How bad was pain? 1=mild, 2=mod, 3=severe"
 tab pain_level_hrs core_year , missing
@@ -8375,8 +8539,8 @@ tab pain_level_hrs core_year , missing
 Coded as 0 if answer=no or if not applicable b/c no pain
 */
 gen pain_limit_act_hrs = .
-replace pain_limit_act_hrs =1 if kc106==1 | lc106==1 | mc106==1 | nc106==1 | oc106==1| pc106==1
-replace pain_limit_act_hrs =0 if kc106==5 | lc106==5 | mc106==5 | nc106==5 | oc106==5| pc106==5
+replace pain_limit_act_hrs =1 if kc106==1 | lc106==1 | mc106==1 | nc106==1 | oc106==1| pc106==1| qc106==1
+replace pain_limit_act_hrs =0 if kc106==5 | lc106==5 | mc106==5 | nc106==5 | oc106==5| pc106==5| qc106==5
 replace pain_limit_act_hrs =0 if pain_hrs==0
 la var pain_limit_act_hrs "Does pain limit usual activities?"
 tab pain_limit_act_hrs core_year, missing
@@ -8406,6 +8570,7 @@ replace htn_hrs = 1 if (core_year==2010 & inlist(mc005,1,3))
 replace htn_hrs = 1 if (core_year==2012 & inlist(nc005,1,3))
 replace htn_hrs = 1 if (core_year==2014 & inlist(oc005,1,3))
 replace htn_hrs = 1 if (core_year==2016 & inlist(pc005,1,3))
+replace htn_hrs = 1 if (core_year==2016 & inlist(qc005,1,3))
 
 replace htn_hrs = 0 if (core_year==2006 & inlist(kc005,4,5))
 replace htn_hrs = 0 if (core_year==2008 & inlist(lc005,4,5))
@@ -8413,6 +8578,7 @@ replace htn_hrs = 0 if (core_year==2010 & inlist(mc005,4,5))
 replace htn_hrs = 0 if (core_year==2012 & inlist(nc005,4,5))
 replace htn_hrs = 0 if (core_year==2014 & inlist(oc005,4,5))
 replace htn_hrs = 0 if (core_year==2016 & inlist(pc005,4,5))
+replace htn_hrs = 0 if (core_year==2018 & inlist(qc005,4,5))
 label var htn_hrs "Hypertension"
 tab htn_hrs core_year, missing
 
@@ -8442,6 +8608,7 @@ replace dm_hrs = 1 if (core_year==2010 & inlist(mc010,1,3))
 replace dm_hrs = 1 if (core_year==2012 & inlist(nc010,1,3))
 replace dm_hrs = 1 if (core_year==2014 & inlist(oc010,1,3))
 replace dm_hrs = 1 if (core_year==2016 & inlist(pc010,1,3))
+replace dm_hrs = 1 if (core_year==2018 & inlist(qc010,1,3))
 
 replace dm_hrs = 0 if (core_year==2006 & inlist(kc010,4,5))
 replace dm_hrs = 0 if (core_year==2008 & inlist(lc010,4,5))
@@ -8449,6 +8616,7 @@ replace dm_hrs = 0 if (core_year==2010 & inlist(mc010,4,5))
 replace dm_hrs = 0 if (core_year==2012 & inlist(nc010,4,5))
 replace dm_hrs = 0 if (core_year==2014 & inlist(oc010,4,5))
 replace dm_hrs = 0 if (core_year==2016 & inlist(pc010,4,5))
+replace dm_hrs = 0 if (core_year==2018 & inlist(qc010,4,5))
 label var dm_hrs "Diabetes"
 tab dm_hrs core_year, missing
 
@@ -8478,12 +8646,14 @@ replace dm_ins_hrs = 1 if (core_year==2010 & mc012==1)
 replace dm_ins_hrs = 1 if (core_year==2012 & nc012==1)
 replace dm_ins_hrs = 1 if (core_year==2014 & oc012==1)
 replace dm_ins_hrs = 1 if (core_year==2016 & pc012==1)
+replace dm_ins_hrs = 1 if (core_year==2018 & qc012==1)
 replace dm_ins_hrs = 0 if (core_year==2006 & kc012==5)
 replace dm_ins_hrs = 0 if (core_year==2008 & lc012==5)
 replace dm_ins_hrs = 0 if (core_year==2010 & mc012==5)
 replace dm_ins_hrs = 0 if (core_year==2012 & nc012==5)
 replace dm_ins_hrs = 0 if (core_year==2014 & oc012==5)
 replace dm_ins_hrs = 0 if (core_year==2016 & pc012==5)
+replace dm_ins_hrs = 0 if (core_year==2018 & qc012==5)
 label var dm_ins_hrs "Insulin for diabetes"
 tab dm_ins_hrs core_year, missing
 
@@ -8536,12 +8706,14 @@ replace psych_hrs = 1 if (core_year==2010 & inlist(mc065,1,3))
 replace psych_hrs = 1 if (core_year==2012 & inlist(nc065,1,3))
 replace psych_hrs = 1 if (core_year==2014 & inlist(oc065,1,3))
 replace psych_hrs = 1 if (core_year==2016 & inlist(pc065,1,3))
+replace psych_hrs = 1 if (core_year==2018 & inlist(qc065,1,3))
 replace psych_hrs = 0 if (core_year==2006 & inlist(kc065,4,5))
 replace psych_hrs = 0 if (core_year==2008 & inlist(lc065,4,5))
 replace psych_hrs = 0 if (core_year==2010 & inlist(mc065,4,5)) 
 replace psych_hrs = 0 if (core_year==2012 & inlist(nc065,4,5)) 
 replace psych_hrs = 0 if (core_year==2014 & inlist(oc065,4,5)) 
 replace psych_hrs = 0 if (core_year==2016 & inlist(pc065,4,5)) 
+replace psych_hrs = 0 if (core_year==2018 & inlist(qc065,4,5)) 
 label var psych_hrs "Psychiatric Condition"
 tab psych_hrs core_year, missing
 
@@ -8567,9 +8739,9 @@ psych medications 1=yes 5 = no, only asked if reported having psych problems (ps
 */
 gen byte PSYCH_treat = .
 replace PSYCH_treat = 0 if psych_hrs==0 
-replace PSYCH_treat = 0 if (kc067==5)|(lc067==5)|(mc067==5)|(nc067==5)|(oc067==5)|(pc067==5)
-replace PSYCH_treat = 1 if (kc067==1)|(lc067==1)|(mc067==1)|(nc067==1)|(oc067==1)|(pc067==5)
-la var PSYCH_treat "Receives Psychiatric treatment"
+replace PSYCH_treat = 0 if (kc067==5)|(lc067==5)|(mc067==5)|(nc067==5)|(oc067==5)|(pc067==5) //|(qc067==5)
+replace PSYCH_treat = 1 if (kc067==1)|(lc067==1)|(mc067==1)|(nc067==1)|(oc067==1)|(pc067==5) //|(qc067==5)
+la var PSYCH_treat "Receives Psychiatric treatment (no 2018)"
 tab PSYCH_treat core_year,missing
 
 gen byte PSYCH_med = .
@@ -8597,12 +8769,14 @@ replace arth_hrs = 1 if (core_year==2010 & inlist(mc070,1,3))
 replace arth_hrs = 1 if (core_year==2012 & inlist(nc070,1,3))
 replace arth_hrs = 1 if (core_year==2014 & inlist(oc070,1,3))
 replace arth_hrs = 1 if (core_year==2016 & inlist(pc070,1,3))
+replace arth_hrs = 1 if (core_year==2018 & inlist(qc070,1,3))
 replace arth_hrs = 0 if (core_year==2006 & inlist(kc070,4,5))
 replace arth_hrs = 0 if (core_year==2008 & inlist(lc070,4,5))
 replace arth_hrs = 0 if (core_year==2010 & inlist(mc070,4,5)) 
 replace arth_hrs = 0 if (core_year==2012 & inlist(nc070,4,5)) 
 replace arth_hrs = 0 if (core_year==2014 & inlist(oc070,4,5)) 
 replace arth_hrs = 0 if (core_year==2016 & inlist(pc070,4,5)) 
+replace arth_hrs = 0 if (core_year==2018 & inlist(qc070,4,5)) 
 label var arth_hrs "Arthritis"
 tab arth_hrs core_year, missing
 
@@ -8626,8 +8800,8 @@ Only asked for those 65 and older
 2014 Exit 	YC082 
 */
 gen byte hip_frac_hrs = .
-replace hip_frac_hrs=1 if kc082==1 | lc082==1 | mc082==1 | nc082==1 | oc082==1 | pc082==1
-replace hip_frac_hrs=0 if kc082==5 | lc082==5 | mc082==5 | nc082==5 | oc082==5  | pc082==5
+replace hip_frac_hrs=1 if kc082==1 | lc082==1 | mc082==1 | nc082==1 | oc082==1 | pc082==1| qc082==1
+replace hip_frac_hrs=0 if kc082==5 | lc082==5 | mc082==5 | nc082==5 | oc082==5  | pc082==5| qc082==5
 la var hip_frac_hrs "Hip fracture"
 tab hip_frac_hrs core_year , missing
 
@@ -8647,8 +8821,8 @@ tab hip_frac_hrs core_year , missing
 2014 Core 	OC144
 */
 gen byte dyspnea_hrs = .
-replace dyspnea_hrs = 1 if kc144==1 | lc144==1 | mc144==1 | nc144==1 | oc144==1| pc144==1
-replace dyspnea_hrs = 0 if kc144==5 | lc144==5 | mc144==5 | nc144==5 | oc144==5| pc144==5
+replace dyspnea_hrs = 1 if kc144==1 | lc144==1 | mc144==1 | nc144==1 | oc144==1| pc144==1| qc144==1
+replace dyspnea_hrs = 0 if kc144==5 | lc144==5 | mc144==5 | nc144==5 | oc144==5| pc144==5| qc144==5
 la var dyspnea_hrs "Dyspnea since last interview? 1=yes"
 tab dyspnea_hrs core_year, missing
 
@@ -8664,8 +8838,8 @@ tab dyspnea_hrs core_year, missing
 2014 Core 	OC143
 */
 gen byte swelling_feet_hrs = .
-replace swelling_feet_hrs = 1 if kc143==1 | lc143==1 | mc143==1 | nc143==1 | oc143==1 | pc143==1
-replace swelling_feet_hrs = 0 if kc143==5 | lc143==5 | mc143==5 | nc143==5 | oc143==5 | pc143==5
+replace swelling_feet_hrs = 1 if kc143==1 | lc143==1 | mc143==1 | nc143==1 | oc143==1 | pc143==1 | qc143==1
+replace swelling_feet_hrs = 0 if kc143==5 | lc143==5 | mc143==5 | nc143==5 | oc143==5 | pc143==5| qc143==5
 la var swelling_feet_hrs "Swelling feet or ankles since last interview? 1=yes"
 tab swelling_feet_hrs core_year, missing
 
@@ -8681,8 +8855,8 @@ tab swelling_feet_hrs core_year, missing
 2014 Core 	OC145
 */
 gen byte dizzy_hrs = .
-replace dizzy_hrs = 1 if kc145==1 | lc145==1 | mc145==1 | nc145==1 | oc145==1| pc145==1
-replace dizzy_hrs = 0 if kc145==5 | lc145==5 | mc145==5 | nc145==5 | oc145==5| pc145==5
+replace dizzy_hrs = 1 if kc145==1 | lc145==1 | mc145==1 | nc145==1 | oc145==1| pc145==1| qc145==1
+replace dizzy_hrs = 0 if kc145==5 | lc145==5 | mc145==5 | nc145==5 | oc145==5| pc145==5| qc145==5
 la var dizzy_hrs "Dizziness or lightheadedness since last interview? 1=yes"
 tab dizzy_hrs core_year, missing
 
@@ -8698,8 +8872,8 @@ tab dizzy_hrs core_year, missing
 2014 Core 	OC146
 */
 gen byte back_pain_hrs = .
-replace back_pain_hrs = 1 if kc146==1 | lc146==1 | mc146==1 | nc146==1 | oc146==1| pc146==1
-replace back_pain_hrs = 0 if kc146==5 | lc146==5 | mc146==5 | nc146==5 | oc146==5| pc146==5
+replace back_pain_hrs = 1 if kc146==1 | lc146==1 | mc146==1 | nc146==1 | oc146==1| pc146==1| qc146==1
+replace back_pain_hrs = 0 if kc146==5 | lc146==5 | mc146==5 | nc146==5 | oc146==5| pc146==5| qc146==5
 la var back_pain_hrs "Back pain or problems since last interview? 1=yes"
 tab back_pain_hrs core_year, missing
 
@@ -8715,8 +8889,8 @@ tab back_pain_hrs core_year, missing
 2014 Core 	OC147
 */
 gen byte headache_hrs = .
-replace headache_hrs = 1 if kc147==1 | lc147==1 | mc147==1 | nc147==1 | oc147==1 | pc147==1
-replace headache_hrs = 0 if kc147==5 | lc147==5 | mc147==5 | nc147==5 | oc147==5 | pc147==5
+replace headache_hrs = 1 if kc147==1 | lc147==1 | mc147==1 | nc147==1 | oc147==1 | pc147==1| qc147==1
+replace headache_hrs = 0 if kc147==5 | lc147==5 | mc147==5 | nc147==5 | oc147==5 | pc147==5 | qc147==5
 la var headache_hrs "Persistent headaches since last interview? 1=yes"
 tab headache_hrs core_year, missing
 
@@ -8732,8 +8906,8 @@ tab headache_hrs core_year, missing
 2014 Core 	OC148
 */
 gen byte fatigue_hrs = .
-replace fatigue_hrs = 1 if kc148==1 | lc148==1 | mc148==1 | nc148==1 | oc148==1| pc148==1
-replace fatigue_hrs = 0 if kc148==5 | lc148==5 | mc148==5 | nc148==5 | oc148==5| pc148==5
+replace fatigue_hrs = 1 if kc148==1 | lc148==1 | mc148==1 | nc148==1 | oc148==1| pc148==1| qc148==1
+replace fatigue_hrs = 0 if kc148==5 | lc148==5 | mc148==5 | nc148==5 | oc148==5| pc148==5| qc148==5
 la var fatigue_hrs "Severe fatigue or exhaustion since last interview? 1=yes"
 tab fatigue_hrs core_year, missing
 
@@ -8749,8 +8923,8 @@ tab fatigue_hrs core_year, missing
 2014 Core 	OC149
 */
 gen byte cough_hrs = .
-replace cough_hrs = 1 if kc149==1 | lc149==1 | mc149==1 | nc149==1 | oc149==1| pc149==1
-replace cough_hrs = 0 if kc149==5 | lc149==5 | mc149==5 | nc149==5 | oc149==5| pc149==5
+replace cough_hrs = 1 if kc149==1 | lc149==1 | mc149==1 | nc149==1 | oc149==1| pc149==1| qc149==1
+replace cough_hrs = 0 if kc149==5 | lc149==5 | mc149==5 | nc149==5 | oc149==5| pc149==5| qc149==5
 la var cough_hrs "Persistent wheezing, coughing since last interview? 1=yes"
 tab cough_hrs core_year, missing
 
@@ -8762,9 +8936,9 @@ tab cough_hrs core_year, missing
 Not asked before 2002
 */
 gen insom_falling_asleep = .
-replace insom_falling_asleep = 1 if kc083==1 | lc083==1 | mc083==1 | nc083==1 | oc083==1 | pc083==1
-replace insom_falling_asleep = 2 if kc083==2 | lc083==2 | mc083==2 | nc083==2 | oc083==2 | pc083==2
-replace insom_falling_asleep = 3 if kc083==3 | lc083==3 | mc083==3 | nc083==3 | oc083==3 | pc083==3
+replace insom_falling_asleep = 1 if kc083==1 | lc083==1 | mc083==1 | nc083==1 | oc083==1 | pc083==1| qc083==1
+replace insom_falling_asleep = 2 if kc083==2 | lc083==2 | mc083==2 | nc083==2 | oc083==2 | pc083==2| qc083==2
+replace insom_falling_asleep = 3 if kc083==3 | lc083==3 | mc083==3 | nc083==3 | oc083==3 | pc083==3| qc083==3
 la var insom_falling_asleep "Trouble falling asleep? 1=Most of the time, 2=Sometimes, 3=Rarely,Never"
 tab insom_falling_asleep core_year, missing
 
@@ -8773,9 +8947,9 @@ tab insom_falling_asleep core_year, missing
 Not asked before 2002
 */
 gen insom_waking_up = .
-replace insom_waking_up = 1 if kc084==1 | lc084==1 | mc084==1 | nc084==1 | oc084==1| pc084==1
-replace insom_waking_up = 2 if kc084==2 | lc084==2 | mc084==2 | nc084==2 | oc084==2| pc084==2
-replace insom_waking_up = 3 if kc084==3 | lc084==3 | mc084==3 | nc084==3 | oc084==3| pc084==3
+replace insom_waking_up = 1 if kc084==1 | lc084==1 | mc084==1 | nc084==1 | oc084==1| pc084==1| qc084==1
+replace insom_waking_up = 2 if kc084==2 | lc084==2 | mc084==2 | nc084==2 | oc084==2| pc084==2| qc084==2
+replace insom_waking_up = 3 if kc084==3 | lc084==3 | mc084==3 | nc084==3 | oc084==3| pc084==3| qc084==3
 la var insom_waking_up "Trouble waking up during night? 1=Most of the time, 2=Sometimes, 3=Rarely,Never"
 tab insom_waking_up core_year, missing
 
@@ -8784,9 +8958,9 @@ tab insom_waking_up core_year, missing
 Not asked before 2002
 */
 gen insom_too_early = .
-replace insom_too_early = 1 if kc085==1 | lc085==1 | mc085==1 | nc085==1 | oc085==1| pc085==1
-replace insom_too_early = 2 if kc085==2 | lc085==2 | mc085==2 | nc085==2 | oc085==2| pc085==2
-replace insom_too_early = 3 if kc085==3 | lc085==3 | mc085==3 | nc085==3 | oc085==3| pc085==3
+replace insom_too_early = 1 if kc085==1 | lc085==1 | mc085==1 | nc085==1 | oc085==1| pc085==1| qc085==1
+replace insom_too_early = 2 if kc085==2 | lc085==2 | mc085==2 | nc085==2 | oc085==2| pc085==2| qc085==2
+replace insom_too_early = 3 if kc085==3 | lc085==3 | mc085==3 | nc085==3 | oc085==3| pc085==3| qc085==3
 la var insom_too_early "Trouble waking up too early? 1=Most of the time, 2=Sometimes, 3=Rarely,Never"
 tab insom_too_early core_year, missing
 
@@ -8796,9 +8970,9 @@ Not asked before 2002
 Note when create overall insomnia variable, this one is opposite, 1,most of the time==good
 */
 gen insom_rested = .
-replace insom_rested = 1 if kc086==1 | lc086==1 | mc086==1 | nc086==1 | oc086==1| pc086==1
-replace insom_rested = 2 if kc086==2 | lc086==2 | mc086==2 | nc086==2 | oc086==2| pc086==2
-replace insom_rested = 3 if kc086==3 | lc086==3 | mc086==3 | nc086==3 | oc086==3| pc086==3
+replace insom_rested = 1 if kc086==1 | lc086==1 | mc086==1 | nc086==1 | oc086==1| pc086==1| qc086==1
+replace insom_rested = 2 if kc086==2 | lc086==2 | mc086==2 | nc086==2 | oc086==2| pc086==2| qc086==2
+replace insom_rested = 3 if kc086==3 | lc086==3 | mc086==3 | nc086==3 | oc086==3| pc086==3| qc086==3
 la var insom_rested "Feel rested when wake up? 1=Most of the time, 2=Sometimes, 3=Rarely,Never"
 tab insom_rested core_year, missing
 
@@ -8835,13 +9009,13 @@ not asked for proxy interviews
 */
 gen byte depr_2_wks_hrs = .
 replace depr_2_wks_hrs = 1 if kc150==1 | lc150==1 | mc150==1 | nc150==1 | oc150==1| ///
-	 kc150==3 | lc150==3 | mc150==3 | nc150==3 | oc150==3| pc150==3| pc150==1
-replace depr_2_wks_hrs = 0 if  kc150==5 | lc150==5 | mc150==5 | nc150==5 | oc150==5| pc150==5
+	 kc150==3 | lc150==3 | mc150==3 | nc150==3 | oc150==3| pc150==3| pc150==1| qc150==1
+replace depr_2_wks_hrs = 0 if  kc150==5 | lc150==5 | mc150==5 | nc150==5 | oc150==5| pc150==5| qc150==5
 la var depr_2_wks_hrs "Depressed 2 week period in last year? 1=yes"
 tab depr_2_wks_hrs core_year , missing
 tab depr_2_wks_hrs core_year if proxy_core==0, missing
 
-save core_06_16_clean3.dta, replace
+save core_06_18_clean3.dta, replace
 
 log close
 
@@ -8864,7 +9038,7 @@ log using "`logpath'\2_HRS_Core_06_16_clean4-LOG.txt", text replace
 
 cd `datapath'
 
-use core_06_16_clean3.dta
+use core_06_18_clean3.dta
 
 /*Rate memory
 2002-2012: d101
@@ -8876,6 +9050,7 @@ replace sr_memory = md101 if core_year==2010
 replace sr_memory = nd101 if core_year==2012
 replace sr_memory = od101 if core_year==2014
 replace sr_memory = pd101 if core_year==2016
+replace sr_memory = qd101 if core_year==2018
 replace sr_memory = . if inlist(sr_memory,8,9)
 la var sr_memory "Self rated memory, 1=Excel, 5=Poor"
 tab sr_memory core_year if proxy_core==0
@@ -8890,6 +9065,7 @@ replace sr_mem_change = md102 if core_year==2010
 replace sr_mem_change = nd102 if core_year==2012
 replace sr_mem_change = od102 if core_year==2014
 replace sr_mem_change = pd102 if core_year==2016
+replace sr_mem_change = qd102 if core_year==2018
 replace sr_mem_change = . if inlist(sr_mem_change,8,9)
 la var sr_mem_change "Self rated memory now vs last ivw, 1=Better,2=Same,3=Worse"
 tab sr_mem_change core_year if proxy_core==0
@@ -8904,6 +9080,7 @@ replace pr_memory = md501 if core_year==2010
 replace pr_memory = nd501 if core_year==2012
 replace pr_memory = od501 if core_year==2014
 replace pr_memory = pd501 if core_year==2016
+replace pr_memory = qd501 if core_year==2018
 replace pr_memory = . if inlist(pr_memory,8,9)
 la var pr_memory "Proxy rated memory, 1=Excel, 5=Poor"
 tab pr_memory core_year, missing
@@ -8920,6 +9097,7 @@ replace pr_mem_change = md502 if core_year==2010
 replace pr_mem_change = nd502 if core_year==2012
 replace pr_mem_change = od502 if core_year==2014
 replace pr_mem_change = pd502 if core_year==2016
+replace pr_mem_change = 8d502 if core_year==2018
 replace pr_mem_change = . if inlist(pr_mem_change,8,9)
 la var pr_mem_change "Proxy rated memory now vs last ivw, 1=Better,2=Same,3=Worse"
 tab pr_mem_change core_year, missing
@@ -8927,7 +9105,7 @@ tab pr_mem_change proxy_core, missing
 tab pr_mem_change core_year if proxy_core==1, missing
 
 
-save core_06_16_clean4.dta, replace
+save core_06_18_clean4.dta, replace
 
 log close
 
@@ -8996,18 +9174,18 @@ use `keep06_14' using core_06_16_clean4.dta
 
 tab core_year
 
-save core_06_16_clean_final.dta, replace
+save core_06_18_clean_final.dta, replace
 
 clear
 
 //merge into single dataset
 use core_98_04_clean_final.dta
 
-append using core_06_16_clean_final.dta 
+append using core_06_18_clean_final.dta 
 
 tab core_year
 
-save core_98_16_clean_merge.dta, replace
+save core_98_18_clean_merge.dta, replace
 
 log close
 
@@ -9042,7 +9220,7 @@ cd `datapath'
 ****************************************************************************************
 //Bring in helpers dataset from 2002-2016 core interviews
 ****************************************************************************************
-use helpers_core_0216.dta
+use helpers_core_0218.dta
 
 egen id= concat(hhid pn)
 la var id "Respondent ID (HHID+PN)"
@@ -9126,10 +9304,10 @@ replace iadl_hlp_freq_imp_ed = 0 if iadl_hlp_freq_imp_mo<28 & iadl_hlp_freq_imp_
 la var iadl_hlp_freq_imp_ed "Imputed IADL helper every day ind, 1=yes"
 tab iadl_hlp_freq_imp_ed if iadl_help_ind==1, missing
 
-save helpers_core_0216_tomerge.dta, replace
+save helpers_core_0218_tomerge.dta, replace
 
 clear
-use core_98_16_clean_merge.dta
+use core_98_18_clean_merge.dta
 
 //check for duplicate ids
 sort id core_year
@@ -9138,7 +9316,7 @@ tab dup
 drop if dup>1 
 drop dup
 
-merge 1:1 id core_year using helpers_core_0216_tomerge.dta 
+merge 1:1 id core_year using helpers_core_0218_tomerge.dta 
 
 drop if _merge==2
 
@@ -9461,7 +9639,7 @@ replace psych_overall_hrs = 0 if psych_hrs==0 & PSYCH_treat==0 & PSYCH_med==0
 la var psych_overall_hrs "Indicator for any psychiatric problems from HRS"
 tab psych_overall_hrs core_year,missing
 
-save core_98_16_clean_final.dta, replace
+save core_98_18_clean_final.dta, replace
 
 log close
 
@@ -9533,7 +9711,7 @@ la var finwealth "Financial wealth, RAND imputed HxATOTF"
 save rand_incwlth_9816_tomerge.dta, replace
 
 //Now merge with interview dataset by core year,id
-use core_98_16_clean_final.dta, clear
+use core_98_18_clean_final.dta, clear
 
 merge 1:1 id core_year using rand_incwlth_9816_tomerge.dta
 drop if _merge==2
@@ -9685,7 +9863,7 @@ drop if dup>1
 drop dup
 
 
-saveold core_98_16_clean_nw.dta, replace version(12)
+saveold core_98_18_clean_nw.dta, replace version(12)
 log close
 
 
@@ -9699,7 +9877,7 @@ Variable is RxACOGTOT where x is the wave number
 */
 
 /*Amy PC*/
-LIBNAME tracker 'D:\HRS\Shared\raw\HRS\hrs_tracking_2016';
+LIBNAME tracker 'D:\HRS\Shared\raw\HRS\hrs_tracking_2018';
 libname cogn 'D:\HRS\Shared\raw\HRS\hrs_public_2014\HRS_Cog';
 
 /*RG PC
@@ -9709,7 +9887,7 @@ libname cogn 'C:\HRS\HRSCogImp9214\SAS'; */
 %macro gettrack1(w=,year=);
 
 data tracker1_&w;
-set tracker.TRK2016TR_R;
+set tracker.TRK2018TR_R;
 keep hhid pn core_year &w.couple &w.coupid &w.WGTHH &w.WGTR;
 core_year=&year;
 run;
@@ -9725,7 +9903,7 @@ rename &w.WGTR=WGTR;
 %macro gettrack2(w=,year=);
 
 data tracker1_&w;
-set tracker.TRK2016TR_R;
+set tracker.TRK2018TR_R;
 keep hhid pn core_year &w.couple &w.coupid &w.marst &w.cores &w.WGTHH &w.WGTR;
 core_year=&year;
 run;
@@ -9743,7 +9921,7 @@ rename &w.WGTR=WGTR;
 %macro gettrack3(w=,year=);
 
 data tracker1_&w;
-set tracker.TRK2016TR_R;
+set tracker.TRK2018TR_R;
 keep hhid pn core_year &w.couple &w.coupid &w.marst &w.cores &w.WGTHH &w.WGTRE;
 core_year=&year;
 run;
@@ -9768,10 +9946,11 @@ rename &w.WGTRE=WGTR;
 %gettrack2(w=N,year=2012);
 %gettrack2(w=O,year=2014);
 %gettrack3(w=P,year=2016);
+%gettrack3(w=Q,year=2018);
 
-data track_9816;
+data track_9818;
 set tracker2_F tracker2_G tracker2_H tracker2_J tracker2_K tracker2_L tracker2_M 
-    tracker2_N tracker2_O tracker2_P;
+    tracker2_N tracker2_O tracker2_P tracker2_Q;
 label couple='Couple status'
 coupid='Couple household id'
 marst='Marital status'
@@ -9817,8 +9996,8 @@ run;
 proc sort nodupkey; by hhid pn core_year ; run;
 
 /*merge tracker and tics to one dataset*/
-data track_tics_9816;
-merge track_9816 tics_9812;
+data track_tics_9818;
+merge track_9818 tics_9812;
 by hhid pn core_year;
 run;
 
@@ -9831,16 +10010,12 @@ replace;
 run; */
 
 /*convert to stata Amy Computer filepath*/
-proc export data=track_tics_9816 
-outfile="D:\HRS\Shared\base_data\hrs_cleaned\working\track_tics_9816.dta"
+proc export data=track_tics_9818 
+outfile="D:\HRS\Shared\base_data\hrs_cleaned\working\track_tics_9818.dta"
 replace;
 run;
 
 
-
-/****************************************************************/
-/*Stata code to merge into HRS core interview dataset */
-/****************************************************************/
 
 
 capture log close
@@ -9859,7 +10034,7 @@ local datapath D:\HRS\Shared\base_data\hrs_cleaned\working
 log using "`logpath'\2_HRS_TICS_clean_2016.txt", text replace
 cd `datapath'
 
-use track_tics_9816.dta
+use track_tics_9818.dta
 
 egen id= concat(hhid pn)
 la var id "Respondent ID (HHID+PN)"
@@ -9877,7 +10052,7 @@ tab dup
 drop if dup>1 
 drop dup
 
-save track_tics_98_16_to_merge.dta, replace
+save track_tics_98_18_to_merge.dta, replace
 
 /*******************************************************************************/
 /* Merge in to core dataset by id and core_year */
@@ -9885,7 +10060,7 @@ save track_tics_98_16_to_merge.dta, replace
 clear all
 
 //base dataset is core1998-2014 with net worth details
-use core_98_16_clean_nw.dta
+use core_98_18_clean_nw.dta
 
 describe
 
@@ -9904,12 +10079,11 @@ replace TICS_missing=0 if _merge==3
 tab TICS_missing core_year
 drop _merge
 
-save core_98_16_nw_tics.dta, replace
+save core_98_18_nw_tics.dta, replace
 
-saveold core_98_16_nw_tics_oldv.dta, replace
+saveold core_98_18_nw_tics_oldv.dta, replace
 
 log close
-
 
 
 
@@ -13146,13 +13320,13 @@ run; */
 /*convert STATA HRS core dataset to SAS
 Amy PC filepath*/
 proc import 
-datafile="D:\HRS\Shared\base_data\hrs_cleaned\working\core_98_16_nw_tics_oldv.dta" 
-out=hrs_int.core_00_16_nw_tics replace;
+datafile="D:\HRS\Shared\base_data\hrs_cleaned\working\core_98_18_nw_tics_oldv.dta" 
+out=hrs_int.core_00_18_nw_tics replace;
 run;
 
 /*compress dataset*/
-data hrs_int.core_00_16_nw_tics  (compress=yes);
-set hrs_int.core_00_16_nw_tics;
+data hrs_int.core_00_18_nw_tics  (compress=yes);
+set hrs_int.core_00_18_nw_tics;
 run;
 
 %macro ivwdate(w=,year=);
@@ -13199,7 +13373,7 @@ proc freq; table core_year*c_ivw_day_imp; run;
 /*merge dates with core interviews*/
 proc sql;
 create table core_date_00_16 as select a.*, b.c_ivw_month, b.c_ivw_day, b.c_ivw_year, b.c_ivw_day_imp
-from  hrs_int.core_00_16_nw_tics a 
+from  hrs_int.core_00_18_nw_tics a 
 left join
 ivw_9816 b
 on a.hhid=b.hhid & a.pn=b.pn & a.core_year=b.core_year;
@@ -13249,7 +13423,7 @@ if core_year=2016 then c_ivw_date=r13iwbeg;
 run;
 
 /*save core dataset with interview date in the hrs_cleaned directory*/
-data hrs_cln.core_00_to_16;
+data hrs_cln.core_00_to_18;
 set core_00_16_3;
 run;
 
@@ -13618,7 +13792,7 @@ libname hrs_cln 'D:\HRS\Shared\base_data\hrs_cleaned';
 
 
 
-proc export data=hrs_cln.core_00_to_16 outfile="D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_16.dta" replace; run;
+proc export data=hrs_cln.core_00_to_18 outfile="D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_18.dta" replace; run;
 
 proc export data=hrs_cln.exit_02_to_16_dt outfile="D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta" replace; run;
 

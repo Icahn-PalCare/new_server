@@ -3018,6 +3018,7 @@ tab pr_mem_change , missing
 tab pr_mem_change proxy_core, missing
 tab pr_mem_change  if proxy_core==1, missing
 
+ save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 4.dta"
 
 H="Step 5: cleaning covid module data"
 *****CLEANING COVID MODULE DATA*******
@@ -3163,8 +3164,50 @@ tab covid_spend_chng covid_inc_chng, column
 
 save "D:\HRS\Projects\coronavirus\data\merged\covid_clean.dta", replace
 
-H="keep only cleaned vars"
-keep hhid pn cvwgtr rversion adl_bh_core adl_core_check adl_diff_bh adl_diff_dr adl_diff_e adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core adl_e_core adl_equip_tx adl_equip_wk adl_oth_helper adl_sp_helper adl_t_core adl_tx_core adl_wk_core allchil any_hrdshp_food arth_hrs ask_test back_pain_hrs cancer_chemo_med cancer_hrs cancer_other_treat cancer_surg cancer_symp cancer_xray catinsur cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8 champus chf_hrs chfadmit_ask chfadmit_hrs chfdrever_hrs child chrhlp_cvd cough_hrs covid_inc_chng covid_spend_chng cvwgtr days_drink delay_care delay_dent delay_doc delay_other delay_rx delay_surg dem_hrs depr_2_wks_hrs died_covid dizzy_hrs dm_hrs dm_ins_hrs dyspnea_hrs ed_covid educ ever_drink falls_hrs fatigue_hrs female finhlp_cvd fl_diff_dime fl_diff_lift fl_diff_push fl_diff_reach fl_diff_sit fl_diff_sta_many fl_diff_sta_one fl_diff_stp fl_diff_wk_many fl_diff_wk_one friend gchil had_covid headache_hrs heart_hrs height_ft_temp height_in_temp help_friends help_friends_hours hh_covid hh_worker hhid hhm hip_frac_hrs hisp hlpd_chr hlpd_fin hmo hosp_covid hosp_last_2yr hrdshp_any hrdshp_debt hrdshp_food hrdshp_getfood hrdshp_medbls hrdshp_other hrdshp_rent hrdshp_utils htn_hrs iadl_diff_gr iadl_diff_m iadl_diff_map iadl_diff_mp iadl_diff_ph iadl_diff_rx iadl_gr_core iadl_m_core iadl_mp_core iadl_oth_helper iadl_ph_core iadl_rx_core iadl_sp_helper incont_hrs insom_falling_asleep insom_med_dr insom_rested insom_too_early insom_waking_up known_covid level_concern ling_sxs ltc_bene ltc_ins lung_hrs lung_o2_hrs marital married md_confirm medicaid medicare medicareb medigap memory_hrs moved_covid movein_covid n_drinks_3m nh_ins nh_mos nh_nights nh_start nh_stays nhres nhres_2yr nhres_start_mo nhres_start_yr pain_hrs pain_level_hrs pain_limit_act_hrs pn pr_mem_change pr_memory prob_def_covid proxy_core psych_hrs rel_nb relig reschil resspouse rewidowed rvdate rversion smoke_curr smoke_ever soc_visit soc_visit_cat soc_visit_yr sr_mem_change sr_memory srh stroke_hrs swelling_feet_hrs tested_covid type_ling_sxs vig_phy_act wanted_test wgt_curr why_delay_advised why_delay_afford why_delay_avail why_delay_fear why_delay_nonurgent why_delay_other
+H="Step 6: cleaning additional variables"
+use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 5.dta"
+
+***STEP 6:  CLEANING/MERGING ADDITIONAL VARIABLES
+
+gen food_stamps=.
+replace food_stamps=1 if RQ400==1
+replace food_stamps=0 if RQ400==5
+
+gen food_stamps_curr=.
+replace food_stamps=1 if RQ532==1
+replace food_stamps=0 if RQ532==5
+
+gen food_del_door=.
+replace food_stamps=1 if RQ421==1
+replace food_stamps=0 if RQ421==5
+
+ save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 6.dta"
+
+H="Step 7: drop raw vars and merge in prior HRS and tracker data"
+*STEP 7: keep only cleaned variables and merge in weights and prior HRS data
+use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 6.dta"
 
 
-save "D:\HRS\Projects\coronavirus\data\merged\covid_keep only cleaned.dta", replace
+keep hhid pn cvwgtr rversion adl_bh_core adl_core_check adl_diff_bh adl_diff_dr adl_diff_e adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core adl_e_core adl_equip_tx adl_equip_wk adl_oth_helper adl_sp_helper adl_t_core adl_tx_core adl_wk_core any_hrdshp_food arth_hrs ask_test back_pain_hrs cancer_chemo_med cancer_hrs cancer_other_treat cancer_surg cancer_symp cancer_xray catinsur cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8 champus chf_hrs chfadmit_ask chfadmit_hrs chfdrever_hrs child chrhlp_cvd cough_hrs covid_inc_chng covid_spend_chng cvwgtr days_drink delay_care delay_dent delay_doc delay_other delay_rx delay_surg dem_hrs depr_2_wks_hrs died_covid dizzy_hrs dm_hrs dm_ins_hrs dyspnea_hrs ed_covid educ ever_drink falls_hrs fatigue_hrs female finhlp_cvd fl_diff_dime fl_diff_lift fl_diff_push fl_diff_reach fl_diff_sit fl_diff_sta_many fl_diff_sta_one fl_diff_stp fl_diff_wk_many fl_diff_wk_one friend gchil had_covid headache_hrs heart_hrs height_ft_temp height_in_temp help_friends help_friends_hours hh_covid hh_worker hhid hhm hip_frac_hrs hisp hlpd_chr hlpd_fin hmo hosp_covid hosp_last_2yr hrdshp_any hrdshp_debt hrdshp_food hrdshp_getfood hrdshp_medbls hrdshp_other hrdshp_rent hrdshp_utils htn_hrs iadl_diff_gr iadl_diff_m iadl_diff_map iadl_diff_mp iadl_diff_ph iadl_diff_rx iadl_gr_core iadl_m_core iadl_mp_core iadl_oth_helper iadl_ph_core iadl_rx_core iadl_sp_helper incont_hrs insom_falling_asleep insom_rested insom_too_early insom_waking_up known_covid level_concern ling_sxs ltc_bene ltc_ins lung_hrs lung_o2_hrs marital married md_confirm medicaid medicare medicareb medigap memory_hrs moved_covid movein_covid n_drinks_3m  nh_nights nh_start nh_stays nhres nhres_2yr nhres_start_mo nhres_start_yr pain_hrs pain_level_hrs pain_limit_act_hrs pn pr_mem_change pr_memory prob_def_covid proxy_core psych_hrs rel_nb relig reschil resspouse rewidowed rvdate rversion smoke_curr smoke_ever soc_visit soc_visit_cat soc_visit_yr sr_mem_change sr_memory srh stroke_hrs swelling_feet_hrs tested_covid type_ling_sxs vig_phy_act wanted_test wgt_curr why_delay_advised why_delay_afford why_delay_avail why_delay_fear why_delay_nonurgent why_delay_other food_stamps food_stamps_curr food_del_door
+
+
+gen core_year=2020
+
+append using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_18.dta" 
+sort hhid pn core_year
+by hhid pn: egen maxyear=max(core_year)
+
+keep if maxyear==2020
+rename hhid HHID
+rename pn PN
+merge m:1 HHID PN using "D:\HRS\Shared\raw\HRS\hrs_tracking_2018\trk2018tr_r.dta" , keepusing(SECU STRATUM)
+keep if _merge==3
+rename HHID hhid
+rename PN pn
+
+
+*make keep variable
+gen keep=0
+replace keep=1 if core_year==2020 & cvwgtr!=.
+
+ save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 7.dta", replace
