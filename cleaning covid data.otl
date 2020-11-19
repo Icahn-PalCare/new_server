@@ -47,31 +47,33 @@ merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data
 save "D:\HRS\Projects\coronavirus\data\merged\covid merged.dta", replace
 
 H="Step 1: basic demographics"
+*STEP 1 BASIC DEMOGRAPHICS 
 /*variable cleaning for coronavirus data drop november 2020
 adapted from "variable cleaning for HRS core 2006-2014"
 Most code is taken from the HRS Outline_11_22_11.txt file
 and modified to clean 2006-2012 core dataset
-*/
 
-capture log close
+
+*capture log close
 
 clear all
 set mem 1g
 set matsize 800
 set more off
+*/
 
 //Amy's PC
-local logpath D:\HRS\Projects\coronavirus\logs
-local datapath D:\HRS\Projects\coronavirus\data\merged
+*local logpath D:\HRS\Projects\coronavirus\logs
+*local datapath D:\HRS\Projects\coronavirus\data\merged
 
 
 //RG PC
 //local logpath C:\HRS\hrs_cleaned\logs
 //local datapath C:\HRS\hrs_cleaned\working
 
-log using "`logpath'\covid clean log.txt", text replace
+*log using "`logpath'\covid clean log.txt", text replace
 
-cd `datapath'
+*cd `datapath'
 
 use "D:\HRS\Projects\coronavirus\data\merged\covid_merged.dta"
 
@@ -714,10 +716,10 @@ number of drinks per day in past 3 months; 98-99=dont know or refused
 */
 //cesd1 - depressed in the last week
 gen byte cesd1 = .
-replace cesd1 = 1 if (kd110==1)|(ld110==1)|(md110==1)|(nd110==1)|(od110==1)|(pd110==1)
-replace cesd1 = 0 if (kd110==5)|(ld110==5)|(md110==5)|(nd110==5)|(od110==5)|(pd110==5)
+replace cesd1 = 1 if (RD110==1)
+replace cesd1 = 0 if (RD110==5)
 la var cesd1 "CESD - Depressed in last week"
-tab cesd1 core_year,missing
+tab cesd1 ,missing
 
 //cesd2 - felt activities were effort in the last week
 gen byte cesd2 = .
@@ -792,7 +794,7 @@ replace n_drinks_3m = RC130
 replace n_drinks_3m = . if inlist(n_drinks_3m,98,99)
 replace n_drinks_3m = 0 if (ever_drink==0 | days_drink==0)
 la var n_drinks_3m "Number of alcoholic drinks per day"
-tab n_drinks_3m core_year,missing
+tab n_drinks_3m ,missing
 
 /**********************************************************************/
 // Smoker status variables
@@ -939,7 +941,7 @@ tab help_friends help_friends_hours, missing
 
 *drop c_ivw_date days_be_core nh_start
 
-
+save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 1.dta", replace
 
 H="Step 2: cleaning ADL/IADLs"
 ***CLEANING PART 2: ADLs and IADLs***
@@ -949,13 +951,12 @@ Most code is taken from the HRS Outline_11_22_11.txt file
 and modified to clean 2006-2014 core dataset
 
 2nd part of core variable cleaning
-*/
 
 capture log close
 clear all
 set more off
 
-/*
+
 //Amy's PC
 local logpath D:\HRS\Shared\base_data\hrs_cleaned\logs
 local datapath D:\HRS\Shared\base_data\hrs_cleaned\working
@@ -969,7 +970,10 @@ log using "`logpath'\2_HRS_Core_06_16_clean2-LOG.txt", text replace
 cd `datapath'
 
 use core_06_16_clean1.dta
+
 */
+use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 1.dta"
+
 *************************************************************************
 //   ADLs from core interviews
 *************************************************************************
@@ -1841,11 +1845,12 @@ replace hh_worker=0 if RN189==5
 la var hh_worker "Home health worker help? 1=yes"
 tab hh_worker , missing
 
-
+save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 2.dta", replace
 
 H="Step 3: cleaning comorbidities"
 *COVID DATASET CLEAN: COMORBIDITIES
 *ADAPTED FROM HRS DATA CLEANING FILE*
+*STEP 3: COMORBIDITIES
 
 /*variable cleaning for HRS core 2006-2014
 Most code is taken from the HRS Outline_11_22_11.txt file
@@ -1873,7 +1878,7 @@ core year, need to address if need to use this variable for final analysis
 *log using "`logpath'\2_HRS_Core_06_16_clean3-LOG.txt", text replace
 
 *cd `datapath'
-
+use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 2.dta"
 *use core_06_16_clean2.dta
 
 /************************************************************/
@@ -2966,7 +2971,7 @@ tab depr_2_wks_hrs  if proxy_core==0, missing
 
 
 
-
+save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 3.dta", replace
 
 H="STEP 4: cognition, memory"
 ***STEP 4- COGNITION, DEMENTIA
@@ -2975,7 +2980,7 @@ H="STEP 4: cognition, memory"
 //local logpath C:\HRS\hrs_cleaned\logs
 //local datapath C:\HRS\hrs_cleaned\working
 
-
+use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 3.dta"
 
 /*Rate memory
 2002-2012: d101
@@ -3021,7 +3026,9 @@ tab pr_mem_change  if proxy_core==1, missing
  save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 4.dta"
 
 H="Step 5: cleaning covid module data"
-*****CLEANING COVID MODULE DATA*******
+*****STEP 5: CLEANING COVID MODULE DATA*******
+use  "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 4.dta"
+
 
 gen level_concern=.
 replace level_concern= RCOVW550 if (RCOVW550>0 & RCOVW550<11)
@@ -3162,7 +3169,7 @@ tab covid_spend_chng covid_inc_chng, column
 
 
 
-save "D:\HRS\Projects\coronavirus\data\merged\covid_clean.dta", replace
+save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 5.dta", replace
 
 H="Step 6: cleaning additional variables"
 use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 5.dta"
@@ -3181,14 +3188,469 @@ gen food_del_door=.
 replace food_stamps=1 if RQ421==1
 replace food_stamps=0 if RQ421==5
 
- save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 6.dta"
+****NEXT SECTION IS FROM HRS CLEANING SECTION AROUND HELPER FILES (NOT ADDRESSED HERE) AND ADLS, IADLS)
+
+/*variable cleaning for HRS core 2000-2016
+Most code is taken from the HRS Outline_11_22_11.txt file
+and modified to clean 2000-2016 core dataset
+
+Adds variables from the helper files for the primary adl and iadl helpers for 2002-2016
+
+Creates indices and other variables from cleaned 2000-2016 dataset
+
+capture log close
+
+clear all
+set more off
+
+//Amy's PC
+local logpath D:\HRS\Shared\base_data\hrs_cleaned\logs
+local datapath D:\HRS\Shared\base_data\hrs_cleaned\working
+
+//RG PC
+//local logpath C:\HRS\hrs_cleaned\logs
+//local datapath C:\HRS\hrs_cleaned\working
+
+log using "`logpath'\2_HRS_Core_00_16_clean5-LOG.txt", text replace
+
+cd `datapath'
+*/
+
+****************************************************************************************
+//Bring in helpers dataset from 2002-2016 core interviews
+****************************************************************************************
+/* NOT DONE FOR COVID UPDATE YET
+egen id= concat(hhid pn)
+la var id "Respondent ID (HHID+PN)"
+
+//clean up helper file variables
+
+//indicators for adl and iadl helper information present in helper files
+replace adl_help_ind=0 if adl_help_ind==.
+tab adl_help_ind, missing
+replace iadl_help_ind=0 if iadl_help_ind==.
+tab iadl_help_ind, missing
+tab adl_help_ind iadl_help_ind, missing
+
+//adl helper frequency variables
+replace adl_hlp_freq_mo = . if inlist(adl_hlp_freq_mo,96,98,99)
+replace adl_hlp_freq_wk = . if adl_hlp_freq_wk==8
+replace adl_hlp_freq_ed = . if adl_hlp_freq_ed==8
+replace adl_help_hours = . if inlist(adl_help_hours,98,99)
+
+
+
+/*Commented out code to look at missingness across frequency variables
+gen adl_mo = 1 if adl_hlp_freq_mo~=.
+replace adl_mo = 0 if adl_hlp_freq_mo==.
+tab adl_mo if adl_help_ind==1
+gen adl_wk = 1 if adl_hlp_freq_wk~=.
+replace adl_wk = 0 if adl_hlp_freq_wk==.
+tab adl_wk if adl_help_ind==1
+gen adl_ed = 1 if adl_hlp_freq_ed~=.
+replace adl_ed = 0 if adl_hlp_freq_ed==.
+tab adl_ed if adl_help_ind==1
+la var adl_mo "Month"
+la var adl_wk "Week"
+la var adl_ed "Every day"
+table adl_mo adl_wk adl_ed if adl_help_ind==1*/
+
+//create imputed adl helper frequency variables, days per month and every day indicator
+gen adl_hlp_freq_imp_mo = .
+replace adl_hlp_freq_imp_mo = adl_hlp_freq_mo if adl_hlp_freq_mo~=.
+replace adl_hlp_freq_imp_mo = adl_hlp_freq_wk*4 if adl_hlp_freq_imp_mo==. & adl_hlp_freq_wk!=.
+replace adl_hlp_freq_imp_mo = 28 if adl_hlp_freq_ed==1
+la var adl_hlp_freq_imp_mo "Imputed days/month ADL helper"
+tab adl_hlp_freq_imp_mo if adl_help_ind==1, missing
+
+gen adl_hlp_freq_imp_ed = .
+replace adl_hlp_freq_imp_ed = 1 if adl_hlp_freq_imp_mo>27 & adl_hlp_freq_imp_mo~=.
+replace adl_hlp_freq_imp_ed = 0 if adl_hlp_freq_imp_mo<28 & adl_hlp_freq_imp_mo~=.
+la var adl_hlp_freq_imp_ed "Imputed ADL helper every day ind, 1=yes"
+tab adl_hlp_freq_imp_ed if adl_help_ind==1, missing
+
+//iadl helper frequency variables
+replace iadl_hlp_freq_mo = . if inlist(iadl_hlp_freq_mo,96,98,99)
+replace iadl_hlp_freq_wk = . if iadl_hlp_freq_wk==8
+replace iadl_hlp_freq_ed = . if iadl_hlp_freq_ed==8
+replace iadl_help_hours = . if inlist(iadl_help_hours,98,99)
+
+/*Commented out code to look at missingness across frequency variables
+gen iadl_mo = 1 if iadl_hlp_freq_mo~=.
+replace iadl_mo = 0 if iadl_hlp_freq_mo==.
+tab iadl_mo if iadl_help_ind==1
+gen iadl_wk = 1 if iadl_hlp_freq_wk~=.
+replace iadl_wk = 0 if iadl_hlp_freq_wk==.
+tab iadl_wk if iadl_help_ind==1
+gen iadl_ed = 1 if iadl_hlp_freq_ed~=.
+replace iadl_ed = 0 if iadl_hlp_freq_ed==.
+tab iadl_ed if iadl_help_ind==1
+la var iadl_mo "Month"
+la var iadl_wk "Week"
+la var iadl_ed "Every day"
+table iadl_mo iadl_wk iadl_ed if iadl_help_ind==1*/
+
+//create imputed helper frequency variables, days per month and every day indicator
+gen iadl_hlp_freq_imp_mo = .
+replace iadl_hlp_freq_imp_mo = iadl_hlp_freq_mo if iadl_hlp_freq_mo~=.
+replace iadl_hlp_freq_imp_mo = iadl_hlp_freq_wk*4 if iadl_hlp_freq_imp_mo==. & iadl_hlp_freq_wk!=.
+replace iadl_hlp_freq_imp_mo = 28 if iadl_hlp_freq_ed==1
+la var iadl_hlp_freq_imp_mo "Imputed days/month IADL helper"
+tab iadl_hlp_freq_imp_mo if iadl_help_ind==1, missing
+
+gen iadl_hlp_freq_imp_ed = .
+replace iadl_hlp_freq_imp_ed = 1 if iadl_hlp_freq_imp_mo>27 & iadl_hlp_freq_imp_mo~=.
+replace iadl_hlp_freq_imp_ed = 0 if iadl_hlp_freq_imp_mo<28 & iadl_hlp_freq_imp_mo~=.
+la var iadl_hlp_freq_imp_ed "Imputed IADL helper every day ind, 1=yes"
+tab iadl_hlp_freq_imp_ed if iadl_help_ind==1, missing
+
+save helpers_core_0218_tomerge.dta, replace
+
+clear
+use core_98_18_clean_merge.dta
+
+//check for duplicate ids
+sort id core_year
+quietly by id core_year: gen dup = cond(_N==1,0,_n)
+tab dup
+drop if dup>1 
+drop dup
+
+merge 1:1 id core_year using helpers_core_0218_tomerge.dta 
+
+drop if _merge==2
+
+drop _merge
+
+*/
+*******************************************************************************************
+** Dummies for Education categories
+*******************************************************************************************
+/*NOT DONE IN COVID BECAUSE SEEMS TO ALREADY BE DONE FOR MOST
+** Grade 0 - 11**
+generate byte ed_less_hs = 0
+replace ed_less_hs = 0 if ((educ==2) | (educ==3)| (educ==4)| (educ==5))
+replace ed_less_hs = 1 if ((educ==0) | (educ==1))
+label variable ed_less_hs "No Formal Education-Grade 11"
+//label define ed_less_hs 1 "No Formal Education-Grade 11", modify
+//label values ed_less_hs ed_less_hs
+tab ed_less_hs, missing 
+
+** HS Grad or Some College **
+generate byte ed_hs_plus = 0
+replace ed_hs_plus = 0 if ((educ==0) | (educ==1)|(educ==4)| (educ==5))
+replace ed_hs_plus = 1 if ((educ==2) | (educ==3))
+label variable ed_hs_plus "High School Grad or Some College"
+//label define ed_hs_plus 1 "High School Grad or Some College", modify
+//label values ed_hs_plus ed_hs_plus
+tab ed_hs_plus, missing 
+
+** College Grad or Higher **
+generate byte ed_coll = 0
+replace ed_coll = 0 if ((educ==0) | (educ==1)|(educ==2) | (educ==3))
+replace ed_coll = 1 if ((educ==4) | (educ==5))
+label variable ed_coll "College Grad or Higher"
+//label define ed_coll 1 "College Grad or Higher", modify
+//label values ed_coll ed_coll
+tab ed_coll, missing 
+
+** Education info missing **
+generate byte ed_missing = 0
+replace ed_missing = 1 if (educ>=.) 
+label variable ed_missing "Education info missing "
+//label define ed_missing 1 "Education info missing ", modify
+//label values ed_missing ed_missing
+tab ed_missing, missing 
+
+*******************************************************************************************
+** Dichotomized at High School
+** 2/8 code changed to define missings as 0 for preliminary models, will impute missing values in final model
+*******************************************************************************************
+generate byte hseduc = 0
+replace hseduc = 0 if (educ <=1)
+replace hseduc = 1 if (educ >1) & (educ <.)
+label variable hseduc "Eduction, High School"
+//label define hseduc 0 "Less than HS Education or missing" 1 "HS Education or Higher", modify
+//label values hseduc hseduc 
+tab educ hseduc, missing
+*/
+*******************************************************************************************
+** Marital status dichotomous variables
+*******************************************************************************************
+
+tab marital, gen(marital)
+
+rename marital2 marital_sep
+label variable marital_sep "Separated 1=yes"
+tab marital_sep, missing 
+
+rename marital3 marital_div
+label variable marital_div "Divorced 1=yes"
+tab marital_div, missing 
+
+rename marital4 marital_wid
+label variable marital_wid "Widowed 1=yes"
+tab marital_wid, missing 
+
+rename marital5 marital_nev
+label variable marital_nev "Never Married 1=yes"
+tab marital_nev, missing 
+
+generate byte marital_sd = .
+replace marital_sd = 1 if (marital_sep==1 | marital_div==1)
+replace marital_sd = 0 if (marital_sep==0 & marital_div==0)
+label variable marital_sd "Separated or Divorced"
+//label define marital_sd 1 "Separated or Divorced" 0 "Not Separated or Divorced", modify
+//label values marital_sd marital_sd
+tab marital_sd, missing
+
+generate byte marital_missing = 0
+replace marital_missing = 1 if ((marital >=.)|(marital==6))
+label variable marital_missing "Marital Status Missing"
+//label define marital_missing 1 "Marital Status Missing" 0 "Not Missing", modify
+//label values marital_missing marital_missing
+tab marital_missing, missing
+
+drop marital1 marital6
+
+*******************************************************************************************
+** Resident Children as indicator variable
+*******************************************************************************************
+generate reschil_d = .
+replace reschil_d = 0 if ((reschil==0) & (reschil<.))|(nhres==1)
+replace reschil_d = 1 if ((reschil>0) & (reschil<.))&(nhres!=1)
+label variable reschil_d "Living with Children"
+//label define reschil_d 1 "Live with 1 or more Children" 0 "Not Resident Children", modify
+//label val reschil_d reschil_d 
+tab reschil_d, missing
+
+/**********************************************************************/
+// Dummies for 3 categories self-reported health status: Poor/Fair, Good, Very Good /Excellent**
+/**********************************************************************/
+gen byte srh_pf = .
+replace srh_pf = 0 if inlist(srh,1,2,3)
+replace srh_pf = 1 if inlist(srh,4,5)
+label var srh_pf "Self Rated Health: Poor/Fair"
+
+gen byte srh_g = .
+replace srh_g = 0 if inlist(srh,1,2,4,5)
+replace srh_g = 1 if srh==3
+label var srh_g "Self Rated Health: Good"
+
+gen byte srh_ve = .
+replace srh_ve = 0 if inlist(srh,3,4,5)
+replace srh_ve = 1 if inlist(srh,1,2)
+label var srh_ve "Self Rated Health: Very Good /Excellent"
+
+/**********************************************************************/
+// CESD and Alcohol use variables 
+/**********************************************************************/
+//total cesd indicators
+gen cesd_tot=cesd1 + cesd2 + cesd3 + cesd4 + cesd5 + cesd6 + cesd7 + cesd8
+tab cesd_tot , missing
+la var cesd_tot "Total CESD count"
+
+//cesd total >=3 indicator
+gen byte cesd_tot_ge3=.
+replace cesd_tot_ge3=1 if (cesd_tot>=3 & cesd_tot!=.)
+replace cesd_tot_ge3=0 if (cesd_tot<3 & cesd_tot!=.)
+la var cesd_tot_ge3 "CESD Count 3 or higher"
+tab cesd_tot_ge3 ,missing
+
+gen byte Alcohol_mis = .
+replace Alcohol_mis=1 if (ever_drink==1 & n_drinks_3m>4 & n_drinks_3m!=.)
+replace Alcohol_mis=0 if (ever_drink==1 & n_drinks_3m<=4 )
+replace Alcohol_mis=0 if ever_drink==0 | days_drink==0
+la var Alcohol_mis "Alcohol mis-use"
+tab Alcohol_mis , missing
+
+
+/**********************************************************************/
+// BMI variables calculated from height and weight **
+/**********************************************************************/
+
+gen height_in=.
+replace height_in=(height_ft_temp *12)+height_in_temp
+la var height_in "Height, inches"
+tab height_in , missing
+
+drop height_ft_temp height_in_temp 
+
+//BMI calculated
+gen bmi = .
+replace bmi = wgt_curr / (height_in * height_in) * 703
+la var bmi "Body mass index - calculated"
+sum bmi
+
+//bmi categories
+gen bmi_cat = .
+replace bmi_cat = 0 if (bmi<=18.5)
+replace bmi_cat = 1 if (18.5 <= bmi & bmi<25)
+replace bmi_cat = 2 if (25<= bmi & bmi<30)
+replace bmi_cat = 3 if (bmi >= 30) & bmi!=.
+// la def bmi_cat 0 "Underweight" 1"Normal weight" 2 "Overweight" 3 "Obese"
+// la val bmi_cat bmi_cat
+la var bmi_cat "BMI - categorical"
+tab bmi_cat, missing
+
+/*************************************************************************/
+/* Index of ADLs: First step is a simple count
+** Then the index is divided by categoies: 
+** independent (0 ADL deficiencies), partial dependence (1-3 ),
+** severe dependence (>=4).
+*/
+/*************************************************************************/
+
+generate adl_index_core = .
+replace adl_index_core = adl_dr_core + adl_wk_core + adl_bh_core + adl_e_core + adl_tx_core + adl_t_core
+label var adl_index_core "Index of ADLs - core"
+tab adl_index_core, missing 
+
+generate adl_cat_core = .
+replace adl_cat_core = 0 if (adl_index_core ==0)
+replace adl_cat_core = 1 if inlist(adl_index_core,1,2,3)
+replace adl_cat_core = 2 if inlist(adl_index_core,4,5,6)
+label var adl_cat_core "ADLs, Categorical"
+//label define adl_cat_core 0 "Independent" 1 "Partial Dependence" 2 "Severe Dependence", modify
+//label values adl_cat_core adl_cat_core 
+tab adl_cat_core, missing 
+
+//Create dummy variables for ADL Categories
+tab adl_cat_core, gen(adlcat)
+rename adlcat1 adl_independent_core
+rename adlcat2 adl_partial_core
+rename adlcat3 adl_severe_core
+
+label var adl_independent_core "Independent for ADLs"
+label var adl_partial_core "Partial Dependence for ADLs"
+label var adl_severe_core "Severe Dependence for ADLs"
+
+tab adl_cat_core adl_independent_core, missing
+tab adl_cat_core adl_partial_core, missing
+tab adl_cat_core adl_severe_core, missing
+
+//indicator for adl main helper details present in the helper file
+/*replace adl_help_ind=0 if adl_help_ind==.
+tab adl_help_ind, missing
+tab adl_help_ind if inlist(adl_cat_core,1,2) & core_year>2000, missing
+
+
+//get count of unique helpers using their person number id's
+//used code from stata faq website here: 
+//http://www.stata.com/support/faqs/data-management/counting-distinct-strings/
+gen adl_helper_count = 0
+qui forval i = 1/`=_N' {
+	foreach v of var adl_helper_1-adl_helper_7 {
+		if `v'[`i'] != "" & `v'[`i'] != " " {
+			local all `"`all' `"`=`v'[`i']'"'"'
+		}
+	}
+	local all : list uniq all
+	replace adl_helper_count = `: list sizeof all' in `i'
+	local all
+}
+la var adl_helper_count "Count of unique ADL helpers"
+tab adl_helper_count, missing
+*/
+
+/******************************************************************************/
+/******************************************************************************/
+/* Index of IADLs: First step is a simple count
+ Then the index is divided by categoies: 
+ independent (0 IADL deficiencies), partial dependence (1-3 ),
+ severe dependence (>4).   */
+/******************************************************************************/
+/******************************************************************************/
+
+generate iadl_ind_core = .
+replace iadl_ind_core= iadl_mp_core + iadl_gr_core + iadl_ph_core + iadl_rx_core + iadl_m_core
+label var iadl_ind_core "Index of IADLs"
+tab iadl_ind_core, missing 
+
+generate iadl_cat_core = .
+replace iadl_cat_core = 0 if iadl_ind_core==0
+replace iadl_cat_core = 1 if inlist(iadl_ind_core,1,2,3)
+replace iadl_cat_core = 2 if inlist(iadl_ind_core,4,5)
+label var iadl_cat_core "IADLs, Categorical"
+//label define iadl_cat_core 0 "Independent" 1 "Partial Dependence" 2 "Severe Dependence", modify
+//label values iadl_cat_core iadl_cat_core 
+tab iadl_cat_core , missing 
+
+**Create dummy variables for IADL Categories
+tab iadl_cat_core, gen(iadlcat)
+rename iadlcat1 iadl_independent_core
+rename iadlcat2 iadl_partial_core
+rename iadlcat3 iadl_severe_core
+
+label var iadl_independent_core "Independent for IADLs"
+label var iadl_partial_core "Partial Dependence for IADLs"
+label var iadl_severe_core "Severe Dependence for IADLs"
+
+tab iadl_cat_core iadl_independent_core, missing
+tab iadl_cat_core iadl_partial_core, missing
+tab iadl_cat_core iadl_severe_core, missing
+
+//indicator for iadl main helper details present in the helper file
+/*
+replace iadl_help_ind=0 if iadl_help_ind==.
+tab iadl_help_ind, missing
+tab iadl_help_ind if inlist(iadl_cat_core,1,2) & core_year>2000, missing
+
+//get count of unique helpers using their person number id's
+gen iadl_helper_count = 0
+qui forval i = 1/`=_N' {
+	foreach v of var iadl_helper_1-iadl_helper_6 {
+		if `v'[`i'] != "" & `v'[`i'] != " " {
+			local all `"`all' `"`=`v'[`i']'"'"'
+		}
+	}
+	local all : list uniq all
+	replace iadl_helper_count = `: list sizeof all' in `i'
+	local all
+}
+la var iadl_helper_count "Count of unique IADL helpers"
+tab iadl_helper_count core_year, missing
+*/
+
+/*******************************************************************/
+// Index of Comorbidities: First step is a simple count
+// Then the index is divided by categoies: 
+// None (0), Mild (1-3), Moderate (4-6), Severe (>7).
+/*******************************************************************/
+
+gen comor_in_hrs = .
+replace comor_in_hrs = (cancer_hrs + lung_hrs + heart_hrs + chf_hrs + stroke_hrs + ///
+	memory_hrs + htn_hrs + dm_hrs + psych_hrs)
+label var comor_in_hrs "Index of Comorbidities"
+tab comor_in_hrs , missing  
+ 
+//categorical variable
+generate comor_c_hrs = .
+replace comor_c_hrs = 0  if (comor_in_hrs==0)
+replace comor_c_hrs = 1  if inlist(comor_in_hrs,1,2,3)
+replace comor_c_hrs = 2  if inlist(comor_in_hrs,4,5,6)
+replace comor_c_hrs = 3  if inlist(comor_in_hrs,7,8,9)
+label var comor_c_hrs "Comorbidity Index, Categorical"
+//label define comor_c_hrs 0 "None (0)" 1 "Mild (1-3)" 2 "Moderate (4-6)" 3 "Severe (>7)", modify
+//label values comor_c_hrs comor_c_hrs
+tab comor_c_hrs , missing 
+
+//overall psychiatric problems variable
+gen psych_overall_hrs = .
+replace psych_overall_hrs = 1 if psych_hrs==1
+replace psych_overall_hrs = 0 if psych_hrs==0 
+la var psych_overall_hrs "Indicator for any psychiatric problems from HRS"
+tab psych_overall_hrs ,missing
+
+
+ save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 6.dta", replace
 
 H="Step 7: drop raw vars and merge in prior HRS and tracker data"
 *STEP 7: keep only cleaned variables and merge in weights and prior HRS data
 use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 6.dta"
 
 
-keep hhid pn cvwgtr rversion adl_bh_core adl_core_check adl_diff_bh adl_diff_dr adl_diff_e adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core adl_e_core adl_equip_tx adl_equip_wk adl_oth_helper adl_sp_helper adl_t_core adl_tx_core adl_wk_core any_hrdshp_food arth_hrs ask_test back_pain_hrs cancer_chemo_med cancer_hrs cancer_other_treat cancer_surg cancer_symp cancer_xray catinsur cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8 champus chf_hrs chfadmit_ask chfadmit_hrs chfdrever_hrs child chrhlp_cvd cough_hrs covid_inc_chng covid_spend_chng cvwgtr days_drink delay_care delay_dent delay_doc delay_other delay_rx delay_surg dem_hrs depr_2_wks_hrs died_covid dizzy_hrs dm_hrs dm_ins_hrs dyspnea_hrs ed_covid educ ever_drink falls_hrs fatigue_hrs female finhlp_cvd fl_diff_dime fl_diff_lift fl_diff_push fl_diff_reach fl_diff_sit fl_diff_sta_many fl_diff_sta_one fl_diff_stp fl_diff_wk_many fl_diff_wk_one friend gchil had_covid headache_hrs heart_hrs height_ft_temp height_in_temp help_friends help_friends_hours hh_covid hh_worker hhid hhm hip_frac_hrs hisp hlpd_chr hlpd_fin hmo hosp_covid hosp_last_2yr hrdshp_any hrdshp_debt hrdshp_food hrdshp_getfood hrdshp_medbls hrdshp_other hrdshp_rent hrdshp_utils htn_hrs iadl_diff_gr iadl_diff_m iadl_diff_map iadl_diff_mp iadl_diff_ph iadl_diff_rx iadl_gr_core iadl_m_core iadl_mp_core iadl_oth_helper iadl_ph_core iadl_rx_core iadl_sp_helper incont_hrs insom_falling_asleep insom_rested insom_too_early insom_waking_up known_covid level_concern ling_sxs ltc_bene ltc_ins lung_hrs lung_o2_hrs marital married md_confirm medicaid medicare medicareb medigap memory_hrs moved_covid movein_covid n_drinks_3m  nh_nights nh_start nh_stays nhres nhres_2yr nhres_start_mo nhres_start_yr pain_hrs pain_level_hrs pain_limit_act_hrs pn pr_mem_change pr_memory prob_def_covid proxy_core psych_hrs rel_nb relig reschil resspouse rewidowed rvdate rversion smoke_curr smoke_ever soc_visit soc_visit_cat soc_visit_yr sr_mem_change sr_memory srh stroke_hrs swelling_feet_hrs tested_covid type_ling_sxs vig_phy_act wanted_test wgt_curr why_delay_advised why_delay_afford why_delay_avail why_delay_fear why_delay_nonurgent why_delay_other food_stamps food_stamps_curr food_del_door
+keep hhid pn cvwgtr rversion adl_bh_core adl_core_check adl_diff_bh adl_diff_dr adl_diff_e adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core adl_e_core adl_equip_tx adl_equip_wk adl_oth_helper adl_sp_helper adl_t_core adl_tx_core adl_wk_core any_hrdshp_food arth_hrs ask_test back_pain_hrs cancer_chemo_med cancer_hrs cancer_other_treat cancer_surg cancer_symp cancer_xray catinsur cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8 champus chf_hrs chfadmit_ask chfadmit_hrs chfdrever_hrs child chrhlp_cvd cough_hrs covid_inc_chng covid_spend_chng cvwgtr days_drink delay_care delay_dent delay_doc delay_other delay_rx delay_surg dem_hrs depr_2_wks_hrs died_covid dizzy_hrs dm_hrs dm_ins_hrs dyspnea_hrs ed_covid educ ever_drink falls_hrs fatigue_hrs female finhlp_cvd fl_diff_dime fl_diff_lift fl_diff_push fl_diff_reach fl_diff_sit fl_diff_sta_many fl_diff_sta_one fl_diff_stp fl_diff_wk_many fl_diff_wk_one friend gchil had_covid headache_hrs heart_hrs   help_friends help_friends_hours hh_covid hh_worker hhid hhm hip_frac_hrs hisp hlpd_chr hlpd_fin hmo hosp_covid hosp_last_2yr hrdshp_any hrdshp_debt hrdshp_food hrdshp_getfood hrdshp_medbls hrdshp_other hrdshp_rent hrdshp_utils htn_hrs iadl_diff_gr iadl_diff_m iadl_diff_map iadl_diff_mp iadl_diff_ph iadl_diff_rx iadl_gr_core iadl_m_core iadl_mp_core iadl_oth_helper iadl_ph_core iadl_rx_core iadl_sp_helper incont_hrs insom_falling_asleep insom_rested insom_too_early insom_waking_up known_covid level_concern ling_sxs ltc_bene ltc_ins lung_hrs lung_o2_hrs marital married md_confirm medicaid medicare medicareb medigap memory_hrs moved_covid movein_covid n_drinks_3m  nh_nights nh_start nh_stays nhres nhres_2yr nhres_start_mo nhres_start_yr pain_hrs pain_level_hrs pain_limit_act_hrs pn pr_mem_change pr_memory prob_def_covid proxy_core psych_hrs rel_nb relig reschil resspouse rewidowed rvdate rversion smoke_curr smoke_ever soc_visit soc_visit_cat soc_visit_yr sr_mem_change sr_memory srh stroke_hrs swelling_feet_hrs tested_covid type_ling_sxs vig_phy_act wanted_test wgt_curr why_delay_advised why_delay_afford why_delay_avail why_delay_fear why_delay_nonurgent why_delay_other food_stamps food_stamps_curr food_del_door marital_sep marital_div marital_wid marital_nev marital_sd marital_missing reschil_d srh_pf srh_g srh_ve cesd_tot cesd_tot_ge3 Alcohol_mis height_in bmi bmi_cat adl_index_core adl_cat_core adl_independent_core adl_partial_core adl_severe_core iadl_ind_core iadl_cat_core iadl_independent_core iadl_partial_core iadl_severe_core comor_in_hrs comor_c_hrs psych_overall_hrs
 
 
 gen core_year=2020
@@ -3200,14 +3662,203 @@ by hhid pn: egen maxyear=max(core_year)
 keep if maxyear==2020
 rename hhid HHID
 rename pn PN
-merge m:1 HHID PN using "D:\HRS\Shared\raw\HRS\hrs_tracking_2018\trk2018tr_r.dta" , keepusing(SECU STRATUM)
+merge m:1 HHID PN using "D:\HRS\Shared\raw\HRS\hrs_tracking_2018\trk2018tr_r.dta" , keepusing(SECU STRATUM RACE BIRTHYR)
 keep if _merge==3
 rename HHID hhid
 rename PN pn
-
 
 *make keep variable
 gen keep=0
 replace keep=1 if core_year==2020 & cvwgtr!=.
 
+
+
  save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 7.dta", replace
+
+
+
+H="STEP 8: variable cleaning for analysis"
+
+
+H="ANALYSIS ON HARDSHIP"
+use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 8.dta"
+
+
+svyset SECU [pweight=cvwgtr], strata(stratum_n) vce(linearized)
+
+
+tab keep
+
+putexcel set "D:\HRS\Projects\coronavirus\output\table1_nov17.xls", replace
+putexcel A1:C1= "Table 1. Characteristics of those in COVID survey (N=3,102)", merge bold border(bottom)
+putexcel A2= "Characteristic",  bold border(bottom)
+putexcel B2= "Label",  bold border(bottom)
+putexcel C2= "%",  bold border(bottom)
+
+putexcel A3="Age"
+putexcel B4="less than 60"
+putexcel B5="60-69"
+putexcel B6= "70-79"
+putexcel B7= "80+"
+svy, subpop(keep): tab age_cat
+mat a=e(b)'
+putexcel C4=matrix(a), nformat(percent_d2)
+
+putexcel A8="Female"
+putexcel B9="0"
+putexcel B10="1"
+svy, subpop(keep): tab female
+mat a=e(b)'
+putexcel C9=matrix(a), nformat(percent_d2)
+
+putexcel A11= "Race"
+putexcel B12= "White, non-hispanic"
+putexcel B13= "Black, non-hispanic"
+putexcel B14= "Hispanic"
+putexcel B15= " "
+svy, subpop(keep): tab race
+mat a=e(b)'
+putexcel C12=matrix(a), nformat(percent_d2)
+
+putexcel A16= "More than HS education"
+putexcel B17="0"
+putexcel B18="1"
+svy, subpop(keep): tab educ_morethanhs
+mat a=e(b)'
+putexcel C17=matrix(a), nformat(percent_d2)
+
+
+putexcel A19= "Medicaid"
+putexcel B20="0"
+putexcel B21="1"
+svy, subpop(keep): tab medicaid
+mat a=e(b)'
+putexcel C20=matrix(a), nformat(percent_d2)
+
+putexcel A22= "Received food stamps in last year"
+putexcel B23="0"
+putexcel B24="1"
+svy, subpop(keep): tab food_stamps
+mat a=e(b)'
+putexcel C23=matrix(a), nformat(percent_d2)
+
+putexcel A25= "ADL index"
+putexcel B26="0"
+putexcel B27="1"
+putexcel B28="2+"
+svy, subpop(keep): tab adl_cat_core
+mat a=e(b)'
+putexcel C26=matrix(a), nformat(percent_d2)
+
+putexcel A29= "Fair/poor health"
+putexcel B30="0"
+putexcel B31="1"
+svy, subpop(keep): tab srh_pf
+mat a=e(b)'
+putexcel C30=matrix(a), nformat(percent_d2)
+
+putexcel A32= "Dementia or memory problems"
+putexcel B33="0"
+putexcel B34="1"
+svy, subpop(keep): tab memory_hrs
+mat a=e(b)'
+putexcel C33=matrix(a), nformat(percent_d2)
+
+
+
+
+
+
+
+putexcel A35= "COVID questions"
+
+putexcel A36= "Probably or definitely had covid"
+putexcel B37="0"
+putexcel B38="1"
+svy, subpop(keep): tab prob_def_covid
+mat a=e(b)'
+putexcel C37=matrix(a), nformat(percent_d2)
+
+putexcel A39= "Known someone who had covid"
+putexcel B40="0"
+putexcel B41="1"
+svy, subpop(keep): tab known_covid
+mat a=e(b)'
+putexcel C40=matrix(a), nformat(percent_d2)
+
+putexcel A42= "Known someone who died of covid"
+putexcel B43="0"
+putexcel B44="1"
+svy, subpop(keep): tab died_covid
+mat a=e(b)'
+putexcel C43=matrix(a), nformat(percent_d2)
+
+putexcel A45= "Needed financial help because of COVID, as receiving money or others paying bills"
+putexcel B46="0"
+putexcel B47="1"
+svy, subpop(keep): tab hlpd_fin
+mat a=e(b)'
+putexcel C46=matrix(a), nformat(percent_d2)
+
+putexcel A48= "Missed rent or mortgage payments bc covid"
+putexcel B49="0"
+putexcel B50="1"
+svy, subpop(keep): tab hrdshp_rent
+mat a=e(b)'
+putexcel C49=matrix(a), nformat(percent_d2)
+
+putexcel A51= "Missed payments on cc or other debt bc covid"
+putexcel B52="0"
+putexcel B53="1"
+svy, subpop(keep): tab hrdshp_debt
+mat a=e(b)'
+putexcel C52=matrix(a), nformat(percent_d2)
+
+putexcel A54= "Missed utility or insurance payments bc covid"
+putexcel B55="0"
+putexcel B56="1"
+svy, subpop(keep): tab hrdshp_medbls
+mat a=e(b)'
+putexcel C55=matrix(a), nformat(percent_d2)
+
+putexcel A57= "Didn't have money for food bc covid"
+putexcel B58="0"
+putexcel B59="1"
+svy, subpop(keep): tab hrdshp_food
+mat a=e(b)'
+putexcel C58=matrix(a), nformat(percent_d2)
+
+putexcel A60= "Any of the above financial hardships"
+putexcel B61="0"
+putexcel B62="1"
+svy, subpop(keep): tab hrdshp_any
+mat a=e(b)'
+putexcel C61=matrix(a), nformat(percent_d2)
+
+putexcel A63= "Trouble buying food despite having money for it"
+putexcel B64="0"
+putexcel B65="1"
+svy, subpop(keep): tab hrdshp_getfood
+mat a=e(b)'
+putexcel C64=matrix(a), nformat(percent_d2)
+
+putexcel A66= "Trouble accessing food, financial or otherwise"
+putexcel B67="0"
+putexcel B68="1"
+svy, subpop(keep): tab any_food_access
+mat a=e(b)'
+putexcel C67=matrix(a), nformat(percent_d2)
+
+
+*TABLE 2
+*Factors associated with any trouble accessing food or any financial hardship
+foreach var of varlist  age_cat race female educ_morethanhs medicaid food_stamps any_adl srh_pf memory_hrs prob_def_covid known_covid died_covid {
+svy, subpop(keep): logistic  hrdshp_any i.`var'
+svy, subpop(keep): logistic any_food_access i.`var'
+}
+
+svy, subpop(keep): tab any_adl hrdshp_any
+
+tab any_adl hrdshp_any
+
+svy, subpop(keep): logistic  hrdshp_any i.age_cat i.race female educ_morethanhs medicaid food_stamps i.adl_cat_core srh_pf memory_hrs prob_def_covid known_covid died_covid
