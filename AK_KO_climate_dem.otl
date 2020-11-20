@@ -892,6 +892,7 @@ forvalues i=5/13 {
 	joinby stc using `t1', unmatched(both) _merge(_merge)
 	keep if _merge==3
 	keep if inrange(inc_date,ivw_date_n1,ivw_date_n1+730)
+	codebook id if death_all<inc_date & !missing(inc_date)
 	drop if death_all<inc_date & !missing(inc_date)
 	drop inc_date death_all
 	duplicates drop
@@ -899,6 +900,8 @@ forvalues i=5/13 {
 	save `t`i''
 	restore
 }
+//find the number of unique people who died before disaster
+di 46+204+218+252+293+264+287+449+272
 
 clear 
 forvalues i=5/13 {
@@ -959,8 +962,6 @@ merge 1:1 id year using "`geo'", keep(master matched)  nogen
 
 gen state=stateusps
 
-sort id year
-by id: carryforward id year, replace 
 
 gen region=1 if inlist(state, "CT","ME","MA","NH","RI","VT","NJ","NY","PA")
 replace region=2 if inlist(state, "IN","IL","MI","OH","WI","IA","KS","MN","MO")
@@ -977,10 +978,12 @@ merge m:1 fips using `metro', keep(master matched) nogen
 gen metro=0
 replace metro=1 if inlist(rucc_2013, 1,2 ,3)
 
-destring id, replace
-merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta"
+gen hhidpn=id
 
-keep id-ind_disaster white black other_na_api_race region hisp_eth metro
+destring id, replace
+merge m:1 id using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2014.dta", keep(master matched) nogen
+
+keep hhidpn id-ind_disaster white black other_na_api_race region hisp_eth metro
 
 save "D:\HRS\Projects\exploratory\AK_KO_climate_dem\data\final_data\fema_dis_00_16_n1loc_111220.dta", replace 
 

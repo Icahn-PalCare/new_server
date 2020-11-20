@@ -6790,7 +6790,7 @@ Difficulty dressing?
 //can't do set to yes, don't do set to missing
 gen byte adl_diff_dr = .
 replace adl_diff_dr = 1 if (kg014==1)|(kg014==6)| (lg014==1)|(lg014==6)| ///
-	(mg014==1)|(mg014==6) | (ng014==1)|(ng014==6)| (og014==1)|(og014==6)|(pg014==6)
+	(mg014==1)|(mg014==6) | (ng014==1)|(ng014==6)| (og014==1)|(og014==6)| inlist(pg014,1,6) | inlist(qg014,1,6)
 replace adl_diff_dr = 0 if (kg014==5)|(lg014==5)|(mg014==5) |(ng014==5)|(og014==5)|(pg014==5)|(qg014==5)
 replace adl_diff_dr = 0 if adl_core_check==0
 la var adl_diff_dr "Difficulty dressing 1=yes"
@@ -6818,7 +6818,7 @@ tab adl_dr_core core_year, missing
 so not asked if have an adl difficulty but report no difficulty getting dressed*/
 gen adl_diff_wk = .
 replace adl_diff_wk = 1 if (kg016==1)|(kg016==6)| (lg016==1)|(lg016==6)| ///
-	(mg016==1)|(mg016==6) | (ng016==1)|(ng016==6)| (og016==1)|(og016==6)|(pg016==6)
+	(mg016==1)|(mg016==6) | (ng016==1)|(ng016==6)| (og016==1)|(og016==6) | inlist(pg016,1,6) | inlist(qg016,1,6)
 replace adl_diff_wk = 0 if (kg016==5)|(lg016==5)|(mg016==5)|(ng016==5)|(og016==5)|(pg016==5)|(qg016==5)
 replace adl_diff_wk = 0 if (adl_diff_dr==0 & adl_core_check==1) | adl_core_check==0
 la var adl_diff_wk "Difficulty walking? 1=yes"
@@ -6874,7 +6874,7 @@ Not asked if adl_count_flag = 1 and difficulty dressing = no
 
 gen byte adl_diff_bh = .
 replace adl_diff_bh = 1 if (kg021==1)|(kg021==6)| (lg021==1)|(lg021==6)| ///
-	(mg021==1)|(mg021==6) | (ng021==1)|(ng021==6) | (og021==1)|(og021==6)|(pg021==6)
+	(mg021==1)|(mg021==6) | (ng021==1)|(ng021==6) | (og021==1)|(og021==6)| inlist(pg021,1,6) | inlist(qg021,1,6)
 replace adl_diff_bh = 0 if (kg021==5)|(lg021==5)|(mg021==5) |(ng021==5) |(og021==5) |(pg021==5) |(qg021==5)
 replace adl_diff_bh = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
 la var adl_diff_bh "Difficulty bathing? 1=yes"
@@ -6888,7 +6888,7 @@ replace adl_bh_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
 replace adl_bh_core = 1 if ((kg022==1)|(lg022==1)|(mg022==1)|(ng022==1)|(og022==1)|(pg022==1)|(qg022==1))
 replace adl_bh_core = 0 if ((kg022==5)|(lg022==5)|(mg022==5)|(ng022==5)|(og022==5)|(pg022==5)|(qg022==5))
 replace adl_bh_core = . if ((kg022==8)|(lg022==8)|(mg022==8)|(ng022==8)|(og022==8) ///
- | (kg022==9)|(lg022==9)|(mg022==9)|(ng022==9)|(og022==9)|(pg022==9)|(qg022==9))
+ | (kg022==9)|(lg022==9)|(mg022==9)|(ng022==9)|(og022==9) | inlist(pg022,8,9) | inlist(qg022,8,9))
 replace adl_bh_core = 0 if adl_diff_bh==0
 label var adl_bh_core "Help Bathing - core"
 //label define adl_bh_core 0 "No" 1 "Yes", modify
@@ -6921,7 +6921,7 @@ G024 ADL EAT HELP
 
 gen byte adl_diff_e = .
 replace adl_diff_e = 1 if (kg023==1)|(kg023==6)| (lg023==1)|(lg023==6)| ///
-	(mg023==1)|(mg023==6) | (ng023==1)|(ng023==6) | (og023==1)|(og023==6)|(pg023==6)
+	(mg023==1)|(mg023==6) | (ng023==1)|(ng023==6) | (og023==1) | inlist(pg023,1,6) | inlist(qg023,1,6)
 replace adl_diff_e = 0 if (kg023==5)|(lg023==5)|(mg023==5) |(ng023==5)|(og023==5)|(pg023==5)|(qg023==5)
 replace adl_diff_e = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
 la var adl_diff_e "Difficulty eating? 1=yes"
@@ -6935,7 +6935,7 @@ replace adl_e_core = 0 if (adl_core_check==1 & adl_diff_dr==0)
 replace adl_e_core = 1 if ((kg024==1)|(lg024==1)|(mg024==1)|(ng024==1)|(og024==1)|(pg024==1)|(qg024==1))
 replace adl_e_core = 0 if ((kg024==5)|(lg024==5)|(mg024==5)|(ng024==5)|(og024==5)|(pg024==5)|(qg024==5))
 replace adl_e_core = . if ((kg024==8)|(lg024==8)|(mg024==8)|(ng024==8)|(og024==8) ///
- | (kg024==9)|(lg024==9)|(mg024==9)|(ng024==9)|(og024==9)|(qg024==9))
+ | (kg024==9)|(lg024==9)|(mg024==9)|(ng024==9)|(og024==9)|inlist(pg024,8,9) | inlist(qg024,8,9))
 replace adl_e_core = 0 if adl_diff_e==0
 label var adl_e_core "Help Eating - core"
 //label define adl_e_core 0 "No" 1 "Yes", modify
@@ -6945,8 +6945,8 @@ tab adl_e_core core_year, missing
 //Transfers to Bed, g2768 hg029 jg029
 gen byte adl_diff_tx = .
 replace adl_diff_tx = 1 if (kg025==1)|(kg025==6)| (lg025==1)|(lg025==6)| ///
-	(mg025==1)|(mg025==6) | (ng025==1)|(ng025==6) | (og025==1)|(og025==6)|(pg025==6)|(qg025==6)
-replace adl_diff_tx = 0 if (kg025==5)|(lg025==5)|(mg025==5) |(ng025==5) |(og025==5)|(qg025==5)
+	(mg025==1)|(mg025==6) | (ng025==1)|(ng025==6) | (og025==1)|(og025==6)| inlist(pg025,1,6) | inlist(qg025,1,6)
+replace adl_diff_tx = 0 if (kg025==5)|(lg025==5)|(mg025==5) |(ng025==5) |(og025==5)|(pg025==5)|(qg025==5)
 replace adl_diff_tx = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
 la var adl_diff_tx "Difficulty transfers to bed? 1=yes"
 tab adl_diff_tx core_year, missing
@@ -6992,7 +6992,7 @@ tab adl_tx_core core_year, missing
 
 gen byte adl_diff_t = .
 replace adl_diff_t = 1 if (kg030==1)|(kg030==6)| (lg030==1)|(lg030==6)| ///
-	(mg030==1)|(mg030==6) | (ng030==1)|(ng030==6)| (og030==1) |(og030==6)|(pg030==6)|(qg030==6)
+	(mg030==1)|(mg030==6) | (ng030==1)|(ng030==6)| (og030==1) |(og030==6) | inlist(pg030,1,6) | inlist(qg030,1,6)
 replace adl_diff_t = 0 if (kg030==5)|(lg030==5)|(mg030==5)|(ng030==5)|(og030==5)|(pg030==5)|(qg030==5)
 replace adl_diff_t = 0 if (adl_diff_dr==0 & adl_core_check==1) |  adl_core_check==0
 la var adl_diff_t "Difficulty toileting? 1=yes"
@@ -7027,7 +7027,7 @@ tab adl_t_core core_year, missing
 2002-2014 	HG040-OG040*/
 gen byte iadl_diff_map = .
 replace iadl_diff_map = 1 if (kg040==1)|(kg040==6)| (lg040==1)|(lg040==6)| ///
-	(mg040==1)|(mg040==6) | (ng040==1)|(ng040==6)| (og040==1)|(og040==6)|(pg040==6)|(qg040==6)
+	(mg040==1)|(mg040==6) | (ng040==1)|(ng040==6)| (og040==1)|(og040==6) | inlist(pg040,1,6) | inlist(qg040,1,6)
 replace iadl_diff_map = 0 if (kg040==5)|(lg040==5)|(mg040==5)|(ng040==5)|(og040==5)|(pg040==5)|(qg040==5)
 la var iadl_diff_map "Difficulty using maps? 1=yes"
 tab iadl_diff_map core_year, missing
@@ -7069,7 +7069,7 @@ replace iadl_diff_mp = 1 if inlist(ng041,6,7) & ng042==1
 replace iadl_diff_mp = 1 if inlist(og041,6,7) & og042==1	
 replace iadl_diff_mp = 1 if inlist(pg041,6,7) & pg042==1	
 replace iadl_diff_mp = 1 if inlist(qg041,6,7) & qg042==1	
-replace iadl_diff_mp = 0 if (kg041==5)|(lg041==5)|(mg041==5) |(ng041==5) |(og041==5)|(pg041==5)
+replace iadl_diff_mp = 0 if (kg041==5)|(lg041==5)|(mg041==5) |(ng041==5) |(og041==5)|(pg041==5) | qg041==5
 replace iadl_diff_mp = 0 if inlist(kg041,6,7) & kg042==5
 replace iadl_diff_mp = 0 if inlist(lg041,6,7) & lg042==5
 replace iadl_diff_mp = 0 if inlist(mg041,6,7) & mg042==5	
@@ -7120,7 +7120,7 @@ G046 IADL GROC SHOP HELP
 
 //difficulty with task b/c of health or memory problem?
 gen byte iadl_diff_gr=.
-replace iadl_diff_gr = 1 if (kg044==1)|(lg044==1)|(mg044==1)|(ng044==1)|(og044==1)|(pg044==1)
+replace iadl_diff_gr = 1 if (kg044==1)|(lg044==1)|(mg044==1)|(ng044==1)|(og044==1)|(pg044==1) | qg044==1
 replace iadl_diff_gr = 1 if inlist(kg044,6,7) & kg045==1
 replace iadl_diff_gr = 1 if inlist(lg044,6,7) & lg045==1
 replace iadl_diff_gr = 1 if inlist(mg044,6,7) & mg045==1	
@@ -7128,7 +7128,7 @@ replace iadl_diff_gr = 1 if inlist(ng044,6,7) & ng045==1
 replace iadl_diff_gr = 1 if inlist(og044,6,7) & og045==1	
 replace iadl_diff_gr = 1 if inlist(pg044,6,7) & pg045==1	
 replace iadl_diff_gr = 1 if inlist(qg044,6,7) & qg045==1	
-replace iadl_diff_gr = 0 if (kg044==5)|(lg044==5)|(mg044==5)|(ng044==5)|(og044==5)|(pg044==5)
+replace iadl_diff_gr = 0 if (kg044==5)|(lg044==5)|(mg044==5)|(ng044==5)|(og044==5)|(pg044==5) | qg044==5
 replace iadl_diff_gr = 0 if inlist(kg044,6,7) & kg045==5
 replace iadl_diff_gr = 0 if inlist(lg044,6,7) & lg045==5
 replace iadl_diff_gr = 0 if inlist(mg044,6,7) & mg045==5	
@@ -7190,7 +7190,7 @@ replace iadl_diff_ph = 1 if inlist(ng047,6,7) & ng048==1
 replace iadl_diff_ph = 1 if inlist(og047,6,7) & og048==1	
 replace iadl_diff_ph = 1 if inlist(pg047,6,7) & pg048==1	
 replace iadl_diff_ph = 1 if inlist(qg047,6,7) & qg048==1	
-replace iadl_diff_ph = 0 if (kg047==5)|(lg047==5)|(mg047==5) |(ng047==5)|(og047==5)|(pg047==5)
+replace iadl_diff_ph = 0 if (kg047==5)|(lg047==5)|(mg047==5) |(ng047==5)|(og047==5)|(pg047==5) | qg047==5
 replace iadl_diff_ph = 0 if inlist(kg047,6,7) & kg048==5
 replace iadl_diff_ph = 0 if inlist(lg047,6,7) & lg048==5
 replace iadl_diff_ph = 0 if inlist(mg047,6,7) & mg048==5	
@@ -9097,7 +9097,7 @@ replace pr_mem_change = md502 if core_year==2010
 replace pr_mem_change = nd502 if core_year==2012
 replace pr_mem_change = od502 if core_year==2014
 replace pr_mem_change = pd502 if core_year==2016
-replace pr_mem_change = 8d502 if core_year==2018
+replace pr_mem_change = qd502 if core_year==2018
 replace pr_mem_change = . if inlist(pr_mem_change,8,9)
 la var pr_mem_change "Proxy rated memory now vs last ivw, 1=Better,2=Same,3=Worse"
 tab pr_mem_change core_year, missing
@@ -9170,7 +9170,7 @@ local keep06_14 id core_year hhid pn proxy_core female educ  ///
  sr_mem* pr_mem* depr_2_wks_hrs 
 
 //drop variables from 2006-2014 dataset
-use `keep06_14' using core_06_16_clean4.dta
+use `keep06_14' using core_06_18_clean4.dta
 
 tab core_year
 
@@ -13612,10 +13612,10 @@ use h00e_hp, clear
 */
 
 
-tokenize h j k l m n o p
+tokenize h j k l m n o p q
 local type=1
 
-foreach year in 02 04 06 08 10 12 14 16 {
+foreach year in 02 04 06 08 10 12 14 16 18 {
 		use "h`year'g_hp", clear
 		rename *, l
 		gen year=20`year'
@@ -13717,7 +13717,7 @@ foreach n in 04 06 08 10 12 14 16 {
 	append using `x`n''
 }
 
-
+append using `t18'
 
 label define ivw_type 1 "Core" 2 "Exit"
 label values ivw_type ivw_type
@@ -13767,7 +13767,7 @@ label var id "HHID+PN"
 label var year "Year (core or exit)"
 
 duplicates drop
-saveold "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2016.dta", replace version(12)
+saveold "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2018.dta", replace version(12)
 
 
 H="End HRS cleaning"

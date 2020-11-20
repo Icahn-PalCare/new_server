@@ -3023,7 +3023,7 @@ tab pr_mem_change , missing
 tab pr_mem_change proxy_core, missing
 tab pr_mem_change  if proxy_core==1, missing
 
- save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 4.dta"
+ save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 4.dta", replace
 
 H="Step 5: cleaning covid module data"
 *****STEP 5: CLEANING COVID MODULE DATA*******
@@ -3172,7 +3172,7 @@ tab covid_spend_chng covid_inc_chng, column
 save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 5.dta", replace
 
 H="Step 6: cleaning additional variables"
-use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 5.dta"
+use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 5.dta", clear
 
 ***STEP 6:  CLEANING/MERGING ADDITIONAL VARIABLES
 
@@ -3188,9 +3188,49 @@ gen food_del_door=.
 replace food_stamps=1 if RQ421==1
 replace food_stamps=0 if RQ421==5
 
-****NEXT SECTION IS FROM HRS CLEANING SECTION AROUND HELPER FILES (NOT ADDRESSED HERE) AND ADLS, IADLS)
+gen year=2018
 
-/*variable cleaning for HRS core 2000-2016
+merge 1:1 hhid pn year using "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2018.dta", keep(master matched) nogen
+
+rename year core_year
+
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_18.dta", keepusing(hhid pn) keep(master matched) 
+
+preserve
+
+keep if _merge==1
+drop _merge
+replace core_year=2016
+rename core_year year 
+drop id-hlphrs
+merge 1:1 hhid pn year using "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2016.dta", keep(master matched) nogen 
+rename year core_year
+
+//2016 adds in 148 of the 181 missing in 2018. 
+merge 1:1 hhid pn core_year using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_18.dta", keepusing(hhid pn) keep(master matched)
+replace n_hp=0 if _merge==3 & n_hp==.
+
+drop _merge
+tempfile v2016
+save `v2016'
+restore
+drop if _merge==1
+
+append using "`v2016'"
+
+replace n_hp=0 if _merge==3 & n_hp==.
+drop _merge
+
+
+merge 1:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2016.dta", keepusing(birth_date birthmo birthyr hisp_eth white black other_na_api_race race) keep(master matched) 
+
+gen covid_ivw_date=mdy(7,1,2020)
+gen age=floor((covid_ivw_date-birth_date)/365.25)
+replace age=2020-RX067_R if age==.
+
+/*****NEXT SECTION IS FROM HRS CLEANING SECTION AROUND HELPER FILES (NOT ADDRESSED HERE) AND ADLS, IADLS)
+
+variable cleaning for HRS core 2000-2016
 Most code is taken from the HRS Outline_11_22_11.txt file
 and modified to clean 2000-2016 core dataset
 
