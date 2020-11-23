@@ -3718,29 +3718,72 @@ replace keep=1 if core_year==2020 & cvwgtr!=.
 
 
 H="STEP 8: variable cleaning for analysis"
+*STEP 8: CLEANING VARIABLES FOR ANALYSIS
 
+
+use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 7.dta"
+
+*FILLING IN MISSING DEMOGRAPHICS WITH PRIOR SURVEY WHEN NOT HIGHLY TIME-VARIANT
+
+sort hhid pn core_year
+by hhid pn: replace educ= educ[_n-1] if educ==.
+
+
+*age cat
+recode age (0/65=1 "less than 65")(65/75=2 "65-74")(75/85=3 "75-84")(85/999=4 "85+"), gen(age_4cat)
+recode age (0/60=1 "less than 60")(60/65=2 "60-64")(65/75=3 "65-74")(75/85=4 "75-84")(85/999=5 "85+"), gen(age_5cat)
+
+*education
+recode educ (0/2=0)(3/5=1), gen(educ_morethanhs) 
+
+
+*adl impairment, any
+*first recode as impairment if needs help with dressing or walking, 0 if doesn't for both, then replace with prior year status if missing
+replace adl_independent_core = 0 if ((adl_dr_core==1)|(adl_wk_core==1))& keep==1 & adl_independent_core==.
+sort hhid pn core_year
+by hhid pn: replace adl_independent_core =0 if (adl_independent_core[_n-1]==0) & adl_independent_core==. & keep==1
+by hhid pn: replace adl_independent_core = 1 if (adl_independent_core[_n-1]==1)& keep==1 & adl_independent_core==.
+
+*foodstamps
+*by hhid pn: replace food_stamps= food_stamps[_n-1] if food_stamps==. & keep==1 
+*didn't work bc only have food stamps in 2020-- could add
+
+recode child (0=0)(1/999=1), gen(any_child)
+
+recode hhm (0=1)(1/999=0), gen(lives_alone)
+
+*any covid food access
+gen any_food_access=.
+replace any_food_access=1 if 
+
+*new stratum
+gen stratum_n= STRATUM
+replace stratum_n= 53 if STRATUM==54
+replace stratum_n= 15 if STRATUM==14
+
+save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 8.dta", replace
 
 H="ANALYSIS ON HARDSHIP"
 use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 8.dta"
 
 
-svyset SECU [pweight=cvwgtr], strata(stratum_n) vce(linearized)
+svyset SECU [pweight=cvwgtr], strata(STRATUM) vce(linearized)
 
 
 tab keep
 
-putexcel set "D:\HRS\Projects\coronavirus\output\table1_nov17.xls", replace
+putexcel set "D:\HRS\Projects\coronavirus\output\table1_nov22.xls", replace
 putexcel A1:C1= "Table 1. Characteristics of those in COVID survey (N=3,102)", merge bold border(bottom)
 putexcel A2= "Characteristic",  bold border(bottom)
 putexcel B2= "Label",  bold border(bottom)
 putexcel C2= "%",  bold border(bottom)
 
 putexcel A3="Age"
-putexcel B4="less than 60"
-putexcel B5="60-69"
-putexcel B6= "70-79"
-putexcel B7= "80+"
-svy, subpop(keep): tab age_cat
+putexcel B4="less than 65"
+putexcel B5="65-74"
+putexcel B6= "75-84"
+putexcel B7= "85+"
+svy, subpop(keep): tab age_4cat
 mat a=e(b)'
 putexcel C4=matrix(a), nformat(percent_d2)
 
@@ -3752,11 +3795,11 @@ mat a=e(b)'
 putexcel C9=matrix(a), nformat(percent_d2)
 
 putexcel A11= "Race"
-putexcel B12= "White, non-hispanic"
-putexcel B13= "Black, non-hispanic"
-putexcel B14= "Hispanic"
-putexcel B15= " "
-svy, subpop(keep): tab race
+putexcel B12= "White, non-Hispanic"
+putexcel B13= "Black, non-Hispanic"
+putexcel B14= "Other, non-Hispanic"
+putexcel B15= "Hispanic"
+svy, subpop(keep): tab race_eth
 mat a=e(b)'
 putexcel C12=matrix(a), nformat(percent_d2)
 
@@ -3767,42 +3810,77 @@ svy, subpop(keep): tab educ_morethanhs
 mat a=e(b)'
 putexcel C17=matrix(a), nformat(percent_d2)
 
-
-putexcel A19= "Medicaid"
+putexcel A19= "Married"
 putexcel B20="0"
 putexcel B21="1"
-svy, subpop(keep): tab medicaid
+svy, subpop(keep): tab married
 mat a=e(b)'
 putexcel C20=matrix(a), nformat(percent_d2)
 
-putexcel A22= "Received food stamps in last year"
+
+putexcel A22= "Any children"
 putexcel B23="0"
 putexcel B24="1"
-svy, subpop(keep): tab food_stamps
+svy, subpop(keep): tab any_child
 mat a=e(b)'
 putexcel C23=matrix(a), nformat(percent_d2)
 
-putexcel A25= "ADL index"
+putexcel A25= "Lives with children"
 putexcel B26="0"
 putexcel B27="1"
-putexcel B28="2+"
-svy, subpop(keep): tab adl_cat_core
+svy, subpop(keep): tab lives_alone
 mat a=e(b)'
 putexcel C26=matrix(a), nformat(percent_d2)
 
-putexcel A29= "Fair/poor health"
-putexcel B30="0"
-putexcel B31="1"
+putexcel A28= "Lives alone"
+putexcel B29="0"
+putexcel B30="1"
+svy, subpop(keep): tab reschil_d
+mat a=e(b)'
+putexcel C29=matrix(a), nformat(percent_d2)
+
+putexcel A31= "Medicaid"
+putexcel B32="0"
+putexcel B33="1"
+svy, subpop(keep): tab medicaid
+mat a=e(b)'
+putexcel C32=matrix(a), nformat(percent_d2)
+
+putexcel A34= "Received food stamps in last year"
+putexcel B35="0"
+putexcel B36="1"
+svy, subpop(keep): tab food_stamps
+mat a=e(b)'
+putexcel C35=matrix(a), nformat(percent_d2)
+
+putexcel A37= "Independent in ADLs"
+putexcel B38="0"
+putexcel B39="1"
+svy, subpop(keep): tab adl_independent_core
+mat a=e(b)'
+putexcel C38=matrix(a), nformat(percent_d2)
+
+
+putexcel A40= "Independent in IADLs"
+putexcel B41="0"
+putexcel B42="1"
+svy, subpop(keep): tab iadl_independent_core
+mat a=e(b)'
+putexcel C41=matrix(a), nformat(percent_d2)
+
+putexcel A43= "Fair/poor health"
+putexcel B44="0"
+putexcel B45="1"
 svy, subpop(keep): tab srh_pf
 mat a=e(b)'
-putexcel C30=matrix(a), nformat(percent_d2)
+putexcel C44=matrix(a), nformat(percent_d2)
 
-putexcel A32= "Dementia or memory problems"
-putexcel B33="0"
-putexcel B34="1"
+putexcel A46= "Dementia or memory problems"
+putexcel B47="0"
+putexcel B48="1"
 svy, subpop(keep): tab memory_hrs
 mat a=e(b)'
-putexcel C33=matrix(a), nformat(percent_d2)
+putexcel C47=matrix(a), nformat(percent_d2)
 
 
 
@@ -3810,88 +3888,239 @@ putexcel C33=matrix(a), nformat(percent_d2)
 
 
 
-putexcel A35= "COVID questions"
+putexcel A49= "COVID questions"
 
-putexcel A36= "Probably or definitely had covid"
-putexcel B37="0"
-putexcel B38="1"
+putexcel A50= "Probably or definitely had covid"
+putexcel B51="0"
+putexcel B52="1"
 svy, subpop(keep): tab prob_def_covid
 mat a=e(b)'
-putexcel C37=matrix(a), nformat(percent_d2)
+putexcel C51=matrix(a), nformat(percent_d2)
 
-putexcel A39= "Known someone who had covid"
-putexcel B40="0"
-putexcel B41="1"
+putexcel A53= "Known someone who had covid"
+putexcel B54="0"
+putexcel B55="1"
 svy, subpop(keep): tab known_covid
 mat a=e(b)'
-putexcel C40=matrix(a), nformat(percent_d2)
+putexcel C54=matrix(a), nformat(percent_d2)
 
-putexcel A42= "Known someone who died of covid"
-putexcel B43="0"
-putexcel B44="1"
+putexcel A56= "Known someone who died of covid"
+putexcel B57="0"
+putexcel B58="1"
 svy, subpop(keep): tab died_covid
 mat a=e(b)'
-putexcel C43=matrix(a), nformat(percent_d2)
+putexcel C57=matrix(a), nformat(percent_d2)
 
-putexcel A45= "Needed financial help because of COVID, as receiving money or others paying bills"
-putexcel B46="0"
-putexcel B47="1"
+putexcel A59= "Needed financial help because of COVID, as receiving money or others paying bills"
+putexcel B60="0"
+putexcel B61="1"
 svy, subpop(keep): tab hlpd_fin
 mat a=e(b)'
-putexcel C46=matrix(a), nformat(percent_d2)
+putexcel C60=matrix(a), nformat(percent_d2)
 
-putexcel A48= "Missed rent or mortgage payments bc covid"
-putexcel B49="0"
-putexcel B50="1"
+putexcel A62= "Missed rent or mortgage payments bc covid"
+putexcel B63="0"
+putexcel B64="1"
 svy, subpop(keep): tab hrdshp_rent
 mat a=e(b)'
-putexcel C49=matrix(a), nformat(percent_d2)
+putexcel C63=matrix(a), nformat(percent_d2)
 
-putexcel A51= "Missed payments on cc or other debt bc covid"
-putexcel B52="0"
-putexcel B53="1"
+putexcel A65= "Missed payments on cc or other debt bc covid"
+putexcel B66="0"
+putexcel B67="1"
 svy, subpop(keep): tab hrdshp_debt
 mat a=e(b)'
-putexcel C52=matrix(a), nformat(percent_d2)
+putexcel C66=matrix(a), nformat(percent_d2)
 
-putexcel A54= "Missed utility or insurance payments bc covid"
-putexcel B55="0"
-putexcel B56="1"
+putexcel A68= "Missed utility or insurance payments bc covid"
+putexcel B69="0"
+putexcel B70="1"
 svy, subpop(keep): tab hrdshp_medbls
 mat a=e(b)'
-putexcel C55=matrix(a), nformat(percent_d2)
+putexcel C69=matrix(a), nformat(percent_d2)
 
-putexcel A57= "Didn't have money for food bc covid"
-putexcel B58="0"
-putexcel B59="1"
+putexcel A71= "Didn't have money for food bc covid"
+putexcel B72="0"
+putexcel B73="1"
 svy, subpop(keep): tab hrdshp_food
 mat a=e(b)'
-putexcel C58=matrix(a), nformat(percent_d2)
+putexcel C72=matrix(a), nformat(percent_d2)
 
-putexcel A60= "Any of the above financial hardships"
-putexcel B61="0"
-putexcel B62="1"
+putexcel A74= "Any of the above financial hardships"
+putexcel B75="0"
+putexcel B76="1"
 svy, subpop(keep): tab hrdshp_any
 mat a=e(b)'
-putexcel C61=matrix(a), nformat(percent_d2)
+putexcel C75=matrix(a), nformat(percent_d2)
 
-putexcel A63= "Trouble buying food despite having money for it"
-putexcel B64="0"
-putexcel B65="1"
+putexcel A77= "Trouble buying food despite having money for it"
+putexcel B78="0"
+putexcel B79="1"
 svy, subpop(keep): tab hrdshp_getfood
 mat a=e(b)'
-putexcel C64=matrix(a), nformat(percent_d2)
+putexcel C78=matrix(a), nformat(percent_d2)
 
-putexcel A66= "Trouble accessing food, financial or otherwise"
-putexcel B67="0"
-putexcel B68="1"
-svy, subpop(keep): tab any_food_access
+putexcel A80= "Trouble accessing food, financial or otherwise"
+putexcel B81="0"
+putexcel B82="1"
+svy, subpop(keep): tab any_hrdshp_food
 mat a=e(b)'
-putexcel C67=matrix(a), nformat(percent_d2)
+putexcel C81=matrix(a), nformat(percent_d2)
 
 
 *TABLE 2
 *Factors associated with any trouble accessing food or any financial hardship
+putexcel set "D:\HRS\Projects\coronavirus\output\table2_nov22.xls", replace
+svyset SECU [pweight=cvwgtr], strata(stratum_n) vce(linearized)
+
+putexcel A1:G1= "Table 2. Proportion of Older Adults in Each Demographic Category Describing Financial or Food Hardship", merge bold border(bottom)
+putexcel A2= "Demographics",  bold border(bottom)
+putexcel B2= "No Financial Hardship",  bold border(bottom)
+putexcel C2= "Any Financial Hardship",  bold border(bottom)
+putexcel D2= "P-value",  bold border(bottom)
+putexcel E2= "No Food Hardship",  bold border(bottom)
+putexcel F2= "Any Food Hardship",  bold border(bottom)
+putexcel G2= "P-value",  bold border(bottom)
+
+
+putexcel A3="Age"
+putexcel A4="less than 65"
+putexcel A5="65-74"
+putexcel A6= "75-84"
+putexcel A7= "85+"
+svy, subpop(keep): tab  hrdshp_any if age_4cat==1
+mat a=e(b)
+putexcel B4=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if age_4cat==2
+mat a=e(b)
+putexcel B5=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if age_4cat==3
+mat a=e(b)
+putexcel B6=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if age_4cat==4
+mat a=e(b)
+putexcel B7=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any age_4cat, column
+mat p=e(p_Pear)
+putexcel D4=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if age_4cat==1
+mat a=e(b)
+putexcel E4=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if age_4cat==2
+mat a=e(b)
+putexcel E5=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if age_4cat==3
+mat a=e(b)
+putexcel E6=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if age_4cat==4
+mat a=e(b)
+putexcel E7=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food age_4cat, column
+mat p=e(p_Pear)
+putexcel G4=matrix(p)
+
+
+putexcel A8="Female"
+putexcel B9="0"
+putexcel B10="1"
+svy, subpop(keep): tab female
+mat a=e(b)'
+putexcel C9=matrix(a), nformat(percent_d2)
+
+putexcel A11= "Race"
+putexcel B12= "White, non-Hispanic"
+putexcel B13= "Black, non-Hispanic"
+putexcel B14= "Other, non-Hispanic"
+putexcel B15= "Hispanic"
+svy, subpop(keep): tab race_eth
+mat a=e(b)'
+putexcel C12=matrix(a), nformat(percent_d2)
+
+putexcel A16= "More than HS education"
+putexcel B17="0"
+putexcel B18="1"
+svy, subpop(keep): tab educ_morethanhs
+mat a=e(b)'
+putexcel C17=matrix(a), nformat(percent_d2)
+
+putexcel A19= "Married"
+putexcel B20="0"
+putexcel B21="1"
+svy, subpop(keep): tab married
+mat a=e(b)'
+putexcel C20=matrix(a), nformat(percent_d2)
+
+
+putexcel A22= "Any children"
+putexcel B23="0"
+putexcel B24="1"
+svy, subpop(keep): tab any_child
+mat a=e(b)'
+putexcel C23=matrix(a), nformat(percent_d2)
+
+putexcel A25= "Lives with children"
+putexcel B26="0"
+putexcel B27="1"
+svy, subpop(keep): tab lives_alone
+mat a=e(b)'
+putexcel C26=matrix(a), nformat(percent_d2)
+
+putexcel A28= "Lives alone"
+putexcel B29="0"
+putexcel B30="1"
+svy, subpop(keep): tab reschil_d
+mat a=e(b)'
+putexcel C29=matrix(a), nformat(percent_d2)
+
+putexcel A31= "Medicaid"
+putexcel B32="0"
+putexcel B33="1"
+svy, subpop(keep): tab medicaid
+mat a=e(b)'
+putexcel C32=matrix(a), nformat(percent_d2)
+
+putexcel A34= "Received food stamps in last year"
+putexcel B35="0"
+putexcel B36="1"
+svy, subpop(keep): tab food_stamps
+mat a=e(b)'
+putexcel C35=matrix(a), nformat(percent_d2)
+
+putexcel A37= "Independent in ADLs"
+putexcel B38="0"
+putexcel B39="1"
+svy, subpop(keep): tab adl_independent_core
+mat a=e(b)'
+putexcel C38=matrix(a), nformat(percent_d2)
+
+
+putexcel A40= "Independent in IADLs"
+putexcel B41="0"
+putexcel B42="1"
+svy, subpop(keep): tab iadl_independent_core
+mat a=e(b)'
+putexcel C41=matrix(a), nformat(percent_d2)
+
+putexcel A43= "Fair/poor health"
+putexcel B44="0"
+putexcel B45="1"
+svy, subpop(keep): tab srh_pf
+mat a=e(b)'
+putexcel C44=matrix(a), nformat(percent_d2)
+
+putexcel A46= "Dementia or memory problems"
+putexcel B47="0"
+putexcel B48="1"
+svy, subpop(keep): tab memory_hrs
+mat a=e(b)'
+putexcel C47=matrix(a), nformat(percent_d2)
+
+
+
+
+
+
 foreach var of varlist  age_cat race female educ_morethanhs medicaid food_stamps any_adl srh_pf memory_hrs prob_def_covid known_covid died_covid {
 svy, subpop(keep): logistic  hrdshp_any i.`var'
 svy, subpop(keep): logistic any_food_access i.`var'
@@ -3900,5 +4129,6 @@ svy, subpop(keep): logistic any_food_access i.`var'
 svy, subpop(keep): tab any_adl hrdshp_any
 
 tab any_adl hrdshp_any
+svyset SECU [pweight=cvwgtr], strata(STRATUM) vce(linearized)
 
-svy, subpop(keep): logistic  hrdshp_any i.age_cat i.race female educ_morethanhs medicaid food_stamps i.adl_cat_core srh_pf memory_hrs prob_def_covid known_covid died_covid
+svy, subpop(keep): logistic  hrdshp_any i.age_4cat i.race_eth female educ_morethanhs married any_child lives_alone medicaid food_stamps i.adl_cat_core srh_pf memory_hrs  known_covid 
