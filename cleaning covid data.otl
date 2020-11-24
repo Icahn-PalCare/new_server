@@ -3181,12 +3181,12 @@ replace food_stamps=1 if RQ400==1
 replace food_stamps=0 if RQ400==5
 
 gen food_stamps_curr=.
-replace food_stamps=1 if RQ532==1
-replace food_stamps=0 if RQ532==5
+replace food_stamps_curr=1 if RQ532==1
+replace food_stamps_curr=0 if RQ532==5
 
 gen food_del_door=.
-replace food_stamps=1 if RQ421==1
-replace food_stamps=0 if RQ421==5
+replace food_del_door=1 if RQ421==1
+replace food_del_door=0 if RQ421==5
 
 gen year=2018
 
@@ -3683,6 +3683,9 @@ la var psych_overall_hrs "Indicator for any psychiatric problems from HRS"
 tab psych_overall_hrs ,missing
 
 
+
+
+
  save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 6.dta", replace
 
 H="Step 7: drop raw vars and merge in prior HRS and tracker data"
@@ -3700,16 +3703,34 @@ sort hhid pn core_year
 by hhid pn: egen maxyear=max(core_year)
 
 keep if maxyear==2020
-rename hhid HHID
-rename pn PN
-merge m:1 HHID PN using "D:\HRS\Shared\raw\HRS\hrs_tracking_2018\trk2018tr_r.dta" , keepusing(SECU STRATUM RACE BIRTHYR)
+gen HHID= hhid
+gen PN=  pn
+merge m:1 HHID PN using "D:\HRS\Shared\raw\HRS\hrs_tracking_2018\trk2018tr_r.dta" , keepusing(SECU STRATUM RACE HISPANIC BIRTHYR BIRTHMO)
 keep if _merge==3
-rename HHID hhid
-rename PN pn
+
+gen age=.
+replace age=2020-BIRTHYR if BIRTHMO<8
+replace age=2019-BIRTHYR if BIRTHMO>7
+replace age=. if BIRTHYR==0
+
+drop BIRTHYR BIRTHMO
+
 
 *make keep variable
 gen keep=0
 replace keep=1 if core_year==2020 & cvwgtr!=.
+
+*make race variable
+gen race_eth=.
+replace race_eth=1 if RACE==1
+replace race_eth=2 if RACE==2
+replace race_eth=3 if RACE==7
+replace race_eth=4 if (HISPANIC==1) | (HISPANIC==2) | (HISPANIC==3)
+label define re1 1 "White, non-Hispanic" 2 "Black, non-Hispanic" 3 "Other, non-Hispanic" 4 "Hispanic"
+label values race_eth re1
+tab race_eth
+
+
 
 
 
@@ -3744,22 +3765,34 @@ sort hhid pn core_year
 by hhid pn: replace adl_independent_core =0 if (adl_independent_core[_n-1]==0) & adl_independent_core==. & keep==1
 by hhid pn: replace adl_independent_core = 1 if (adl_independent_core[_n-1]==1)& keep==1 & adl_independent_core==.
 
-*foodstamps
-*by hhid pn: replace food_stamps= food_stamps[_n-1] if food_stamps==. & keep==1 
-*didn't work bc only have food stamps in 2020-- could add
+*foodstamps: Replace household value if missing
+sort hhid pn
+by hhid: replace food_stamps= food_stamps[_n-1] if food_stamps==. & keep==1 & food_stamps[_n-1]!=.
+egen n_yesfs=total(food_stamps==1), by(hhid)
+egen n_nofs=total(food_stamps==0), by(hhid)
+replace food_stamps=1 if keep==1 & food_stamps==. & ((n_yesfs==1)|(n_yesfs==2))
+replace food_stamps=0 if keep==1 & food_stamps==. & ((n_nofs==1)|(n_nofs==2)|(n_nofs==3))
+tab food_stamps if keep==1, m
+
+
 
 recode child (0=0)(1/999=1), gen(any_child)
 
-recode hhm (0=1)(1/999=0), gen(lives_alone)
 
-*any covid food access
-gen any_food_access=.
-replace any_food_access=1 if 
+
+gen live_alone=0 if (resspouse==1 | reschil_d==1 | (hhm>0 & hhm!=.))
+replace live_alone=1 if (resspouse==0 & reschil_d==0 & hhm==0)
+sort hhid pn core_year
+by hhid pn: replace live_alone= live_alone[_n-1] if live_alone==. & keep==1 
 
 *new stratum
 gen stratum_n= STRATUM
 replace stratum_n= 53 if STRATUM==54
 replace stratum_n= 15 if STRATUM==14
+
+
+*further edit keep variable to exclude nhres
+replace keep=0 if nhres==1
 
 save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 8.dta", replace
 
@@ -3772,7 +3805,7 @@ svyset SECU [pweight=cvwgtr], strata(STRATUM) vce(linearized)
 
 tab keep
 
-putexcel set "D:\HRS\Projects\coronavirus\output\table1_nov22.xls", replace
+putexcel set "D:\HRS\Projects\coronavirus\output\table1_nov23.xls", replace
 putexcel A1:C1= "Table 1. Characteristics of those in COVID survey (N=3,102)", merge bold border(bottom)
 putexcel A2= "Characteristic",  bold border(bottom)
 putexcel B2= "Label",  bold border(bottom)
@@ -3786,6 +3819,8 @@ putexcel B7= "85+"
 svy, subpop(keep): tab age_4cat
 mat a=e(b)'
 putexcel C4=matrix(a), nformat(percent_d2)
+svy, subpop(keep): mean age
+
 
 putexcel A8="Female"
 putexcel B9="0"
@@ -3828,14 +3863,14 @@ putexcel C23=matrix(a), nformat(percent_d2)
 putexcel A25= "Lives with children"
 putexcel B26="0"
 putexcel B27="1"
-svy, subpop(keep): tab lives_alone
+svy, subpop(keep): tab  reschil_d
 mat a=e(b)'
 putexcel C26=matrix(a), nformat(percent_d2)
 
 putexcel A28= "Lives alone"
 putexcel B29="0"
 putexcel B30="1"
-svy, subpop(keep): tab reschil_d
+svy, subpop(keep): tab lives_alone
 mat a=e(b)'
 putexcel C29=matrix(a), nformat(percent_d2)
 
@@ -3970,7 +4005,7 @@ putexcel C81=matrix(a), nformat(percent_d2)
 
 *TABLE 2
 *Factors associated with any trouble accessing food or any financial hardship
-putexcel set "D:\HRS\Projects\coronavirus\output\table2_nov22.xls", replace
+putexcel set "D:\HRS\Projects\coronavirus\output\table2_nov23.xls", replace
 svyset SECU [pweight=cvwgtr], strata(stratum_n) vce(linearized)
 
 putexcel A1:G1= "Table 2. Proportion of Older Adults in Each Demographic Category Describing Financial or Food Hardship", merge bold border(bottom)
@@ -4022,113 +4057,380 @@ putexcel G4=matrix(p)
 
 
 putexcel A8="Female"
-putexcel B9="0"
-putexcel B10="1"
-svy, subpop(keep): tab female
-mat a=e(b)'
-putexcel C9=matrix(a), nformat(percent_d2)
+putexcel A9="0"
+putexcel A10="1"
+
+svy, subpop(keep): tab  hrdshp_any if female==0
+mat a=e(b)
+putexcel B9=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if female==1
+mat a=e(b)
+putexcel B10=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any female, column
+mat p=e(p_Pear)
+putexcel D9=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if female==0
+mat a=e(b)
+putexcel E9=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if female==1
+mat a=e(b)
+putexcel E10=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food female, column
+mat p=e(p_Pear)
+putexcel G9=matrix(p)
+
 
 putexcel A11= "Race"
-putexcel B12= "White, non-Hispanic"
-putexcel B13= "Black, non-Hispanic"
-putexcel B14= "Other, non-Hispanic"
-putexcel B15= "Hispanic"
-svy, subpop(keep): tab race_eth
-mat a=e(b)'
-putexcel C12=matrix(a), nformat(percent_d2)
+putexcel A12= "White, non-Hispanic"
+putexcel A13= "Black, non-Hispanic"
+putexcel A14= "Other, non-Hispanic"
+putexcel A15= "Hispanic"
+
+svy, subpop(keep): tab  hrdshp_any if race_eth==1
+mat a=e(b)
+putexcel B12=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if race_eth==2
+mat a=e(b)
+putexcel B13=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if race_eth==3
+mat a=e(b)
+putexcel B14=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if race_eth==4
+mat a=e(b)
+putexcel B15=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any race_eth, column
+mat p=e(p_Pear)
+putexcel D12=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if race_eth==1
+mat a=e(b)
+putexcel E12=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if race_eth==2
+mat a=e(b)
+putexcel E13=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if race_eth==3
+mat a=e(b)
+putexcel E14=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if race_eth==4
+mat a=e(b)
+putexcel E15=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food race_eth, column
+mat p=e(p_Pear)
+putexcel G12=matrix(p)
 
 putexcel A16= "More than HS education"
-putexcel B17="0"
-putexcel B18="1"
-svy, subpop(keep): tab educ_morethanhs
-mat a=e(b)'
-putexcel C17=matrix(a), nformat(percent_d2)
+putexcel A17="0"
+putexcel A18="1"
+svy, subpop(keep): tab  hrdshp_any if educ_morethanhs==0
+mat a=e(b)
+putexcel B17=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if educ_morethanhs==1
+mat a=e(b)
+putexcel B18=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any educ_morethanhs, column
+mat p=e(p_Pear)
+putexcel D17=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if educ_morethanhs==0
+mat a=e(b)
+putexcel E17=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if educ_morethanhs==1
+mat a=e(b)
+putexcel E18=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food educ_morethanhs, column
+mat p=e(p_Pear)
+putexcel G17=matrix(p)
+
 
 putexcel A19= "Married"
-putexcel B20="0"
-putexcel B21="1"
-svy, subpop(keep): tab married
-mat a=e(b)'
-putexcel C20=matrix(a), nformat(percent_d2)
+putexcel A20="0"
+putexcel A21="1"
+svy, subpop(keep): tab  hrdshp_any if married==0
+mat a=e(b)
+putexcel B20=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if married==1
+mat a=e(b)
+putexcel B21=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any married, column
+mat p=e(p_Pear)
+putexcel D20=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if married==0
+mat a=e(b)
+putexcel E20=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if married==1
+mat a=e(b)
+putexcel E21=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food married, column
+mat p=e(p_Pear)
+putexcel G20=matrix(p)
 
 
 putexcel A22= "Any children"
-putexcel B23="0"
-putexcel B24="1"
-svy, subpop(keep): tab any_child
-mat a=e(b)'
-putexcel C23=matrix(a), nformat(percent_d2)
+putexcel A23="0"
+putexcel A24="1"
+svy, subpop(keep): tab  hrdshp_any if any_child==0
+mat a=e(b)
+putexcel B23=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if any_child==1
+mat a=e(b)
+putexcel B24=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any any_child, column
+mat p=e(p_Pear)
+putexcel D23=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if any_child==0
+mat a=e(b)
+putexcel E23=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if any_child==1
+mat a=e(b)
+putexcel E24=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food any_child, column
+mat p=e(p_Pear)
+putexcel G23=matrix(p)
+
 
 putexcel A25= "Lives with children"
-putexcel B26="0"
-putexcel B27="1"
-svy, subpop(keep): tab lives_alone
-mat a=e(b)'
-putexcel C26=matrix(a), nformat(percent_d2)
+putexcel A26="0"
+putexcel A27="1"
+svy, subpop(keep): tab  hrdshp_any if reschil_d==0
+mat a=e(b)
+putexcel B26=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if reschil_d==1
+mat a=e(b)
+putexcel B27=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any reschil_d, column
+mat p=e(p_Pear)
+putexcel D26=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if reschil_d==0
+mat a=e(b)
+putexcel E26=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if reschil_d==1
+mat a=e(b)
+putexcel E27=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food reschil_d, column
+mat p=e(p_Pear)
+putexcel G26=matrix(p)
+
 
 putexcel A28= "Lives alone"
-putexcel B29="0"
-putexcel B30="1"
-svy, subpop(keep): tab reschil_d
-mat a=e(b)'
-putexcel C29=matrix(a), nformat(percent_d2)
+putexcel A29="0"
+putexcel A30="1"
+svy, subpop(keep): tab  hrdshp_any if lives_alone==0
+mat a=e(b)
+putexcel B29=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if lives_alone==1
+mat a=e(b)
+putexcel B30=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any lives_alone, column
+mat p=e(p_Pear)
+putexcel D29=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if lives_alone==0
+mat a=e(b)
+putexcel E29=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if lives_alone==1
+mat a=e(b)
+putexcel E30=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food lives_alone, column
+mat p=e(p_Pear)
+putexcel G29=matrix(p)
+
 
 putexcel A31= "Medicaid"
-putexcel B32="0"
-putexcel B33="1"
-svy, subpop(keep): tab medicaid
-mat a=e(b)'
-putexcel C32=matrix(a), nformat(percent_d2)
+putexcel A32="0"
+putexcel A33="1"
+svy, subpop(keep): tab  hrdshp_any if medicaid==0
+mat a=e(b)
+putexcel B32=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if medicaid==1
+mat a=e(b)
+putexcel B33=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any medicaid, column
+mat p=e(p_Pear)
+putexcel D32=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if medicaid==0
+mat a=e(b)
+putexcel E32=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if medicaid==1
+mat a=e(b)
+putexcel E33=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food medicaid, column
+mat p=e(p_Pear)
+putexcel G32=matrix(p)
+
 
 putexcel A34= "Received food stamps in last year"
-putexcel B35="0"
-putexcel B36="1"
-svy, subpop(keep): tab food_stamps
-mat a=e(b)'
-putexcel C35=matrix(a), nformat(percent_d2)
+putexcel A35="0"
+putexcel A36="1"
+svy, subpop(keep): tab  hrdshp_any if food_stamps==0
+mat a=e(b)
+putexcel B35=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if food_stamps==1
+mat a=e(b)
+putexcel B36=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any food_stamps, column
+mat p=e(p_Pear)
+putexcel D35=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if food_stamps==0
+mat a=e(b)
+putexcel E35=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if food_stamps==1
+mat a=e(b)
+putexcel E36=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food food_stamps, column
+mat p=e(p_Pear)
+putexcel G35=matrix(p)
+
 
 putexcel A37= "Independent in ADLs"
-putexcel B38="0"
-putexcel B39="1"
-svy, subpop(keep): tab adl_independent_core
-mat a=e(b)'
-putexcel C38=matrix(a), nformat(percent_d2)
+putexcel A38="0"
+putexcel A39="1"
+svy, subpop(keep): tab  hrdshp_any if adl_independent_core==0
+mat a=e(b)
+putexcel B38=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if adl_independent_core==1
+mat a=e(b)
+putexcel B39=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any adl_independent_core, column
+mat p=e(p_Pear)
+putexcel D38=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if adl_independent_core==0
+mat a=e(b)
+putexcel E38=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if adl_independent_core==1
+mat a=e(b)
+putexcel E39=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food adl_independent_core, column
+mat p=e(p_Pear)
+putexcel G38=matrix(p)
+
 
 
 putexcel A40= "Independent in IADLs"
-putexcel B41="0"
-putexcel B42="1"
-svy, subpop(keep): tab iadl_independent_core
-mat a=e(b)'
-putexcel C41=matrix(a), nformat(percent_d2)
+putexcel A41="0"
+putexcel A42="1"
+svy, subpop(keep): tab  hrdshp_any if iadl_independent_core==0
+mat a=e(b)
+putexcel B41=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if iadl_independent_core==1
+mat a=e(b)
+putexcel B42=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any iadl_independent_core, column
+mat p=e(p_Pear)
+putexcel D41=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if iadl_independent_core==0
+mat a=e(b)
+putexcel E41=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if iadl_independent_core==1
+mat a=e(b)
+putexcel E42=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food iadl_independent_core, column
+mat p=e(p_Pear)
+putexcel G41=matrix(p)
 
 putexcel A43= "Fair/poor health"
-putexcel B44="0"
-putexcel B45="1"
-svy, subpop(keep): tab srh_pf
-mat a=e(b)'
-putexcel C44=matrix(a), nformat(percent_d2)
+putexcel A44="0"
+putexcel A45="1"
+svy, subpop(keep): tab  hrdshp_any if srh_pf==0
+mat a=e(b)
+putexcel B44=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if srh_pf==1
+mat a=e(b)
+putexcel B45=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any srh_pf, column
+mat p=e(p_Pear)
+putexcel D44=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if srh_pf==0
+mat a=e(b)
+putexcel E44=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if srh_pf==1
+mat a=e(b)
+putexcel E45=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food srh_pf, column
+mat p=e(p_Pear)
+putexcel G44=matrix(p)
+
 
 putexcel A46= "Dementia or memory problems"
-putexcel B47="0"
-putexcel B48="1"
-svy, subpop(keep): tab memory_hrs
-mat a=e(b)'
-putexcel C47=matrix(a), nformat(percent_d2)
+putexcel A47="0"
+putexcel A48="1"
+
+svy, subpop(keep): tab  hrdshp_any if memory_hrs==0
+mat a=e(b)
+putexcel B47=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if memory_hrs==1
+mat a=e(b)
+putexcel B48=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any memory_hrs, column
+mat p=e(p_Pear)
+putexcel D47=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if memory_hrs==0
+mat a=e(b)
+putexcel E47=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if memory_hrs==1
+mat a=e(b)
+putexcel E48=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food memory_hrs, column
+mat p=e(p_Pear)
+putexcel G47=matrix(p)
+
+
+putexcel A49= "Knew anyone who had COVID"
+putexcel A50="0"
+putexcel A51="1"
+
+svy, subpop(keep): tab  hrdshp_any if known_covid==0
+mat a=e(b)
+putexcel B50=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if known_covid==1
+mat a=e(b)
+putexcel B51=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any known_covid, column
+mat p=e(p_Pear)
+putexcel D50=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if known_covid==0
+mat a=e(b)
+putexcel E50=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if known_covid==1
+mat a=e(b)
+putexcel E51=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food known_covid, column
+mat p=e(p_Pear)
+putexcel G50=matrix(p)
+
+putexcel A52= "Knew anyone who died of COVID"
+putexcel A53="0"
+putexcel A54="1"
+
+svy, subpop(keep): tab  hrdshp_any if died_covid==0
+mat a=e(b)
+putexcel B53=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any if died_covid==1
+mat a=e(b)
+putexcel B54=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_any died_covid, column
+mat p=e(p_Pear)
+putexcel D53=matrix(p)
+
+svy, subpop(keep): tab  hrdshp_food if died_covid==0
+mat a=e(b)
+putexcel E53=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food if died_covid==1
+mat a=e(b)
+putexcel E54=matrix(a), nformat(percent_d2)
+svy, subpop(keep): tab  hrdshp_food died_covid, column
+mat p=e(p_Pear)
+putexcel G53=matrix(p)
 
 
 
-
-
-
-foreach var of varlist  age_cat race female educ_morethanhs medicaid food_stamps any_adl srh_pf memory_hrs prob_def_covid known_covid died_covid {
-svy, subpop(keep): logistic  hrdshp_any i.`var'
-svy, subpop(keep): logistic any_food_access i.`var'
-}
-
-svy, subpop(keep): tab any_adl hrdshp_any
-
-tab any_adl hrdshp_any
-svyset SECU [pweight=cvwgtr], strata(STRATUM) vce(linearized)
-
-svy, subpop(keep): logistic  hrdshp_any i.age_4cat i.race_eth female educ_morethanhs married any_child lives_alone medicaid food_stamps i.adl_cat_core srh_pf memory_hrs  known_covid 
