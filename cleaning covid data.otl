@@ -3181,12 +3181,12 @@ replace food_stamps=1 if RQ400==1
 replace food_stamps=0 if RQ400==5
 
 gen food_stamps_curr=.
-replace food_stamps_curr=1 if RQ532==1
-replace food_stamps_curr=0 if RQ532==5
+replace food_stamps=1 if RQ532==1
+replace food_stamps=0 if RQ532==5
 
 gen food_del_door=.
-replace food_del_door=1 if RQ421==1
-replace food_del_door=0 if RQ421==5
+replace food_stamps=1 if RQ421==1
+replace food_stamps=0 if RQ421==5
 
 gen year=2018
 
@@ -3221,8 +3221,35 @@ append using "`v2016'"
 replace n_hp=0 if _merge==3 & n_hp==.
 drop _merge
 
+rename hhid pn, u
 
-merge 1:1 hhid pn using "D:\HRS\Shared\base_data\hrs_cleaned\restr_tracker_v2016.dta", keepusing(birth_date birthmo birthyr hisp_eth white black other_na_api_race race) keep(master matched) 
+merge 1:1 HHID PN using "D:\HRS\Shared\raw\HRS\hrs_tracking_2018\trk2018tr_r.dta", keepusing(BIRTHMO BIRTHYR HISPANIC RACE) keep(master matched) 
+
+rename HHID PN, l
+
+gen white=.
+replace white=0 if RACE!=0
+replace white=1 if RACE==1 & HISPANIC==5
+label var white "White, Non-Hispanic"
+
+gen black=.
+replace black=0 if RACE!=0
+replace black=1 if RACE==2 & HISPANIC==5
+label var black "Black, Non-Hispanic"
+
+gen other=.
+replace other=0 if RACE!=0
+replace other=1 if RACE==7 & HISPANIC==5
+label var other "Other, Non-Hispanic"
+
+gen hisp_eth=.
+replace hisp_eth=0 if HISPANIC!=0
+replace hisp_eth=1 if inlist(HISPANIC, 1,2,3)
+label var hisp_eth "Hispanic Ethnicity"
+
+gen birth_date=mdy(BIRTHMO,1,BIRTHYR)
+
+drop BIRTHMO BIRTHYR HISPANIC RACE
 
 gen covid_ivw_date=mdy(7,1,2020)
 gen age=floor((covid_ivw_date-birth_date)/365.25)
@@ -3683,9 +3710,6 @@ la var psych_overall_hrs "Indicator for any psychiatric problems from HRS"
 tab psych_overall_hrs ,missing
 
 
-
-
-
  save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 6.dta", replace
 
 H="Step 7: drop raw vars and merge in prior HRS and tracker data"
@@ -3870,7 +3894,7 @@ putexcel C26=matrix(a), nformat(percent_d2)
 putexcel A28= "Lives alone"
 putexcel B29="0"
 putexcel B30="1"
-svy, subpop(keep): tab lives_alone
+svy, subpop(keep): tab live_alone
 mat a=e(b)'
 putexcel C29=matrix(a), nformat(percent_d2)
 
@@ -4035,7 +4059,7 @@ putexcel B6=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if age_4cat==4
 mat a=e(b)
 putexcel B7=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any age_4cat, column
+svy, subpop(keep): tab  hrdshp_any age_4cat, column ci
 mat p=e(p_Pear)
 putexcel D4=matrix(p)
 
@@ -4051,7 +4075,7 @@ putexcel E6=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if age_4cat==4
 mat a=e(b)
 putexcel E7=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food age_4cat, column
+svy, subpop(keep): tab  hrdshp_food age_4cat, column ci
 mat p=e(p_Pear)
 putexcel G4=matrix(p)
 
@@ -4066,7 +4090,7 @@ putexcel B9=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if female==1
 mat a=e(b)
 putexcel B10=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any female, column
+svy, subpop(keep): tab  hrdshp_any female, column ci
 mat p=e(p_Pear)
 putexcel D9=matrix(p)
 
@@ -4076,7 +4100,7 @@ putexcel E9=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if female==1
 mat a=e(b)
 putexcel E10=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food female, column
+svy, subpop(keep): tab  hrdshp_food female, column ci
 mat p=e(p_Pear)
 putexcel G9=matrix(p)
 
@@ -4099,7 +4123,7 @@ putexcel B14=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if race_eth==4
 mat a=e(b)
 putexcel B15=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any race_eth, column
+svy, subpop(keep): tab  hrdshp_any race_eth, column ci
 mat p=e(p_Pear)
 putexcel D12=matrix(p)
 
@@ -4115,7 +4139,7 @@ putexcel E14=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if race_eth==4
 mat a=e(b)
 putexcel E15=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food race_eth, column
+svy, subpop(keep): tab  hrdshp_food race_eth, column ci
 mat p=e(p_Pear)
 putexcel G12=matrix(p)
 
@@ -4128,7 +4152,7 @@ putexcel B17=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if educ_morethanhs==1
 mat a=e(b)
 putexcel B18=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any educ_morethanhs, column
+svy, subpop(keep): tab  hrdshp_any educ_morethanhs, column ci
 mat p=e(p_Pear)
 putexcel D17=matrix(p)
 
@@ -4138,7 +4162,7 @@ putexcel E17=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if educ_morethanhs==1
 mat a=e(b)
 putexcel E18=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food educ_morethanhs, column
+svy, subpop(keep): tab  hrdshp_food educ_morethanhs, column ci
 mat p=e(p_Pear)
 putexcel G17=matrix(p)
 
@@ -4152,7 +4176,7 @@ putexcel B20=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if married==1
 mat a=e(b)
 putexcel B21=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any married, column
+svy, subpop(keep): tab  hrdshp_any married, column ci
 mat p=e(p_Pear)
 putexcel D20=matrix(p)
 
@@ -4162,7 +4186,7 @@ putexcel E20=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if married==1
 mat a=e(b)
 putexcel E21=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food married, column
+svy, subpop(keep): tab  hrdshp_food married, column ci
 mat p=e(p_Pear)
 putexcel G20=matrix(p)
 
@@ -4176,7 +4200,7 @@ putexcel B23=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if any_child==1
 mat a=e(b)
 putexcel B24=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any any_child, column
+svy, subpop(keep): tab  hrdshp_any any_child, column ci
 mat p=e(p_Pear)
 putexcel D23=matrix(p)
 
@@ -4186,7 +4210,7 @@ putexcel E23=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if any_child==1
 mat a=e(b)
 putexcel E24=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food any_child, column
+svy, subpop(keep): tab  hrdshp_food any_child, column ci
 mat p=e(p_Pear)
 putexcel G23=matrix(p)
 
@@ -4200,7 +4224,7 @@ putexcel B26=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if reschil_d==1
 mat a=e(b)
 putexcel B27=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any reschil_d, column
+svy, subpop(keep): tab  hrdshp_any reschil_d, column ci
 mat p=e(p_Pear)
 putexcel D26=matrix(p)
 
@@ -4210,7 +4234,7 @@ putexcel E26=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if reschil_d==1
 mat a=e(b)
 putexcel E27=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food reschil_d, column
+svy, subpop(keep): tab  hrdshp_food reschil_d, column ci
 mat p=e(p_Pear)
 putexcel G26=matrix(p)
 
@@ -4218,23 +4242,23 @@ putexcel G26=matrix(p)
 putexcel A28= "Lives alone"
 putexcel A29="0"
 putexcel A30="1"
-svy, subpop(keep): tab  hrdshp_any if lives_alone==0
+svy, subpop(keep): tab  hrdshp_any if live_alone==0
 mat a=e(b)
 putexcel B29=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any if lives_alone==1
+svy, subpop(keep): tab  hrdshp_any if live_alone==1
 mat a=e(b)
 putexcel B30=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any lives_alone, column
+svy, subpop(keep): tab  hrdshp_any live_alone, column ci
 mat p=e(p_Pear)
 putexcel D29=matrix(p)
 
-svy, subpop(keep): tab  hrdshp_food if lives_alone==0
+svy, subpop(keep): tab  hrdshp_food if live_alone==0
 mat a=e(b)
 putexcel E29=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food if lives_alone==1
+svy, subpop(keep): tab  hrdshp_food if live_alone==1
 mat a=e(b)
 putexcel E30=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food lives_alone, column
+svy, subpop(keep): tab  hrdshp_food live_alone, column ci
 mat p=e(p_Pear)
 putexcel G29=matrix(p)
 
@@ -4248,7 +4272,7 @@ putexcel B32=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if medicaid==1
 mat a=e(b)
 putexcel B33=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any medicaid, column
+svy, subpop(keep): tab  hrdshp_any medicaid, column ci
 mat p=e(p_Pear)
 putexcel D32=matrix(p)
 
@@ -4258,7 +4282,7 @@ putexcel E32=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if medicaid==1
 mat a=e(b)
 putexcel E33=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food medicaid, column
+svy, subpop(keep): tab  hrdshp_food medicaid, column ci
 mat p=e(p_Pear)
 putexcel G32=matrix(p)
 
@@ -4272,7 +4296,7 @@ putexcel B35=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if food_stamps==1
 mat a=e(b)
 putexcel B36=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any food_stamps, column
+svy, subpop(keep): tab  hrdshp_any food_stamps, column ci
 mat p=e(p_Pear)
 putexcel D35=matrix(p)
 
@@ -4282,7 +4306,7 @@ putexcel E35=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if food_stamps==1
 mat a=e(b)
 putexcel E36=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food food_stamps, column
+svy, subpop(keep): tab  hrdshp_food food_stamps, column ci
 mat p=e(p_Pear)
 putexcel G35=matrix(p)
 
@@ -4296,7 +4320,7 @@ putexcel B38=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if adl_independent_core==1
 mat a=e(b)
 putexcel B39=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any adl_independent_core, column
+svy, subpop(keep): tab  hrdshp_any adl_independent_core, column ci
 mat p=e(p_Pear)
 putexcel D38=matrix(p)
 
@@ -4306,7 +4330,7 @@ putexcel E38=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if adl_independent_core==1
 mat a=e(b)
 putexcel E39=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food adl_independent_core, column
+svy, subpop(keep): tab  hrdshp_food adl_independent_core, column ci
 mat p=e(p_Pear)
 putexcel G38=matrix(p)
 
@@ -4321,7 +4345,7 @@ putexcel B41=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if iadl_independent_core==1
 mat a=e(b)
 putexcel B42=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any iadl_independent_core, column
+svy, subpop(keep): tab  hrdshp_any iadl_independent_core, column ci
 mat p=e(p_Pear)
 putexcel D41=matrix(p)
 
@@ -4331,7 +4355,7 @@ putexcel E41=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if iadl_independent_core==1
 mat a=e(b)
 putexcel E42=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food iadl_independent_core, column
+svy, subpop(keep): tab  hrdshp_food iadl_independent_core, column ci
 mat p=e(p_Pear)
 putexcel G41=matrix(p)
 
@@ -4344,7 +4368,7 @@ putexcel B44=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if srh_pf==1
 mat a=e(b)
 putexcel B45=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any srh_pf, column
+svy, subpop(keep): tab  hrdshp_any srh_pf, column ci
 mat p=e(p_Pear)
 putexcel D44=matrix(p)
 
@@ -4354,7 +4378,7 @@ putexcel E44=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if srh_pf==1
 mat a=e(b)
 putexcel E45=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food srh_pf, column
+svy, subpop(keep): tab  hrdshp_food srh_pf, column ci
 mat p=e(p_Pear)
 putexcel G44=matrix(p)
 
@@ -4369,7 +4393,7 @@ putexcel B47=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if memory_hrs==1
 mat a=e(b)
 putexcel B48=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any memory_hrs, column
+svy, subpop(keep): tab  hrdshp_any memory_hrs, column ci
 mat p=e(p_Pear)
 putexcel D47=matrix(p)
 
@@ -4379,7 +4403,7 @@ putexcel E47=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if memory_hrs==1
 mat a=e(b)
 putexcel E48=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food memory_hrs, column
+svy, subpop(keep): tab  hrdshp_food memory_hrs, column ci
 mat p=e(p_Pear)
 putexcel G47=matrix(p)
 
@@ -4394,7 +4418,7 @@ putexcel B50=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if known_covid==1
 mat a=e(b)
 putexcel B51=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any known_covid, column
+svy, subpop(keep): tab  hrdshp_any known_covid, column ci
 mat p=e(p_Pear)
 putexcel D50=matrix(p)
 
@@ -4404,7 +4428,7 @@ putexcel E50=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if known_covid==1
 mat a=e(b)
 putexcel E51=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food known_covid, column
+svy, subpop(keep): tab  hrdshp_food known_covid, column ci
 mat p=e(p_Pear)
 putexcel G50=matrix(p)
 
@@ -4418,7 +4442,7 @@ putexcel B53=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_any if died_covid==1
 mat a=e(b)
 putexcel B54=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_any died_covid, column
+svy, subpop(keep): tab  hrdshp_any died_covid, column ci
 mat p=e(p_Pear)
 putexcel D53=matrix(p)
 
@@ -4428,7 +4452,7 @@ putexcel E53=matrix(a), nformat(percent_d2)
 svy, subpop(keep): tab  hrdshp_food if died_covid==1
 mat a=e(b)
 putexcel E54=matrix(a), nformat(percent_d2)
-svy, subpop(keep): tab  hrdshp_food died_covid, column
+svy, subpop(keep): tab  hrdshp_food died_covid, column ci
 mat p=e(p_Pear)
 putexcel G53=matrix(p)
 
