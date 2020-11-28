@@ -272,3 +272,30 @@ traj, model (cnorm) var(adlp1 adlp2 adlp3) indep(mnths_p1 mnths_p2 mnths_p3) ord
 
 traj, model (cnorm) var(adlp1 adlp2 adlp3) indep(mnths_p1 mnths_p2 mnths_p3) order(2 2 2 2) min(0) max(6)
 trajplot, xtitle("Months after new disability") ytitle ("Number of ADLs") ci
+
+*ASSESS MODEL FIT
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 2 2 2) min(0) max(6)
+mean _traj_ProbG1 if _traj_Group==1
+mean _traj_ProbG2 if _traj_Group==2
+mean _traj_ProbG3 if _traj_Group==3
+mean _traj_ProbG4 if _traj_Group==4
+mean _traj_ProbG1, over(_traj_Group)
+mean _traj_ProbG2, over(_traj_Group)
+mean _traj_ProbG3, over(_traj_Group)
+mean _traj_ProbG4, over(_traj_Group)
+
+
+*characteristics of people in each group
+mean age, over(_traj_Group)
+mean female, over(_traj_Group)
+proportion race_cat, over(_traj_Group)
+ _traj_Group, column 
+ 
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 2 2 2) min(0) max(6) risk (age female white educ_hs_ind livealone sr_stroke_ever sr_cancer_ever sr_heart_dis_ever sr_htn_ever sr_hip_ever sr_diabetes_ever sr_lung_dis_ever sr_numconditions1 dem_2_cat income_quart)
+
+mlogit _traj_Group age female i.race_cat educ_hs_ind livealone sr_stroke_ever sr_cancer_ever sr_heart_dis_ever sr_htn_ever sr_hip_ever sr_diabetes_ever sr_lung_dis_ever sr_numconditions1 dem_2_cat income_quart, base(3)
+
+reg _traj_ProbG1 age female i.race_cat educ_hs_ind livealone sr_stroke_ever sr_cancer_ever sr_heart_dis_ever sr_htn_ever sr_lung_dis_ever sr_numconditions1 dem_2_cat income_quart
+vif 
+
+linktest, nolog
