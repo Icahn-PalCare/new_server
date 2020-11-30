@@ -44,7 +44,7 @@ merge 1:1 hhid pn cvwgtr rvdate rversion using "D:\HRS\Projects\coronavirus\data
 
 */
 
-save "D:\HRS\Projects\coronavirus\data\merged\covid merged.dta", replace
+save "D:\HRS\Projects\coronavirus\data\merged\covid_merged.dta", replace
 
 H="Step 1: basic demographics"
 *STEP 1 BASIC DEMOGRAPHICS 
