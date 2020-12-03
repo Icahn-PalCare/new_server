@@ -1,0 +1,126 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Intro"
+libname clean 'D:\HRS\Shared\base_data\hrs_cleaned'; 
+libname medi 'D:\HRS\Shared\raw\CMS\CMS_DUA_51675_2016';
+libname proj_int 'D:\HRS\Projects\dem_2016\data\int_data';
+libname xref 'D:\HRS\Shared\base_data\hrs_cms\SAS';
+
+/*rand data path*/
+libname rand 'D:\HRS\Shared\raw\HRS\hrs_public_2014\rand2014\main';
+
+
+
+H="Merge xwalk to core"
+data core;
+set clean.core_00_to_16;
+label c_ivw_year="Core interview year";
+run;
+
+proc sort data=core nodupkey;
+by id core_year;
+run;
+
+data core_2016;
+set core;
+if core_year=2016;
+run;
+
+
+/*Get claims 1 year and 2 year before each core interview*/
+
+/*Step 1: Bring in mc xwalk id
+sic_int.core_xwalk_1 has core interviews, age and claims xwalk id */
+
+/*prepare core dataset to merge*/
+
+/*prepare xwalk id file to merge*/
+data crosswalk_1;
+set xref.xref2015medicare;
+keep bid_hrs_22 hhid pn;
+run;
+
+/*get 2 variables bid_hrs = claims id, id=HRS id*/
+data crosswalk_2;
+set crosswalk_1;
+bid_hrs=bid_hrs_22;
+id=trim(hhid)||trim(pn);
+drop hhid pn;
+drop bid_hrs_22;
+run;
+
+proc sort data= crosswalk_2;
+by id;
+run;
+
+/*bring in xwalk id to core interview dataset*/
+proc sql;
+create table core_xwalk as select
+a.*,b.bid_hrs from
+core_2016 a
+left join
+crosswalk_2 b
+on a.id=b.id;
+quit;
+
+/*check for missing xwalk ids
+47839 of 157534 interviews are missing xwalk ids*/
+data check1;
+set core_xwalk ;
+if bid_hrs ='';
+run;
+
+/*create indicator for having xwalk id*/
+data core_xwalk_1;
+set core_xwalk;
+xwalk_yes=.;
+if bid_hrs ='' then xwalk_yes=0;
+if bid_hrs~='' then xwalk_yes=1;
+run;
+
+
+/*export this dataset to Stata for a check of the demo differences
+R link to MC claims vs no*/
+proc export data=core_xwalk_1
+outfile="D:\HRS\Projects\dem_2016\data\int_data\core_xwalk_1.dta" replace;
+run;
+
+/*just get information needed to grab claims, drop rest of interview data
+So pulls all interviews for r's with the mc linkage
+91386 interviews have linkage*/
+data proj_int.core_lmt_xwalk_2;
+set core_xwalk_1(keep=id core_year c_ivw_date c_ivw_year c_ivw_month bid_hrs xwalk_yes );
+if xwalk_yes=1;
+run;
+
+/********************************************************************/
+/* Get claims death date, from denominator file as a check
+where dod from interview is imputed or after exit interview date */
+/********************************************************************/
+/*
+proc sort data=medi.dn_2000_2012 out=dn_dod_1  nodupkey;
+by BID_HRS_21 year;
+run;
+
+/*just keep dod from last year*/
+/*
+data dn_dod_2;
+set dn_dod_1;
+by BID_HRS_21 year;
+if last.BID_HRS_21;
+run;
+
+proc freq;
+table death_dt /missprint;
+run;
+
+/*add to the core dataset with xwalk id*/
+/*
+proc sort data=core_xwalk_1; by bid_hrs; run;
+
+proc sql;
+create table sic_int.core_xwalk_2 as select a.*,b.death_dt as dod_claims
+from core_xwalk_1 a left join
+dn_dod_2 b
+on a.bid_hrs=b.BID_HRS_21;
+quit;
