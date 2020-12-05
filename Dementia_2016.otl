@@ -2,7 +2,7 @@
 
 H="Intro"
 libname clean 'D:\HRS\Shared\base_data\hrs_cleaned'; 
-libname medi 'D:\HRS\Shared\raw\CMS\CMS_DUA_51675_2016';
+libname medi 'D:\HRS\Shared\base_data\hrs_cms\SAS';
 libname proj_int 'D:\HRS\Projects\dem_2016\data\int_data';
 libname xref 'D:\HRS\Shared\base_data\hrs_cms\SAS';
 
@@ -24,10 +24,20 @@ run;
 data core_2016;
 set core;
 if core_year=2016;
+index_date=c_ivw_date;
+index_month=month(c_ivw_date);
+index_year=year(c_ivw_date);
 run;
 
+/*
 
-/*Get claims 1 year and 2 year before each core interview*/
+
+
+
+*/
+
+
+/*Get claims 1 year before and after each core interview*/
 
 /*Step 1: Bring in mc xwalk id
 sic_int.core_xwalk_1 has core interviews, age and claims xwalk id */
@@ -43,10 +53,8 @@ run;
 /*get 2 variables bid_hrs = claims id, id=HRS id*/
 data crosswalk_2;
 set crosswalk_1;
-bid_hrs=bid_hrs_22;
 id=trim(hhid)||trim(pn);
 drop hhid pn;
-drop bid_hrs_22;
 run;
 
 proc sort data= crosswalk_2;
@@ -56,7 +64,7 @@ run;
 /*bring in xwalk id to core interview dataset*/
 proc sql;
 create table core_xwalk as select
-a.*,b.bid_hrs from
+a.*,b.bid_hrs_22 from
 core_2016 a
 left join
 crosswalk_2 b
@@ -67,15 +75,15 @@ quit;
 47839 of 157534 interviews are missing xwalk ids*/
 data check1;
 set core_xwalk ;
-if bid_hrs ='';
+if bid_hrs_22 ='';
 run;
 
 /*create indicator for having xwalk id*/
 data core_xwalk_1;
 set core_xwalk;
 xwalk_yes=.;
-if bid_hrs ='' then xwalk_yes=0;
-if bid_hrs~='' then xwalk_yes=1;
+if bid_hrs_22 ='' then xwalk_yes=0;
+if bid_hrs_22~='' then xwalk_yes=1;
 run;
 
 
@@ -88,8 +96,8 @@ run;
 /*just get information needed to grab claims, drop rest of interview data
 So pulls all interviews for r's with the mc linkage
 91386 interviews have linkage*/
-data proj_int.core_lmt_xwalk_2;
-set core_xwalk_1(keep=id core_year c_ivw_date c_ivw_year c_ivw_month bid_hrs xwalk_yes );
+data proj_int.index;
+set core_xwalk_1(keep=id core_year c_ivw_date c_ivw_year c_ivw_month bid_hrs_22 xwalk_yes index_date index_month index_year);
 if xwalk_yes=1;
 run;
 
@@ -124,3 +132,501 @@ from core_xwalk_1 a left join
 dn_dod_2 b
 on a.bid_hrs=b.BID_HRS_21;
 quit;
+
+
+H="ffs before"
+/*determine ffs medicare before 12 months
+/*sort claims denominator file*/
+
+proc sort data=medi.bqsf_1998_2016 out=dn  nodupkey;
+by bid_hrs_22 start_dt;
+run;
+
+proc sort data=proj_int.index out=index1 nodupkey;
+by bid_hrs_22 index_year;
+run;
+
+/*get dn just for interview year*/
+
+proc sql; 
+create table dn_index_quarter as select
+a.*,b.ab_mo_cnt,b.start_dt,b.end_dt,b.hmo_mo
+from index1 a inner join
+dn b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22)) 
+and b.start_dt<=a.index_date<=b.end_dt;
+quit;
+
+
+
+data all_insurance_0 (rename=(hmo_mo=hmo0 ab_mo_cnt=ab0 buyin_mo=buyin_mo0));
+set dn_index_quarter;
+ffs0=ab_mo_cnt>=1 & hmo_mo=0;
+format index_date date9.;
+run;
+
+data all_insurance_0b;
+set all_insurance_0;
+ab_mos0=ab0;
+buyin_mos0=buyin0;
+if ffs0=1 then ffs_mos0=ab_mos0;
+if ffs0=0 then ffs_mos0=0;
+run;
+
+
+
+%macro insyrs(numyrs=);
+%let y=%eval(&numyrs.*4);
+%do i=1 %to &y.;
+
+%let l=%eval(&i.-1);
+proc sql; 
+create table dn&i. as select
+a.*,b.ab_mo_cnt,b.start_dt,b.end_dt,b.hmo_mo, b.buyin_mo
+from index1 a inner join
+dn b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22)) 
+and b.start_dt<=a.index_date-(&i.*(365.25/4))<=end_dt;
+quit;
+
+data all_insurance_&i.(rename=(hmo_mo=hmo&i. ab_mo_cnt=ab&i. buyin_mo=buyin_mo&i.)); 
+set dn&i.;
+ffs&i.=ab_mo_cnt>=1 & hmo_mo=0;
+format index_date date9.;
+run;
+
+proc sql;
+create table all_insurance_&i.2 as select * from
+all_insurance_&l.b a
+left join
+all_insurance_&i. b
+on a.bid_hrs_22=b.bid_hrs_22;
+quit;
+
+data all_insurance_&i.b (drop=ab_mos&l. ffs_mos&l.);
+set all_insurance_&i.2;
+ab_mos&i.=ab_mos&l.+ab&i.;
+if ffs&i.=. then ffs&i.=0;
+if ffs&l.=0 then ffs&i.=0;
+if ffs&i.=1 then ffs_mos&i.=ab&i.+ffs_mos&l.;
+if ffs&i.=0 then ffs_mos&i.=ffs_mos&l.;
+run;
+
+%end;
+
+data all_insurance;
+set all_insurance_&y.b;
+cont_ffs_n_mos=ffs_mos&y.;
+%mend;
+
+
+
+
+%insyrs(numyrs=1);
+
+
+data proj_int.ffs_before;
+set all_insurance;
+run;
+
+proc export data=proj_int.ffs_before outfile="D:\HRS\Projects\dem_2016\data\int_data\ffs_before.dta" replace; run;
+
+
+H="claims before"
+proc sort data=proj_int.index out=index1 nodupkey;
+by bid_hrs_22 id index_date;
+run;
+
+
+
+
+/**************************************************************************/
+/* ************** Claims Before Death  ******************************/
+/**************************************************************************/
+/*macro to get claims before death
+saves datasets for each claim type / time window to the spo_mc_i directory*/
+%macro claimspre(days_start=,days_bef_index=,source=,suf=);
+
+/*claims fully within x time of death date*/
+proc sql;
+create table &source._meet_1 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2016 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table &source._meet_2 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2016 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
+quit;
+
+data proj_int.&source._meet_&suf._pre(compress=yes);
+set &source._meet_1 &source._meet_2;
+run;
+%mend;
+
+/*6m before death*/
+*%claims(days_start=0,days_bef_index=183,source=hh,suf=6m); /*home health*/
+*%claims(days_start=0,days_bef_index=183,source=hs,suf=6m); /*hospice*/
+*%claims(days_start=0,days_bef_index=183,source=mp,suf=6m); /*medpar*/
+*%claims(days_start=0,days_bef_index=183,source=dm,suf=6m); /*dme*/
+*%claims(days_start=0,days_bef_index=183,source=op,suf=6m); /*outpatient*/
+*%claims(days_start=0,days_bef_index=183,source=pb,suf=6m); /*carrier*/
+/*12m before death*/
+%macro bef(time=);
+%claimspre(days_start=0,days_bef_index=365*&time.,source=hh,suf=%eval(12*&time.)m); /*home health*/
+%claimspre(days_start=0,days_bef_index=365*&time.,source=hs,suf=%eval(12*&time.)m); /*hospice*/
+%claimspre(days_start=0,days_bef_index=365*&time.,source=mp,suf=%eval(12*&time.)m); /*medpar*/
+%claimspre(days_start=0,days_bef_index=365*&time.,source=dm,suf=%eval(12*&time.)m); /*dme*/
+%claimspre(days_start=0,days_bef_index=365*&time.,source=op,suf=%eval(12*&time.)m); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=365*&time.,source=pb,suf=%eval(12*&time.)m); /*carrier*/
+%mend;
+
+%macro claimsaft(days_start=,days_aft_index=,source=,suf=);
+
+/*claims fully within x time of death date*/
+proc sql;
+create table &source._meet_1 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2016 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and &days_start<=a.admit_date-b.index_date<=&days_aft_index ;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table &source._meet_2 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2016 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and a.admit_date-b.index_date>&days_aft_index and a.disch_date-b.index_date<=&days_aft_index;
+quit;
+
+data proj_int.&source._meet_&suf._post(compress=yes);
+set &source._meet_1 &source._meet_2;
+run;
+%mend;
+
+
+%macro aft(time=);
+%claimsaft(days_start=0,days_aft_index=365*&time.,source=hh,suf=%eval(12*&time.)m); /*home health*/
+%claimsaft(days_start=0,days_aft_index=365*&time.,source=hs,suf=%eval(12*&time.)m); /*hospice*/
+%claimsaft(days_start=0,days_aft_index=365*&time.,source=mp,suf=%eval(12*&time.)m); /*medpar*/
+%claimsaft(days_start=0,days_aft_index=365*&time.,source=dm,suf=%eval(12*&time.)m); /*dme*/
+%claimsaft(days_start=0,days_aft_index=365*&time.,source=op,suf=%eval(12*&time.)m); /*outpatient*/
+%claimsaft(days_start=0,days_aft_index=365*&time.,source=pb,suf=%eval(12*&time.)m); /*carrier*/
+%mend;
+
+/****************************************************************/
+/*medpar claims, time periods before R's death*******************/
+/****************************************************************/
+/*macro for medpar claims, splits into costs for snf and ip claims
+for time periods before r's death*/
+%macro mp(source=,equ=,name=,t=);
+data proj_int.&source._meet_&name._&t.;
+set proj_int.mp_meet_&name._&t.;
+if (trim(left(SSLSSNF)))&equ.="N";
+run;
+%mend;
+
+%macro mpsplit(time=);
+%mp(source=ip,equ=~,name=%eval(12*&i.)m,t=pre);
+%mp(source=ip,equ=~,name=%eval(12*&i.)m,t=post);
+%mp(source=snf,equ=,name=%eval(12*&i.)m,t=pre);
+%mp(source=snf,equ=,name=%eval(12*&i.)m,t=post);
+%mp(source=ip,equ=~,name=%eval(12*&i.)m,t=pre);
+%mp(source=ip,equ=~,name=%eval(12*&i.)m,t=post);
+%mp(source=snf,equ=,name=%eval(12*&i.)m,t=pre);
+%mp(source=snf,equ=,name=%eval(12*&i.)m,t=post);
+%mend;
+
+/*run macros*/
+
+%macro runall(years=);
+%do i=1 %to &years.;
+%bef(time=&i.);
+%aft(time=&i.);
+%mpsplit(time=&i.);
+%end;
+%mend;
+
+%runall(years=1);
+
+proc export data=proj_int.snf_meet_12m_pre outfile="D:\HRS\Projects\dem_2016\data\int_data\snf_meet_12m_pre.dta" replace; run;
+proc export data=proj_int.snf_meet_12m_post outfile="D:\HRS\Projects\dem_2016\data\int_data\snf_meet_12m_post.dta" replace; run;
+
+
+/**************************************************************************/
+/* ************** S Claims After R's Death   ******************************/
+/**************************************************************************/
+/*macro to get claims after death
+saves datasets for each claim type / time window to the spo_mc_i directory*/
+/*%macro claimspost(days_start=,days_aft_index=,source=,suf=);
+
+/*claims fully within x time of death date*/
+/*proc sql;
+create table &source._meet_1 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and &days_start<=a.admit_date - b.index_date<=&days_aft_index ;
+quit;
+
+/*claims that start earlier than R's DOD but span after R's death*/
+/*proc sql;
+create table &source._meet_2 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2015 a inner join
+index1 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and a.admit_date<b.index_date
+and &days_start<=a.disch_date - b.index_date;
+quit;
+
+data proj_int.&source._meet_&suf.(compress=yes);
+set &source._meet_1 &source._meet_2;
+format disch_date date9.;
+format admit_date date9.;
+run;
+%mend;
+
+%macro aft(time=);
+%claimspost(days_start=0,days_aft_index=365*&time.,source=hh,suf=p%eval(12*&time.)m); /*home health*/
+/*%claimspost(days_start=0,days_aft_index=365*&time.,source=hs,suf=p%eval(12*&time.)m); /*hospice*/
+/*%claimspost(days_start=0,days_aft_index=365*&time.,source=mp,suf=p%eval(12*&time.)m); /*medpar*/
+/*%claimspost(days_start=0,days_aft_index=365*&time.,source=dm,suf=p%eval(12*&time.)m); /*dme*/
+/*%claimspost(days_start=0,days_aft_index=365*&time.,source=op,suf=p%eval(12*&time.)m); /*outpatient*/
+/*%claimspost(days_start=0,days_aft_index=365*&time.,source=pb,suf=p%eval(12*&time.)m); /*carrier*/
+/*%mend;
+
+
+/**************************************************************************/
+/* ********************* S Diagnosis Lists   ******************************/
+/**************************************************************************/
+
+*%macro dx_time_range(range1=, range2=, suf=);
+/*pulls just dx codes from carrier claims*/
+/*data pb_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
+set proj_int.pb_meet_&suf.(keep=bid_hrs_22 id PDGNS_CD DGNSCD01-DGNSCD12 index_date);
+array dx PDGNS_CD DGNSCD01-DGNSCD12;
+do over dx;
+diag=dx ;
+output;
+end;
+run;
+proc sort data=pb_last_&range2._dx out=pb_last_&range2._dx2 nodupkey;
+by bid_hrs_22 id index_date diag;
+run;
+
+/*outpatient claims*/
+/*data op_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
+set proj_int.op_meet_&suf.(keep=bid_hrs_22 id PDGNS_CD DGNSCD01-DGNSCD25  index_date);
+array dx PDGNS_CD DGNSCD01-DGNSCD25 ;
+do over dx;
+diag=dx ;
+output;
+end;
+run;
+proc sort data=op_last_&range2._dx out=op_last_&range2._dx2 nodupkey;
+by bid_hrs_22 id index_date diag;
+run;
+
+/*medpar claims*/
+/*data mp_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
+set proj_int.mp_meet_&suf.(keep=bid_hrs_22 id AD_DGNS DGNS_CD01-DGNS_CD25 index_date );
+array dx D_DGNS DGNS_CD01-DGNS_CD25 ;
+do over dx;
+diag=dx ;
+output;
+end;
+run;
+proc sort data=mp_last_&range2._dx out=mp_last_&range2._dx2 nodupkey;
+by bid_hrs_22 id index_date diag;
+run;
+
+/*dme claims*/
+/*data dm_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
+set proj_int.dm_meet_&suf.(keep=bid_hrs_22 id PDGNS_CD DGNSCD01-DGNSCD12 index_date);
+array dx PDGNS_CD DGNSCD01-DGNSCD12 ;
+do over dx;
+diag=dx ;
+output;
+end;
+run;
+proc sort data=dm_last_&range2._dx out=dm_last_&range2._dx2 nodupkey;
+by bid_hrs_22 id index_date diag;
+run;
+
+/*home health agency*/
+/*data hh_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
+set proj_int.hh_meet_&suf.(keep=bid_hrs_22 id PDGNS_CD DGNSCD01-DGNSCD25 index_date);
+array dx PDGNS_CD DGNSCD01-DGNSCD25 ;
+do over dx;
+diag=dx ;
+output;
+end;
+run;
+proc sort data=hh_last_&range2._dx out=hh_last_&range2._dx2 nodupkey;
+by bid_hrs_22 id index_date diag;
+run;
+
+/*hospice*/
+/*data hs_last_&range2._dx(keep=bid_hrs_22 id diag index_date);
+set proj_int.hs_meet_&suf.(keep=bid_hrs_22 id PDGNS_CD DGNSCD01-DGNSCD25 index_date);
+array dx PDGNS_CD DGNSCD01-DGNSCD25 ;
+do over dx;
+diag=dx ;
+output;
+end;
+run;
+proc sort data=hs_last_&range2._dx out=hs_last_&range2._dx2 nodupkey;
+by bid_hrs_22 id index_date diag;
+run;
+
+/*set diag variable length = 7 chars since that's the max length from the mc claims
+Need to do this because length varies across the different mc claim types*/
+/*data hs_last_&range2._dx3;
+length diag $7;
+set hs_last_&range2._dx2;
+run;
+data hh_last_&range2._dx3;
+length diag $7;
+set hh_last_&range2._dx2;
+run;
+data mp_last_&range2._dx3;
+length diag $7;
+set mp_last_&range2._dx2;
+run;
+data dm_last_&range2._dx3;
+length diag $7;
+set dm_last_&range2._dx2;
+run;
+data op_last_&range2._dx3;
+length diag $7;
+set op_last_&range2._dx2;
+run;
+data pb_last_&range2._dx3;
+length diag $7;
+set pb_last_&range2._dx2;
+run;
+
+data dx_all_last_&range2.;
+set hs_last_&range2._dx3
+hh_last_&range2._dx3
+mp_last_&range2._dx3
+dm_last_&range2._dx3
+op_last_&range2._dx3
+pb_last_&range2._dx3;
+run;
+
+proc sort data=dx_all_last_&range2.(where=(diag~="")) out=proj_int.dx_&range1._&range2 nodupkey;
+by bid_hrs_22 id index_date diag;
+run;
+
+%mend;
+
+
+/*run macro to create data files proj_int.dx_0d_n6m proj_int.dx_0d_n12m and proj_int.dx_0d_n24m */
+*%dx_time_range(range1=0d, range2=n6m, suf=6m);
+/*%dx_time_range(range1=0d, range2=n12m, suf=12m);
+*%dx_time_range(range1=0d, range2=n24m, suf=24m);
+
+/*run for dx lists after R's death*/
+*%dx_time_range(range1=0d, range2=p6m, suf=p6m);
+*%dx_time_range(range1=0d, range2=p12m, suf=p12m);
+*%dx_time_range(range1=0d, range2=p24m, suf=p24m);
+
+
+
+/*get spouse medicare costs by claim type and total, adjusted for inflation
+to 2012$, monthly, 24m before and after R's death
+
+begins with claims lists from "Get S MC claims lists..." section
+
+final dataset is spo_mc_i.hrs_elix_cc_pay*/
+
+
+
+
+H="FFS merge"
+
+
+H="snf days"
+Doesn't work as of now. 
+
+%macro snfnights(name=,t=);
+
+data snf_&i._&t.(keep=bid_hrs_22 los index_date);
+set proj_int.snf_meet_&name._&t.;
+if (&i.*365)>=index_date-admit_date>=((&i.-1)*365) 
+or (&i.*365)>=index_date-admit_date>=((&i.-1)*365)
+or index_date-admit_date>=&i.*365>=index_date-disch_date; 
+if admit_date<index_date-(&i.*365) then admit_date=index_date-(&i.*365);
+if disch_date>index_date-((&i.-1)*365) then disch_date=index_date-((&i.-1)*365);
+los_&t.=disch_date-admit_date;
+if los_&t.=0 then los_&t.=1;
+run;
+
+proc sql;
+create table snf_&i.b_&t. as select distinct bid_hrs_22,
+index_date, sum(los_&t.) as n_snf_days_y&i._&t.
+from snf_&i._&t.
+group by bid_hrs_22, index_date;
+quit;
+
+
+%mend;
+
+
+
+/*need to set index dataset as snf 0 for the loop*/
+data snf_0c_pre;
+set proj_int.index;
+run;
+data snf_0c_post;
+set proj_int.index;
+run;
+
+/*run macros*/
+
+%macro runall(years=);
+%do i=1 %to &years.;
+%let l=%eval(&i.-1);
+
+%snfnights(name=%eval()m,t=pre);
+%snfnights(name=%eval(12*&i.)m,t=post);
+
+proc sql;
+create table snf_&i.c_pre as select * from
+snf_&l.c_pre a
+left join 
+snf_&i.b_pre b
+on a.bid_hrs_22=b.bid_hrs_22;
+quit;
+
+proc sql;
+create table snf_&i.c_post as select * from
+snf_&l.c_post a
+left join 
+snf_&i.b_post b
+on a.bid_hrs_22=b.bid_hrs_22;
+quit;
+
+%end;
+
+
+%mend;
+
+%runall(years=1);
+
+data proj_int.snf_nights_pre;
+set snf_1c_pre;
+run;
+
+data proj_int.snf_nights_post;
+set snf_1c_post;
+run;
