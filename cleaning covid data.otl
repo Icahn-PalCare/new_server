@@ -3188,6 +3188,17 @@ gen food_del_door=.
 replace food_stamps=1 if RQ421==1
 replace food_stamps=0 if RQ421==5
 
+
+gen have_poc=.
+replace have_poc=1 if RN291==1
+replace have_poc=0 if RN291==5
+
+gen poc_type=RN292
+replace poc_type=. if poc_type==98
+label define pc 1 "clinic or health center" 2 "doctor's office or hmo" 3 "ER" 4 "hospital outpatient dept" 5 "some other place" 6 "no one place" 10 "VA" 11 "urgent care"
+label values poc_type pc
+
+
 gen year=2018
 
 merge 1:1 hhid pn year using "D:\HRS\Shared\base_data\hrs_cleaned\helper_hours_2018.dta", keep(master matched) nogen
@@ -3717,7 +3728,7 @@ H="Step 7: drop raw vars and merge in prior HRS and tracker data"
 use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 6.dta"
 
 
-keep hhid pn cvwgtr rversion adl_bh_core adl_core_check adl_diff_bh adl_diff_dr adl_diff_e adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core adl_e_core adl_equip_tx adl_equip_wk adl_oth_helper adl_sp_helper adl_t_core adl_tx_core adl_wk_core any_hrdshp_food arth_hrs ask_test back_pain_hrs cancer_chemo_med cancer_hrs cancer_other_treat cancer_surg cancer_symp cancer_xray catinsur cesd1 cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8 cesd_tot cesd_tot_ge3 champus chf_hrs chfadmit_ask chfadmit_hrs chfdrever_hrs child chrhlp_cvd cough_hrs covid_inc_chng covid_spend_chng cvwgtr days_drink delay_care delay_dent delay_doc delay_other delay_rx delay_surg dem_hrs depr_2_wks_hrs died_covid dizzy_hrs dm_hrs dm_ins_hrs dyspnea_hrs ed_covid educ ever_drink falls_hrs fatigue_hrs female finhlp_cvd fl_diff_dime fl_diff_lift fl_diff_push fl_diff_reach fl_diff_sit fl_diff_sta_many fl_diff_sta_one fl_diff_stp fl_diff_wk_many fl_diff_wk_one friend gchil had_covid headache_hrs heart_hrs   help_friends help_friends_hours hh_covid hh_worker hhid hhm hip_frac_hrs hisp hlpd_chr hlpd_fin hmo hosp_covid hosp_last_2yr hrdshp_any hrdshp_debt hrdshp_food hrdshp_getfood hrdshp_medbls hrdshp_other hrdshp_rent hrdshp_utils htn_hrs iadl_diff_gr iadl_diff_m iadl_diff_map iadl_diff_mp iadl_diff_ph iadl_diff_rx iadl_gr_core iadl_m_core iadl_mp_core iadl_oth_helper iadl_ph_core iadl_rx_core iadl_sp_helper incont_hrs insom_falling_asleep insom_rested insom_too_early insom_waking_up known_covid level_concern ling_sxs ltc_bene ltc_ins lung_hrs lung_o2_hrs marital married md_confirm medicaid medicare medicareb medigap memory_hrs moved_covid movein_covid n_drinks_3m  nh_nights nh_start nh_stays nhres nhres_2yr nhres_start_mo nhres_start_yr pain_hrs pain_level_hrs pain_limit_act_hrs pn pr_mem_change pr_memory prob_def_covid proxy_core psych_hrs rel_nb relig reschil resspouse rewidowed rvdate rversion smoke_curr smoke_ever soc_visit soc_visit_cat soc_visit_yr sr_mem_change sr_memory srh stroke_hrs swelling_feet_hrs tested_covid type_ling_sxs vig_phy_act wanted_test wgt_curr why_delay_advised why_delay_afford why_delay_avail why_delay_fear why_delay_nonurgent why_delay_other food_stamps food_stamps_curr food_del_door marital_sep marital_div marital_wid marital_nev marital_sd marital_missing reschil_d srh_pf srh_g srh_ve cesd_tot cesd_tot_ge3 Alcohol_mis height_in bmi bmi_cat adl_index_core adl_cat_core adl_independent_core adl_partial_core adl_severe_core iadl_ind_core iadl_cat_core iadl_independent_core iadl_partial_core iadl_severe_core comor_in_hrs comor_c_hrs psych_overall_hrs
+keep hhid pn cvwgtr rversion adl_bh_core adl_core_check adl_diff_bh adl_diff_dr adl_diff_e adl_diff_t adl_diff_tx adl_diff_wk adl_dr_core adl_e_core adl_equip_tx adl_equip_wk adl_oth_helper adl_sp_helper adl_t_core adl_tx_core adl_wk_core any_hrdshp_food arth_hrs ask_test back_pain_hrs cancer_chemo_med cancer_hrs cancer_other_treat cancer_surg cancer_symp cancer_xray catinsur cesd1 cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8 cesd_tot cesd_tot_ge3 champus chf_hrs chfadmit_ask chfadmit_hrs chfdrever_hrs child chrhlp_cvd cough_hrs covid_inc_chng covid_spend_chng cvwgtr days_drink delay_care delay_dent delay_doc delay_other delay_rx delay_surg dem_hrs depr_2_wks_hrs died_covid dizzy_hrs dm_hrs dm_ins_hrs dyspnea_hrs ed_covid educ ever_drink falls_hrs fatigue_hrs female finhlp_cvd fl_diff_dime fl_diff_lift fl_diff_push fl_diff_reach fl_diff_sit fl_diff_sta_many fl_diff_sta_one fl_diff_stp fl_diff_wk_many fl_diff_wk_one friend gchil had_covid headache_hrs heart_hrs   help_friends help_friends_hours hh_covid hh_worker hhid hhm hip_frac_hrs hisp hlpd_chr hlpd_fin hmo hosp_covid hosp_last_2yr hrdshp_any hrdshp_debt hrdshp_food hrdshp_getfood hrdshp_medbls hrdshp_other hrdshp_rent hrdshp_utils htn_hrs iadl_diff_gr iadl_diff_m iadl_diff_map iadl_diff_mp iadl_diff_ph iadl_diff_rx iadl_gr_core iadl_m_core iadl_mp_core iadl_oth_helper iadl_ph_core iadl_rx_core iadl_sp_helper incont_hrs insom_falling_asleep insom_rested insom_too_early insom_waking_up known_covid level_concern ling_sxs ltc_bene ltc_ins lung_hrs lung_o2_hrs marital married md_confirm medicaid medicare medicareb medigap memory_hrs moved_covid movein_covid n_drinks_3m  nh_nights nh_start nh_stays nhres nhres_2yr nhres_start_mo nhres_start_yr pain_hrs pain_level_hrs pain_limit_act_hrs pn pr_mem_change pr_memory prob_def_covid proxy_core psych_hrs rel_nb relig reschil resspouse rewidowed rvdate rversion smoke_curr smoke_ever soc_visit soc_visit_cat soc_visit_yr sr_mem_change sr_memory srh stroke_hrs swelling_feet_hrs tested_covid type_ling_sxs vig_phy_act wanted_test wgt_curr why_delay_advised why_delay_afford why_delay_avail why_delay_fear why_delay_nonurgent why_delay_other food_stamps food_stamps_curr food_del_door marital_sep marital_div marital_wid marital_nev marital_sd marital_missing reschil_d srh_pf srh_g srh_ve cesd_tot cesd_tot_ge3 Alcohol_mis height_in bmi bmi_cat adl_index_core adl_cat_core adl_independent_core adl_partial_core adl_severe_core iadl_ind_core iadl_cat_core iadl_independent_core iadl_partial_core iadl_severe_core comor_in_hrs comor_c_hrs psych_overall_hrs have_poc poc_type
 
 
 gen core_year=2020
@@ -3855,6 +3866,39 @@ replace depress_4cat=4 if cesd_tot_ge3==0 & cesd_tot_ge3_18==0
 label define dc 1 "ongoing depression" 2 "new depression" 3 "new resolved depression" 4 "ongoing no depression"
 label values depress_4cat dc
 
+*any source of usual care
+gen any_poc=have_poc
+replace any_poc=0 if poc_type==3 | poc_type==11
+tab any_poc
+
+*if wanted, could not get covid test
+gen no_test=.
+replace no_test=0 if tested_covid==1
+replace no_test=1 if wanted_test==1
+
+*stratum variable for no_test analyses
+gen stratum_nt=stratum_n
+replace stratum_nt=77 if stratum_nt==76
+replace stratum_nt=69 if stratum_nt==68
+replace stratum_nt=65 if stratum_nt==66
+replace stratum_nt=63 if stratum_nt==64
+replace stratum_nt=60 if stratum_nt==61
+replace stratum_nt=59 if stratum_nt==58
+replace stratum_nt=17 if stratum_nt==16
+
+*stratum for delayed care
+gen stratum_dc=stratum_nt
+replace stratum_dc=72 if stratum_dc==73
+replace stratum_dc=59 if stratum_dc==60
+replace stratum_dc=53 if stratum_dc==55
+replace stratum_dc=53 if stratum_dc==55
+replace stratum_dc=38 if stratum_dc==37
+replace stratum_dc=23 if stratum_dc==24 | stratum_dc==25
+replace stratum_dc=17 if stratum_dc==18
+
+
+*drop date to move off server
+drop c_ivw_date c_ivw_day c_ivw_month
 
 
 save "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 8.dta", replace
@@ -4555,17 +4599,163 @@ svy, subpop(keep_ek): tab hrdshp_getfood depress_4cat, column
 
 
 
-putexcel A77= "Trouble buying food despite having money for it"
-putexcel B78="0"
-putexcel B79="1"
-svy, subpop(keep): tab hrdshp_getfood
-mat a=e(b)'
-putexcel C78=matrix(a), nformat(percent_d2)
+H="ANALYSIS ON REG PLACE OF CARE"
 
-putexcel A80= "Trouble accessing food, financial or otherwise"
-putexcel B81="0"
-putexcel B82="1"
-svy, subpop(keep): tab any_hrdshp_food
-mat a=e(b)'
-putexcel C81=matrix(a), nformat(percent_d2)
+*DELAYS IN CARE AND TESTING BY USUAL POC
+
+use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 8.dta"
+putexcel set "D:\HRS\Projects\coronavirus\output\poc\table1_dec5.xls", replace
+putexcel A1:E1= "Table 1. Characteristics of those by testing and POC", merge bold border(bottom)
+
+svyset SECU [pweight=cvwgtr], strata(stratum_n) 
+svy, subpop(keep): tab delay_care any_poc, column 
+svy, subpop(keep): tab no_test any_poc, column 
+
+
+putexcel set "D:\HRS\Projects\coronavirus\output\poc\table1_dec5a.xls", replace
+
+levelsof age_5cat, local(age)
+foreach lev in `age' {
+local col: word `lev' of A B C D E F G H I J
+svy, subpop(keep): tabulate delay_care if age_5cat==`lev', format (%11.3g)
+mat pcb=e(b)'
+putexcel `col'2= matrix (pcb)
+} 
+
+*IF I CAN GET THIS TO WORK
+putexcel set "D:\HRS\Projects\coronavirus\output\poc\table1_dec5c.xls", replace
+
+
+local i=2
+levelsof age_5cat, local(age)
+putexcel A`i'= "age_5cat"
+foreach lev in `age' {
+svy, subpop(keep): tabulate delay_care if age_5cat==`lev', format (%11.3g)
+mat pcb=e(b)
+local i=`i'+1
+putexcel B`i'= matrix (pcb)
+
+} 
+
+
+
+
+putexcel set "D:\HRS\Projects\coronavirus\output\poc\table1_dec5d.xls", replace
+
+local catvars age_5cat race_eth
+	local i=2
+local cativars
+
+foreach x of local catvars {
+	levelsof `x', local(levels)
+		foreach levels of local catvars {
+			svy, subpop(keep): tabulate delay_care if `x'==`lev', format (%11.3g)
+			mat pcb=e(b)
+			local i=`i'+1
+			putexcel B`i'= matrix (pcb)
+
+} 
+local cativars `cativars'"x"	
+}
+
+
+
+
+
+*female
+levelsof female, local(fem)
+putexcel A`i'= "female"
+foreach lev in `age' {
+local col: word `lev' of A B C D E F G H I J
+svy, subpop(keep): tabulate delay_care if female==`lev', format (%11.3g)
+mat pcb=e(b)
+local i=`i'+1
+putexcel B`i'= matrix (pcb)
+
+} 
+
+
+
+
+local i=2
+levelsof age_5cat, local(age)
+foreach lev in `age' {
+local col: word `lev' of B C D E F G
+svy, subpop(keep): tabulate delay_care if age_5cat==`lev', format (%11.3g)
+mat pcb=e(b)'
+putexcel `col'2= matrix (pcb)
+local i=`i'+1
+putexcel A`i'=("`: label race `lev''")
+}
+
+
+female i.race_eth  educ_morethanhs live_alone medicaid adl_independent_core  srh_pf 
+svyset SECU [pweight=cvwgtr], strata(stratum_nt) 
+
+svy, subpop(keep): logistic no_test  i.age_5cat female i.race_eth  educ_morethanhs live_alone medicaid adl_independent_core  srh_pf 
+
+svy, subpop(keep): logistic no_test any_poc
+svy, subpop(keep): logistic delay_care i.any_poc##i.race_eth i.age_5cat
+margins i.any_poc#i.race_eth
+marginsplot
+
+svy, subpop(keep): logistic no_test i.any_poc##i.race_eth i.age_5cat
+margins i.any_poc#i.race_eth
+marginsplot
+
+
+
+
+svyset SECU [pweight=cvwgtr], strata(stratum_nt) 
+
+svy, subpop(keep): tab any_poc
+svy, subpop(keep): mean age, over(any_poc)
+	svy, subpop(keep): mlogit any_poc age
+svy, subpop(keep): tab age_4cat any_poc, column
+svy, subpop(keep): tab female any_poc, column
+svy, subpop(keep): tab race_eth any_poc, column
+svy, subpop(keep): tab educ_morethanhs any_poc, column
+svy, subpop(keep): tab married any_poc, column
+svy, subpop(keep): tab any_child any_poc, column
+svy, subpop(keep): tab reschil_d any_poc, column
+svy, subpop(keep): tab live_alone any_poc, column
+svy, subpop(keep): tab medicaid any_poc, column
+svy, subpop(keep): tab adl_independent_core any_poc, column
+svy, subpop(keep): tab iadl_independent_core any_poc, column
+svy, subpop(keep): tab srh_pf any_poc, column
+svy, subpop(keep): tab memory_hrs any_poc, column
+svy, subpop(keep): mean level_concern, over(any_poc)
+	svy, subpop(keep): reg level_concern ib2.any_poc
+svy, subpop(keep): tab prob_def_covid any_poc, column
+svy, subpop(keep): tab known_covid any_poc, column
+svy, subpop(keep): tab died_covid any_poc, column
+svy, subpop(keep): tab delay_care any_poc, column
+svy, subpop(keep): tab delay_surg any_poc, column
+svy, subpop(keep): tab delay_doc any_poc, column
+svy, subpop(keep): tab delay_dent any_poc, column
+svy, subpop(keep): tab hlpd_fin any_poc, column
+svy, subpop(keep): tab hrdshp_rent any_poc, column
+svy, subpop(keep): tab hrdshp_debt any_poc, column
+svy, subpop(keep): tab hrdshp_medbls any_poc, column
+svy, subpop(keep): tab hrdshp_food any_poc, column
+svy, subpop(keep): tab hrdshp_any any_poc, column
+svy, subpop(keep): tab hrdshp_getfood any_poc, column
+svy, subpop(keep): tab any_hrdshp_food any_poc, column
+svy, subpop(keep): tab tested_covid any_poc, column
+svy, subpop(keep): tab wanted_test any_poc, column
+
+svyset SECU [pweight=cvwgtr], strata(stratum_dc) 
+svy, subpop(keep): tab why_delay_afford any_poc, column
+svy, subpop(keep): tab why_delay_avail any_poc, column
+svy, subpop(keep): tab why_delay_advised any_poc, column
+svy, subpop(keep): tab why_delay_nonurgent any_poc, column
+svy, subpop(keep): tab why_delay_fear any_poc, column
+svy, subpop(keep): tab why_delay_other any_poc, column
+
+
+
+
+
+
+
 
