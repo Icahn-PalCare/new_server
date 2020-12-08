@@ -553,7 +553,28 @@ final dataset is spo_mc_i.hrs_elix_cc_pay*/
 
 
 H="FFS merge"
+data index;
+set proj_int.index;
+run;
 
+
+
+proc sql; 
+create table tomerge as select * from
+proj_int.index a left join
+proj_int.ffs_before b 
+on a.bid_hrs_22=b.bid_hrs_22 and a.index_year=b.index_year;
+quit;
+
+proc sql;
+create table proj_int.decedent_dataset as select * from
+proj_int.index a 
+left join
+tomerge b 
+on a.id=b.id and a.index_year=b.index_year;
+quit;
+
+proc export data=proj_int.decedent_dataset outfile="D:\HRS\Projects\dem_2016\data\int_data\ffs_merged.dta" replace; run;
 
 H="snf days"
 Doesn't work as of now. 
