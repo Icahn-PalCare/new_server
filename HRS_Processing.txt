@@ -1,7 +1,7 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Processing HRS Raw Data"
-ho/*
+/*
 This code processes the raw datasets as downloaded from the HRS website
 
 Files used for 2000-2010 were downloaded in October 2013
@@ -5614,7 +5614,7 @@ by id: gen days_be_core = c_ivw_date - c_ivw_date[_n+1]
 *********************************************************************************
 generate proxy_core = .
 replace  proxy_core = 1 if ((ka009==2)|(ka009==3)|(la009==2)|(la009==3) | ///
-        (ma009==2)|(ma009==3) | (na009==2)|(na009==3) | (oa009==2)|(oa009==3)|(pa009==3))
+        (ma009==2)|(ma009==3) | (na009==2)|(na009==3) | (oa009==2)|(oa009==3)|(pa009==3)) | inlist(pa009,2,3) | inlist(qa009,2,3)
 replace  proxy_core = 0 if ((ka009==1)|(la009==1)|(ma009==1)|(na009==1)|(oa009==1)|(pa009==1)|(qa009==1))
 label variable proxy_core "Proxy Respondent for Core Interview"
 //label define proxy_core 0 "No" 1 "Proxy", modify
@@ -13225,14 +13225,14 @@ variables pulled in are gender, education level*/
 
 libname hrs_cln 'D:\HRS\Shared\base_data\hrs_cleaned';
 
-LIBNAME tracker 'D:\HRS\Shared\raw\HRS\hrs_tracking_2016';
+LIBNAME tracker 'D:\HRS\Shared\raw\HRS\hrs_tracking_2018';
 
 proc sort data=hrs_cln.restricted_v2014 nodupkey;
 by id;
 run;
 
 data tracker1;
-set tracker.trk2016tr_r;
+set tracker.trk2018tr_r;
 keep hhid pn id id_num degree schlyrs gender secu stratum yrs_lvl study;
 id=hhid||pn;
 id_num=id+0;
