@@ -3832,6 +3832,7 @@ gen hhidpn= hhid+pn
 *further edit keep variable to exclude nhres
 replace keep=0 if nhres==1
 
+*make cesd for 2018
 foreach var of varlist cesd1 cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8 cesd_tot cesd_tot_ge3 {
 gen `var'_18v= `var' if core_year==2018
 }
@@ -3843,17 +3844,34 @@ by hhidpn: egen `var'_18= min(`var'_18v)
 
 drop cesd1_18v cesd2_18v cesd3_18v cesd4_18v cesd5_18v cesd6_18v cesd7_18v cesd8_18v cesd_tot_18v cesd_tot_ge3_18v
 
+
+*make cesd for 2016
+foreach var of varlist cesd1 cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8 cesd_tot cesd_tot_ge3 {
+gen `var'_16v= `var' if core_year==2016
+}
+
+sort hhidpn core_year
+foreach var of varlist cesd1 cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8 cesd_tot cesd_tot_ge3  {
+by hhidpn: egen `var'_16= min(`var'_16v)
+}
+
+drop cesd1_16v cesd2_16v cesd3_16v cesd4_16v cesd5_16v cesd6_16v cesd7_16v cesd8_16v cesd_tot_16v cesd_tot_ge3_16v
+
+
 *variable counting missing depression items
 egen miss_cesd= rowmiss(cesd1 cesd2 cesd3 cesd4 cesd5 cesd6 cesd7 cesd8) 
 egen miss_cesd_2018= rowmiss(cesd1_18 cesd2_18 cesd3_18 cesd4_18 cesd5_18 cesd6_18 cesd7_18 cesd8_18)
+egen miss_cesd_2016= rowmiss(cesd1_16 cesd2_16 cesd3_16 cesd4_16 cesd5_16 cesd6_16 cesd7_16 cesd8_16)
+
 
 *generate keep variable for elissa's study
 gen keep_ek=0
 replace keep_ek=1 if core_year==2020 & cvwgtr!=. & cvwgtr!=0
-replace keep_ek=0 if miss_cesd==8
+*replace keep_ek=0 if miss_cesd==8
 *125 w missing data on all 2020 depression
-replace keep_ek=0 if miss_cesd_2018==8
+*replace keep_ek=0 if miss_cesd_2018==8
 *additional 152 without any cesd from 2018
+
 *resulting sample= 2,825
 
 
@@ -4549,17 +4567,40 @@ use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 8.dta"
 
 svyset SECU [pweight=cvwgtr], strata(stratum_n) vce(linearized)
 
-svy, subpop(keep_ek): tab cesd1 cesd1_18, column
-svy, subpop(keep_ek): tab cesd2 cesd2_18, column
-svy, subpop(keep_ek): tab cesd3 cesd3_18, column
-svy, subpop(keep_ek): tab cesd4 cesd4_18, column
-svy, subpop(keep_ek): tab cesd5 cesd5_18, column
-svy, subpop(keep_ek): tab cesd6 cesd6_18, column
-svy, subpop(keep_ek): tab cesd7 cesd7_18, column
-svy, subpop(keep_ek): tab cesd8 cesd8_18, column
+svy, subpop(keep_ek): mean cesd1 
+svy, subpop(keep_ek): mean cesd2 
+svy, subpop(keep_ek): mean cesd3 
+svy, subpop(keep_ek): mean cesd4
+svy, subpop(keep_ek): mean cesd5 
+svy, subpop(keep_ek): mean cesd6 
+svy, subpop(keep_ek): mean cesd7 
+svy, subpop(keep_ek): mean cesd8 
+svy, subpop(keep_ek): mean cesd_tot_ge3
+
+svy, subpop(keep_ek): mean cesd1_18
+svy, subpop(keep_ek): mean cesd2_18 
+svy, subpop(keep_ek): mean cesd3_18 
+svy, subpop(keep_ek): mean cesd4_18
+svy, subpop(keep_ek): mean cesd5_18 
+svy, subpop(keep_ek): mean cesd6_18 
+svy, subpop(keep_ek): mean cesd7_18 
+svy, subpop(keep_ek): mean cesd8_18 
+svy, subpop(keep_ek): mean cesd_tot_ge3_18
+
+svy, subpop(keep_ek): mean cesd1_16
+svy, subpop(keep_ek): mean cesd2_16 
+svy, subpop(keep_ek): mean cesd3_16 
+svy, subpop(keep_ek): mean cesd4_16
+svy, subpop(keep_ek): mean cesd5_16 
+svy, subpop(keep_ek): mean cesd6_16 
+svy, subpop(keep_ek): mean cesd7_16 
+svy, subpop(keep_ek): mean cesd8_16 
+svy, subpop(keep_ek): mean cesd_tot_ge3_16
 
 svy, subpop(keep_ek): mean cesd_tot
 svy, subpop(keep_ek): mean cesd_tot_18
+svy, subpop(keep_ek): mean cesd_tot_16
+
 
 svy, subpop(keep_ek): tab cesd_tot_ge3 cesd_tot_ge3_18, column
 

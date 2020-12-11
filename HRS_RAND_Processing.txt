@@ -26,6 +26,11 @@ Simple Outline: Cleaning the RAND HRS dataset.
 //STATA
 // Global Macros use $ symbol to be called. 
 
+// Year global
+global year 2016
+
+global w 13
+
 //Intermediate Data Path
 global work "D:\HRS\Shared\base_data\hrs_cleaned\working\"
 
@@ -36,7 +41,7 @@ global datapath "D:\HRS\Shared\base_data\hrs_cleaned\"
 global logpath "D:\HRS\Shared\base_data\hrs_cleaned\logs\"
 
 //RAND datapath
-global randpath "D:\HRS\Shared\raw\HRS..."
+global randpath "D:\HRS\Shared\raw\HRS\hrs_rand\\${year}\"
 
 cd "${work}"
 
@@ -73,7 +78,7 @@ cd "${work}"
 
 ***************************************************
 
-use "${randpath${year}}randhrs1992_${year}v1.dta", clear
+use "${randpath}randhrs1992_${year}v1.dta", clear
 rename ra* *_ra
 
 forvalues w=$w(-1)1{
