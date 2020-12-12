@@ -1,0 +1,57 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="Exploratory code"
+*EXPLORATORY PROJECT LOOKING AT CAREGIVING HOURS AFTER HOSPITAL DISCHARGE
+
+use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\ip_06_17.dta" 
+keep bene_id disch_date
+merge m:1 bene_id using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta" 
+drop if _merge==2
+drop _merge nhats_cms_num bene_id
+
+*now a file with spid and disch_date
+
+sort spid disch_date
+by spid disch_date, sort : gen nhosp= _n
+drop if nhosp==2
+drop nhosp
+
+sort spid disch_date
+by spid, sort : gen nhosp= _n
+
+reshape wide disch_date, i(spid) j (nhosp)
+
+merge 1:m spid using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_7.dta" 
+keep if _merge==3
+
+foreach n of numlist 1/49 {
+gen dis_ivw_`n'=ivw_date-disch_date`n'
+}
+
+foreach n of numlist 1/49 {
+replace dis_ivw_`n'=. if (dis_ivw_`n'<0 )| (dis_ivw_`n'>90)
+}
+
+egen min_days_hosp=rowmin(dis_ivw_1-dis_ivw_49)
+
+drop dis_ivw_1 dis_ivw_2 dis_ivw_3 dis_ivw_4 dis_ivw_5 dis_ivw_6 dis_ivw_7 dis_ivw_8 dis_ivw_9 dis_ivw_10 dis_ivw_11 dis_ivw_12 dis_ivw_13 dis_ivw_14 dis_ivw_15 dis_ivw_16 dis_ivw_17 dis_ivw_18 dis_ivw_19 dis_ivw_20 dis_ivw_21 dis_ivw_22 dis_ivw_23 dis_ivw_24 dis_ivw_25 dis_ivw_26 dis_ivw_27 dis_ivw_28 dis_ivw_29 dis_ivw_30 dis_ivw_31 dis_ivw_32 dis_ivw_33 dis_ivw_34 dis_ivw_35 dis_ivw_36 dis_ivw_37 dis_ivw_38 dis_ivw_39 dis_ivw_40 dis_ivw_41 dis_ivw_42 dis_ivw_43 dis_ivw_44 dis_ivw_45 dis_ivw_46 dis_ivw_47 dis_ivw_48 dis_ivw_49
+
+drop if min_days_hosp==.
+
+graph bar  tot_hrswk_help_i if tot_hrswk_help_i>0, over(min_days_hosp) 
+
+regress tot_hrswk_help_i min_days_hosp
+
+egen tot_fam_hrs= rowtotal(tot_spousehrs tot_daughterhrs tot_sonhrs tot_otherfamilyhrs tot_otherinformalhrs)
+
+
+gen any_fam_hrs=0
+replace any_fam_hrs =1 if tot_fam_hrs>0 & tot_fam_hrs!=.
+
+recode min_days_hosp (0/10=1 "day 0=10")(11/20=2 "11-20")(21/30=3 "21-30")(31/40=4 "31-40")(41/50=5 "41-50")(51/60=6 "51-60")(61/70=7 "61-70")(71/80=8 "71-80")(81/90=9 "81-90"),gen(days_10_hosp)
+
+ mean any_fam_hrs, over(days_10_hosp)
+  mean tot_fam_hrs if any_fam_hrs==1, over(days_10_hosp)
+  mean tot_fam_hrs, over(days_10_hosp)
+
+ 
