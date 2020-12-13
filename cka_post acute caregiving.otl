@@ -1,6 +1,6 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
-H="Exploratory code"
+H="Exploratory code- NHATS"
 *EXPLORATORY PROJECT LOOKING AT CAREGIVING HOURS AFTER HOSPITAL DISCHARGE
 
 use "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\STATA\ip_06_17.dta" 
@@ -55,3 +55,60 @@ recode min_days_hosp (0/10=1 "day 0=10")(11/20=2 "11-20")(21/30=3 "21-30")(31/40
   mean tot_fam_hrs, over(days_10_hosp)
 
  
+
+
+H="Adapted for HRS"
+*EXPLORATORY PROJECT LOOKING AT CAREGIVING HOURS AFTER HOSPITAL DISCHARGE-- HRS
+
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\ip_1998_2016.dta" 
+
+keep bid_hrs_22 disch_date
+merge m:1 bid_hrs_22 using "D:\HRS\Shared\base_data\hrs_cms\Stata\xref2015medicare.dta", keepusing (hhidpn)
+drop if _merge==2
+drop _merge bid_hrs_22 
+
+*now a file with spid and disch_date
+
+sort hhidpn disch_date
+by hhidpn disch_date, sort : gen nhosp= _n
+drop if nhosp==2
+drop nhosp
+
+sort hhidpn disch_date
+by hhidpn, sort : gen nhosp= _n
+
+reshape wide disch_date, i(hhidpn) j (nhosp)
+
+merge 1:m hhidpn using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_16.dta" 
+keep if _merge==3
+
+foreach n of numlist 1/74 {
+gen dis_ivw_`n'=c_ivw_date-disch_date`n'
+}
+
+foreach n of numlist 1/74 {
+replace dis_ivw_`n'=. if (dis_ivw_`n'<0 )| (dis_ivw_`n'>90)
+}
+
+egen min_days_hosp=rowmin(dis_ivw_1-dis_ivw_74)
+
+
+
+drop if min_days_hosp==.
+
+
+recode min_days_hosp (0/10=1 "day 0=10")(11/20=2 "11-20")(21/30=3 "21-30")(31/40=4 "31-40")(41/50=5 "41-50")(51/60=6 "51-60")(61/70=7 "61-70")(71/80=8 "71-80")(81/90=9 "81-90"),gen(days_10_hosp)
+
+ mean adl_help_ind, over(days_10_hosp)
+  mean tot_fam_hrs if any_fam_hrs==1, over(days_10_hosp)
+  mean tot_fam_hrs, over(days_10_hosp)
+
+ 
+ gen any_help_ind=0
+ replace any_help_ind=1 if adl_help_ind==1 | iadl_help_ind==1
+
+  graph bar  any_help_ind, over(days_10_hosp)
+  graph bar  adl_help_ind, over(days_10_hosp) 
+    graph bar  iadl_help_ind, over(days_10_hosp)
+
+  mean adl_help_ind, over(days_10_hosp) 
