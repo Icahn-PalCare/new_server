@@ -1,0 +1,24 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="exploratory: podiatry and hh"
+use "D:\NHATS\Shared\base_data\CMS_claims\Stata\pb_09_17.dta" 
+
+gen hvis=0
+
+foreach n of numlist 1/13 { 
+replace hvis=1 if hcpcscd`n'=="99341" | hcpcscd`n'=="99341" | hcpcscd`n'=="99342" | hcpcscd`n'=="99343" | hcpcscd`n'=="99344" | hcpcscd`n'=="99345" | hcpcscd`n'=="99346" | hcpcscd`n'=="99347" | hcpcscd`n'=="99348" | hcpcscd`n'=="99349" | hcpcscd`n'=="99350"| hcpcscd`n'=="99324"| hcpcscd`n'=="99325"| hcpcscd`n'=="99326"| hcpcscd`n'=="99327" | hcpcscd`n'=="99328" | hcpcscd`n'=="99334"| hcpcscd`n'=="99335"| hcpcscd`n'=="99336"| hcpcscd`n'=="99337"
+}
+
+
+
+gen podvis=0
+
+foreach n of numlist 1/13 { 
+replace podvis=1 if hcpcscd`n'=="11055" | hcpcscd`n'=="11056" | hcpcscd`n'=="11057" |  hcpcscd`n'=="11719" | hcpcscd`n'=="11720" |  hcpcscd`n'=="11721" | hcpcscd`n'=="G0127" | hcpcscd`n'=="S0390" 
+}
+
+gen hvisfirst=0
+
+foreach n of numlist 1 { 
+replace hvisfirst=1 if hcpcscd`n'=="99341" | hcpcscd`n'=="99341" | hcpcscd`n'=="99342" | hcpcscd`n'=="99343" | hcpcscd`n'=="99344" | hcpcscd`n'=="99345" | hcpcscd`n'=="99346" | hcpcscd`n'=="99347" | hcpcscd`n'=="99348" | hcpcscd`n'=="99349" | hcpcscd`n'=="99350"| hcpcscd`n'=="99324"| hcpcscd`n'=="99325"| hcpcscd`n'=="99326"| hcpcscd`n'=="99327" | hcpcscd`n'=="99328" | hcpcscd`n'=="99334"| hcpcscd`n'=="99335"| hcpcscd`n'=="99336"| hcpcscd`n'=="99337"
+}
