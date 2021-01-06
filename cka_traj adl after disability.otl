@@ -299,3 +299,49 @@ reg _traj_ProbG1 age female i.race_cat educ_hs_ind livealone sr_stroke_ever sr_c
 vif 
 
 linktest, nolog
+
+H="analysis: traj util"
+*MERGING IN CLAIMS AFTER DIS TO ADLS AFTER DIS
+
+use "D:\NHATS\Projects\trajectories and disability\cka_traj adl after disability\data\final\working_file.dta", replace
+merge 1:1 spid using "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_claims.dta"
+keep if _merge==3
+
+
+gen t1=3
+gen t2=6
+gen t3=9
+gen t4=12
+gen t5=15
+gen t6=18
+gen t7=21
+gen t8=24
+
+
+
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 2 2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 2 2 2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 2 2 2 2)
+
+
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 2 2 2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(1 2 2 2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 1 2 2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 1 1 2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 1 2 1)
+
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 1 2 2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(3 1 2 2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 1 3 2)
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 1 2 3)
+
+
+
+*winning model:
+traj, model (logit) var( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep(t1 t2 t3 t4 t5 t6 t7 t8) order(2 1 2 2)
+
+*joint traj model w adls
+traj, model (cnorm) var(adlp1 adlp2 adlp3 adlp4 adlp5) indep(mnths_p1 mnths_p2 mnths_p3 mnths_p4 mnths_p5) order(1 2 2 2) min(0) max(6) ///
+model2(logit) var2( ind_ed_op_3p ind_ed_op_6p ind_ed_op_9p ind_ed_op_12p ind_ed_op_15p ind_ed_op_18p ind_ed_op_21p ind_ed_op_24p) indep2(t1 t2 t3 t4 t5 t6 t7 t8) order2(2 1 2 2)

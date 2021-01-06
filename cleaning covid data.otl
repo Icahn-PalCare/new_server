@@ -4596,7 +4596,7 @@ putexcel G53=matrix(p)
 H="ANALYSIS ON DEPRESSION"
 use "D:\HRS\Projects\coronavirus\data\merged\covid_clean_post step 8.dta"
 
-
+*FIGURE 1: RATES OF CESD ITEMS IN 2016, 2018, 2020
 svyset SECU [pweight=cvwgtr], strata(stratum_n) vce(linearized)
 
 svy, subpop(keep_ek): mean cesd1 
@@ -4679,31 +4679,32 @@ svy, subpop(keep_ek): tab hrdshp_food depress_4cat, column
 svy, subpop(keep_ek): tab hrdshp_any depress_4cat, column
 svy, subpop(keep_ek): tab hrdshp_getfood depress_4cat, column
 
-putexcel set "D:\HRS\Projects\coronavirus\output\table1_depression_dec 12 2020.xls", replace
+putexcel set "D:\HRS\Projects\coronavirus\output\table1_depression_jan 5 2020.xls", replace
 putexcel A1:E1= "Table 1. Characteristics of those with and without depression", merge bold border(bottom)
 putexcel B2= "no depression" 
 putexcel C2= "depression" 
 putexcel D2= "p-value"
-local catvars age_5cat female race_eth educ_morethanhs married any_child reschil_d live_alone medicaid adl_independent_core iadl_independent_core srh_pf memory_hrs prob_def_covid known_covid died_covid delay_care covid_inc_chng covid_spend_chng hlpd_fin hrdshp_rent hrdshp_debt hrdshp_medbls hrdshp_food hrdshp_any hrdshp_getfood
-local i=2
-local cativars
+local catvars age_5cat female race_eth educ_morethanhs married any_child reschil_d live_alone medicaid adl_independent_core iadl_independent_core srh_pf memory_hrs prob_def_covid known_covid died_covid delay_care   hlpd_fin hrdshp_rent hrdshp_debt hrdshp_medbls hrdshp_food hrdshp_any hrdshp_getfood
+local i=4
 
 foreach x of local catvars {
-	levelsof `x', local(varlvls)
-	local i=`i'+1
 	putexcel A`i'= "`x'"
-	qui svy, subpop(keep_ek): tab `x' cesd_tot_ge3, column
-	mat z=e(p_Pear)
-	putexcel D`i'= matrix(z)
-	foreach lev in `varlvls' {
-		svy, subpop(keep_ek): tabulate cesd_tot_ge3 if `x'==`lev', format (%11.3g)
-		mat pcb=e(b)
-		local i=`i'+1
-		putexcel B`i'= matrix (pcb)
-		 
-} 
-local cativars `cativars'``x''
-}
+	svy, subpop(keep_ek): tab `x' if cesd_tot_ge3==0
+		mat pcb=e(b)'
+		putexcel B`i'=matrix(pcb)
+	svy, subpop(keep_ek): tab `x' if cesd_tot_ge3==1
+		mat pcb=e(b)'
+		putexcel C`i'=matrix(pcb)
+	svy, subpop(keep_ek): tab `x' cesd_tot_ge3
+		mat z=e(p_Pear)
+		putexcel D`i'= matrix(z)
+	tab `x'
+	local lev=r(r)
+	local i=`i'+`lev'
+	}
+	
+	svy, subpop(keep_ek): tab cesd_tot_ge3
+	 tab cesd_tot_ge3 if keep_ek==1
 
 
 
