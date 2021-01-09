@@ -1364,10 +1364,40 @@ run;
 
 proc freq; tables n_ed_op_visits_12m n_obs_stay_12m /missprint; run;
 
-data hh(keep=bene_id index_year ind_hh_n12m);
-set proj_int.hh_meet_365;
-ind_hh_n12m=1;
+
+
+%macro hh (days=,suf=);
+
+data hha(keep=bene_id index_year ind_hh_&suf.);
+set proj_int.hh_meet_&days.;
+ind_hh_&suf.=1;
 run;
+
+proc sql;
+create table hh_&suf. as select distinct bene_id, index_year, ind_hh_&suf., 
+sum(ind_hh_&suf.) as n_hh_&suf. 
+from hha group by bene_id, index_year;
+quit;
+
+
+%mend;
+
+%hh (days=183, suf=n6m);
+%hh (days=365, suf=n12m);
+%hh (days=183p, suf=p6m);
+%hh (days=365p, suf=p12m);
+
+proc sql;
+create table hh as select * from 
+hh_n6m a
+left join
+hh_n12m b
+on a.bene_id=b.bene_id and a.index_year=b.index_year
+left join hh_p6m c
+on a.bene_id=c.bene_id and a.index_year=c.index_year
+left join hh_p12m d 
+on a.bene_id=d.bene_id and a.index_year=d.index_year;
+quit;
 
 proc sort data=ip out=ip nodupkey; by bene_id index_year; run;
 proc sort data=snf out=snf nodupkey; by bene_id index_year; run;
@@ -1410,12 +1440,19 @@ place=0;
 do over that;
 if in(that,"12","13","14") and place=0 then place=1;
 end;
+pod=0;
 housecall=place=1 and code=1;
+do over this;
+if in(this,"11055","11056","11057","11719","11720","11721","G0127","S0390") and housecall=1 
+	then pod=1;
+if pod=1 then housecall=0;
+end;
 run;
 
 proc sql; 
 create table hc_&suf as select distinct bene_id, index_date,
-sum(housecall) as n_housecalls_&suf
+sum(housecall) as n_housecalls_&suf,
+sum(pod) as n_pod_vis_&suf
 from hc
 group by bene_id, index_date;
 quit;
@@ -1455,12 +1492,19 @@ place=0;
 do over that;
 if in(that,"12","13","14") and place=0 then place=1;
 end;
+pod=0;
 housecall=place=1 and code=1;
+do over this;
+if in(this,"11055","11056","11057","11719","11720","11721","G0127","S0390") and housecall=1 
+	then pod=1;
+end;
+if pod=1 then housecall=0;
 run;
 
 proc sql; 
 create table hc_&suf as select distinct bene_id, index_date,
-sum(housecall) as n_housecalls_&suf
+sum(housecall) as n_housecalls_&suf,
+sum(pod) as n_pod_vis_&suf
 from hc group by bene_id, index_date;
 quit;
 
