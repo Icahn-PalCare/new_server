@@ -1,4 +1,4 @@
-= V7 Outline MultiLine NoSorting TabWidth=30
+= V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Serious illness cohort 2016 update"
 /* 
@@ -31,7 +31,7 @@ global logpath "D:\HRS\Projects\serious_illness\ask_serious_illness_update_2016\
 
 /*SAS*/ 
 
-/*nhats cleaned path*/
+/*hrs cleaned path*/
 
 libname hrs 'D:\hrs\shared\base_data\hrs_cleaned';
 
@@ -85,6 +85,8 @@ forvalues i=2000(2)2016 {
 	merge 1:m bid using `bqsf', keep(match) nogen
 	//9/23/2020-replace once there's ivw dates
 	if core_year==2016 & missing(index_date) replace index_date=td(01jan2016)
+	replace index_year=year(index_date) if missing(index_year)
+	replace index_month=month(index_date) if missing(index_month)
 	keep if start_dt<=index_date & start_dt>=index_date-730
 	gsort id index_year -start_dt
 	by id  index_year: gen num=_n
@@ -112,7 +114,8 @@ forvalues i=2000(2)2016 {
 	merge 1:m bid using `bqsf', keep(match) nogen
 	//9/23/2020-replace once there's ivw dates
 	if core_year==2016 & missing(index_date) replace index_date=td(01jan2016)
-
+	replace index_year=year(index_date) if missing(index_year)
+	replace index_month=month(index_date) if missing(index_month)
 keep if start_dt>=index_date & start_dt<=index_date+365
 gsort id start_dt
 by id: gen num=_n
