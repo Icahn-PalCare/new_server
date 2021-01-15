@@ -4679,7 +4679,7 @@ svy, subpop(keep_ek): tab hrdshp_food depress_4cat, column
 svy, subpop(keep_ek): tab hrdshp_any depress_4cat, column
 svy, subpop(keep_ek): tab hrdshp_getfood depress_4cat, column
 
-putexcel set "D:\HRS\Projects\coronavirus\output\table1_depression_jan 5 2020.xls", replace
+putexcel set "D:\HRS\Projects\coronavirus\output\table1_depression_jan 14 2020.xls", replace
 putexcel A1:E1= "Table 1. Characteristics of those with and without depression", merge bold border(bottom)
 putexcel B2= "no depression" 
 putexcel C2= "depression" 
@@ -4689,10 +4689,10 @@ local i=4
 
 foreach x of local catvars {
 	putexcel A`i'= "`x'"
-	svy, subpop(keep_ek): tab `x' if cesd_tot_ge3==0
+	svy, subpop(if keep_ek==1 & cesd_tot_ge3==0): tab `x'
 		mat pcb=e(b)'
 		putexcel B`i'=matrix(pcb)
-	svy, subpop(keep_ek): tab `x' if cesd_tot_ge3==1
+	svy, subpop(if keep_ek==1 & cesd_tot_ge3==1): tab `x' 
 		mat pcb=e(b)'
 		putexcel C`i'=matrix(pcb)
 	svy, subpop(keep_ek): tab `x' cesd_tot_ge3
