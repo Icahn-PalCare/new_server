@@ -109,6 +109,8 @@ use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\
 rename *, l
 gen id=hhid+pn
 
+replace total_oop=total_oop-mc_hmo if mc_hmo!=.
+
 gsort id -year
 by id: keep if _n<=2
 tempfile t1
@@ -729,7 +731,7 @@ svy, subpop(keep): tab `var' full_ma, column
 tabstat total_oop_last_yr, statistics (mean sd) by(full_ma)
 
 twoway (histogram tot_oop_log if full_ma==0, color(blue%30))(histogram tot_oop_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA"))
-graph save "Graph" "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\histograms to show amy_ july 23\histogram_total oop_ july 23 2020.gph"
+graph save "Graph" "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\histograms to show amy_ july 23\histogram_total oop_ jan 19 2021.gph", replace
 
 twoway (histogram hospital_log if full_ma==0, color(blue%30))(histogram hospital_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA")) saving(ckahospital.gph)
 twoway (histogram doctor_log if full_ma==0, color(blue%30))(histogram doctor_log if full_ma==1, color(red%30)), legend(order (1 "TM" 2 "MA")) saving(ckadoctor.gph)
@@ -741,7 +743,7 @@ twoway (histogram other_log if full_ma==0, color(blue%30))(histogram other_log i
 
 
 gr combine ckahospital.gph ckadoctor.gph ckarx.gph ckanh.gph ckahelper.gph ckahome.gph 
-graph save "Graph" "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\histograms to show amy_ july 23\histogram_oop by cat_ july 23 2020.gph"
+graph save "Graph" "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\histograms to show amy_ july 23\histogram_oop by cat_ jan 19 2021.gph", replace
 
 foreach var of varlist 
 tabstat total_oop_last_yr, statistics (mean sd) by(full_ma)
