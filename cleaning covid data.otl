@@ -4642,8 +4642,7 @@ svy, subpop(keep_nodep_2016): mean cesd_tot_ge3_18
 svy, subpop(keep_dep_2018): mean cesd_tot_ge3
 svy, subpop(keep_nodep_2018): mean cesd_tot_ge3
 
-keep_dep_2016
-keep_nodep_2016
+
 
 *TABLE: CHARACTERISTICS ACROSS 4 DEPRESSION CATEGORIES
 svy, subpop(keep_ek): tab depress_4cat

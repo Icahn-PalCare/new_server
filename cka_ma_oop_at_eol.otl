@@ -33,75 +33,65 @@ global cms "D:\HRS\Shared\base_data\hrs_cms\Stata"
 
 
 H="get ma and hospice info at last year of life"
-//start with death date
 
-use "${hrs}\death_date_2016" if !missing(bid_hrs_22), clear
+use "D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\oopme_final_2016.dta", clear
+rename *, l
+gen id=hhid+pn
 
-keep id bid_hrs_22 death_all
-rename death_all index_date
+gsort id -year
+by id: keep if _n<=2
+tempfile t1
+save `t1'
 
-//get hospice start date
+use id exit_year using "D:\HRS\Shared\base_data\hrs_cleaned\exit_02_to_16_dt.dta", clear
+gen ivw_date=.
+rename exit year
 
-merge 1:m bid using "${cms}\hs_1998_2016", keep(match master) nogen keepusing(admit_date disch_date)
-gen hs=index_date-disch_date<=365
-by id, sort: egen ind_hs=max(hs)
-gsort id admit_date
-replace admit_date=index_date-365 if admit_date<index_date-365
-gen los=disch_date-admit_date+1
-replace los=0 if disch_date<index_date-365 
-by id: egen hs_los=total(los)
-replace hs_los=ceil(hs_los/30.4)
-replace hs_los=12 if hs_los>12
-label var hs_los "HS months in last year (from claims)"
-by id: keep if _n==1
-rename admit_date first_hs_date
-
-
-merge 1:m bid using "${cms}\bqsf_1998_2016", keep(match) nogen keepusing(start_dt end_dt *mo*)
-
-keep if inrange(start_dt,index_date-457,index_date)
-
-gsort id -start_dt
-by id: drop if _n==6
-
-by id: egen ab=total(ab_mo_cnt)
-
-by id: gen ind_ab_last_yr=ab>=12
-
-by id: egen buyin_los=total(buyin_mo)
-gen ind_buyin=buyin_los>0
-replace buyin_los=12 if buyin_los>12
+append using "D:\HRS\Shared\base_data\hrs_cleaned\core_00_to_14.dta"
+replace ivw_date=c_ivw_date
+replace year=core_year if missing(year)
+ 
+keep id ivw_date year medigap
+gsort id -year 
+by id: gen ivw_date_n1=ivw_date[_n+1]
 
 
-gen ma=hmo_mo==ab_mo_cnt & hmo_mo
-by id: egen ma_los=total(hmo_mo)
-replace ma_los=12 if ma_los>12
-gen full_ma=ma_los==12
-by id: egen any_ma=max(hmo_mo)
-replace any_ma=any_ma>0
-sort id start_dt 
-by id: egen ma_at_start=max(cond(_n==1),ma,0)
-by id: egen ma_at_eol=max(cond(_n==_N),ma,0)
+merge m:1 id  using "${intpath}\ma_and_hs.dta", keepusing(index_date) keep(match) nogen
+replace ivw_date=index_date if missing(ivw_date)
 
-by id: egen ma_at_hospice=max(cond(hmo_mo>=1 & inrange(first_hs_date,start_dt,end_dt),1,0))
-gen hs_too_early=index-first_hs_date>365 & !missing(first_hs_date)
+keep if inrange(index_date-ivw_date,0,365)
 
-keep id index ind_hs ind_* full any ma_at* hs_too *_los bid
+merge 1:1 id year using `t1', gen(oopm) keepusing(total_oop hospital_oop doctor_oop rx_oop nh_oop helper_oop home_oop other_oop *oop private_medigap_prem mc_hmo mc_hmo_prem private_medigap_1 private_medigap_2 private_medigap_3 private_medigap_4 private_medigap_5 private_medigap) keep(match)
+rename private_medigap_prem medigap_prem_oop
+gen ivw_time=ivw_date-ivw_date_n1
+gen time2d=index_date-ivw_date
+gen pct=1 if index_date-ivw_date_n1<=365
+replace pct=365/(index_date-ivw_date_n1) if index_date==ivw_date & missing(pct)
 
-label var ind_ab_last_yr "Complete Medicare coverage in last year"
-label var ind_hs "Any hospice use in last year"
-label var ind_buyin "Medicaid in last year (from Buy-in indicator)"
-label var full_ma "MA for all of last year"
-label var any_ma "Any MA in last year"
-label var ma_at_hospice "MA when entered hospice"
-label var hs_too_early "Entered hospice >yr pre-death"
-label var buyin_los "Medicaid months (from Buy-in indicator)"
-label var ma_at_start "MA at start of last year"
-label var ma_at_eol "MA at end of last year"
+replace medigap_prem_oop=medigap_prem_oop*12
+replace pct=(365-time2d)/(ivw_time)  if missing(pct)
+foreach x in total_oop hospital_oop doctor_oop rx_oop nh_oop helper_oop home_oop other_oop medigap_prem_oop mc_hmo mc_hmo_prem private_medigap_1 private_medigap_2 private_medigap_3 private_medigap_4 private_medigap_5 private_medigap{
+	gen `x'_last=`x'*pct
+	by id: egen `x'_last_yr=total(`x'_last)
 
-duplicates drop
+}
 
-save "${intpath}\ma_and_hs.dta", replace
+by id: egen medigap_n1=max(medigap)
+
+/*--using the same method as above for medigap oop
+rename medigap_prem_oop_last_yr medigap_prem_oop_n1exit
+replace medigap_prem_oop_n1=medigap_prem_oop_n1*12
+replace medigap_prem_oop_last_yr=medigap_prem_oop_last*12
+sort id year
+*by id: replace medigap_prem_oop_last_yr=medigap_prem_oop_last_yr[_n+1] if _n!=_N*/
+drop *oop ivw_time time2d pct oopm ivw_date* *last year medigap mc_hmo mc_hmo_prem private_medigap_1 private_medigap_2 private_medigap_3 private_medigap_4 private_medigap_5 private_medigap
+
+replace other_oop_last_yr=total-hospital-doctor-rx-nh-helper-home
+
+duplicates drop	
+save "${intpath}\oopdata.dta", replace
+
+
 
 H="Annualize OOP"
 

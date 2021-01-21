@@ -1,7 +1,7 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
 H="Intro"
-//hrs
+n//hrs
 global hrs "D:\HRS\Shared\base_data\hrs_cleaned"
 
 //Intermediate Data Path
@@ -30,6 +30,7 @@ set hrs.core_00_to_16 (keep=id c_ivw_date c_ivw_month c_ivw_year core_year);
 index_date=c_ivw_date;
 index_month=month(c_ivw_date);
 index_year=year(c_ivw_date);
+if index_year=2016;
 run;
 
 
@@ -60,8 +61,7 @@ drop *mo*
 tempfile bqsf
 save `bqsf'
 
-forvalues i=2000(2)2016 {
-	use "${intpath}\index.dta" if !missing(bid_hrs_22) & core_year==`i', clear
+	use "${intpath}\index.dta" if !missing(bid_hrs_22) & core_year==2016, clear
 	merge 1:m bid using `bqsf', keep(match) nogen
 	//9/23/2020-replace once there's ivw dates
 	if core_year==2016 & missing(index_date) replace index_date=td(01jan2016)
@@ -76,19 +76,16 @@ forvalues i=2000(2)2016 {
 		replace cont_ffs_n_mos=cont_ffs_n_mos+3 if ffs`y'==1 & cont_ffs_n_mos==`y'*3-3
 }
 	drop ffs*
-	tempfile ffs`i'
-	save `ffs`i''
-}
-clear
-forvalues i=2000(2)2016 {
-	append using `ffs`i''
-}
+	tempfile ffs2016
+	save `ffs2016'
+
+
 tempfile bef
 save `bef'
 
 
-forvalues i=2000(2)2016 {
-	use "${intpath}\index.dta" if core_year==`i', clear
+
+	use "${intpath}\index.dta" if core_year==2016, clear
 	merge 1:m bid using `bqsf', keep(match) nogen
 	//9/23/2020-replace once there's ivw dates
 	if core_year==2016 & missing(index_date) replace index_date=td(01jan2016)
@@ -114,13 +111,13 @@ forvalues y=1/3 {
 }
 }
 drop ffs*
-tempfile ffs`i'
-save `ffs`i''
-}
+tempfile ffs2016
+save `ffs2016'
+
 clear
-forvalues i=2000(2)2016 {
-append using `ffs`i''
-}
+
+append using `ffs2016'
+
 
 merge 1:1 bid index_date using `bef'
 
@@ -175,7 +172,7 @@ quit;
 %claims_pre(days_start=0,days_bef_index=365,yrs=1998_2016,source=hs);
 %claims_pre(days_start=0,days_bef_index=365,yrs=1998_2016,source=dm);
 
-/*2yrs*/
+/*2yrs
 %claims_pre(days_start=0,days_bef_index=730,yrs=1998_2016,source=ip);
 %claims_pre(days_start=0,days_bef_index=730,yrs=1998_2016,source=mp);
 %claims_pre(days_start=0,days_bef_index=730,yrs=1998_2016,source=sn);
@@ -184,7 +181,7 @@ quit;
 %claims_pre(days_start=0,days_bef_index=730,yrs=1998_2016,source=hh);
 %claims_pre(days_start=0,days_bef_index=730,yrs=1998_2016,source=hs);
 %claims_pre(days_start=0,days_bef_index=730,yrs=1998_2016,source=dm);
-
+*/
 /****************************************************************************/
 /*prior to saving the permanent claims datasets, drop unneeded variables
 this speeds up runnnig code later on*/
@@ -255,17 +252,17 @@ run;
 
 %mp_drop(days_bef_core=183);
 %mp_drop(days_bef_core=365);
-%mp_drop(days_bef_core=730);
+/*%mp_drop(days_bef_core=730);*/
 %hh_drop(days_bef_core=365);
-%hh_drop(days_bef_core=730);
+/*%hh_drop(days_bef_core=730);*/
 %hs_drop(days_bef_core=365);
-%hs_drop(days_bef_core=730);
+/*%hs_drop(days_bef_core=730);*/
 %dm_drop(days_bef_core=365);
-%dm_drop(days_bef_core=730);
+/*%dm_drop(days_bef_core=730);*/
 %op_drop(days_bef_core=365);
-%op_drop(days_bef_core=730);
+/*%op_drop(days_bef_core=730);*/
 %pb_drop(days_bef_core=365);
-%pb_drop(days_bef_core=730);
+/*%pb_drop(days_bef_core=730);*/
 %ip_drop(days_bef_core=365);
 
 
@@ -430,7 +427,7 @@ run;
 
 /*1 and 2 years pre-interview: proj_int.dx_0_1yr, proj_int.dx_0_2yr */
 %dx_time_range(range1=0, range2=1yr, days_bef_core=365);
-%dx_time_range(range1=0, range2=2yr, days_bef_core=730);
+/*%dx_time_range(range1=0, range2=2yr, days_bef_core=730);*/
 
 data zzzdx_test;
 set proj_int.dx_0_1yr;
@@ -563,7 +560,7 @@ quit;
 %claims_post(days_start=0,days_aft_index=365,yrs=1998_2016,source=hs);
 %claims_post(days_start=0,days_aft_index=365,yrs=1998_2016,source=dm);
 
-/*2yrs*/
+/*2yrs
 %claims_post(days_start=0,days_aft_index=730,yrs=1998_2016,source=ip);
 %claims_post(days_start=0,days_aft_index=730,yrs=1998_2016,source=mp);
 %claims_post(days_start=0,days_aft_index=730,yrs=1998_2016,source=sn);
@@ -572,7 +569,7 @@ quit;
 %claims_post(days_start=0,days_aft_index=730,yrs=1998_2016,source=hh);
 %claims_post(days_start=0,days_aft_index=730,yrs=1998_2016,source=hs);
 %claims_post(days_start=0,days_aft_index=730,yrs=1998_2016,source=dm);
-
+*/
 %macro ip_drop(days_aft_index=);
 data proj_int.ip_meet_&days_aft_index.p(keep=bid_hrs_22 index_year index_date admit_date disch_date 
  icarecnt CRNRYDAY type_adm ER_AMT AD_DGNS DGNS_CD01-DGNS_CD25 PRCDR_CD01-PRCDR_CD25 
@@ -639,25 +636,25 @@ run;
 
 %ip_drop(days_aft_index=183);
 %ip_drop(days_aft_index=365);
-%ip_drop(days_aft_index=730);
+/*%ip_drop(days_aft_index=730);*/
 %sn_drop(days_aft_index=183);
 %sn_drop(days_aft_index=365);
-%sn_drop(days_aft_index=730);
+/*%sn_drop(days_aft_index=730);*/
 %hh_drop(days_aft_index=183);
 %hh_drop(days_aft_index=365);
-%hh_drop(days_aft_index=730);
+/*%hh_drop(days_aft_index=730);*/
 %hs_drop(days_aft_index=183);
 %hs_drop(days_aft_index=365);
-%hs_drop(days_aft_index=730);
+/*%hs_drop(days_aft_index=730);*/
 %dm_drop(days_aft_index=183);
 %dm_drop(days_aft_index=365);
-%dm_drop(days_aft_index=730);
+/*%dm_drop(days_aft_index=730);*/
 %op_drop(days_aft_index=183);
 %op_drop(days_aft_index=365);
-%op_drop(days_aft_index=730);
+/*%op_drop(days_aft_index=730);*/
 %pb_drop(days_aft_index=183);
 %pb_drop(days_aft_index=365);
-%pb_drop(days_aft_index=730);
+/*%pb_drop(days_aft_index=730);*/
  
 
 H="***********"
@@ -10467,7 +10464,7 @@ left join
 proj_int.ccw o
 on a.bid_hrs_22=o.bid_hrs_22 and a.index_year=o.index_year;
 quit;
-
+/*
 proc sql;
 create table proj_int.serious_ill_int_dataset as select * from
 hrs.core_00_to_16 a 
@@ -10475,13 +10472,13 @@ left join
 tomerge b 
 on a.id=b.id and a.c_ivw_year=b.index_year;
 quit;
-
-proc export data=proj_int.serious_ill_int_dataset 
+*/
+proc export data=tomerge 
 outfile="D:\HRS\Projects\dem_2016\data\int_data\serious_ill_int_dataset.dta" 
 replace;
 run;
 
-H="var clean and check"
+H="xxvar clean and check"
 
 
 
@@ -10707,7 +10704,7 @@ proc export data=proj_int.serious_ill_int_dataset1
 outfile="D:\HRS\Projects\dem_2016\data\int_data\serious_ill_int_dataset1.dta" replace;
 run;
 
-H="dataset cleaning"
+H="xxdataset cleaning"
 
 
 clear all 
