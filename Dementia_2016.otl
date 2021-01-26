@@ -30,9 +30,8 @@ set hrs.core_00_to_16 (keep=id c_ivw_date c_ivw_month c_ivw_year core_year);
 index_date=c_ivw_date;
 index_month=month(c_ivw_date);
 index_year=year(c_ivw_date);
-if index_year=2016;
+if core_year=2016;
 run;
-
 
 data xwalk;
 set medi.xref2015medicare;
