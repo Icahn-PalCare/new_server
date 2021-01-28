@@ -2837,4 +2837,136 @@ exit
 
 
 
+H="cka_making additional vars"
+ *make a file for just index date, wide, by spid
+use "D:\NHATS\Projects\homebound\ko_p01\ko_hbmc_shhc\data\final_data\hbmc_nhats_1_6_full_6m.dta" 
+ keep spid index_date wave
+reshape wide index_date, i(spid) j(wave)
+save "D:\NHATS\Projects\homebound\ko_p01\ko_hbmc_shhc\data\int_data\cka_index date spid wave.dta", replace
+
+*FLAGGING HH files
+ use "D:\NHATS\Shared\base_data\CMS_claims\Stata\xwalk_2016.dta" 
+
+
+merge 1:m bene_id using  "D:\NHATS\Shared\base_data\CMS_claims\Stata\pb_09_17.dta" 
+
+
+*make a flag for any POS home
+
+gen pos_home=0
+foreach n of numlist 1/13 {
+replace pos_home=1 if pos`n'=="12" | pos`n'=="13" | pos`n'=="14"
+}
+
+*make a flag if home-based behavioral health flag
+gen bh_flag=0
+foreach n of numlist 1/13 {
+replace bh_flag=1 if hcpcscd`n'=="90832" | hcpcscd`n'=="90833" | hcpcscd`n'=="90834" | hcpcscd`n'=="90835" | hcpcscd`n'=="90836" | hcpcscd`n'=="90837" | hcpcscd`n'=="90838" | hcpcscd`n'=="90845" | hcpcscd`n'=="90846" | hcpcscd`n'=="90847" | hcpcscd`n'=="90848" | hcpcscd`n'=="90849" | hcpcscd`n'=="90850" | hcpcscd`n'=="90851" | hcpcscd`n'=="90852" | hcpcscd`n'=="90853" | hcpcscd`n'=="90865" 
+}
+replace bh_flag=0 if pos_home==0
+
+
+keep if bh_flag==1 | pos_home==1
+
+keep spid bh_flag admit_date pos_home
+
+merge m:1 spid using  "D:\NHATS\Projects\homebound\ko_p01\ko_hbmc_shhc\data\int_data\cka_index date spid wave.dta"
+drop if _merge==2
+drop _merge
+
+*now keep only the claim lines that are within 6 months following or before index
+foreach n of numlist 1/9 {
+gen days`n'= abs(admit_dat-index_date`n')
+}
+
+gen days_win1=0
+gen days_win2=0
+gen days_win3=0
+gen days_win4=0
+gen days_win5=0
+gen days_win6=0
+gen days_win7=0
+gen days_win8=0
+gen days_win9=0
+
+
+foreach n of numlist 1/9 {
+replace days_win`n'=1 if days`n'<61
+}
+
+egen total_dw=rowtotal (days_win1-days_win9)
+keep if total_dw==1
+
+gen wave=0
+foreach n of numlist 1/9 {
+replace wave=`n' if days_win`n'==1
+}
+
+gen index_date=.
+foreach n of numlist 1/9 {
+replace index_date= index_date`n' if wave==`n'
+}
+
+keep spid admit_date pos_home bh_flag index_date wave
+gen bh_6m_n=1 if bh_flag==1 & (index_date>admit_date)
+gen bh_6m_p=1 if bh_flag==1 & (index_date<=admit_date)
+gen pos_home_6m_n=1 if pos_home==1 & (index_date>admit_date)
+gen pos_home_6m_p=1 if pos_home==1 & (index_date<=admit_date)
+
+sort spid index_date
+egen n_bh_n6m = total(bh_6m_n), by(spid index_date)
+egen n_bh_p6m = total(bh_6m_p), by(spid index_date)
+egen n_poshome_n6m = total(pos_home_6m_n), by(spid index_date)
+egen n_poshome_p6m = total(pos_home_6m_p), by(spid index_date)
+
+by spid index_date, sort: gen pid=_n
+by spid wave, sort: gen wid=_n
+
+keep if pid==1
+keep spid wave n_bh_n6m n_bh_p6m n_poshome_n6m n_poshome_p6m 
+
+save "D:\NHATS\Projects\homebound\ko_p01\ko_hbmc_shhc\data\int_data\cka_index date spid los home and bh.dta"
+*NOW MERGE WITH REST OF HH FILE
+merge 1:1 spid wave using  "D:\NHATS\Projects\homebound\ko_p01\ko_hbmc_shhc\data\final_data\hbmc_nhats_1_6_full_6m.dta" 
+
+
+gen keep=0
+replace keep=1 if ffs_6m==1 & nolml==1 & age_70==1 & nonhres==1 & hmo_6m==1
+
+H="analysis"
+
+tab prob_dem if keep==1
+
+putexcel set "D:\NHATS\Projects\homebound\ko_p01\ko_hbmc_shhc\output\dementia services use_jan 26 2021.xls", replace
+putexcel A1:E1= "Table 1. Characteristics of those with and without dementia", merge bold border(bottom)
+putexcel B2= "no dementia" 
+putexcel C2= "dementia" 
+putexcel D2= "p-value"
+local catvars ind_poshome_n6m ind_poshome_p6m ind_hh_n6m ind_hh_p6m ind_bh_n6m ind_bh_p6m ind_pod_n12m ind_pod_p6m
+local i=4
+
+svyset  spid [pweight=anfinwgt], strat(varstrat)
+svy, subpop(keep): tab prob_dem
+
+foreach x of local catvars {
+	putexcel A`i'= "`x'"
+	svy, subpop(if keep==1 & prob_dem==0): tab `x'
+		mat pcb=e(b)'
+		putexcel B`i'=matrix(pcb)
+	svy, subpop(if keep==1 & prob_dem==1): tab `x' 
+		mat pcb=e(b)'
+		putexcel C`i'=matrix(pcb)
+	svy, subpop(keep): tab `x' prob_dem
+		mat z=e(p_Pear)
+		putexcel D`i'= matrix(z)
+	tab `x'
+	local lev=r(r)
+	local i=`i'+`lev'
+	}
+	
+
+svy, subpop(keep): tab ind_hh_n6m prob_dem, column
+
+tab ind_hh_n6m prob_dem, m
+
 H="**********************************"
