@@ -2969,4 +2969,153 @@ svy, subpop(keep): tab ind_hh_n6m prob_dem, column
 
 tab ind_hh_n6m prob_dem, m
 
+H="cka_making hh vars"
+*hh
+use "D:\NHATS\Shared\base_data\CMS_claims\Stata\xwalk_2016.dta" 
+
+merge 1:m bene_id using  "D:\NHATS\Projects\home health policy\cka_hh at EOL\data\rev_cntr.dta" 
+
+keep if _merge==3
+drop _merge
+
+
+*DROP IF NOT MEANINGFUL CLAIM LINE
+drop if rev_cntr== "0001" | rev_cntr== "0023" | rev_cntr== "0270" | rev_cntr== "0623"| hcpcs_cd== "G0457" | hcpcs_cd== "Q5001" | hcpcs_cd== "Q5002" | hcpcs_cd== "Q5009"
+gen servicetype=.
+*RN
+gen hh_rn=0
+replace hh_rn=1 if hcpcs_cd== "G0154" | hcpcs_cd== "G0299" |  hcpcs_cd== "G0300" |  hcpcs_cd== "G0493" |  hcpcs_cd== "G0494" | hcpcs_cd== "G0495" | hcpcs_cd== "G0496" | hcpcs_cd== "G0162" | hcpcs_cd== "G0163" | hcpcs_cd== "G0164" 
+*PT
+gen hh_ther=0
+replace hh_ther=1 if hcpcs_cd== "G0151" | hcpcs_cd== "G0157" | hcpcs_cd== "G0159" | hcpcs_cd== "G0152" |  hcpcs_cd== "G0158" |  hcpcs_cd== "G0160" | hcpcs_cd== "G0153" | hcpcs_cd== "G0161" 
+
+*CSW
+gen hh_sw=0
+replace hh_sw=1 if hcpcs_cd== "G0155"
+
+*HHA
+gen hh_hha=0
+replace hh_hha=1 if hcpcs_cd== "G0156"
+
+drop if hh_rn==0 & hh_ther==0 & hh_sw==0 & hh_hha==0
+keep rev_cntr_dt spid hh_rn hh_ther hh_sw hh_hha
+
+merge m:1 spid using  "D:\NHATS\Projects\homebound\ko_p01\ko_hbmc_shhc\data\int_data\cka_index date spid wave.dta"
+
+drop if _merge==2
+drop _merge
+
+*now keep only the claim lines that are within 6 months following or before index
+foreach n of numlist 1/9 {
+gen days`n'= abs(rev_cntr_dt-index_date`n')
+}
+
+gen days_win1=0
+gen days_win2=0
+gen days_win3=0
+gen days_win4=0
+gen days_win5=0
+gen days_win6=0
+gen days_win7=0
+gen days_win8=0
+gen days_win9=0
+
+
+foreach n of numlist 1/9 {
+replace days_win`n'=1 if days`n'<181
+}
+
+egen total_dw=rowtotal (days_win1-days_win9)
+keep if total_dw==1
+
+gen wave=0
+foreach n of numlist 1/9 {
+replace wave=`n' if days_win`n'==1
+}
+
+gen index_date=.
+foreach n of numlist 1/9 {
+replace index_date= index_date`n' if wave==`n'
+}
+
+gen hh_any=0
+replace hh_any=1 if hh_rn==1 | hh_ther==1 | hh_sw==1 | hh_hha==1
+keep spid rev_cntr_dt hh_rn hh_ther hh_sw hh_hha hh_any index_date wave
+
+gen hh_rn_6m_p=1 if hh_rn==1 & (index_date<=rev_cntr_dt)
+gen hh_ther_6m_p=1 if hh_ther==1 & (index_date<=rev_cntr_dt)
+gen hh_sw_6m_p=1 if hh_sw==1 & (index_date<=rev_cntr_dt)
+gen hh_hha_6m_p=1 if hh_hha==1 & (index_date<=rev_cntr_dt)
+gen hh_any_6m_p=1 if hh_any==1 & (index_date<=rev_cntr_dt)
+
+
+sort spid index_date
+egen n_hh_rn_p6m = total(hh_rn_6m_p), by(spid index_date)
+egen n_hh_ther_p6m = total(hh_ther_6m_p), by(spid index_date)
+egen n_hh_sw_p6m = total(hh_sw_6m_p), by(spid index_date)
+egen n_hh_hha_p6m = total(hh_hha_6m_p), by(spid index_date)
+egen n_hh_any_p6m = total(hh_any_6m_p), by(spid index_date)
+
+by spid index_date, sort: gen pid=_n
+by spid wave, sort: gen wid=_n
+
+keep if pid==1
+keep spid wave  n_hh_rn_p6m n_hh_ther_p6m  n_hh_sw_p6m n_hh_hha_p6m n_hh_any_p6m
+
+save "D:\NHATS\Projects\homebound\ko_p01\ko_hbmc_shhc\data\int_data\cka_index date spid hh visits.dta", replace
+*NOW MERGE WITH REST OF HH FILE
+merge 1:1 spid wave using  "D:\NHATS\Projects\homebound\ko_p01\ko_hbmc_shhc\data\final_data\hbmc_nhats_1_6_full_6m.dta" 
+
+****VARIABLE CLEANING
+
+gen keep=0
+replace keep=1 if ffs_6m==1 & nolml==1 & age_70==1 & nonhres==1 & hmo_6m==1
+
+
+recode n_hh_rn_p6m (0=0)(1/999=1)(.=0), gen(ind_hh_rn_p6m)
+recode n_hh_ther_p6m (0=0)(1/999=1)(.=0), gen(ind_hh_ther_p6m)
+recode n_hh_sw_p6m (0=0)(1/999=1)(.=0), gen(ind_hh_sw_p6m)
+recode n_hh_hha_p6m (0=0)(1/999=1)(.=0), gen(ind_hh_hha_p6m)
+recode n_hh_any_p6m (0=0)(1/999=1)(.=0), gen(ind_hh_any_p6m)
+
+
+***********adding them to analysis
+
+
+tab prob_dem if keep==1
+
+putexcel set "D:\NHATS\Projects\homebound\ko_p01\ko_hbmc_shhc\output\dementia services use_jan 29 2021.xls", replace
+putexcel A1:D1= "Table 1. Characteristics of those with and without dementia", merge bold border(bottom)
+putexcel B2= "no dementia (19,880 obs)" 
+putexcel C2= "dementia (3,439 obs)" 
+putexcel D2= "p-value"
+local catvars ind_hh_rn_p6m ind_hh_ther_p6m ind_hh_sw_p6m ind_hh_hha_p6m ind_hh_any_p6m
+local i=4
+
+svyset  spid [pweight=anfinwgt], strat(varstrat)
+svy, subpop(keep): tab prob_dem
+
+foreach x of local catvars {
+	putexcel A`i'= "`x'"
+	svy, subpop(if keep==1 & prob_dem==0): tab `x'
+		mat pcb=e(b)'
+		putexcel B`i'=matrix(pcb)
+	svy, subpop(if keep==1 & prob_dem==1): tab `x' 
+		mat pcb=e(b)'
+		putexcel C`i'=matrix(pcb)
+	svy, subpop(keep): tab `x' prob_dem
+		mat z=e(p_Pear)
+		putexcel D`i'= matrix(z)
+	tab `x'
+	local lev=r(r)
+	local i=`i'+`lev'
+	}
+	
+
+svy, subpop(keep): tab ind_hh_n6m prob_dem, column
+
+tab ind_hh_n6m prob_dem, m
+
+pvenn ind_hh_n6m ind_housecalls_p6m prob_dem
+
 H="**********************************"
