@@ -2908,15 +2908,39 @@ label var eatdev "Ever use Adapted Utensils"
 
 
 ////// 4/2/2018--Adding in income quartile
+// 2/2/21--Creating quartiles for each imputation
+
 sort wave
 forvalues w=1/$w {
-xtile income_quart`w'=aveincome [aw=anfinwgt0] if wave==`w', nq(4) 
+	xtile income_quart`w'=aveincome [aw=anfinwgt0] if wave==`w', nq(4) 
+
 }
+
+
+sort wave
+forvalues i=1/5 {
+forvalues w=1(2)$w {
+	xtile incquart`i'`w'=imputed_inc`i' [aw=anfinwgt0] if wave==`w', nq(4)
+}
+
+}
+
 egen income_quart=rowmax(income_quart*)
 
 forvalues w=1/$w{
 drop income_quart`w'
 }
+
+forvalues i=1/5 {
+		egen income_quart`i'=rowmax(incquart`i'*)
+}
+
+forvalues i=1/5 {
+	sort spid wave
+	by spid: replace income_quart`i'=income_quart`i'[_n-1] if missing(income_quart`i')
+}
+
+drop incquart*
 
 note income_quart: Use aveincome to create variable.  
 note income_quart: Create an income quartile measure. Weighted. 
@@ -2926,6 +2950,19 @@ note income_quart: Created: 4/2/18-MH
 label var income_quart "Quartile of Income"
 label define income_quart 1 "Bottom" 2 "Second" 3 "Third" 4 "Top"
 label values income_quart income_quart
+
+
+forvalues i=1/5 {
+	note income_quart`i': Income quartile, by year, imputation `i'
+	note income_quart`i': Create an income quartile measure. Weighted. 
+	note income_quart`i': Located in NHATS Setup, under Part 7.
+	note income_quart`i': Created: 2/2/21--EBL
+
+	label var income_quart`i' "Quartile of Income, by year, imputation `i'"
+	label define income_quart`i' 1 "Bottom" 2 "Second" 3 "Third" 4 "Top"
+	label values income_quart`i' income_quart`i'
+}
+
 
 ///// 3/26/18 --Adding in Hospice and place died variables.
 
@@ -5539,7 +5576,7 @@ adl_toil_help adl_toil_not_done adl_dres_diff adl_dres_help adl_dres_not_done ia
 iadl_shop_not_done iadl_meal_help iadl_meal_diff iadl_meal_not_done iadl_bank_help iadl_bank_diff iadl_bank_not_done iadl_meds_help iadl_meds_diff iadl_meds_not_done ///
  ind_meds_diff ind_meds_mistake ind_meds_problem reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays prim_helper_opid prim_helper_cat ///
  tot_hrsmonth_help_i n_helpers tot_hrswk_help_i n_family_helpers ind_family_helper n_paid_helpers ind_paid_helper ind_rc_staff num_helpers_cat tot_hrsmonth_paid_i ///
- tot_hrswk_paid_i ind_no_helpers metro_ind no_acp formal_acp informal_acp acp old_an2011wgt trfinwgt tr2011wgt serarmfor dresslf dresdif ntlvrmslp eatdev income_quart ///
+ tot_hrswk_paid_i ind_no_helpers metro_ind no_acp formal_acp informal_acp acp old_an2011wgt trfinwgt tr2011wgt serarmfor dresslf dresdif ntlvrmslp eatdev income_quart* ///
  placedied hospice1 hospice2 hospicelml gripsc1 walksec1 walkhndr1 gripsc2 walksec2 walkhndr2 origwksc nhatswksc nhatsgrav nhatsgrb lst10pnds trytolose evrgowalk vigoractv ///
  unwgtloss lowphysact lowenergy oftcheer oftbored oftfol oftupset lifemean confident giveup livingsit selfdeter findway adjchg agefeel mealskip nopayhous nopayutil ///
  nopaymed mealskipnum sr_skincancer_had sr_breastcancer_had sr_prostatecancer_had sr_bladdercancer_had sr_crvovrnutrncancer_had sr_coloncancer_had sr_kidneycancer_had ///
