@@ -1,0 +1,31 @@
+= V4 Outline MultiLine NoSorting TabWidth=30
+
+H="epi new homebound 2019"
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_9.dta" 
+
+gen new_hb_cat=.
+replace new_hb_cat=1 if homebound_cat==1 & freq_go_out==5
+replace new_hb_cat=2 if homebound_cat==1 & freq_go_out==4
+replace new_hb_cat=3 if homebound_cat==2
+replace new_hb_cat=4 if homebound_cat==3
+replace new_hb_cat=5 if homebound_cat==4 & freq_go_out==3
+replace new_hb_cat=6 if homebound_cat==4 & (freq_go_out==1 | freq_go_out==2)
+
+tab new_hb_cat if wave==9
+
+proportion new_hb_cat if wave==9
+
+svyset  varunit [pweight=anfinwgt], strat(varstrat)
+svy, subpop(if wave==9): proportion new_hb_cat
+svy, subpop(if wave==9): tab new_hb_cat, count cellwidth(15) format (%15.2g)
+
+svy, subpop(if age>=70): tab new_hb_cat wave, column
+
+
+svyset  spid [pweight=anfinwgt], strat(varstrat)
+svy, subpop(if age>=70): mlogit new_hb_cat wave, b(6)
+
+svyset  spid [pweight=anfinwgt], strat(varstrat)
+svy, subpop(if age>=70): mlogit new_hb_cat i.wave, b(6)
+margins wave
+marginsplot, recastci(rarea)
