@@ -430,13 +430,103 @@ gen `x'_keep = keep
 replace `x'_keep=0 if `x'==0
 }
 
+
+*different three cats: leave out partial year, separate TM to medigap vs. not
+gen mcare_3cat=.
+replace mcare_3cat=1 if ma3cat==0 & medigap==0
+replace mcare_3cat=2 if ma3cat==0 & medigap==1
+replace mcare_3cat=3 if ma3cat==2 
+label define mt3 1 "TM, no medigap/private" 2 "TM, w medigap/private" 3 "MA"
+label values mcare_3cat mt3
+
+*age
+recode age_at_death (65/75=1 "65-75")(76/85=2 "76-85")(86/95=3 "86-95")(96/999=4 "96+"), gen (age_10yrcats)
+
+*education
+recode degree (1/9=1), gen(hs_educ)
+
+*net worth
+xtile net_worth_quart=networth_adj2012,n(4)
+
+
+*oop spending as %ile of net worth
+gen total_per_nw = total_oop_last_yr/networth_adj2012
+
+recode total_per_nw (-999/5=1 "less than 5%")(5/20=2 "5-20%")(20.0000000000001/999999999=3 "more than 20%"), gen (total_per_nw_cat)
+
 H="analysis"
 *ANALYSIS
+*TABLE 1: Examine demographics and health of those in three categories- TM no medigap/private, TM medigap/private, MA
+svyset secu [pweight=wgtr], strata(stratum_n) vce(linearized)
+svy, subpop(keep): tab mcare_3cat
+putexcel set "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\table 1_feb 7 21.xls", replace
+putexcel A1:E1= "Table 1. Characteristics of those across insurance categories", merge bold border(bottom)
+putexcel B2= "TM alone" 
+putexcel C2= "TM with Medigap/private insurance" 
+putexcel D2= "MA" 
+putexcel E2= "p-value"
+local catvars age_10yrcats female race hs_educ net_worth_quart married livealone adl_independent_core ind_helper comor_c_hrs prob_dem   
+local i=4
+
+foreach x of local catvars {
+	putexcel A`i'= "`x'"
+	svy, subpop(if keep==1 & mcare_3cat==1): tab `x'
+		mat pcb=e(b)'
+		putexcel B`i'=matrix(pcb), nformat(percent_d2)
+	svy, subpop(if keep==1 & mcare_3cat==2): tab `x' 
+		mat pcb=e(b)'
+		putexcel C`i'=matrix(pcb), nformat(percent_d2)
+	svy, subpop(if keep==1 & mcare_3cat==3): tab `x' 
+		mat pcb=e(b)'
+		putexcel D`i'=matrix(pcb), nformat(percent_d2)		
+	svy, subpop(keep): tab `x' mcare_3cat
+		mat z=e(p_Pear)
+		putexcel E`i'= matrix(z)
+	tab `x'
+	local lev=r(r)
+	local i=`i'+`lev'
+	}
+
+***table 2: examine use patterns
+
+svyset secu [pweight=wgtr], strata(stratum_n) vce(linearized)
+svy, subpop(keep): tab mcare_3cat
+putexcel set "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\table 12_use patterns_feb 7 21.xls", replace
+putexcel A1:E1= "Table 1. Use patterns of those across insurance categories", merge bold border(bottom)
+putexcel B2= "TM alone" 
+putexcel C2= "TM with Medigap/private insurance" 
+putexcel D2= "MA" 
+putexcel E2= "p-value"
+local catvars hospital_use nh_use doctor_use rx_use patient_use dental_use home_use special_use other_use
+local i=4
+
+foreach x of local catvars {
+	putexcel A`i'= "`x'"
+	svy, subpop(if keep==1 & mcare_3cat==1): tab `x'
+		mat pcb=e(b)'
+		putexcel B`i'=matrix(pcb), nformat(percent_d2)
+	svy, subpop(if keep==1 & mcare_3cat==2): tab `x' 
+		mat pcb=e(b)'
+		putexcel C`i'=matrix(pcb), nformat(percent_d2)
+	svy, subpop(if keep==1 & mcare_3cat==3): tab `x' 
+		mat pcb=e(b)'
+		putexcel D`i'=matrix(pcb), nformat(percent_d2)		
+	svy, subpop(keep): tab `x' mcare_3cat
+		mat z=e(p_Pear)
+		putexcel E`i'= matrix(z)
+	tab `x'
+	local lev=r(r)
+	local i=`i'+`lev'
+	}
+
+	
+************************************************
+*examine proportions with any OOP spending-- MA full yr vs. mixed vs. TM full year
+
 svyset secu [pweight=wgtr], strata(stratum_n) vce(linearized)
 svy, subpop(keep): tab ma3cat
 
 
-*examine proportions with any OOP spending
 putexcel set "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\examine cost bins_2 2 2021.xls", replace
 putexcel A1:H1= "Examining OOP costs by categories: MA vs TM", merge bold border(bottom)
 
@@ -509,11 +599,91 @@ local i= `i'+3
 local j=`j'+3
 }
 
+tab any_medigap_prem_oop mcare_3cat
+
 ***
 
 
 
+svyset secu [pweight=wgtr], strata(stratum_n) vce(linearized)
+svy, subpop(keep): tab mcare_3cat
 
+
+*examine proportions with any OOP spending-- TM no medigap/medicare vs. TM vs MA
+putexcel set "D:\HRS\Projects\medicare_advantage\cka_ma_oop_at_eol\output\examine costs TM cats and MA_2 7 2021.xls", replace
+putexcel A1:H1= "Examining OOP costs by categories: MA vs TM", merge bold border(bottom)
+
+putexcel B2:D2= "% with any OOP costs", merge border(bottom)
+putexcel F2:H2= "mean OOP cost", merge border(bottom)
+
+putexcel B3= "TM, no medigap/private", border(bottom)
+putexcel C3= "TM w medigap/private", border(bottom)
+putexcel D3= "MA", border(bottom)
+putexcel F3= "TM, no medigap/private", border(bottom)
+putexcel G3= "TM w medigap/private", border(bottom)
+putexcel H3= "MA", border(bottom)
+
+***
+
+local catvars any_total_oop any_hospital_oop any_doctor_oop any_rx_oop any_nh_oop any_helper_oop any_home_oop any_other_oop 
+local i=4
+local j=5
+
+foreach x of local catvars {
+	putexcel A`i'= "`x'"
+	putexcel A`j'= "lower boundary 95% ci"
+	svy, subpop(keep): logistic `x' i.mcare_3cat
+	margins mcare_3cat
+	matlist r(table)
+	matrix results=r(table)
+	scalar ratetm=results[1,1]
+	putexcel B`i'=matrix(ratetm), nformat(percent_d2)
+	scalar ratetm=results[5,1]
+	putexcel B`j'=matrix(ratetm), nformat(percent_d2)
+	scalar ratema=results[1,2]
+	putexcel C`i'=matrix(ratema), nformat(percent_d2)
+	scalar ratetm=results[5,2]
+	putexcel C`j'=matrix(ratetm), nformat(percent_d2)
+	scalar ratema=results[1,3]
+	putexcel D`i'=matrix(ratema), nformat(percent_d2)
+	scalar ratetm=results[5,3]
+	putexcel D`j'=matrix(ratetm), nformat(percent_d2)
+local i= `i'+3
+local j=`j'+3
+}
+
+local contvars total_oop_last_yr hospital_oop_last_yr doctor_oop_last_yr rx_oop_last_yr nh_oop_last_yr helper_oop_last_yr home_oop_last_yr other_oop_last_yr  
+local i=4
+local j=5
+
+foreach x of local contvars {
+	svy, subpop(if keep==1 & mcare_3cat==1): mean `x' 
+	matlist r(table)
+	matrix results=r(table)
+	scalar ratetm=results[1,1]
+	putexcel F`i'=matrix(ratetm), nformat(accountcur)
+	scalar ratetm=results[5,1]
+	putexcel F`j'=matrix(ratetm), nformat(accountcur)
+	svy, subpop(if keep==1 & mcare_3cat==2): mean `x' 
+	matlist r(table)
+	matrix results=r(table)
+	scalar ratetm=results[1,1]
+	putexcel G`i'=matrix(ratetm), nformat(accountcur)
+	scalar ratetm=results[5,1]
+	putexcel G`j'=matrix(ratetm), nformat(accountcur)
+	svy, subpop(if keep==1 & mcare_3cat==3): mean `x' 
+	matlist r(table)
+	matrix results=r(table)
+	scalar ratetm=results[1,1]
+	putexcel H`i'=matrix(ratetm), nformat(accountcur)
+	scalar ratetm=results[5,1]
+	putexcel H`j'=matrix(ratetm), nformat(accountcur)
+local i= `i'+3
+local j=`j'+3
+}
+
+
+ 
 *********************************************************************
 
 *examine proportions with any OOP spending
@@ -558,12 +728,13 @@ local j=`j'+3
 }
 
 
-*************
 
-svy, subpop(keep): tab full_ma
-foreach var of varlist any_total_oop any_hospital_oop any_doctor_oop any_rx_oop any_nh_oop any_helper_oop any_home_oop any_other_oop {
-svy, subpop(keep): tab `var' full_ma, column
-}
+
+
+**************
+**REGRESSION MODEL PREDICTING TOTAL OOP SPENDING**
+
+
 
 tabstat total_oop_last_yr, statistics (mean sd) by(full_ma)
 
