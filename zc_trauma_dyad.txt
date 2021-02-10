@@ -696,7 +696,8 @@ foreach x in ip_06 {
 		keep(match master) gen(aham) keepusing(traumhos)
 		egen icu_days=rowtotal(icarecnt crnryday)
 		gen ind_procedure=!missing(icd_prcdr_cd1)
-
+		tab icd_prcdr_cd1
+		
 		label define discharge_disp 1 "Home, no services" 2 "Home with services" ///
 		3 "SNF" 4 "Rehab Facility" 5 "Hospice (including home)" 6 "Deceased" 7 "Other"
 		gen discharge_disp=ptnt_dschrg_stus_cd=="01"
@@ -709,10 +710,10 @@ foreach x in ip_06 {
 		label values discharge_disp discharge_disp
 		gen los=disch_date-admit_date+1
 		keep bene_id icd_dgns_cd* icd_dgns_e_cd* admit_date icu_days ind_procedure discharge_disp ///
-		los traumhos clm_id
+		los traumhos clm_id icd_prcdr_cd1
 }
 	
-	else keep bene_id icd_dgns_cd* admit_date disch_date 
+	else keep bene_id icd_dgns_cd* admit_date disch_date icd_prcdr_cd1
 	gen clm_num=_n
 	reshape long icd_dgns_cd icd_dgns_e_cd, i(clm_num) j(num)
 	rename icd_dgns_cd diag
@@ -862,6 +863,11 @@ gen icd9=inlist(substr(diag,1,1),"8","9")
 
 keep if trauma
 duplicates drop
+
+label var icd_prcdr_cd1 "Procedure codes"
+
+tabout icd_prcdr_cd1 using "D:\NHATS\Projects\trauma\zc_trauma_dyad\output\in_progress\tabout_procedure.rtf", replace c(col) sort
+tab icd_prcdr_cd1, sort
 
 gen length=length(diag)
 gen dtrunc=diag
@@ -1666,10 +1672,11 @@ label values inj_cat inj_cat
 
 
 keep spid wave ivw_date index_date icu_days ind_procedure los ind_comp* icd9 *iss* ///
-age female race educ* aveincome income_quart maritalstat married medicaid medigap ///
+age female race educ* aveincome income_quart* maritalstat married medicaid medigap ///
 tricare livealone livearr rcfres nhres sr_numc prob_dem dem_3_cat adl_impair adl_index sr_phq2_depr apc ///
 sr_gad2_a reg_doc_* sr_hosp* n_helpers n_paid ind_paid ind_no_helpers n_trauma ind_prev_trauma bene_id ///
-spouse_help_ind tbi vehicle_crash fall inj discharge_disp ind_trauma_hosp death_date adverse* soc_iso frail
+spouse_help_ind tbi vehicle_crash fall inj discharge_disp ind_trauma_hosp death_date adverse* soc_iso frail ///
+imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5
 
 replace ind_trauma_hosp=0 if missing(ind_trauma_hosp)
 replace frail=frail==2 if !missing(frail)
@@ -1755,7 +1762,7 @@ restore
 }
 
 
-H="merge pre/post into longitudinal dataset"
+H="xmerge pre/post into longitudinal dataset"
 use "${intpath}\trauma_dyad_nhatspost", clear
 duplicates report spid
 keep spid wave ivw_date index_date
@@ -1865,7 +1872,7 @@ merge 1:1 spid using `t2', nogen keep(match)
 save "${datapath}\sample_final.dta", replace
 
 
-H="table 1"
+H="xtable 1"
 foreach period in pre {
 
 use "${datapath}\sample_final", clear
@@ -1969,7 +1976,7 @@ ctitles("" "Mean/%" "N Missing") varlabels ///
 sdec(2,0) annotate(stars) asymbol(*,**,NR) replace
 }
 
-H="table 1 pre/post"
+H="xtable 1 pre/post"
 
 use "${datapath}\sample_final", clear
 keep if !missing(ivw_date_n1)
@@ -2112,7 +2119,7 @@ ctitles("" "Pre-trauma" "Post-trauma" "P-value") varlabels ///
 sdec(2,2,3) annotate(stars) asymbol(*,**,NR) replace
 
 
-H="injury & hospitalization characteristics"
+H="xinjury & hospitalization characteristics"
 foreach period in pre post {
 /*gen _row1=.
 label var _row1 "Trauma characteristics"
@@ -2263,7 +2270,7 @@ ctitles("" "N" "%") sdec(0,2) annotate(stars) asymbol(*,**,NR)
 }
 
 
-H="pre and post characteristics"
+H="xpre and post characteristics"
 
 use "${datapath}\sample_final", clear
 keep if !missing(ivw_date_n1)
@@ -2390,7 +2397,7 @@ ctitles("" "Pre-trauma" "Post-trauma" "P-value") varlabels ///
 sdec(2,2,3) annotate(stars) asymbol(*,**,NR) replace
 
 
-H="regression"
+H="xregression"
 use spid  *date* using "${datapath}\sample_final", clear
 merge 1:1 spid using "${intpath}\index.dta", keepusing(bene_id) nogen keep(match)
 merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\snf_09_17.dta", keep(match) nogen keepusing(admit_date disch_date)
@@ -2540,7 +2547,7 @@ translate "${outpath}\trauma_regression_log`c(current_date)'.smcl" "${outpath}\t
 H="**********NSOC**********"
 
 
-H="get index in stata"
+H="xget index in stata"
 //grab aha data from 2017 to get trauma center info
 use "D:\Outside_data\AHA data\aha2017.dta", clear
 rename mcrnum prvdr_num
@@ -9896,7 +9903,7 @@ keep spid bene_id index_date ivw_date
 gen ivw_year=year(ivw_date)
 saveold "${intpath}\index_nsoc", replace version(12)
 
-H="Charlson"
+H="xCharlson"
 use bene_id ivw_date using "${intpath}\index_stay_nsoc", clear
 
 local start 06
@@ -10438,7 +10445,7 @@ label var charls_index_wt "Charlson score index, weighted"
 		
 save "${int_data}\charlson_nsoc", replace
 
-H="merge nsoc and save final dataset"
+H="xmerge nsoc and save final dataset"
 //use NHATS only dataset, merge in NSOC, select variables for final dataset
 
 
@@ -10555,7 +10562,7 @@ save "${intpath}\trauma_dyad_nsoc", replace
 H="*******************"
 
 
-H="new approach to longitudinal dataset"
+H="xnew approach to longitudinal dataset"
 use "${intpath}\trauma_dyad_nhatspre", clear
 preserve
 merge 1:1 spid using "${intpath}\index.dta", keepusing(bene_id) nogen keep(match)
@@ -10695,7 +10702,7 @@ label values help_cat help_cat
 label define help_cat 3 "Has paid help", modify
 replace race=1 if race==3
 
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat income_adj charls_index_wt ch3plus {
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5{
 rename `x' `x'_n1
 }
 
@@ -10742,7 +10749,7 @@ rename traum2ivw ivw2traum
 label var ivw2 "Days from interview to trauma"
 gen traum2ivw=ivw_date-index_date
 label var traum2ivw "Days from trauma to interview"
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus {
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5{
 rename `x' `x'_p1
 }
 
@@ -10844,7 +10851,7 @@ label values adl_cat adl_cat
  
 gen ivw2traum=index_date-ivw_date
 label var ivw2 "Days from interview to trauma"
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus {
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5{
 rename `x' `x'_n1
 }
 
@@ -11246,7 +11253,7 @@ MH--Revisions to diagnosis codes made. New tables made using TBI, Hip, and other
 H="*******from the initial look in January 2019********"
 
 
-H="Initial Sample Estimate"
+H="xInitial Sample Estimate"
 use "E:\nhats\data\NHATS cleaned\sp_round_1_7_beta.dta" if sp_ivw==1 & lml==0, clear
 merge m:1 spid using "E:\nhats\data\20180625 NHATS CMS Data\merged stata\xwalk_2016.dta", ///
  keep(match master) nogen
@@ -19087,7 +19094,7 @@ drop if cat==3
 export excel using "D:\NHATS\Projects\trauma\zc_trauma_dyad\data\int_data\trauma_dx_discrepancies.xls", firstrow(variables)
 
 
-H="exploring discrepancies"
+H="xexploring discrepancies"
 use "${intpath}\trauma_dyad_nhatspost", clear
 duplicates report spid
 keep spid wave ivw_date index_date
