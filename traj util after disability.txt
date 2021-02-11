@@ -2411,7 +2411,7 @@ forvalues i=1/8 {
 	label var ffsqn`i' "Continuous FFS `=`i'*3' months before datefirsthelp" 
 }
 
-keep spid index_date exp* edq* ipadm* *ffs* 
+keep spid index_date exp* edq* ipadm* *ffs* indhelpstop
 
 merge 1:m spid using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" , ///
 keep(match)  nogen
@@ -2421,7 +2421,6 @@ gen dis_ivw= ivw_date-index_date
 sort spid dis_ivw
 by spid: gen post=1 if dis_ivw>0
 by spid: gen pre=1 if dis_ivw<=0
-gen dis_ivw_abs= abs(
 
 *make wave_np, which is pos count for waves after disability, neg for waves before
 gen wave_np=.
@@ -2514,7 +2513,6 @@ replace diedqp8=1 if days_index_death<730 & days_index_death!=.
 
 
 
-
 H="changelog"
 2/18- CKA- looked at inpatient claims- made separate file and brief analysis
 
@@ -2537,6 +2535,6 @@ H="changelog"
 11/3/20- CKA reorg.  Now a dataset named util_post_disability_claims.dta is made from SAS- run stata cleaning code each time to clean
 
 H="strip dates to pull off server"
-use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\util_post_disability_w_util_workingfile.dta" , clear
 drop ivw_date* death_date index_date
+drop nhats_death_date nhats_death_day nhats_death_month nhats_death_year
 save "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\util_post_disability_w_util_workingfile_unr.dta" , replace
