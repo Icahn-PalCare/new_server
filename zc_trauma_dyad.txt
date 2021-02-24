@@ -43,6 +43,8 @@ H="********NHATS*********"
 
 
 H="get trauma and iss from icdpic command"
+set seed 123
+
 import sas using "D:\NHATS\Projects\trauma\zc_trauma_dyad\ref_docs\Received from ZC 08192019\icd10to9.sas7bdat", case(lower) clear
 keep icd9 icd10
 gen diag=icd10
@@ -648,6 +650,8 @@ saveold "${intpath}\index`period'", replace version(12)
 }
 
 H="10/7 get index changed"
+set seed 123
+
 //grab aha data from 2017 to get trauma center info
 use "D:\Outside_data\AHA data\aha2017.dta", clear
 rename mcrnum prvdr_num
@@ -775,8 +779,33 @@ gen vehicle_crash=/*inlist(substr(ecode,1,4),"V890","V892","V894") ///
 gen fall=inlist(substr(ecode,1,3),"E88") | inlist(substr(ecode,1,1),"W") & ///
  inlist(substr(ecode,2,1),"0","1")
 
+ //orthopedic surgery
+ gen orth_surg=inlist(icd_prcdr_cd1, "7935","8152","7915","7936","7855")
+
+replace orth_surg=1 if inlist(icd_prcdr_cd1,"7931", "8166","0RG0071","0QS604Z", "8151")
+replace orth_surg=1 if inlist(icd_prcdr_cd1,"7912", "0QS706Z", "0QS704Z", "0QSH04Z", "8105", "8165")
+
+//lst
+gen lst=inlist(substr(icd_prcdr_cd1,1,3), "432","V56","967","311","966", "990")
+replace lst=1 if inlist(substr(icd_prcdr_cd1,1,4), "9960","9962","9963","4311","4319", "4432", "3895", "3995", "V451")
+replace lst=1 if inlist(substr(icd_prcdr_cd1,1,4), "9604", "9605", "3121", "3129", "9915", "0017", "3897")
+replace lst=1 if icd_prcdr_cd1=="V4511"
+
+gen lst_1=1 if inlist(substr(icd_prcdr_cd1,1,5),"90935","90937","90945","90947","G0491","G0492","90960","90961","90962")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,5),"90970","90989","90993","90997","90999","G0257","31500","92950","43246")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,5),"49441","49442", "90966", "49440")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,7),"5A1D70Z","5A1D80Z","5A1D90Z","0BH07DZ","0BH07YZ","0BH172Z","0BH17EZ","0BH17YZ","0BH182Z")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,7),"0BH18YZ","0BH182Z","0B717DZ","0B718DZ","0BH13EZ","0BHK7YZ","0BHK8YZ","0BHL7YZ","0BHL8YZ")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,7),"5A12012","5A19054","5A2204Z","5A1935Z","5A1945Z","5A1955Z","0D16074","0D160J4","0D160K4")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,7),"0D163J4","0D16474","0D164J4","0D164K4","0D164Z4","0D16874","0D168J4","0D168K4","0D168Z4")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,7),"0DH63UZ","0DH64UZ","0DW04UZ","0DW08UZ","3E0336Z","3E0436Z","3E0536Z","3E0636Z","0DH67UZ")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,7),"3E0G36Z","0DH50UZ","0DH53UZ","0DH54UZ","0DH57UZ","0DH58UZ","0DH80UZ","0DH83UZ","0DH84UZ")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,7),"0DH88UZ","0DH90UZ","0DH93UZ","0DH94UZ","0DH97UZ","0DH98UZ","0DHA0UZ","0DHA3UZ","0DHA4UZ")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,7),"0DHA8UZ","0DHB0UZ","0DHB3UZ","0DHB4UZ","0DHB7UZ","0DHB8UZ","0BH18EZ","0WHQ7YZ","0D160Z4")
+replace lst_1=1 if inlist(substr(icd_prcdr_cd1,1,7),"0DH60UZ","0DH68UZ","0DH87UZ","0DHA7UZ")
+
 tempfile a 
-save "`a'", 
+save "`a'"
 
 import sas using "D:\NHATS\Projects\trauma\zc_trauma_dyad\ref_docs\Received from ZC 08192019\icd10to9.sas7bdat", case(lower) clear
 keep icd9 icd10
@@ -864,10 +893,17 @@ gen icd9=inlist(substr(diag,1,1),"8","9")
 keep if trauma
 duplicates drop
 
+
+
+
+
 label var icd_prcdr_cd1 "Procedure codes"
 
-tabout icd_prcdr_cd1 using "D:\NHATS\Projects\trauma\zc_trauma_dyad\output\in_progress\tabout_procedure.rtf", replace c(col) sort
+//tabout icd_prcdr_cd1 using "D:\NHATS\Projects\trauma\zc_trauma_dyad\output\in_progress\tabout_procedure.rtf", replace c(col) sort
 tab icd_prcdr_cd1, sort
+
+//tabout ecode using "D:\NHATS\Projects\trauma\zc_trauma_dyad\output\in_progress\tabout_ecode.rtf", replace c(col) sort
+tab ecode, sort
 
 gen length=length(diag)
 gen dtrunc=diag
@@ -1005,6 +1041,7 @@ saveold "${intpath}\index`period'", replace version(12)
 }
 
 H="get Charlson"
+set seed 123
 foreach period in pre post {
 use bene_id ivw_date using "${intpath}\index_stay`period'", clear
 
@@ -1550,6 +1587,7 @@ save "${intpath}\charlson`period'", replace
 }
 
 H="get utilization 12 weeks post discharge"
+set seed 123
 foreach period in pre post {
 use bene_id index_date using "${intpath}\index_stay`period'", clear
 rename index admit_date
@@ -1619,8 +1657,9 @@ H="merge nsoc and save final datasets"
 //note--as of 6/28/19, NSOCs still in separate files, but will be unified later, so code will change
 
 //create single NSOC dataset with select variables
-
+set seed 123
 use "${nhats}\nsoc_round_1", clear
+
 gen wave=1
 append using "${nhats}\nsoc_round_5"
 replace wave=5 if missing(wave)
@@ -1676,7 +1715,7 @@ age female race educ* aveincome income_quart* maritalstat married medicaid medig
 tricare livealone livearr rcfres nhres sr_numc prob_dem dem_3_cat adl_impair adl_index sr_phq2_depr apc ///
 sr_gad2_a reg_doc_* sr_hosp* n_helpers n_paid ind_paid ind_no_helpers n_trauma ind_prev_trauma bene_id ///
 spouse_help_ind tbi vehicle_crash fall inj discharge_disp ind_trauma_hosp death_date adverse* soc_iso frail ///
-imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5
+imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5 orth_surg lst* 
 
 replace ind_trauma_hosp=0 if missing(ind_trauma_hosp)
 replace frail=frail==2 if !missing(frail)
@@ -10665,6 +10704,7 @@ save "${datapath}\sample_final_unr.dta", replace
 
 
 H="new longitudinal dataset, starting from n1"
+set seed 123
 use "${intpath}\trauma_dyad_nhatspost", clear
 preserve
 merge 1:1 spid using "${intpath}\index.dta", keepusing(bene_id) nogen keep(match)
@@ -10680,10 +10720,11 @@ save `t11'
 restore
 preserve
 replace iss=niss if inlist(iss,0,99,.)
-replace iss=niss
+//replace iss=niss
 drop if inlist(iss,0,99)
 
-keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw traum2ivw ind_trauma_hosp apc  fall iss  iss_cat los icu_days ind_procedure ind_comp_any n_readmit n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84 
+keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw traum2ivw ind_trauma_hosp apc  fall iss  iss_cat los icu_days ind_procedure ind_comp_any n_readmit n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84 orth_surg lst lst_1
+
 tempfile t1
 save `t1'
 
@@ -10702,7 +10743,7 @@ label values help_cat help_cat
 label define help_cat 3 "Has paid help", modify
 replace race=1 if race==3
 
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5{
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5 {
 rename `x' `x'_n1
 }
 
@@ -10749,7 +10790,7 @@ rename traum2ivw ivw2traum
 label var ivw2 "Days from interview to trauma"
 gen traum2ivw=ivw_date-index_date
 label var traum2ivw "Days from trauma to interview"
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5{
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5 {
 rename `x' `x'_p1
 }
 
@@ -10772,7 +10813,7 @@ drop index_date inj_cat
 save "${datapath}\sample_final_unr.dta", replace
 
 
-H="table 1 on unresticted"
+H="xxxxxtable 1 on unresticted"
 use "${intpath}\trauma_dyad_nhatspre", clear
 preserve
 merge 1:1 spid using "${intpath}\index.dta", keepusing(bene_id) nogen keep(match)
