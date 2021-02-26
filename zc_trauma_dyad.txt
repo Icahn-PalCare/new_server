@@ -10813,109 +10813,9 @@ drop index_date inj_cat
 save "${datapath}\sample_final_unr.dta", replace
 
 
-H="xxxxxtable 1 on unresticted"
-use "${intpath}\trauma_dyad_nhatspre", clear
-preserve
-merge 1:1 spid using "${intpath}\index.dta", keepusing(bene_id) nogen keep(match)
-merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\snf_09_17.dta", keep(match) nogen keepusing(admit_date disch_date)
-keep if inrange(ivw_date,admit_date,disch_date)
-gen ind_snf=1
-label var ind_snf "In a SNF at the time of the interview"
-keep spid ind_snf
-duplicates drop
-tempfile t11
-save `t11'
-
-restore
-preserve
-replace iss=niss
-drop if inlist(iss,0,99)
-
-keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw traum2ivw ind_trauma_hosp apc  fall iss  iss_cat los icu_days ind_procedure ind_comp_any n_readmit n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84 
-tempfile t1
-save `t1'
-
-
-restore
-drop help_cat
-
-
-
-gen help_cat=ind_no_helpers
-replace help_cat=2 if !ind_paid & !ind_no_helpers
-replace help_cat=3 if ind_paid 
-*replace help_cat=4 if n_helpers==n_paid & ind_paid
-label var help_cat "Caregiving, categorical"
-label values help_cat help_cat
-label define help_cat 3 "Has paid help", modify
-replace race=1 if race==3
-
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat income_adj charls_index_wt ch3plus {
-rename `x' `x'_p1
-}
-
-gen wave=wave-1
-drop ivw_date
-
-merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match) gen(othm)
-rename race_cat race
-
-gen help_cat=ind_no_helpers
-replace help_cat=2 if !ind_paid_helper & !ind_no_helpers
-replace help_cat=3 if ind_paid_helper
-label var help_cat "Caregiving, categorical"
-label values help_cat help_cat
-
-egen adverse_mo=rowmax(adverse_insd adverse_out adverse_bed)
-label var adverse_mo "Adv. cons. of unmet need: mobility"
-egen adverse_sc=rowmax(adverse_dres adverse_toil adverse_bath adverse_eat)
-label var adverse_sc "Adv. cons. of unmet need: self-care"
-egen adverse_hh=rowmax(adverse_laun adverse_shop adverse_meal adverse_bank)
-label var adverse_hh "Adv. cons. of unmet need: household"
-egen adverse_any=rowmax(adverse*)
-label var adverse_any "Adv. cons. of unmet need: any"
-
-replace livearrang=livearrang-1 if livearrang>2
-replace livearrang=4 if rcfres==1
-replace livearrang=5 if nhres==1
-label define livearrang 1 "Lives alone" 3 "With others (and not spouse)" 4 "Residential Care Facility" ///
-5 "Nursing Home", modify
-
-replace married=0 if livearrang==1 & missing(married)
-replace race=1 if race==3
-
-gen adl_cat=adl_index==0 if !missing(adl_index)
-replace adl_cat=2 if inrange(adl_index,1,2)
-replace adl_cat=3 if inrange(adl_index,3,6)
-label var adl_cat "ADLs, categorical"
-label values adl_cat adl_cat
- 
-gen ivw2traum=index_date-ivw_date
-label var ivw2 "Days from interview to trauma"
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5{
-rename `x' `x'_n1
-}
-
-keep spid *p1 *n1 ivw2traum
-merge 1:1 spid using `t1', nogen keep(match)
-merge 1:1 spid using `t11', nogen keep(match master)
-replace ind_snf=0 if missing(ind_snf)
-label var apc "Anatomic Profile"
-label var fall "Injury mechanism: fall"
-label var icu_days "Days in the ICU during index stay"
-label var ind_ed_vis "ED visit w/in 12 weeks of discharge"
-label var ind_hh_days "HH use w/in 12 weeks of discharge"
-label var ind_procedure "Any procedure performed during index stay"
-label var ind_rea "Any readmission w/in 12 weeks of discharge"
-label var ind_snf "In SNF <30 days prior to P1 interview"
-label var ind_snf_d "SNF use w/in 12 weeks of discharge"
-label var los "LOS for index stay"
-label var apc "Anatomic Profile Category for injury"
-drop index_date inj_cat
-save "${datapath}\sample_final_unr.dta", replace
-
-
 H="stay and utilization chars on prepost"
+/* stay and utilization tables */
+
 
 /*gen _row1=.
 label var _row1 "Trauma characteristics"
@@ -10926,13 +10826,15 @@ label var _row3 "12 week utilization and outcomes"
 */
 clear all
 use  "${datapath}\sample_final_unr", clear
+label var lst "Life Sustaining treatments"
+label var orth_surg "Orthopedic Surgery"
 gen wave=wave_n1
 merge 1:1 spid using "${intpath}\trauma_dyad_nhatspost", keep(match)
 local cvars1 ivw2traum traum2ivw
 local ivars1  ind_trauma_hosp
 local catvars1 apc //inj_cat
 local cvars2
-local ivars2 fall vehicle_crash 
+local ivars2 fall vehicle_crash orth_surg lst 
 local catvars2
 local cvars3 iss
 local ivars3 
@@ -11065,6 +10967,108 @@ addtable statmat(tab) title("Complications, detailed") ///
 ctitles("" "N" "%") sdec(0,2) annotate(stars) asymbol(*,**,NR)
 */
 
+
+
+H="xxxxxtable 1 on unresticted"
+use "${intpath}\trauma_dyad_nhatspre", clear
+preserve
+merge 1:1 spid using "${intpath}\index.dta", keepusing(bene_id) nogen keep(match)
+merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\snf_09_17.dta", keep(match) nogen keepusing(admit_date disch_date)
+keep if inrange(ivw_date,admit_date,disch_date)
+gen ind_snf=1
+label var ind_snf "In a SNF at the time of the interview"
+keep spid ind_snf
+duplicates drop
+tempfile t11
+save `t11'
+
+restore
+preserve
+replace iss=niss
+drop if inlist(iss,0,99)
+
+keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw traum2ivw ind_trauma_hosp apc  fall iss  iss_cat los icu_days ind_procedure ind_comp_any n_readmit n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84 
+tempfile t1
+save `t1'
+
+
+restore
+drop help_cat
+
+
+
+gen help_cat=ind_no_helpers
+replace help_cat=2 if !ind_paid & !ind_no_helpers
+replace help_cat=3 if ind_paid 
+*replace help_cat=4 if n_helpers==n_paid & ind_paid
+label var help_cat "Caregiving, categorical"
+label values help_cat help_cat
+label define help_cat 3 "Has paid help", modify
+replace race=1 if race==3
+
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat income_adj charls_index_wt ch3plus {
+rename `x' `x'_p1
+}
+
+gen wave=wave-1
+drop ivw_date
+
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match) gen(othm)
+rename race_cat race
+
+gen help_cat=ind_no_helpers
+replace help_cat=2 if !ind_paid_helper & !ind_no_helpers
+replace help_cat=3 if ind_paid_helper
+label var help_cat "Caregiving, categorical"
+label values help_cat help_cat
+
+egen adverse_mo=rowmax(adverse_insd adverse_out adverse_bed)
+label var adverse_mo "Adv. cons. of unmet need: mobility"
+egen adverse_sc=rowmax(adverse_dres adverse_toil adverse_bath adverse_eat)
+label var adverse_sc "Adv. cons. of unmet need: self-care"
+egen adverse_hh=rowmax(adverse_laun adverse_shop adverse_meal adverse_bank)
+label var adverse_hh "Adv. cons. of unmet need: household"
+egen adverse_any=rowmax(adverse*)
+label var adverse_any "Adv. cons. of unmet need: any"
+
+replace livearrang=livearrang-1 if livearrang>2
+replace livearrang=4 if rcfres==1
+replace livearrang=5 if nhres==1
+label define livearrang 1 "Lives alone" 3 "With others (and not spouse)" 4 "Residential Care Facility" ///
+5 "Nursing Home", modify
+
+replace married=0 if livearrang==1 & missing(married)
+replace race=1 if race==3
+
+gen adl_cat=adl_index==0 if !missing(adl_index)
+replace adl_cat=2 if inrange(adl_index,1,2)
+replace adl_cat=3 if inrange(adl_index,3,6)
+label var adl_cat "ADLs, categorical"
+label values adl_cat adl_cat
+ 
+gen ivw2traum=index_date-ivw_date
+label var ivw2 "Days from interview to trauma"
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5{
+rename `x' `x'_n1
+}
+
+keep spid *p1 *n1 ivw2traum
+merge 1:1 spid using `t1', nogen keep(match)
+merge 1:1 spid using `t11', nogen keep(match master)
+replace ind_snf=0 if missing(ind_snf)
+label var apc "Anatomic Profile"
+label var fall "Injury mechanism: fall"
+label var icu_days "Days in the ICU during index stay"
+label var ind_ed_vis "ED visit w/in 12 weeks of discharge"
+label var ind_hh_days "HH use w/in 12 weeks of discharge"
+label var ind_procedure "Any procedure performed during index stay"
+label var ind_rea "Any readmission w/in 12 weeks of discharge"
+label var ind_snf "In SNF <30 days prior to P1 interview"
+label var ind_snf_d "SNF use w/in 12 weeks of discharge"
+label var los "LOS for index stay"
+label var apc "Anatomic Profile Category for injury"
+drop index_date inj_cat
+save "${datapath}\sample_final_unr.dta", replace
 
 
 H="sens analyses"
@@ -11266,6 +11270,8 @@ H="Changelog"
 
 
 Updates:
+
+02/25/2020--MH -- Updated to include life sustaining treatment and orthopedic surgery. Also re-running tables. 
 
 10/7/19--MH--converted codes to icd9 in the "get index" tab. 
 
