@@ -1,247 +1,19 @@
 = V4 Outline MultiLine NoSorting TabWidth=30
 
-H="MA and disability"
-* Project examining trajectories of utilization after functional disability
-* PI: claire ankuda, buddy coder: evan bollens-lund
+H="setup: file w index date"
 
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_9.dta", clear
+saveold "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\int_data\date of first disability v12.dta" , version(12) replace
 
-version 15
-set more off
-set maxvar 120000  
-clear all
-set linesize 80
-macro drop _all
-capture log close
-
-
-
-H="making file for date of first needing help"
-*making a new variable that is wide
-*clean up month of first disability-
-use "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_8\NHATS_Round_8_SP_File.dta"
-keep spid dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr dm8helpstmo dm8helpstyr ds8helpstmo ds8helpstyr
-
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_7\NHATS_Round_7_SP_File.dta", ///
-keepusing (dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr)
-
-drop _merge
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_6\NHATS_Round_6_SP_File.dta", ///
-keepusing (dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr)
-
-drop _merge
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_5\NHATS_Round_5_SP_File.dta", ///
-keepusing (dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr)
-
-drop _merge
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_4\NHATS_Round_4_SP_File.dta", ///
-keepusing (dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr)
-
-drop _merge
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_3\NHATS_Round_3_SP_File.dta", ///
-keepusing (dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr)
-
-drop _merge
-merge 1:1 spid using "D:\NHATS\Shared\raw\NHATS\NHATS Public\round_2\NHATS_Round_2_SP_File.dta", ///
-keepusing (dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr)
-
-
-
-*make missing if "inapplicable"
-foreach var of varlist dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
-		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
-		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr  dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
-		dm8helpstmo dm8helpstyr ds8helpstmo ds8helpstyr  dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr{
-		replace `var'=. if `var'==-1
-		replace `var'=. if `var'==-9
-		replace `var'=. if `var'==-8
-		replace `var'=. if `var'==90
-		}
-		
-*fix the wave 2 year variables
-replace dm2helpstyr= 2011 if dm2helpstyr==1
-replace dm2helpstyr= 2012 if dm2helpstyr==2
-replace dm2helpendyr= 2011 if dm2helpendyr==1
-replace dm2helpendyr= 2012 if dm2helpendyr==2
-replace ds2helpstyr= 2011 if ds2helpstyr==1
-replace ds2helpstyr= 2012 if ds2helpstyr==2
-replace ds2helpendyr= 2011 if ds2helpendyr==1
-replace ds2helpendyr= 2012 if ds2helpendyr==2
-
-*make an indicator for never needing help
-gen indhelp=0 
-foreach var of varlist dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr ///
-dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr ///
-dm7helpstmo dm7helpstyr ds7helpstmo ds7helpstyr dm8helpstmo dm8helpstyr ds8helpstmo ds8helpstyr {
-		replace indhelp=1 if `var'!=.
-		}
-		
-*drop people who never report a start date for help
-drop if indhelp==0
-*left with 3,631 observations
-
-*make an indicator for the people with a stop date
-gen indhelpstop=0 
-foreach var of varlist dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
-		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
-		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
-		dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr{
-		replace indhelpstop=1 if `var'!=.
-		}
-		
-*turn the variables for dates of help starting into a date format
-foreach n of numlist 2 3 4 5 6 7 8 {
-gen dm`n'datehelp=mdy(dm`n'helpstmo, 1, dm`n'helpstyr)
-format dm`n'datehelp %td
-}
-
-foreach n of numlist 2 3 4 5 6 7 8 {
-gen ds`n'datehelp=mdy(ds`n'helpstmo, 1, ds`n'helpstyr)
-format ds`n'datehelp %td
-}
-
-*turn the variables for dates of help ending into a date format
-foreach n of numlist 2 3 4 5 6 7 8 {
-gen dm`n'datehelpend=mdy(dm`n'helpendmo, 1, dm`n'helpendyr)
-format dm`n'datehelpend %td
-}
-
-foreach n of numlist 2 3 4 5 6 7 8 {
-gen ds`n'datehelpend=mdy(ds`n'helpendmo, 1, ds`n'helpendyr)
-format ds`n'datehelpend %td
-}
-*drop the other date variables
-drop dm2helpstmo dm2helpstyr ds2helpstmo ds2helpstyr dm3helpstmo dm3helpstyr ds3helpstmo ds3helpstyr dm4helpstmo dm4helpstyr ds4helpstmo ds4helpstyr dm5helpstmo dm5helpstyr ds5helpstmo ds5helpstyr dm6helpstmo dm6helpstyr ds6helpstmo ds6helpstyr dm2helpendmo dm2helpendyr ds2helpendmo ds2helpendyr dm3helpendmo dm3helpendyr ds3helpendmo ds3helpendyr ///
-		dm4helpendmo dm4helpendyr ds4helpendmo ds4helpendyr dm5helpendmo dm5helpendyr ds5helpendmo ds5helpendyr  ///
-		dm6helpendmo dm6helpendyr ds6helpendmo ds6helpendyr dm7helpendmo dm7helpendyr ds7helpendmo ds7helpendyr ///
-		dm8helpendmo dm8helpendyr ds8helpendmo ds8helpendyr
-
-gen datefirsthelp= dm8datehelp 
-	replace datefirsthelp= ds8datehelp if ds8datehelp!=. & ds8datehelp<datefirsthelp
-	
-	replace datefirsthelp= dm7datehelp if dm7datehelp!=. & dm7datehelp<datefirsthelp
-	replace datefirsthelp= ds7datehelp if ds7datehelp!=. & ds7datehelp<datefirsthelp
-	
-	replace datefirsthelp= dm6datehelp if dm6datehelp!=. & dm6datehelp<datefirsthelp
-	replace datefirsthelp= ds6datehelp if ds6datehelp!=. & ds6datehelp<datefirsthelp
-	
-	replace datefirsthelp= dm5datehelp if dm5datehelp!=. & dm5datehelp<datefirsthelp
-	replace datefirsthelp= ds5datehelp if ds5datehelp!=. & ds5datehelp<datefirsthelp
-
-	replace datefirsthelp= dm4datehelp if dm4datehelp!=. & dm4datehelp<datefirsthelp
-	replace datefirsthelp= ds4datehelp if ds4datehelp!=. & ds4datehelp<datefirsthelp
-
-	replace datefirsthelp= dm3datehelp if dm3datehelp!=. & dm3datehelp<datefirsthelp
-	replace datefirsthelp= ds3datehelp if ds3datehelp!=. & ds3datehelp<datefirsthelp
-	
-	replace datefirsthelp= dm2datehelp if dm2datehelp!=. & dm2datehelp<datefirsthelp
-	replace datefirsthelp= ds2datehelp if ds2datehelp!=. & ds2datehelp<datefirsthelp
-format datefirsthelp %td	
-
-drop if datefirsthelp==.
-
-*make a variable called repfirsthelp that is the wave of first reporting help
-gen repfirsthelp=.
-foreach n of numlist 2 3 4 5 6 7 8 {
-	replace repfirsthelp=`n' if datefirsthelp==dm`n'datehelp
-	replace repfirsthelp=`n' if datefirsthelp==ds`n'datehelp
-	}
-
-*make a variable called repsecondhelp that is the wave after the one first reporting help	
-	gen repsecondhelp=repfirsthelp+1
-	replace repsecondhelp=. if repsecondhelp==9
-drop _merge
-
-*make the date of first help the first ds AND dm help date for the person
-gen datefirstdshelp= ds8datehelp 
-	replace datefirstdshelp= ds7datehelp if ds7datehelp!=. & ds7datehelp<datefirstdshelp
-	replace datefirstdshelp= ds6datehelp if ds6datehelp!=. & ds6datehelp<datefirstdshelp
-	replace datefirstdshelp= ds5datehelp if ds5datehelp!=. & ds5datehelp<datefirstdshelp
-	replace datefirstdshelp= ds4datehelp if ds4datehelp!=. & ds4datehelp<datefirstdshelp
-	replace datefirstdshelp= ds3datehelp if ds3datehelp!=. & ds3datehelp<datefirstdshelp
-	replace datefirstdshelp= ds2datehelp if ds2datehelp!=. & ds2datehelp<datefirstdshelp
-format datefirstdshelp %td	
-gen datefirstdshelpbi=0
-replace datefirstdshelpbi=1 if datefirstdshelp!=.
-
-gen datefirstdmhelp= dm8datehelp 
-	replace datefirstdmhelp= dm7datehelp if dm7datehelp!=. & dm7datehelp<datefirstdmhelp
-	replace datefirstdmhelp= dm6datehelp if dm6datehelp!=. & dm6datehelp<datefirstdmhelp
-	replace datefirstdmhelp= dm5datehelp if dm5datehelp!=. & dm5datehelp<datefirstdmhelp
-	replace datefirstdmhelp= dm4datehelp if dm4datehelp!=. & dm4datehelp<datefirstdmhelp
-	replace datefirstdmhelp= dm3datehelp if dm3datehelp!=. & dm3datehelp<datefirstdmhelp
-	replace datefirstdmhelp= dm2datehelp if dm2datehelp!=. & dm2datehelp<datefirstdmhelp
-format datefirstdmhelp %td	
-gen datefirstdmhelpbi=0
-replace datefirstdmhelpbi=1 if datefirstdmhelp!=.
-
-tab datefirstdshelpbi datefirstdmhelpbi
-count if datefirstdmhelp==datefirstdshelp & datefirstdshelpbi==1 & datefirstdmhelpbi==1
-count if datefirstdmhelp>datefirstdshelp & datefirstdshelpbi==1 & datefirstdmhelpbi==1
-count if datefirstdmhelp<datefirstdshelp & datefirstdshelpbi==1 & datefirstdmhelpbi==1
-
-gen discat=.
-replace discat=1 if datefirstdmhelp==datefirstdshelp & datefirstdshelpbi==1 & datefirstdmhelpbi==1
-replace discat=2 if datefirstdmhelp<datefirstdshelp & datefirstdshelpbi==1 & datefirstdmhelpbi==1
-replace discat=3 if datefirstdmhelp!=. & datefirstdshelp==.
-replace discat=4 if datefirstdmhelp>datefirstdshelp & datefirstdshelpbi==1 & datefirstdmhelpbi==1
-replace discat=5 if datefirstdshelp!=. & datefirstdmhelp==.
-
-label define dc 1 "mob and sc started same time" 2 "mob first then sc" 3 "mob first never sc" 4 "sc first then mob" 5 "sc first never mob"
-label values discat dc
-
-
-save "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\date of first disability.dta", replace
-
-H="separate look at claims- making file and brief look"
-use "E:\nhats\data\20180625 NHATS CMS Data\merged stata\ip_06_16.dta" 
-keep bene_id admit_date prncpal_dgns_cd prncpal_dgns_vrsn_cd admtg_dgns_cd admtg_dgns_vrsn_cd
-merge m:1 bene_id using "E:\nhats\data\20180625 NHATS CMS Data\merged stata\xwalk_2016.dta" 
-keep if _merge==3
-
-*merge in with datafile looking at date of disability
-drop _merge
-merge m:1 spid using  "E:\nhats\data\Projects\traj util after disability\util_post_disability_w_util_workingfile.dta", keepusing (index_date)
-keep if _merge==3
-
-*make a variable for days between admit date and index date
-gen days_dis_adm= admit_date-index_date
-keep if days_dis_adm>-31 & days_dis_adm<60
-*947 unique values
-
-icd9 clean prncpal_dgns_cd
-icd9 check prncpal_dgns_cd, gen(prob)
-drop if prob==3
-drop if prob==4
-drop if prob==5
-drop if prob==10
-icd9 clean prncpal_dgns_cd
-
-icd9 generate pd= prncpal_dgns_cd, description
-sort spid 
-list spid pd
-
-*if multiple obs per person, just keep first
-by spid: gen count=_n
-keep if count==1
-tab pd, sort
-tab prncpal_dgns_cd, sort
-
- save "E:\nhats\data\Projects\traj util after disability\inpatient diagnoses and start of disability.dta"
-
-H="***************SAS here*************"
-
-
-H="Get index and save so SAS can import it"
-use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\date of first disability.dta", clear
-saveold "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\int_data\date of first disability v12.dta" , version(12) replace
-
-keep spid datefirsthelp
-rename datefirsthelp index_date
+keep spid ivw_date
+rename ivw_date index_date
 gen index_year=year(index_date)
 gen index_month=month(index_date)
 
-saveold "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\int_data\index.dta", version(12) replace
+saveold "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\int_data\index.dta", version(12) replace
 
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_9.dta", clear
+saveold "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\int_data\nhats.dta" , version(12) replace
 
 
 H="set libraries in SAS"
@@ -252,22 +24,21 @@ libname nhats 'D:\NHATS\Shared\base_data\NHATS cleaned';
 libname medi 'D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Merged\SAS';
 
 /*project data paths*/
-libname proj_int 'D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\int_data';
-libname proj_fin 'D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data';
+libname proj_int 'D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\int_data';
+libname proj_fin 'D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data';
 
 
 
 
 
- 
 
-H="get index date and merge with CMS xwalk"
+H="get index date and merge with cms xwalk"
 
-proc import datafile="D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\date of first disability.dta"
+proc import datafile="D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\int_data\date of first disability v12.dta"
 out=proj_int.nhats replace;
 run;
 
-proc import datafile="D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\int_data\index.dta" 
+proc import datafile="D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\int_data\index.dta" 
 out=index replace;
 run;
 
@@ -282,6 +53,8 @@ left join
 xwalk b
 on a.spid=b.spid;
 quit;
+
+
 
 
 H="get claims before index date"
@@ -907,7 +680,7 @@ run;
 %dm_drop(days_aft_index=730);
  
 
-H="****Must run all below if change the above****"
+H="****must run all below if changes above***"
 
 
 H="get continuous ffs pre"
@@ -2285,7 +2058,7 @@ run;
 
 
 
-H="combine with interviews into one dataset"
+H="combine with interviews into 1 dataset"
 
 
 proc sql; 
@@ -2307,234 +2080,5 @@ left join proj_int.utilization_post h
 on a.bene_id=h.bene_id and a.index_year=h.index_year;
 quit;
 
-proc export data=util_post_disability outfile="D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_claims.dta" replace;
+proc export data=util_post_disability outfile="D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\util_post_disability_claims.dta" replace;
 run;
-
-H="************Stata: RUN BELOW THIS EVERY TIME***************"
-
-
-H="clean util vars and combine with nhats"
-use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\fin_data\util_post_disability_claims.dta"
-
-//generate total paid from individual amounts
-
-
-forvalues i=3(3)12 {
-	egen tot_paid_by_mc_n_`i'm=rowtotal(ip_paid_by_mc_n__`i'm snf_paid_by_mc_n__`i'm ///
-	hh_paid_by_mc_n__`i'm hs_paid_by_mc_n__`i'm pb_paid_by_mc_n__`i'm op_paid_by_mc_n__`i'm ///
-	dm_paid_by_mc_n__`i'm)
-	label var tot_paid_by_mc_n_`i'm "Total paid by MC `i' months before disability"
-	
-}
-
-forvalues i=3(3)24 {
-	egen tot_paid_by_mc_p_`i'm=rowtotal(ip_paid_by_mc_`i'm snf_paid_by_mc_`i'm ///
-	hh_paid_by_mc_`i'm hs_paid_by_mc_`i'm pb_paid_by_mc_`i'm op_paid_by_mc_`i'm ///
-	dm_paid_by_mc_`i'm)
-	label var tot_paid_by_mc_p_`i'm "Total paid by MC `i' months after disability"
-}
-
-drop ip_* snf_* hh_* hs_* pb_* op_* dm_*
-
-rename n_ip_admit*m n_ip_admit*mn
-foreach x of varlist n_ip_admit* {
-	replace `x'=0 if missing(`x')
-}
-
-
-forvalues i=3(3)12 {
-	rename n_ed_ip_`i'm n_ed_ip_`i'mn
-	rename n_ed_op_visits_`i' n_ed_op_visits_`i'mn
-	
-}
-
-rename n_ed_op_visits_*p n_ed_op_visits_*mp
-
-local time before
-foreach x in n p {
-	forvalues i=3(3)12 {
-		egen edvisq`x'`i'=rowtotal(n_ed_ip_`i'm`x' n_ed_op_visits_`i'm`x')
-}
-	local time after
-}
-
-forvalues i=15(3)24 {
-	egen edvisqp`i'=rowtotal(n_ed_ip_`i'mp n_ed_op_visits_`i'mp)
-}
-
-
- //generate quarterly amounts
-local time before
- foreach x in n p {
-	gen expq`x'1=tot_paid_by_mc_`x'_3m
-	label var expq`x'1 "Total expenditures the 1st quarter `time' datefirsthelp"
-	gen ipadmq`x'1=n_ip_admit_3m`x'
-	label var ipadmq`x'1 "Number hospital admissions the 1st quarter `time' datefirsthelp"
-	gen edq`x'1=edvisq`x'3
-	label var edq`x'1 "Number ED visits (IP or OP) the 1st quarter `time' datefirsthelp"		
-	
-	forvalues i=6(3)12 {
-		gen expq`x'`=`i'/3'=tot_paid_by_mc_`x'_`i'm-tot_paid_by_mc_`x'_`=`i'-3'm
-		label var expq`x'`=`i'/3' "Total expenditures the `=`i'/3'th quarter `time' datefirsthelp"
-		gen ipadmq`x'`=`i'/3'=n_ip_admit_`i'm`x'-n_ip_admit_`=`i'-3'm`x'
-		label var ipadmq`x'`=`i'/3' "Number hospital admissions the `=`i'/3'th quarter `time' datefirsthelp"
-		gen edq`x'`=`i'/3'=edvisq`x'`i'-edvisq`x'`=`i'-3'
-		label var edq`x'`=`i'/3' "Number ED visits (IP or OP) the `=`i'/3'th quarter `time' datefirsthelp"		
-}
-	local time after
-
-}
-
-
-local time before
-
-
-
-
-forvalues i=15(3)24 {
-	gen expqp`=`i'/3'=tot_paid_by_mc_p_`i'm-tot_paid_by_mc_p_`=`i'-3'm
-	label var expqp`=`i'/3' "Total expenditures the `=`i'/3'th quarter `time' datefirsthelp"
-	gen edqp`x'`=`i'/3'=edvisqp`i'-edvisqp`=`i'-3'
-	label var edqp`=`i'/3' "Number ED visits (IP or OP) the `=`i'/3'th quarter `time' datefirsthelp"		
-	gen ipadmqp`=`i'/3'=n_ip_admit_`i'mp-n_ip_admit_`=`i'-3'mp
-	label var ipadmqp`=`i'/3' "Number hospital admissions the `=`i'/3'th quarter `time' datefirsthelp"
-
-}
-
-forvalues i=1/8 {
-	gen ffsqp`i'=cont_ffs_p_mos>=`i'*3
-	label var ffsqp`i' "Continuous FFS `=`i'*3' months after datefirsthelp" 
-}
-
-forvalues i=1/8 {
-	gen ffsqn`i'=cont_ffs_n_mos>=`i'*3
-	label var ffsqn`i' "Continuous FFS `=`i'*3' months before datefirsthelp" 
-}
-
-keep spid index_date exp* edq* ipadm* *ffs* indhelpstop
-
-merge 1:m spid using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta" , ///
-keep(match)  nogen
-
-*make variables to label each observation as the interview before or after disability
-gen dis_ivw= ivw_date-index_date
-sort spid dis_ivw
-by spid: gen post=1 if dis_ivw>0
-by spid: gen pre=1 if dis_ivw<=0
-
-*make wave_np, which is pos count for waves after disability, neg for waves before
-gen wave_np=.
-
-foreach num of numlist 1 2 3 4 5 6 7 8 {
-by spid: gen post_days=dis_ivw if dis_ivw>0 & wave_np==.
-egen min_post=min(post_days), by(spid)
-replace wave_np=`num' if min_post==dis_ivw
-drop min_post post_days
-}
-
-foreach num of numlist -1 -2 -3 -4 -5 -6 -7 -8 {
-by spid: gen pre_days=abs(dis_ivw) if dis_ivw<=0 & wave_np==.
-egen min_pre=min(pre_days), by(spid)
-replace wave_np=`num' if min_pre==pre_days & wave_np==.
-drop min_pre pre_days
-}
-
-
-
-
-H="further variable cleaning"
-*make a value missing if person died at least half way through quarter
-
-gen days_index_death= death_date-index_date if death_date!=.
-replace days_index_death=1 if days_index_death>-348 & days_index_death<0
-
-*first make each variable censored if individual dies half or more of the way through quarter
-foreach n of numlist 1/8{
-gen c2_expqp`n'=expqp`n'
-gen c2_ipadmqp`n'= ipadmqp`n'
-gen c2_edqp`n'= edqp`n'
-}
- 
-
-replace c2_expqp1=. if days_index_death<45
-replace c2_expqp2=. if days_index_death<136
-replace c2_expqp3=. if days_index_death<228
-replace c2_expqp4=. if days_index_death<319
-replace c2_expqp5=. if days_index_death<410
-replace c2_expqp6=. if days_index_death<510
-replace c2_expqp7=. if days_index_death<593
-replace c2_expqp8=. if days_index_death<684
-
-replace c2_ipadmqp1=. if days_index_death<45
-replace c2_ipadmqp2=. if days_index_death<136
-replace c2_ipadmqp3=. if days_index_death<228
-replace c2_ipadmqp4=. if days_index_death<319
-replace c2_ipadmqp5=. if days_index_death<410
-replace c2_ipadmqp6=. if days_index_death<510
-replace c2_ipadmqp7=. if days_index_death<593
-replace c2_ipadmqp8=. if days_index_death<684
-
-replace c2_edqp1=. if days_index_death<45
-replace c2_edqp2=. if days_index_death<136
-replace c2_edqp3=. if days_index_death<228
-replace c2_edqp4=. if days_index_death<319
-replace c2_edqp5=. if days_index_death<410
-replace c2_edqp6=. if days_index_death<510
-replace c2_edqp7=. if days_index_death<593
-replace c2_edqp8=. if days_index_death<684
-
-*now make a variable flagging people who died each quarter
-
-gen diedqp1=0
-replace diedqp1=1 if days_index_death<91 & days_index_death!=.
-
-gen diedqp2=0
-replace diedqp2=1 if days_index_death<183 & days_index_death!=.
-
-gen diedqp3=0
-replace diedqp3=1 if days_index_death<274 & days_index_death!=.
-
-gen diedqp4=0
-replace diedqp4=1 if days_index_death<365 & days_index_death!=.
-
-gen diedqp5=0
-replace diedqp5=1 if days_index_death<456 & days_index_death!=.
-
-gen diedqp6=0
-replace diedqp6=1 if days_index_death<548 & days_index_death!=.
-
-gen diedqp7=0
-replace diedqp7=1 if days_index_death<639 & days_index_death!=.
-
-gen diedqp8=0
-replace diedqp8=1 if days_index_death<730 & days_index_death!=.
-
-
-
-
-
-H="changelog"
-2/18- CKA- looked at inpatient claims- made separate file and brief analysis
-
-2/17 CKA- made data for wellbeing and mood before and after disablity "making file for wellbeing before and after" "making a data file for mood before and after". merged into data under "merging on other relevent stata files" header, located at it in "rates of wellbeing before and after disability" (this includes mood, financial, depression, pain, anxiety).
-
-2/11- CKA made a variable for date of NSOC interview. see heading "making file for date of NSOC interview." merged it- added to "merging on other relevent stata files" header. looked at this in sepatate header "analysis of nsoc interviews"
-
-2/4/19- CKA- look at trends of death after disability
-
-2/2/19- CKA- merge with variable discat describing whether mobility or sc disability came first to separately look at trends
-
-1/31/2019- CKA- made utilization missing for a quarter if person died at least half way through the quarter. summarized data by quarter to examine form of data.
-
-1/30/19-EBL-fixed coding error in coding ER days that led to cyclical pattern of ER days
-
-1/25/19-EBL-fixed coding errors in utilization 
-
-1/11/19-EBL-set up dataset
-
-11/3/20- CKA reorg.  Now a dataset named util_post_disability_claims.dta is made from SAS- run stata cleaning code each time to clean
-
-H="strip dates to pull off server"
-drop ivw_date* death_date index_date
-drop nhats_death_date nhats_death_day nhats_death_month nhats_death_year
-save "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\util_post_disability_w_util_workingfile_unr.dta" , replace
