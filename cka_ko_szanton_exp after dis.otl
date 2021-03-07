@@ -2,9 +2,12 @@
 
 H="setup: file w index date"
 
-use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_9.dta", clear
+
+use "D:\NHATS\Projects\trajectories and disability\cka_setup of traj utilization after disability\data\date of first disability.dta", clear
 saveold "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\int_data\date of first disability v12.dta" , version(12) replace
 
+clear
+use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_9.dta"
 keep spid ivw_date
 rename ivw_date index_date
 gen index_year=year(index_date)
@@ -14,7 +17,6 @@ saveold "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data
 
 use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_9.dta", clear
 saveold "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\int_data\nhats.dta" , version(12) replace
-
 
 H="set libraries in SAS"
 /*nhats cleaned path*/
@@ -2082,3 +2084,218 @@ quit;
 
 proc export data=util_post_disability outfile="D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\util_post_disability_claims.dta" replace;
 run;
+
+
+
+*************ALTERNATIVE: only run the post- files, skipping ED visits, then run this***************
+proc sql; 
+create table util_post_disability as select * from
+proj_int.index a
+left join proj_int.nhats b
+on a.spid=b.spid and a.index_date=b.datefirsthelp
+left join proj_int.ffs_after c
+on a.bene_id=c.bene_id and a.index_year=c.index_year
+left join proj_int.mc_costs_all_post d
+on a.bene_id=d.bene_id and a.index_year=d.index_year;
+quit;
+
+proc export data=util_post_disability outfile="D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\util_post_disability_claims.dta" replace;
+run;
+
+
+H="**************"
+
+
+H="cleaning exp data and merging w nhats"
+use "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\util_post_disability_claims.dta"
+
+
+forvalues i=3(3)24 {
+	egen tot_paid_by_mc_p_`i'm=rowtotal(ip_paid_by_mc_`i'm snf_paid_by_mc_`i'm ///
+	hh_paid_by_mc_`i'm hs_paid_by_mc_`i'm pb_paid_by_mc_`i'm op_paid_by_mc_`i'm ///
+	dm_paid_by_mc_`i'm)
+	label var tot_paid_by_mc_p_`i'm "Total paid by MC `i' months after survey"
+}
+
+*generate quarterly amounds
+gen mc_quarter_1p= tot_paid_by_mc_p_3m
+gen mc_quarter_2p= tot_paid_by_mc_p_6m-tot_paid_by_mc_p_3m
+gen mc_quarter_3p= tot_paid_by_mc_p_9m-tot_paid_by_mc_p_6m
+gen mc_quarter_4p= tot_paid_by_mc_p_12m-tot_paid_by_mc_p_9m
+gen mc_quarter_5p= tot_paid_by_mc_p_15m-tot_paid_by_mc_p_12m
+gen mc_quarter_6p= tot_paid_by_mc_p_18m-tot_paid_by_mc_p_15m
+gen mc_quarter_7p= tot_paid_by_mc_p_21m-tot_paid_by_mc_p_18m
+gen mc_quarter_8p= tot_paid_by_mc_p_24m-tot_paid_by_mc_p_21m
+
+
+*replace as missing if not in ffs
+replace mc_quarter_1p=. if cont_ffs_p_mos<3
+replace mc_quarter_2p=. if cont_ffs_p_mos<6
+replace mc_quarter_3p=. if cont_ffs_p_mos<9
+replace mc_quarter_4p=. if cont_ffs_p_mos<12
+replace mc_quarter_5p=. if cont_ffs_p_mos<15
+replace mc_quarter_6p=. if cont_ffs_p_mos<18
+replace mc_quarter_7p=. if cont_ffs_p_mos<21
+replace mc_quarter_8p=. if cont_ffs_p_mos<24
+
+*get data ready to merge
+keep spid index_date non_hmo_d_p_mos cont_ffs_p_mos part_ab_p_mos mc_quarter_1p mc_quarter_2p mc_quarter_3p mc_quarter_4p
+rename index_date ivw_date
+
+
+*removed dups: these seem to be mainly spids with lots of missing data: no ivw date
+by spid ivw_date, sort: gen pid=_n
+keep if pid==1
+drop pid
+
+merge 1:m spid ivw_date using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_9.dta"
+
+gen days_ivw_death= death_date-ivw_date
+drop ivw_date death_date nhats_death_date
+
+save "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\working file_merged nhats.dta", replace
+
+H="variable cleaning"
+use "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\working file_merged nhats.dta"
+
+gen dis_grp=.
+replace dis_grp=1 if adl_impair==0
+replace dis_grp=2 if nhres==1
+replace dis_grp=3 if nhres==0 & adl_impair==1 & prob_dem==1
+replace dis_grp=4 if nhres==0 & adl_impair==1  & prob_dem==0
+label define dg1 1 "no disability" 2 "in a NH" 3 "disability, probable dementia" 4 "disability, no probable dementia"
+label values dis_grp dg1
+
+gen keep=1
+replace keep=0 if lml_ivw_yes==1
+replace keep=0 if cont_ffs_p_mos==. | cont_ffs_p_mos<3
+
+
+tab dis_grp if keep==1
+
+
+recode age (65/75=1 "65-74") (75/85=2 "75-84")(85/max=3 "85+"), gen(age_3cat)
+
+
+*make spending variables missing if did not live through half of the quarter
+replace mc_quarter_1p =. if days_ivw_death <45
+replace mc_quarter_2p =. if days_ivw_death <135
+replace mc_quarter_3p =. if days_ivw_death <225
+replace mc_quarter_4p =. if days_ivw_death <315
+
+
+
+H="analysis"
+
+
+*analysis
+*TABLE 1: characteristics in each group
+svyset spid [pweight=anfinwgt], strata(varstrat)
+putexcel set "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\output\table 1_ mar 6.xls", replace
+
+putexcel A1:F1="Table 1. Characteristics by disability category", merge bold border (bottom)
+putexcel B2= "No disability" 
+putexcel C2= "In a NH" 
+putexcel D2= "Disability, probable dementia" 
+putexcel E2= "Disability, no probable dementia"
+putexcel F2= "p-value"
+
+putexcel A3= "N (unweighted)"
+tab dis_grp if keep==1, matcell(cellcounts)
+matrix res=(matrix(cellcounts)')
+putexcel B3=matrix(res)
+	svy, subpop(keep):tabulate dis_grp
+	mat pcb=e(b)
+	putexcel B4`i'=matrix(pcb)
+putexcel A4= "weighted proportion"
+
+local catvars female age_3cat race_cat educ_hs_ind income_quart medicaid livealone marriedpartnered metro_ind srh_fp sr_lung_dis_ever sr_heart_dis_ever sr_stroke_ever sr_cancer_ever
+
+local i=5
+foreach x of local catvars {
+	putexcel A`i'="`x'"
+	svy, subpop(if keep==1 & dis_grp==1):tabulate `x'
+	mat pcb=e(b)'
+	putexcel B`i'=matrix(pcb)
+	svy, subpop(if keep==1 & dis_grp==2):tabulate `x'
+	mat pcb=e(b)'
+	putexcel C`i'=matrix(pcb)
+	svy, subpop(if keep==1 & dis_grp==3):tabulate `x'
+	mat pcb=e(b)'
+	putexcel D`i'=matrix(pcb)
+	svy, subpop(if keep==1 & dis_grp==4):tabulate `x'
+	mat pcb=e(b)'
+	putexcel E`i'=matrix(pcb)
+	svy, subpop(keep): tab `x' dis_grp
+	mat z=e(p_Pear)
+	putexcel F`i'=matrix(z)
+	tab `x'
+	local lev=r(r)
+	local i=`i'+`lev'
+}
+
+
+
+*TABLE 2: EXPENDITURE DATA BY QUARTER BY GROUP
+
+
+putexcel set "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\output\FIG 1_ mar 6.xls", replace
+putexcel A1:E1= "Spending by quarter by group", merge bold border(bottom)
+
+putexcel B2= "no disability, mean"
+putexcel C2= "nh, mean"
+putexcel D2= "disability, dementia, mean"
+putexcel E2= "disability, no dementia, mean"
+
+putexcel A3= "Q1"
+putexcel A4= "Q2"
+putexcel A5= "Q3"
+putexcel A6= "Q4"
+
+
+
+putexcel A8= "Q1, LL"
+putexcel A9= "Q2, LL"
+putexcel A10= "Q3, LL"
+putexcel A11= "Q4, LL"
+
+local contvars mc_quarter_1p mc_quarter_2p mc_quarter_3p mc_quarter_4p 
+local i=3
+local j=8
+
+foreach x of local contvars {
+	svy, subpop(if keep==1 & dis_grp==1 & (days_ivw_death==. | days_ivw_death>365)): mean `x' 
+	matlist r(table)
+	matrix results=r(table)
+	scalar ratetm=results[1,1]
+	putexcel B`i'=matrix(ratetm), nformat(accountcur)
+	scalar ratetm=results[5,1]
+	putexcel B`j'=matrix(ratetm), nformat(accountcur)
+	
+	svy, subpop(if keep==1 & dis_grp==2 & (days_ivw_death==. | days_ivw_death>365)): mean `x' 
+	matlist r(table)
+	matrix results=r(table)
+	scalar ratetm=results[1,1]
+	putexcel C`i'=matrix(ratetm), nformat(accountcur)
+	scalar ratetm=results[5,1]
+	putexcel C`j'=matrix(ratetm), nformat(accountcur)
+	
+	svy, subpop(if keep==1 & dis_grp==3 & (days_ivw_death==. | days_ivw_death>365)): mean `x' 
+	matlist r(table)
+	matrix results=r(table)
+	scalar ratetm=results[1,1]
+	putexcel D`i'=matrix(ratetm), nformat(accountcur)
+	scalar ratetm=results[5,1]
+	putexcel D`j'=matrix(ratetm), nformat(accountcur)
+	
+	svy, subpop(if keep==1 & dis_grp==4 & (days_ivw_death==. | days_ivw_death>365)): mean `x' 
+	matlist r(table)
+	matrix results=r(table)
+	scalar ratetm=results[1,1]
+	putexcel E`i'=matrix(ratetm), nformat(accountcur)
+	scalar ratetm=results[5,1]
+	putexcel E`j'=matrix(ratetm), nformat(accountcur)
+	
+local i= `i'+1
+local j=`j'+1
+}
