@@ -109,547 +109,6 @@ by bene_id clm_id admit_date diag xiss niss: keep if _n==1
 save "${intpath}\traumacodesfromstata", replace
 
 H="get index in stata"
-//grab aha data from 2017 to get trauma center info
-use "D:\Outside_data\AHA data\aha2017.dta", clear
-rename mcrnum prvdr_num
-drop if missing(prvdr_num)
-tempfile aha
-save `aha'
-
-//just pull ivw dates to match to the dx, only for rounds 1,5,7 to match to NSOC later
-use "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", clear
-keep if sp_ivw==1 & lml==0
-keep spid ivw_date wave
-merge m:1 spid using "D:\NHATS\Shared\raw\CMS\NHATS CMS DUA 28016\Crosswalks\xwalk_2016.dta", ///
-keep(match master) nogen keepusing(bene)
-sort spid wave
-by spid: gen ivw_date_n1=ivw_date[_n-1]
-by spid: gen ivw_date_p1=ivw_date[_n+1]
-tempfile nhats
-save `nhats'
-
-//get trauma dx and iss info
-import excel using "D:\NHATS\Projects\trauma\zc_trauma_dyad\ref_docs\icdtrauma_from_stata.xls", firstrow clear
-rename dx dtrunc
-keep dtrunc sev issb
-replace issbr="Abdomen" if issbr=="4"
-replace issbr="Chest" if issbr=="3"
-replace issbr="Extremities" if issbr=="5"
-replace issbr="Face" if issbr=="2"
-replace issbr="External" if inlist(issbr,"6","9","General")
-replace issbr="Head/Neck" if issbr=="1"
-
-encode issbr, gen(region) label(issbr)
-
-drop issbr
-rename region issbr
-tempfile t1
-save `t1'
-
-local type=1
-
-/*pull claims, only inpatient*/
-foreach x in ip_06 {
-
-	use "D:/NHATS/Shared/raw/CMS/NHATS CMS DUA 28016/Merged/STATA/`x'_17.dta", clear
-	if "`x'"=="ip_06" {
-		merge m:1 prvdr_num using `aha', ///
-		keep(match master) gen(aham) keepusing(traumhos)
-		egen icu_days=rowtotal(icarecnt crnryday)
-		gen ind_procedure=!missing(icd_prcdr_cd1)
-
-		label define discharge_disp 1 "Home, no services" 2 "Home with services" ///
-		3 "SNF" 4 "Rehab Facility" 5 "Hospice (including home)" 6 "Deceased" 7 "Other"
-		gen discharge_disp=ptnt_dschrg_stus_cd=="01"
-		replace discharge_disp=2 if inlist(ptnt_dschrg_stus_cd,"06","08")
-		replace discharge_disp=3 if inlist(ptnt_dschrg_stus_cd,"03","61")
-		replace discharge_disp=4 if inlist(ptnt_dschrg_stus_cd,"62")
-		replace discharge_disp=5 if inlist(ptnt_dschrg_stus_cd,"50","51")
-		replace discharge_disp=6 if inlist(ptnt_dschrg_stus_cd,"20","40","41","42")
-		replace discharge_disp=7 if !discharge_disp
-		label values discharge_disp discharge_disp
-		gen los=disch_date-admit_date+1
-		keep bene_id icd_dgns_cd* icd_dgns_e_cd* admit_date icu_days ind_procedure discharge_disp ///
-		los traumhos clm_id
-}
-	
-	else keep bene_id icd_dgns_cd* admit_date disch_date 
-	gen clm_num=_n
-	reshape long icd_dgns_cd icd_dgns_e_cd, i(clm_num) j(num)
-	rename icd_dgns_cd diag
-	rename icd_dgns_e_cd ecode
-	*keep if inlist(substr(diag,1,1),"8","9","S","T") 
-	drop if missing(diag)
-	gen type=`type'
-	local type=`type'+1
-
-	if "`x'"!="pb_09" {
-		tempfile `x'
-		save ``x''
-}
-}
-
-/*
-append using `ip_06'
-append using `op_09'*/
-label define type 1 "IP" 2 "OP" 3 "PB"
-label values type type
-
-sort bene_id admit_date diag
-duplicates drop
-
-//icd9
-gen trauma=inlist(substr(diag,1,1),"8") | (substr(diag,1,1)=="9" & inlist(substr(diag,2,1),"0","1","2","3","4","5"))
-replace trauma=0 if inrange(real(substr(diag,1,3)),905,909) | inrange(real(substr(diag,1,3)),910,924) | inrange(real(substr(diag,1,3)),930,939)
-//icd10
-replace trauma=1 if (substr(diag,1,1)=="S" & inlist(substr(diag,7,1),"A","B","C")) | inlist(substr(diag,1,3),"T07","T14","T30","T31","T32") | (substr(diag,1,4)=="T79A" & substr(diag,3,1)!="0" & substr(diag,7,1)=="A") | (substr(diag,1,2)=="T2" & substr(diag,3,1)!="9" & substr(diag,7,1)=="A")
-replace trauma=0 if inlist(substr(diag,7,1),"D","G","K","S") | (substr(diag,1,1)=="S" & substr(diag,3,1)=="0")
-
-
-//tbi
-gen tbi=trauma==1 & inlist(substr(diag,1,1),"8") & inlist(substr(diag,2,1),"0") & ///
-inlist(substr(diag,3,1),"0","1","3","4")
-
-replace tbi=trauma==1 & inlist(substr(diag,1,1),"8") & inlist(substr(diag,2,1),"5") & ///
-inlist(substr(diag,3,1),"0","1","2","3","4")
-
-replace tbi=trauma==1 & diag=="95901"
-
-replace tbi=trauma==1 if inlist(substr(diag,1,3),"S02") & inlist(substr(diag,4,1),"0","1","8")
-replace tbi=trauma==1 if inlist(substr(diag,1,3),"S02") & inlist(substr(diag,4,1),"9") ///
- & inlist(substr(diag,5,1),"1")
-replace tbi=trauma==1 if inlist(substr(diag,1,3),"S06") & ///
-inlist(substr(diag,4,1),"0","1","2","3","4","5","6","8","9")
-replace tbi=trauma==1 if inlist(substr(diag,1,3),"S09") & inlist(substr(diag,4,1),"8")
-replace tbi=trauma==1 if inlist(substr(diag,1,3),"S09") & inlist(substr(diag,4,1),"9") & ///
-inlist(substr(diag,5,1),"0")
-
-
-//motor vehicle crash--V87?
-gen vehicle_crash=/*inlist(substr(ecode,1,4),"V890","V892","V894") ///
-| inlist(substr(ecode,1,3),"X82","V38","V34","V30","V39","E81","V00","V02","V03") ///
-| inlist(substr(ecode,1,3),"V04","V05","V09") ///
-| inlist(substr(ecode,1,2),"V6")*/ inlist(substr(ecode,1,3),"V12","V13","V14") | inlist(substr(ecode,1,2),"V2","V3","V4","V5","V6","V7") | (inlist(substr(ecode,1,2),"E8") & inlist(substr(ecode,3,1),"1"/*,"2"*/))
-
-//falls
-gen fall=inlist(substr(ecode,1,3),"E88") | inlist(substr(ecode,1,1),"W") & ///
- inlist(substr(ecode,2,1),"0","1")
-
-//get complications 
-//note--only have ICD-9, need to get 10 from Zara at some point
-gen ind_comp_intraop=inlist(substr(diag,1,3),"900","901","902","903","904") & num>1
-replace ind_comp_intraop=1 if inlist(substr(diag,1,4),"4582","5121","9982","9991") & num>1
-replace ind_comp_intraop=1 if inlist(substr(diag,1,5),"41511") & num>1
-gen ind_comp_cardiac=inlist(substr(diag,1,3),"410","411") & num>1
-replace ind_comp_cardiac=1 if inlist(substr(diag,1,4),"4275","9971","4294") & num>1
-
-gen ind_comp_resp=inlist(substr(diag,1,3),"480","481","482","483","485","486","514") & num>1
-replace ind_comp_resp=1 if inlist(substr(diag,1,4),"5070","5184","5185","7991","9973") & num>1
-replace ind_comp_resp=1 if inlist(substr(diag,1,5),"51881") & num>1
-
-gen ind_comp_vasc=1 if inlist(substr(diag,1,3),"430","431","433","434","435","436","451","453") & num>1
-replace ind_comp_vasc=1 if inlist(substr(diag,1,4),"4151","442","4448","4599","9972","9997","9992") & num>1
-
-gen ind_comp_wound=1 if inlist(substr(diag,1,3),"567") & num>1
-replace ind_comp_wound=1 if inlist(substr(diag,1,4),"5688","5697","6088","9981","9983","9986") & num>1
-replace ind_comp_wound=1 if inlist(substr(diag,1,5),"99814","99851") & num>1
-
-gen ind_comp_genitourinary=1 if inlist(substr(diag,1,3),"590","591","596","597","604") & num>1
-replace ind_comp_genitourinary=1 if inlist(substr(diag,1,4),"5933","5934","5935","5991","7882","9963","9975") & num>1
-
-gen ind_comp_gastro=1 if inlist(substr(diag,1,3),"558","560") & num>1
-replace ind_comp_gastro=1 if inlist(substr(diag,1,4),"5311","5312","5321","5322","5323","5401","7876") & num>1
-replace ind_comp_gastro=1 if inlist(substr(diag,1,4),"9974","5692","5693","5695","5696","5793") & num>1
-replace ind_comp_gastro=1 if inlist(substr(diag,1,5),"00845") & num>1
-
-gen ind_comp_neuro=1 if inlist(substr(diag,1,3),"436","951","952","953","954","955","956","354","355") & num>1
-replace ind_comp_neuro=1 if inlist(substr(diag,1,4),"9970","7234") & num>1
-
-gen ind_comp_infect=1 if inlist(substr(diag,1,3),"038") & num>1
-replace ind_comp_infect=1 if inlist(substr(diag,1,4),"9985","9993","0545","7907") & num>1
-replace ind_comp_infect=1 if inlist(substr(diag,1,5),"53641","51901","99591","99592") & num>1
-
-gen ind_comp_misc=1 if inlist(substr(diag,1,3),"584") & num>1
-replace ind_comp_misc=1 if inlist(substr(diag,1,4),"0418","2768","4589","7823","7824","7855","9950","9954","9994") & num>1
-replace ind_comp_misc=1 if inlist(substr(diag,1,4),"9996","9997","9984","9987","9988","9989","5364","5793") & num>1
-replace ind_comp_misc=1 if inlist(substr(diag,1,5),"99586") & num>1
-
-//icd10
-
-
-
-
-replace ind_comp_intraop=1 if inlist(diag, "0DTE0ZZ", "0FB40ZZ", "0FB43ZZ", "6A800ZZ", "8E0H300", "D7811", "D7812", "E3611") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "E3612", "G9748", "G9749", "H59219", "H59229", "H9531", "H9532", "I2690") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "I2699", "I952", "I953", "I9581", "I9751", "I9752", "J9571", "J9572") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "J95811", "K9171", "K9172", "L7611", "L7612", "M96820", "M96821", "N9971") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "N9972", "NoPCS", "S090XXA", "S15009A", "S15209A", "S15309A", "S158XXA", "S159XXA") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "S2500XA", "S25109A", "S2520XA", "S25309A", "S25409A", "S25509A", "S25809A", "S2590XA") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "S3500XA", "S3510XA", "S35219A", "S35229A", "S35239A", "S35299A", "S35319A", "S35329A") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "S35339A", "S35349A", "S35403A", "S35406A", "S35513A", "S35516A", "S35533A", "S35536A") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "S3559XA", "S358X9A", "S3590XA", "S45009A", "S45109A", "S45209A", "S45809A", "S45909A") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "S55009A", "S55109A", "S55809A", "S55909A", "S65009A", "S65109A", "S65209A", "S65309A") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "S65409A", "S65509A", "S65809A", "S65909A", "S75009A", "S75109A", "S75209A", "S75809A") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "S75909A", "S85009A", "S85109A", "S85139A", "S85169A", "S85309A", "S85409A", "S85509A") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "S85809A", "S85909A", "S95109A", "S95809A", "S95902A", "T1490", "T800XXA", "T81718A") & num>1
-replace ind_comp_intraop=1 if inlist(diag, "T8172XA", "T82817A", "T82818A", "T888XXA") & num>1
-
-
-
-replace ind_comp_cardiac=1 if inlist(diag, "079P30Z", "079P3ZZ", "079P40Z", "079P4ZZ", "30230AZ", "30230G0", "30230G1", "30230X0") & num>1
-replace ind_comp_cardiac=1 if inlist(diag, "30230X1", "30230Y0", "30230Y1", "30233AZ", "30233G0", "30233G1", "30233X0", "30233X1") & num>1
-replace ind_comp_cardiac=1 if inlist(diag, "30233Y0", "30233Y1", "30240AZ", "30240G0", "30240G1", "30240X0", "30240X1", "30240Y0") & num>1
-replace ind_comp_cardiac=1 if inlist(diag, "30240Y1", "30243AZ", "30243G0", "30243G1", "30243X0", "30243X1", "30243Y0", "30243Y1") & num>1
-replace ind_comp_cardiac=1 if inlist(diag, "30250G0", "30250G1", "30250X0", "30250X1", "30250Y0", "30250Y1", "30253G0", "30253G1") & num>1
-replace ind_comp_cardiac=1 if inlist(diag, "30253X0", "30253X1", "30253Y0", "30253Y1", "30260G0", "30260G1", "30260X0", "30260X1") & num>1
-replace ind_comp_cardiac=1 if inlist(diag, "30260Y0", "30260Y1", "30263G0", "30263G1", "30263X0", "30263X1", "30263Y0", "30263Y1") & num>1
-replace ind_comp_cardiac=1 if inlist(diag, "3E03005", "3E03305", "3E04005", "3E04305", "3E05005", "3E05305", "3E06005", "3E06305") & num>1
-replace ind_comp_cardiac=1 if inlist(diag, "6A550Z3", "I200", "I2109", "I2111", "I2119", "I2129", "I213", "I214") & num>1
-replace ind_comp_cardiac=1 if inlist(diag, "I240", "I241", "I248", "I469", "I970", "I97110", "I97130", "I97190") & num>1
-replace ind_comp_cardiac=1 if inlist(diag, "I97710", "I97790", "I9788", "I9789") & num>1
-
-
-replace ind_comp_resp=1 if inlist(diag, "0D1N0Z4", "0D1N4Z4", "0D5P0ZZ", "0D5P3ZZ", "0D5P4ZZ", "0D5P7ZZ", "0D5P8ZZ", "0D9P00Z") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0D9P0ZX", "0D9P0ZZ", "0D9P30Z", "0D9P3ZX", "0D9P3ZZ", "0D9P40Z", "0D9P4ZX", "0D9P4ZZ") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0D9P7ZX", "0D9P7ZZ", "0D9P8ZX", "0D9P8ZZ", "0DBP0ZX", "0DBP0ZZ", "0DBP3ZX", "0DBP3ZZ") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0DBP4ZX", "0DBP4ZZ", "0DBP7ZX", "0DBP7ZZ", "0DBP8ZX", "0DBP8ZZ", "0DCP0ZZ", "0DCP3ZZ") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0DCP4ZZ", "0DJD3ZZ", "0DJD4ZZ", "0DJD7ZZ", "0DJD8ZZ", "0DTN0ZZ", "0DTN4ZZ", "0DTP0ZZ") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0DTP4ZZ", "0DTP7ZZ", "0DTP8ZZ", "0F758ZZ", "0F768ZZ", "0F788ZZ", "0F798ZZ", "0F7C8DZ") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0F7C8ZZ", "0F9970Z", "0F9C80Z", "0F9C8ZZ", "0FC50ZZ", "0FC60ZZ", "0FC80ZZ", "0FC90ZZ") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0FF50ZZ", "0FF53ZZ", "0FF54ZZ", "0FF57ZZ", "0FF60ZZ", "0FF63ZZ", "0FF64ZZ", "0FF67ZZ") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0FF80ZZ", "0FF83ZZ", "0FF84ZZ", "0FF87ZZ", "0FF90ZZ", "0FF93ZZ", "0FF94ZZ", "0FF97ZZ") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0FFC0ZZ", "0FFC3ZZ", "0FFC4ZZ", "0FFC7ZZ", "0PQC0ZZ", "0PQC3ZZ", "0PQC4ZZ", "0PQCXZZ") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0PQD0ZZ", "0PQD3ZZ", "0PQD4ZZ", "0PQDXZZ", "0PQF0ZZ", "0PQF3ZZ", "0PQF4ZZ", "0PQFXZZ") & num>1
-replace ind_comp_resp=1 if inlist(diag, "0PQG0ZZ", "0PQG3ZZ", "0PQG4ZZ", "0PQGXZZ", "6A550Z0", "A481", "J120", "J121") & num>1
-replace ind_comp_resp=1 if inlist(diag, "J122", "J1281", "J1289", "J129", "J13", "J14", "J150", "J151") & num>1
-replace ind_comp_resp=1 if inlist(diag, "J1520", "J15211", "J15212", "J1529", "J153", "J154", "J155", "J156") & num>1
-replace ind_comp_resp=1 if inlist(diag, "J157", "J158", "J159", "J160", "J168", "J180", "J181", "J182") & num>1
-replace ind_comp_resp=1 if inlist(diag, "J189", "J690", "J810", "J811", "J951", "J952", "J953", "J95821") & num>1
-replace ind_comp_resp=1 if inlist(diag, "J95822", "J95851", "J95859", "J9588", "J9589", "J9600", "J9620", "J9690") & num>1
-replace ind_comp_resp=1 if inlist(diag, "R092") & num>1
-
-
-replace ind_comp_vasc=1 if inlist(diag, "0D16074", "0D160J4", "0D160K4", "0D160Z4", "0D163J4", "0D16474", "0D164J4", "0D164K4") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0D164Z4", "0D16874", "0D168J4", "0D168K4", "0D168Z4", "0D560ZZ", "0D563ZZ", "0D564ZZ") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0D567ZZ", "0D568ZZ", "0D580ZZ", "0D583ZZ", "0D584ZZ", "0D587ZZ", "0D588ZZ", "0D590ZZ") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0D593ZZ", "0D594ZZ", "0D597ZZ", "0D598ZZ", "0D770ZZ", "0D773ZZ", "0D774ZZ", "0D777ZZ") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0D778ZZ", "0D870ZZ", "0D873ZZ", "0D874ZZ", "0D877ZZ", "0D878ZZ", "0D958ZX", "0D9600Z") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0D960ZZ", "0D9630Z", "0D963ZZ", "0D9640Z", "0D964ZZ", "0D967ZZ", "0D968ZX", "0D968ZZ") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0D980ZX", "0D983ZX", "0D984ZX", "0D987ZX", "0D990ZX", "0D993ZX", "0D994ZX", "0D997ZX") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0D998ZX", "0D9A0ZX", "0D9A3ZX", "0D9A4ZX", "0D9A7ZX", "0D9B0ZX", "0D9B3ZX", "0D9B4ZX") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0D9B7ZX", "0D9B8ZX", "0D9C8ZX", "0DB40ZZ", "0DB43ZZ", "0DB44ZZ", "0DB47ZZ", "0DB58ZX") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0DB60ZZ", "0DB63ZZ", "0DB64ZZ", "0DB67ZZ", "0DB68ZX", "0DB68ZZ", "0DB80ZX", "0DB80ZZ") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0DB83ZX", "0DB83ZZ", "0DB84ZX", "0DB84ZZ", "0DB87ZX", "0DB87ZZ", "0DB88ZX", "0DB88ZZ") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0DB90ZX", "0DB90ZZ", "0DB93ZX", "0DB93ZZ", "0DB94ZX", "0DB94ZZ", "0DB97ZX", "0DB97ZZ") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0DB98ZX", "0DB98ZZ", "0DBA0ZX", "0DBA3ZX", "0DBA4ZX", "0DBA7ZX", "0DBA8ZX", "0DBB0ZX") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0DBB3ZX", "0DBB4ZX", "0DBB7ZX", "0DBB8ZX", "0DBC8ZX", "0DC60ZZ", "0DC63ZZ", "0DC64ZZ") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0DH602Z", "0DH603Z", "0DH60UZ", "0DH63UZ", "0DH64UZ", "0DH67UZ", "0DH68UZ", "0DJ03ZZ") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0DJ07ZZ", "0DJ08ZZ", "0DJD4ZZ", "0DT40ZZ", "0DT44ZZ", "0DT47ZZ", "0DT48ZZ", "0DT70ZZ") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "0DT74ZZ", "0DT77ZZ", "0DT78ZZ", "6A550Z1", "8E0H30Z", "F0DZ8UZ", "G450", "G451") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "G458", "G459", "I2690", "I2692", "I2699", "I609", "I619", "I63019") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "I63119", "I63139", "I6320", "I63219", "I6322", "I63239", "I6330", "I6340") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "I6350", "I6359", "I6509", "I651", "I6529", "I658", "I659", "I6609") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "I6619", "I6629", "I669", "I67848", "I6789", "I745", "I748", "I8000") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "I8010", "I80209", "I80219", "I803", "I808", "I809", "I820", "I821") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "I82220", "I82221", "I82290", "I82291", "I823", "I82409", "I82419", "I82429") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "I82439", "I82449", "I82499", "I824Y9", "I824Z9", "I82509", "I82519", "I82529") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "I82539", "I82549", "I82599", "I825Y9", "I825Z9", "I82609", "I82619", "I82629") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "I82709", "I82719", "I82729", "I82819", "I82890", "I82891", "I8291", "I82A19") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "I82A29", "I82B19", "I82B29", "I82C19", "I82C29", "I999", "T800XXA", "T801XXA") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "T8040XA", "T80410A", "T80411A", "T80419A", "T8049XA", "T80A0XA", "T80A10A", "T80A11A") & num>1
-replace ind_comp_vasc=1 if inlist(diag, "T80A19A", "T80A9XA", "T81718A", "T81719A", "T8172XA", "T82817A", "T82818A") & num>1
-
-replace ind_comp_wound=1 if inlist(diag, "0T130ZB", "0T134ZB", "0T140ZB", "0T144ZB", "0T160Z6", "0T160Z7", "0T160Z8", "0T160ZA") & num>1
-replace ind_comp_wound=1 if inlist(diag, "0T160ZB", "0T164Z6", "0T164Z7", "0T164Z8", "0T164ZA", "0T164ZB", "0T170Z6", "0T170Z7") & num>1
-replace ind_comp_wound=1 if inlist(diag, "0T170Z8", "0T170ZA", "0T170ZB", "0T174Z6", "0T174Z7", "0T174Z8", "0T174ZA", "0T174ZB") & num>1
-replace ind_comp_wound=1 if inlist(diag, "0T180Z6", "0T180Z7", "0T180Z8", "0T180ZA", "0T180ZB", "0T184Z6", "0T184Z7", "0T184Z8") & num>1
-replace ind_comp_wound=1 if inlist(diag, "0T184ZA", "0T184ZB", "0TQ60ZZ", "0TQ63ZZ", "0TQ64ZZ", "0TQ67ZZ", "0TQ68ZZ", "0TQ70ZZ") & num>1
-replace ind_comp_wound=1 if inlist(diag, "0TQ73ZZ", "0TQ74ZZ", "0TQ77ZZ", "0TQ78ZZ", "3E00XGC", "6A4Z0ZZ", "6A600ZZ", "D7801") & num>1
-replace ind_comp_wound=1 if inlist(diag, "D7802", "D7821", "D7822", "E3601", "E3602", "G9731", "G9732", "G9751") & num>1
-replace ind_comp_wound=1 if inlist(diag, "G9752", "H59111", "H59112", "H59113", "H59119", "H59121", "H59122", "H59123") & num>1
-replace ind_comp_wound=1 if inlist(diag, "H59129", "H59311", "H59312", "H59313", "H59319", "H59321", "H59322", "H59323") & num>1
-replace ind_comp_wound=1 if inlist(diag, "H59329", "H9521", "H9522", "H9541", "H9542", "I97410", "I97411", "I97418") & num>1
-replace ind_comp_wound=1 if inlist(diag, "I9742", "I97610", "I97611", "I97618", "I9762", "J9561", "J9562", "J95830") & num>1
-replace ind_comp_wound=1 if inlist(diag, "J95831", "K650", "K651", "K652", "K653", "K654", "K658", "K659") & num>1
-replace ind_comp_wound=1 if inlist(diag, "K661", "K668", "K67", "K6812", "K6819", "K689", "K9161", "K9162") & num>1
-replace ind_comp_wound=1 if inlist(diag, "K91840", "K91841", "K91850", "K91858", "L7601", "L7602", "L7621", "L7622") & num>1
-replace ind_comp_wound=1 if inlist(diag, "M96810", "M96811", "M96830", "M96831", "N442", "N448", "N501", "N503") & num>1
-replace ind_comp_wound=1 if inlist(diag, "N508", "N51", "N5312", "N5314", "N9961", "N9962", "N99820", "N99821") & num>1
-replace ind_comp_wound=1 if inlist(diag, "R188", "R361", "T8130XA", "T8131XA", "T8132XA", "T8133XA", "T814XXA", "T8183XA") & num>1
-replace ind_comp_wound=1 if inlist(diag, "T888XXA") & num>1
-
-
-replace ind_comp_genitourinary=1 if inlist(diag, "0PJY0ZZ", "0PJY3ZZ", "0PJY4ZZ", "0T9000Z", "0T900ZZ", "0T9030Z", "0T903ZZ", "0T9040Z") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "0T904ZZ", "0T9100Z", "0T910ZZ", "0T9130Z", "0T913ZZ", "0T9140Z", "0T914ZZ", "0TB00ZZ") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "0TB03ZZ", "0TB04ZZ", "0TB10ZZ", "0TB13ZZ", "0TB14ZZ", "0TBB0ZZ", "0TBB3ZZ", "0TBB4ZZ") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "0TJ50ZZ", "0TJB0ZZ", "0TJB4ZZ", "0TN00ZZ", "0TN03ZZ", "0TN04ZZ", "0TN07ZZ", "0TN08ZZ") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "0TN10ZZ", "0TN13ZZ", "0TN14ZZ", "0TN17ZZ", "0TN18ZZ", "0TN60ZZ", "0TN63ZZ", "0TN64ZZ") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "0TN70ZZ", "0TN73ZZ", "0TN74ZZ", "0TNB0ZZ", "0TNB3ZZ", "0TNB4ZZ", "0TNC0ZZ", "0TNC3ZZ") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "0TNC4ZZ", "0TQD0ZZ", "0TQD3ZZ", "0TQD4ZZ", "0TQD7ZZ", "0TQD8ZZ", "0TQDXZZ", "0TSC0ZZ") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "0TSC4ZZ", "0TSD0ZZ", "0TSD4ZZ", "0TUC07Z", "0TUC0JZ", "0TUC0KZ", "0TUC47Z", "0TUC4JZ") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "0TUC4KZ", "0TUC77Z", "0TUC7JZ", "0TUC7KZ", "0TUC87Z", "0TUC8JZ", "0TUC8KZ", "0VT00ZZ") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "0WBH0ZZ", "0WBH3ZZ", "0WBH4ZZ", "0WJJ0ZZ", "0WJJ3ZZ", "0WJJ4ZZ", "3E013GC", "3E023GC") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "3E0K3GC", "5A12012", "N10", "N110", "N118", "N12", "N1330", "N134") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "N135", "N138", "N151", "N159", "N16", "N2884", "N2885", "N2886") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "N312", "N318", "N319", "N320", "N321", "N322", "N323", "N3281") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "N3289", "N329", "N340", "N341", "N342", "N343", "N360", "N3644") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "N451", "N452", "N453", "N454", "N51", "N99510", "N99511", "N99512") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "N99518", "N9989", "R338", "R339", "R3914", "T83090A", "T83098A", "T83198A") & num>1
-replace ind_comp_genitourinary=1 if inlist(diag, "T8329XA", "T8339XA", "T83498A") & num>1
-
-
-
-replace ind_comp_gastro=1 if inlist(diag, "0DQ80ZZ", "0DQ83ZZ", "0DQ84ZZ", "0DQ87ZZ", "0DQ88ZZ", "0DQE0ZZ", "0DQE3ZZ", "0DQE4ZZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0DQE7ZZ", "0DQE8ZZ", "0JH70MZ", "0JH73MZ", "0JH80MZ", "0JH83MZ", "0JPT0MZ", "0JPT3MZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0Q8D0ZZ", "0Q8D3ZZ", "0Q8D4ZZ", "0Q8F0ZZ", "0Q8F3ZZ", "0Q8F4ZZ", "0T130Z3", "0T130Z4") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0T130Z6", "0T130Z7", "0T130Z8", "0T130Z9", "0T130ZA", "0T130ZC", "0T130ZD", "0T144Z3") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0T144Z4", "0T144Z6", "0T144Z7", "0T144Z8", "0T144Z9", "0T144ZA", "0T144ZC", "0T144ZD") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0T820ZZ", "0T823ZZ", "0T824ZZ", "0TC37ZZ", "0TC38ZZ", "0TC47ZZ", "0TC48ZZ", "0TC67ZZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0TC68ZZ", "0TC77ZZ", "0TC78ZZ", "0TH90MZ", "0TH93MZ", "0TH94MZ", "0TH97MZ", "0TH98MZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0TL60CZ", "0TL60ZZ", "0TL63CZ", "0TL63ZZ", "0TL64CZ", "0TL64ZZ", "0TL67ZZ", "0TL68ZZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0TL70CZ", "0TL70ZZ", "0TL73CZ", "0TL73ZZ", "0TL74CZ", "0TL74ZZ", "0TL77ZZ", "0TL78ZZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0TP90MZ", "0TP93MZ", "0TP94MZ", "0TP97MZ", "0TP98MZ", "0TQ00ZZ", "0TQ03ZZ", "0TQ04ZZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0TQ07ZZ", "0TQ08ZZ", "0TQ10ZZ", "0TQ13ZZ", "0TQ14ZZ", "0TQ17ZZ", "0TQ18ZZ", "0TQ30ZZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0TQ33ZZ", "0TQ34ZZ", "0TQ37ZZ", "0TQ38ZZ", "0TQ40ZZ", "0TQ43ZZ", "0TQ44ZZ", "0TQ47ZZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0TQ48ZZ", "0TQB0ZZ", "0TQB3ZZ", "0TQB4ZZ", "0TQB7ZZ", "0TQB8ZZ", "0TS00ZZ", "0TS04ZZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0TS10ZZ", "0TS14ZZ", "0TS20ZZ", "0TS24ZZ", "0W3R0ZZ", "0W3R3ZZ", "0W3R4ZZ", "0W3R7ZZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0W3R8ZZ", "0WQFXZ2", "0WQFXZZ", "0YQA0ZZ", "0YQA3ZZ", "0YQA4ZZ", "0YU707Z", "0YU70JZ") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0YU70KZ", "0YU747Z", "0YU74JZ", "0YU74KZ", "0YU807Z", "0YU80JZ", "0YU80KZ", "0YU847Z") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "0YU84JZ", "0YU84KZ", "6A550Z2", "A047", "K251", "K252", "K261", "K262") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "K263", "K353", "K520", "K521", "K522", "K5281", "K5282", "K5289") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "K529", "K560", "K561", "K562", "K563", "K5641", "K5649", "K565") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "K5660", "K5669", "K567", "K624", "K625", "K630", "K912", "K913") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "K9181", "K9182", "K9183", "K9186", "K9189", "K9400", "K9402", "K9403") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "K9409", "K9410", "K9412", "K9413", "K9419", "R150", "R151", "R152") & num>1
-replace ind_comp_gastro=1 if inlist(diag, "R159") & num>1
-
-
-
-replace ind_comp_neuro=1 if inlist(diag, "02B50ZZ", "02B53ZZ", "02B54ZZ", "02QA0ZZ", "02QA3ZZ", "02QA4ZZ", "02QF0ZZ", "02QF3ZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "02QF4ZZ", "02QG0ZZ", "02QG3ZZ", "02QG4ZZ", "02QH0ZZ", "02QH3ZZ", "02QH4ZZ", "02QJ0ZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "02QJ3ZZ", "02QJ4ZZ", "02RM0JZ", "02RM4JZ", "02U50JZ", "02U53JZ", "02U54JZ", "02UM0JZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "02UM3JZ", "02UM4JZ", "08J0XZZ", "08J1XZZ", "0DB60ZZ", "0DB63ZZ", "0DB67ZZ", "0DT70ZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "0DT74ZZ", "0DT77ZZ", "0DT78ZZ", "4A07X0Z", "4A07X7Z", "4A07XBZ", "B30N0ZZ", "B30N1ZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "B30NYZZ", "B803ZZZ", "B804ZZZ", "B805ZZZ", "B806ZZZ", "B807ZZZ", "B845ZZZ", "B846ZZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "B847ZZZ", "C8191ZZ", "C819YZZ", "C81YYZZ", "F09Z2ZZ", "F09Z3ZZ", "F0CZ0ZZ", "F0CZ1ZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "F0CZ2KZ", "F0CZ2LZ", "F0CZ2NZ", "F0CZ2PZ", "F0CZ2QZ", "F0CZ2SZ", "F0CZ2TZ", "F0CZ2YZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "F0CZ2ZZ", "F0DZ0ZZ", "F0DZ1ZZ", "F0DZ2ZZ", "F0DZ5ZZ", "F0DZ8UZ", "F13Z0ZZ", "F13Z1ZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "F13Z2ZZ", "F13Z3ZZ", "F13Z4ZZ", "F13Z5ZZ", "F13Z6ZZ", "F13Z7ZZ", "F13Z8ZZ", "F13Z9ZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "F13ZBZZ", "F13ZCZZ", "F13ZDZZ", "F13ZFZZ", "F13ZGZZ", "F13ZHZZ", "F13ZJZZ", "F13ZMZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "F13ZNZZ", "F13ZPZZ", "F13ZQZZ", "F14Z0ZZ", "F14Z1ZZ", "F14Z2ZZ", "F14Z3ZZ", "F14Z4ZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "F14Z5ZZ", "F14Z6ZZ", "F14Z7ZZ", "F14Z8ZZ", "F15Z0ZZ", "F15Z1ZZ", "F15Z2ZZ", "F15Z3ZZ") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "F15Z4ZZ", "F15Z5ZZ", "F15Z6ZZ", "F15Z7ZZ", "G038", "G5600", "G5610", "G5620") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "G5630", "G5640", "G5680", "G5690", "G5700", "G5710", "G5720", "G5730") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "G5740", "G5750", "G5760", "G5770", "G5780", "G5790", "G587", "G589") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "G970", "G9781", "G9782", "I6789", "I97811", "I97821", "M5412", "M5413") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "NoPCS", "S0410XA", "S0420XA", "S0430XA", "S0440XA", "S0450XA", "S0460XA", "S0470XA") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S04819A", "S04899A", "S049XXA", "S14101A", "S14102A", "S14103A", "S14104A", "S14105A") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S14106A", "S14107A", "S14108A", "S14109A", "S14111A", "S14112A", "S14113A", "S14114A") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S14115A", "S14116A", "S14117A", "S14118A", "S14121A", "S14122A", "S14123A", "S14124A") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S14125A", "S14126A", "S14127A", "S14128A", "S14131A", "S14132A", "S14133A", "S14134A") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S14135A", "S14136A", "S14137A", "S14138A", "S14151A", "S14152A", "S14153A", "S14154A") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S14155A", "S14156A", "S14157A", "S14158A", "S142XXA", "S143XXA", "S145XXA", "S24101A") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S24102A", "S24103A", "S24104A", "S24109A", "S24111A", "S24112A", "S24113A", "S24114A") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S24131A", "S24132A", "S24133A", "S24134A", "S24151A", "S24152A", "S24153A", "S24154A") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S242XXA", "S243XXA", "S244XXA", "S248XXA", "S249XXA", "S34109A", "S34139A", "S3421XA") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S3422XA", "S343XXA", "S344XXA", "S345XXA", "S346XXA", "S349XXA", "S4400XA", "S4410XA") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S4420XA", "S4430XA", "S4440XA", "S4450XA", "S448X9A", "S4490XA", "S5400XA", "S5410XA") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S5420XA", "S5430XA", "S6400XA", "S6410XA", "S6420XA", "S6430XA", "S6440XA", "S7400XA") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S7410XA", "S7420XA", "S748X9A", "S7490XA", "S8400XA", "S8410XA", "S8420XA", "S84809A") & num>1
-replace ind_comp_neuro=1 if inlist(diag, "S8490XA", "S9430XA", "S948X9A", "S9490XA") & num>1
-
-
-replace ind_comp_infect=1 if inlist(diag, "0QSL3ZZ", "0QSL4ZZ", "0QSLXZZ", "0QSM3ZZ", "0QSM4ZZ", "0QSMXZZ", "0QSN3ZZ", "0QSN4ZZ") & num>1
-replace ind_comp_infect=1 if inlist(diag, "0QSNXZZ", "0QSP3ZZ", "0QSP4ZZ", "0QSPXZZ", "3E0R3TZ", "3E0S3TZ", "8E0VX1D", "A403") & num>1
-replace ind_comp_infect=1 if inlist(diag, "A409", "A4101", "A4102", "A411", "A412", "A413", "A414", "A4150") & num>1
-replace ind_comp_infect=1 if inlist(diag, "A4151", "A4152", "A4153", "A4159", "A4189", "A419", "B007", "DWY18ZZ") & num>1
-replace ind_comp_infect=1 if inlist(diag, "DWY28ZZ", "DWY38ZZ", "DWY48ZZ", "DWY58ZZ", "DWY68ZZ", "J9502", "K6811", "K9422") & num>1
-replace ind_comp_infect=1 if inlist(diag, "R6520", "R7881", "T80211A", "T80212A", "T80219A", "T8022XA", "T8029XA", "T814XXA") & num>1
-replace ind_comp_infect=1 if inlist(diag, "T880XXA") & num>1
-
-
-
-replace ind_comp_misc=1 if inlist(diag, "0DQP0ZZ", "0DQP3ZZ", "0DQP4ZZ", "0DQP7ZZ", "0DQP8ZZ", "0HQ9XZZ", "0PBH0ZZ", "0PBH3ZZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0PBH4ZZ", "0PBJ0ZZ", "0PBJ3ZZ", "0PBJ4ZZ", "0PBK0ZZ", "0PBK3ZZ", "0PBK4ZZ", "0PBL0ZZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0PBL3ZZ", "0PBL4ZZ", "0PBM0ZZ", "0PBM3ZZ", "0PBM4ZZ", "0PBN0ZZ", "0PBN3ZZ", "0PBN4ZZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0PBP0ZZ", "0PBP3ZZ", "0PBP4ZZ", "0PBQ0ZZ", "0PBQ3ZZ", "0PBQ4ZZ", "0QH604Z", "0QH634Z") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0QH644Z", "0QH704Z", "0QH734Z", "0QH744Z", "0QH804Z", "0QH834Z", "0QH844Z", "0QH904Z") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0QH934Z", "0QH944Z", "0QHB04Z", "0QHB34Z", "0QHB44Z", "0QHC04Z", "0QHC34Z", "0QHC44Z") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0TMD0ZZ", "0TMD4ZZ", "0TQB0ZZ", "0TQB3ZZ", "0TQB4ZZ", "0TQB7ZZ", "0TQB8ZZ", "0TQD0ZZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0TQD3ZZ", "0TQD4ZZ", "0TQD7ZZ", "0TQD8ZZ", "0TQDXZZ", "0TRD07Z", "0TRD0JZ", "0TRD0KZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0TRD47Z", "0TRD4JZ", "0TRD4KZ", "0TRD77Z", "0TRD7JZ", "0TRD7KZ", "0TRD87Z", "0TRD8JZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0TRD8KZ", "0TRDX7Z", "0TRDXJZ", "0TRDXKZ", "0TSD0ZZ", "0TSD4ZZ", "0TUD07Z", "0TUD0JZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0TUD0KZ", "0TUD47Z", "0TUD4JZ", "0TUD4KZ", "0TUD77Z", "0TUD7JZ", "0TUD7KZ", "0TUD87Z") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0TUD8JZ", "0TUD8KZ", "0TUDX7Z", "0TUDXJZ", "0TUDXKZ", "0TVD0CZ", "0TVD0DZ", "0TVD0ZZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0TVD3CZ", "0TVD3DZ", "0TVD3ZZ", "0TVD4CZ", "0TVD4DZ", "0TVD4ZZ", "0TVD7DZ", "0TVD7ZZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0TVD8DZ", "0TVD8ZZ", "0TVDXZZ", "0UQG0ZZ", "0UQG3ZZ", "0UQG4ZZ", "0UQG7ZZ", "0UQG8ZZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0VQ50ZZ", "0VQ53ZZ", "0VQ54ZZ", "0VQ5XZZ", "0W3R0ZZ", "0W3R3ZZ", "0W3R4ZZ", "0W3R7ZZ") & num>1
-replace ind_comp_misc=1 if inlist(diag, "0W3R8ZZ", "0WQFXZ2", "0WQFXZZ", "3E0134Z", "3E0234Z", "6A650ZZ", "8E0VX1C", "8E0VX63") & num>1
-replace ind_comp_misc=1 if inlist(diag, "8E0ZXY6", "A493", "B960", "B966", "B967", "B9681", "B9689", "E876") & num>1
-replace ind_comp_misc=1 if inlist(diag, "F0DZ8UZ", "H59029", "I959", "K912", "K9420", "K9422", "K9423", "K9429") & num>1
-replace ind_comp_misc=1 if inlist(diag, "N170", "N171", "N172", "N178", "N179", "R17", "R570", "R571") & num>1
-replace ind_comp_misc=1 if inlist(diag, "R578", "R579", "R600", "R601", "R609", "R6521", "T782XXA", "T8030XA") & num>1
-replace ind_comp_misc=1 if inlist(diag, "T80310A", "T80311A", "T80319A", "T8039XA", "T8040XA", "T80410A", "T80411A", "T80419A") & num>1
-replace ind_comp_misc=1 if inlist(diag, "T8049XA", "T8051XA", "T8052XA", "T8059XA", "T80A0XA", "T80A10A", "T80A11A", "T80A19A") & num>1
-replace ind_comp_misc=1 if inlist(diag, "T80A9XA", "T81509A", "T81519A", "T81529A", "T81539A", "T8161XA", "T8169XA", "T8182XA") & num>1
-replace ind_comp_misc=1 if inlist(diag, "T8189XA", "T819XXA", "T882XXA", "T883XXA") & num>1
-
-
-
-egen ind_comp_any=rowmax(ind_comp*)
-label var ind_comp_any "Any complication during index stay"
-
-//use egen to add complications to the trauma dx rows
-foreach x of varlist ind_comp* {
-	replace `x'=0 if missing(`x')
-	by bene_id clm_num type, sort: egen this=max(`x')
-	replace `x'=this
-	drop this
-}
-
-gen icd9=inlist(substr(diag,1,1),"8","9")
-
-
-keep if trauma
-duplicates drop
-
-gen length=length(diag)
-gen dtrunc=diag
-
-merge m:1 dtrunc using `t1', keep(match master) gen(m1)
-gen anym=m1==3
-
-forvalues m=2/5 {
-
-	replace dtrunc=substr(dtrunc,1,length-1)
-	replace length=length-1
-
-	merge m:1 dtrunc using `t1', update keep(match master match_update) gen(m`m')
-	replace anym=1 if m`m'==3
-	
-}
-
-rename discharge_disp z
-save "${intpath}\traumacodesnewway.dta", replace
-
-
-
-
-//bring in ISS & region from icdpic code from Molly
-merge 1:1 clm_id admit_date bene_id diag using "${intpath}\traumacodesfromstata"
-
-drop m* d* ecode num length
-rename z discharge_disp
-duplicates drop
-
-tempfile trauma
-save `trauma'
-
-//use pre and post
-
-foreach period in pre post {
-if "`period'"=="pre" {
-forvalues i=1/8 {
-	use `nhats' if wave==`i', clear
-	merge 1:m bene_id using `trauma', keep(match) nogen
-	drop if admit_date>=ivw_date | (admit_date<ivw_date_n1 & !missing(ivw_date_n1)) | ///
-	(ivw_date-admit_date>365)
-	drop ivw_date_*
-	rename ivw_date ivw_date
-	rename wave wave
-	tempfile traum`i'
-	save `traum`i''
-}
-	local end 8
-}
-
-else {
-forvalues i=1/8 {
-	use `nhats' if wave==`i', clear
-	merge 1:m bene_id using `trauma', keep(match) nogen
-	drop if admit_date<ivw_date | admit_date-ivw_date>365 | admit_date>ivw_date_p1
-	drop ivw_date_* 
-	rename ivw_date ivw_date
-	rename wave wave
-	tempfile traum`i'
-	save `traum`i''
-}
-	local end 8
-}
-
-clear
-forvalues i=1/`end' {
-	di `i'
-	append using `traum`i''
-}
-
-
-//# of trauma hospitalizations
-by spid wave, sort: gen n_trauma=_N
-by spid: gen ind_prev_trauma=_n>1
-label var n_trauma "Number of hospitalizations for trauma observed prior to wave (or since prev wave)"
-label var ind_prev_trauma "Indicator index trauma is first traumatic hospitalization observed"
-
-
-
-
-/*generate iss code using severity and body type
-
-iss is the sum of the squared value of the three most-severely-injured body regions
-iss is max (75) if the severity in any region is 6 (6=currently unsurvivable)
-*/
-
-/*it looks like the severity=9 are burn codes that (at least for ICD-9) don't 
-have ISSs associated with them*/
-replace severity=. if severity==9
-
-levelsof issbr, local(levels)
-foreach l of local levels {
-	gen issbr_`l'=issbr==`l'
-	local lab : label issbr `l'
-	by bene_id clm_num type ivw_date, sort: egen ind_issbr_`l'=max(issbr_`l')
-	label var ind_issbr_`l' "`lab'"
-}
-egen n_issbr=rowtotal(ind_issbr_*)
-label var n_issbr "# of different body regions"
-
-by bene_id clm_num type issbr, sort: egen maxsev=max(severity)
-keep if severity==maxsev
-drop maxsev
-
-sort bene_id clm_num type severity
-by bene_id clm_num type: keep if _n<=3
-gen sev2=severity^2
-
-by bene_id clm_num type: egen iss=total(sev2)
-label var iss "ISS"
-by bene_id clm_num type, sort: egen maxsev=max(severity)
-replace iss=75 if maxsev==6
-replace iss=. if iss==0
-drop clm_num trauma severity issbr* anym sev2 maxsev 
-rename admit_date index_date
-destring traumhos, replace
-by spid wave index_date, sort: egen ind_trauma_hosp=max(traumhos)
-label var ind_trauma_hosp "Trauma hospital"
-drop traumhos
-
-//only keep highest iss per ivw
-sort spid wave iss
-by spid wave: keep if _n==_N
-//only first per person
-by spid: keep if _n==1
-
-
-
-save "${intpath}\index_stay`period'", replace
-
-keep spid bene_id index_date ivw_date
-gen ivw_year=year(ivw_date)
-saveold "${intpath}\index`period'", replace version(12)
-
-}
-
-H="10/7 get index changed"
 set seed 123
 
 //grab aha data from 2017 to get trauma center info
@@ -767,19 +226,24 @@ replace tbi=trauma==1 if inlist(substr(diag,1,3),"S09") & inlist(substr(diag,4,1
 replace tbi=trauma==1 if inlist(substr(diag,1,3),"S09") & inlist(substr(diag,4,1),"9") & ///
 inlist(substr(diag,5,1),"0")
 
+by bene_id clm_id, sort: egen a=max(tbi)
+replace tbi=a
+drop a
 
 //motor vehicle crash--V87?
 gen vehicle_crash=/*inlist(substr(ecode,1,4),"V890","V892","V894") ///
 | inlist(substr(ecode,1,3),"X82","V38","V34","V30","V39","E81","V00","V02","V03") ///
 | inlist(substr(ecode,1,3),"V04","V05","V09") ///
-| inlist(substr(ecode,1,2),"V6")*/ inlist(substr(ecode,1,3),"V12","V13","V14") | inlist(substr(ecode,1,2),"V2","V3","V4","V5","V6","V7") | (inlist(substr(ecode,1,2),"E8") & inlist(substr(ecode,3,1),"1"/*,"2"*/))
+| inlist(substr(ecode,1,2),"V6")*/ inlist(substr(ecode,1,3),"V12","V13","V14") | inlist(substr(ecode,1,2),"V2","V3","V4","V5","V6","V7") | (inlist(substr(ecode,1,2),"E8") & inlist(substr(ecode,3,1),"1"/*,"2"*/)) if !missing(ecode)
 
 //falls
 gen fall=inlist(substr(ecode,1,3),"E88") | inlist(substr(ecode,1,1),"W") & ///
- inlist(substr(ecode,2,1),"0","1")
-  by bene_id clm_id, sort: egen a=max(fall)
-replace fall=a
+ inlist(substr(ecode,2,1),"0","1") if !missing(ecode)
+foreach a in vehicle_crash fall {
+  by bene_id clm_id, sort: egen a=max(`a')
+replace `a'=a
 drop a
+}
 
 
 gen ecodecat=1 if missing(ecode) 
@@ -1095,7 +559,7 @@ foreach x of varlist ind_comp* {
 gen icd9=inlist(substr(diag,1,1),"8","9")
 
 
-keep if trauma
+*keep if trauma
 duplicates drop
 
 gen length=length(diag)
@@ -1118,12 +582,16 @@ rename discharge_disp z
 save "${intpath}\traumacodesnewway.dta", replace
 
 
-
+drop num
+duplicates drop
 
 //bring in ISS & region from icdpic code from Molly
 merge 1:1 clm_id admit_date bene_id diag using "${intpath}\traumacodesfromstata"
 
-drop m* d* ecode num length
+rename trauma orig_trauma
+gen trauma=inrange(xiss,1,98)
+keep if trauma
+drop m* d* ecode  length
 rename z discharge_disp
 duplicates drop
 
@@ -1189,7 +657,7 @@ have ISSs associated with them*/
 replace severity=. if severity==9
 
 levelsof issbr, local(levels)
-foreach l of local levels {
+forvalues l=1/6 {
 	gen issbr_`l'=issbr==`l'
 	local lab : label issbr `l'
 	by bene_id clm_num type ivw_date, sort: egen ind_issbr_`l'=max(issbr_`l')
@@ -1211,7 +679,7 @@ label var iss "ISS"
 by bene_id clm_num type, sort: egen maxsev=max(severity)
 replace iss=75 if maxsev==6
 replace iss=. if iss==0
-drop clm_num trauma severity issbr* anym sev2 maxsev 
+drop clm_num trauma severity issbr_* anym sev2 maxsev 
 rename admit_date index_date
 destring traumhos, replace
 by spid wave index_date, sort: egen ind_trauma_hosp=max(traumhos)
@@ -1995,114 +1463,344 @@ restore
 }
 
 
-H="xmerge pre/post into longitudinal dataset"
+H="new longitudinal dataset, starting from n1"
+set seed 123
 use "${intpath}\trauma_dyad_nhatspost", clear
-duplicates report spid
-keep spid wave ivw_date index_date
-foreach x of varlist w i* {
-rename `x' `x'_n1
-}
-gen wave=wave+1
-tempfile pre
-save `pre'
+preserve
+merge 1:1 spid using "${intpath}\index.dta", keepusing(bene_id) nogen keep(match)
+merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\snf_09_17.dta", keep(match) nogen keepusing(admit_date disch_date)
+keep if inrange(ivw_date,admit_date,disch_date)
+gen ind_snf=1
+label var ind_snf "In a SNF at the time of the interview"
+keep spid ind_snf
+duplicates drop
+tempfile t11
+save `t11'
 
-merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match master) 
-replace _m=1 if !sp_ivw
-replace ivw_date=mdy(ivw_month,1,ivw_year) if missing(ivw_date)
+restore
+preserve
+replace iss=niss if inlist(iss,0,99,.)
+//replace iss=niss
+drop if inlist(iss,0,99)
 
-gen cat=_m==1
-replace cat=2 if lml==1
-replace cat=3 if _m==3 & cat!=2
-replace cat=4 if _m==3 & wave==8 & lml!=1
-label define cat 1 "No p1 interviews" 2 "LML interview only" 3 "P1 interview in waves 2-7" 4 "P1 interview wave 8" 
-label values cat cat
-tab cat
-drop _m
-replace wave=wave_n1
+keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw traum2ivw ind_trauma_hosp apc  fall iss  iss_cat los icu_days ind_procedure ind_comp_any n_readmit n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  ecodec *iss orth_surg lst lst_1
+
 tempfile t1
 save `t1'
 
 
-use "${intpath}\trauma_dyad_nhatspre", clear
-duplicates report spid
-keep spid wave ivw_date index_date
-foreach x of varlist w i* {
+restore
+drop help_cat
+
+
+
+gen help_cat=ind_no_helpers
+replace help_cat=2 if !ind_paid & !ind_no_helpers
+replace help_cat=3 if ind_paid 
+*replace help_cat=4 if n_helpers==n_paid & ind_paid
+label var help_cat "Caregiving, categorical"
+label values help_cat help_cat
+label define help_cat 3 "Has paid help", modify
+replace race=1 if race==3
+
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5 {
+rename `x' `x'_n1
+}
+
+gen wave=wave+1
+drop ivw_date
+
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match) gen(othm)
+rename race_cat race
+drop if lml==1 
+keep if sp_ivw==1
+
+gen help_cat=ind_no_helpers
+replace help_cat=2 if !ind_paid_helper & !ind_no_helpers
+replace help_cat=3 if ind_paid_helper
+label var help_cat "Caregiving, categorical"
+label values help_cat help_cat
+
+egen adverse_mo=rowmax(adverse_insd adverse_out adverse_bed)
+label var adverse_mo "Adv. cons. of unmet need: mobility"
+egen adverse_sc=rowmax(adverse_dres adverse_toil adverse_bath adverse_eat)
+label var adverse_sc "Adv. cons. of unmet need: self-care"
+egen adverse_hh=rowmax(adverse_laun adverse_shop adverse_meal adverse_bank)
+label var adverse_hh "Adv. cons. of unmet need: household"
+egen adverse_any=rowmax(adverse_mo adverse_sc adverse_hh)
+label var adverse_any "Adv. cons. of unmet need: any"
+
+replace livearrang=livearrang-1 if livearrang>2
+replace livearrang=4 if rcfres==1
+replace livearrang=5 if nhres==1
+label define livearrang 1 "Lives alone" 3 "With others (and not spouse)" 4 "Residential Care Facility" ///
+5 "Nursing Home", modify
+
+replace married=0 if livearrang==1 & missing(married)
+replace race=1 if race==3
+
+gen adl_cat=adl_index==0 if !missing(adl_index)
+replace adl_cat=2 if inrange(adl_index,1,2)
+replace adl_cat=3 if inrange(adl_index,3,6)
+label var adl_cat "ADLs, categorical"
+label values adl_cat adl_cat
+
+
+rename traum2ivw ivw2traum
+label var ivw2 "Days from interview to trauma"
+gen traum2ivw=ivw_date-index_date
+label var traum2ivw "Days from trauma to interview"
+foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5 {
 rename `x' `x'_p1
 }
-gen wave=wave-1
-tempfile pre
-save `pre'
 
-merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match master) gen(othm)
-replace othm=1 if !sp_ivw
+*keep spid *p1 *n1 ivw2traum traum2ivw
+merge 1:1 spid using `t1', nogen keep(match)
+merge 1:1 spid using `t11', nogen keep(match master)
+replace ind_snf=0 if missing(ind_snf)
+label var apc "Anatomic Profile"
+label var fall "Injury mechanism: fall"
+label var icu_days "Days in the ICU during index stay"
+label var ind_ed_vis "ED visit w/in 12 weeks of discharge"
+label var ind_hh_days "HH use w/in 12 weeks of discharge"
+label var ind_procedure "Any procedure performed during index stay"
+label var ind_rea "Any readmission w/in 12 weeks of discharge"
+label var ind_snf "In SNF <30 days prior to P1 interview"
+label var ind_snf_d "SNF use w/in 12 weeks of discharge"
+label var los "LOS for index stay"
+label var apc "Anatomic Profile Category for injury"
+/*drop index_date inj_cat
+save "${datapath}\sample_final_unr.dta", replace
 
 
-*append using `t1'
-*merge 1:1 spid wave using `t1'
-gen cat=1 if othm==1
-replace cat=2 if othm==3 
-label define cat2 1 "First trauma prior to first interview" 2 "N1 interview in waves 1-6, P1 2-7" 3 "N1 interview wave 7, P1 8" 4 "N1 interview, only LML following trauma" 5 "No P1 interview following trauma" 6 "P1 interview, but >365 days after trauma", modify
-label values cat cat2
+H="stay and utilization chars on prepost"
+/* stay and utilization tables */
 
-tab cat
-gen set=!missing(othm)
-label var set "NHATS post trauma"
-tempfile cat 
-save `cat'
-tab cat
 
-use `t1', clear
-tab cat
-rename cat catn1
-gen time=ivw_date-index_date
-keep spid catn1 wave_n1 time index_date_n1
+/*gen _row1=.
+label var _row1 "Trauma characteristics"
+gen _row2=.
+label var _row2 "Stay characteristics"
+gen _row3=. 
+label var _row3 "12 week utilization and outcomes"
+*/
+clear all
+use  "${datapath}\sample_final_unr", clear
+label var lst "Life Sustaining treatments"
+label var orth_surg "Orthopedic Surgery"
+gen wave=wave_n1
+merge 1:1 spid using "${intpath}\trauma_dyad_nhatspost", keep(match)
+local cvars1 ivw2traum traum2ivw
+local ivars1  ind_trauma_hosp
+local catvars1 apc //inj_cat
+local cvars2
+local ivars2 fall vehicle_crash orth_surg lst 
+local catvars2
+local cvars3 iss
+local ivars3 
+local catvars3 iss_cat //apc
+local cvars4 los icu_days
+local ivars4 ind_procedure //ind_comp_any 
+local catvars4 
+local cvars5 n_readmit n_snf_days n_hh_days n_ed_vis
+local ivars5 ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84
+local catvars5 
 
-merge 1:1 spid using `cat'
-
-replace cat=3 if catn1==4 & missing(cat)
-replace cat=4 if catn1==2 & missing(cat)
-replace cat=5 if catn1==1 & missing(cat)
-replace cat=6 if missing(cat)
-
-keep if inrange(cat,1,3)
-replace wave_p1=8 if missing(wave_p1)
-keep spid wave_n1 wave_p1 cat
-
-tempfile t1 
-save `t1'
-
-local p post
-foreach x in n1 p1 {
-	preserve
-	keep spid wave_`x'
-
-	rename wave wave 
-	merge 1:1 spid wave using "${intpath}\trauma_dyad_nhats`p'", keep(match) nogen keepusing(age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair spouse_help_ind ivw_date adl_cat help_cat soc_iso adverse_sc adverse_mo adverse_hh adverse_any soc_iso frail income_adj charls_index_wt ch3plus ind_trauma_hosp)
-
-	rename * *_`x'
-	rename spid spid
-
-	tempfile `x'
-	save ``x''
-	restore
-local p pre
+di "`period'"
+forvalues i=1/5 {
+	di "`i'"
+	foreach x of local catvars`i' {
+		local cativars`i'
+		di "`x'"
+		local `x'
+		di "``x''"	
+		levelsof `x', local(levels)
+		foreach l of local levels {
+			gen `x'`l'=`x'==`l' if !missing(`x')
+			local lab : label `x' `l'
+			label var `x'`l' "`lab'"
+			local `x' ``x'' `x'`l'
+}
+		di "``x''"
+		local cativars`i' `cativars`i'' ``x''
+}
 }
 
-use "${intpath}\trauma_dyad_nhatspre", clear
-gen t=1
-append using "${intpath}\trauma_dyad_nhatspost"
-replace t=0 if missing(t)
-sort spid t
-by spid: keep if _n==1
-keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw //income_adj
-tempfile t2
-save `t2'
-use `t1', clear
-merge 1:1 spid wave_n1 using `n1', nogen
-merge 1:1 spid wave_p1 using `p1', nogen
-merge 1:1 spid using `t2', nogen keep(match)
+di "`catvars1'"
+di "`cativars1'"
 
-save "${datapath}\sample_final.dta", replace
+local rows
+forvalues i=1/5 {
+local rows `rows' `cvars`i'' `cvars`i'' `cvars`i'' `ivars`i'' `cativars`i''
+}
+
+local rn : word count `rows' 1
+local r=1
+local c=1
+
+mat tab=J(`rn',2,.)
+mat stars=J(`rn',2,0)
+
+local n=_N
+forvalues i=1/5 {
+	foreach x of local cvars`i' {
+		qui sum `x' /*if inlist(dem_cohort,`y')*/, d
+		mat tab[`r',`c']=r(mean)
+		mat tab [`r'+1,`c']=r(sd)
+		mat tab[`r'+2,`c']=r(p50)
+		if `n'-r(N)>=11 | `n'==r(N) mat tab[`r',`c'+1]=`n'-r(N)
+		else mat stars[`r',`c'+1]=3
+		local r=`r'+3
+		
+}
+	foreach x of local ivars`i' {
+		qui sum `x' 
+		if (r(N)*r(mean)>=11 & r(N)-r(N)*r(mean)>=11) | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',`c']=r(mean)*100
+		else mat stars[`r',`c']=3
+		if `n'-r(N)>=11 | `n'==r(N) mat tab[`r',`c'+1]=`n'-r(N)
+		else mat stars[`r',`c'+1]=3
+		local r=`r'+1
+}
+	foreach x of local catvars`i' {
+		qui sum `x'
+		if `n'-r(N)>=11 | `n'==r(N) mat tab[`r',`c'+1]=`n'-r(N)
+		else mat stars[`r',`c'+1]=3
+		foreach z of local `x' {
+			qui sum `z' 
+			if r(N)*r(mean)>=11 | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',`c']=r(mean)*100
+			else mat stars[`r',`c']=3
+			local r=`r'+1
+}
+}
+}
+mat tab[`r',`c']=`n'
+	
+/*
+local cvars1 traum2ivw
+local ivars1  
+local catvars1 inj_cat
+local cvars2
+local ivars2 fall vehicle_crash 
+local catvars2
+local cvars3 iss
+local ivars3 
+local catvars3 iss_cat
+local cvars4 los icu_days
+local ivars4 ind_procedure ind_comp_any 
+local catvars4 
+local cvars5 n_readmit n_snf_days n_hh_days n_ed_vis
+local ivars5 ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84
+local catvars5 
+*/
+mat rownames tab=ivw2traum SD Median traum2ivw SD Median `ivars1' `cativars1' `ivars2' `cativars2' ///
+`cvars3' SD Median `ivars3' `cativars3' los SD Median icu_days SD Median `ivars4' `cativars4' ///
+n_readmit SD Median n_snf_days SD Median n_hh_days SD Median n_ed_vis SD Median `ivars5' `cativars5' N
+
+if "`period'"=="pre" local title Trauma with NHATS interview following
+else local title Trauma with prior NHATS interview
+frmttable using "${outpath}\stay_and_util_tables_`period'`c(current_date)'.rtf", ///
+statmat(tab) title("Characteristics of trauma and utilization:" "`title'") ///
+ctitles("" "Mean/%" "N Missing") varlabels ///
+sdec(2,0) annotate(stars) asymbol(*,**,NR) replace
+
+local rn : word count ind_comp_intraop ind_comp_cardiac ind_comp_resp ind_comp_vasc ind_comp_wound ind_comp_genitourinary ind_comp_gastro ind_comp_neuro ind_comp_infect ind_comp_misc ind_comp_any
+
+//ebl--9/6/19--drop this for now because there's so little that's shareable. worth looking at again after update for icd10.
+/*
+mat tab=J(`rn',2,.)
+mat stars=J(`rn',2,0)
+local r=1
+
+foreach x of varlist ind_comp* {
+	qui sum `x' 
+	if (r(N)*r(mean)>=11 & r(N)-r(N)*r(mean)>=11) | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',1]=r(mean)*r(N)
+	else mat stars[`r',1]=3
+	if (r(N)*r(mean)>=11 & r(N)-r(N)*r(mean)>=11) | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',2]=r(mean)*100
+	else mat stars[`r',2]=3
+	local r=`r'+1
+}
+
+mat rownames tab=ind_comp_intraop ind_comp_cardiac ind_comp_resp ind_comp_vasc ind_comp_wound ind_comp_genitourinary ind_comp_gastro ind_comp_neuro ind_comp_infect ind_comp_misc ind_comp_any
+
+frmttable using "${outpath}\stay_and_util_tables_`period'`c(current_date)'.rtf", ///
+addtable statmat(tab) title("Complications, detailed") ///
+ctitles("" "N" "%") sdec(0,2) annotate(stars) asymbol(*,**,NR)
+*/
+
+
+
+H="sens analyses"
+//note, you need to run the unrestricted sample code and comment out dropping the index date in order for this to run
+
+use"${datapath}\sample_final_unr", clear
+merge 1:m spid using "${nhats}\sp_round_1_8.dta", keep(match) nogen keepusing(death_date)
+replace iss=. if inlist(iss,0,99)
+duplicates drop
+replace los=1 if !los
+gen lnlos=ln(los)
+gen died_12=death_date-index_date<=365
+gen died_6=death_date-index_date<=183
+reg died_12 iss
+reg died_12 iss if traum2ivw<=91
+local xvars iss c.age_n1 female_n1 i.race_n1  married_n1 educ_hs_ind_n1 ind_trauma_hosp prob_dem_n1
+local xvarslim c.age_n1 female_n1 married_n1
+gen iss9=iss>9 if !missing(iss)
+
+label var died_6 "Died within 6 months"
+
+logit died_6 iss `xvarslim' if traum2ivw<=91 
+outreg, varlabels stats(e_b e_ci p) ctitles("" "1")
+logit died_6 iss `xvarslim' if traum2ivw<=183
+outreg, varlabels stats(e_b e_ci p)  merge ctitles("" "2")
+
+logit died_6 iss9 `xvarslim' if traum2ivw<=91
+outreg, varlabels stats(e_b e_ci p) merge ctitles("" "3")
+logit died_6 iss9 `xvarslim' if traum2ivw<=183
+outreg using "${outpath}\sensitivity_regs", varlabels stats(e_b e_ci p) merge ctitles("" "4") replace note("Regressions 1-4 are death within 6 months"\ "Regressions 1 and 3 among those with interviews within 3 months after trauma"\ "2 and 4 among all ivws within 6 mos after trauma" \"Full covariates not included because of small sample size and perfect collinearity")
+
+reg los iss `xvars'
+outreg, varlabels stats(b ci p)  ctitles("" "ln(LOS)")
+reg los iss9 `xvars'
+outreg  using "${outpath}\sensitivity_regs", addtable varlabels stats(b ci p) merge ctitles("" "ln(LOS)") note( "Regressions are on the natural log of the LOS of the index stay, among full sample")
+
+H="Changelog"
+
+
+********************Change Log******************** 
+
+
+
+Updates:
+
+3/25/2021--EBL--updated index date to get corrected falls, etc., and tidied the order of headings
+
+02/25/2020--MH -- Updated to include life sustaining treatment and orthopedic surgery. Also re-running tables. 
+
+10/7/19--MH--converted codes to icd9 in the "get index" tab. 
+
+10/3/19--EBL--added a table 1 just looking at the pre/post group.
+
+9/19/19--EBL--matched traumas with both the N1 and P1 interviews and combined, amended table 1 to pull from the new sample, added the pre/post characteristics table.
+
+7/25/19--EBL--split NHATS and NSOC datasets.
+
+7/18/19--EBL--Coded NHATS table 1.
+
+6/27/19--EBL--Finished coding up the trauma and ISS.
+
+6/25/19--EBL--Finished setting up SAS code to identify in SAS, then decided just to do the whole thing in Stata. Started "get index in Stata" header.
+
+6/24/19--EBL--Set up the outline and libraries, imported codes from excel using Stata.
+
+1/9/19--EBL--Pulled sample estimates for folks with NSOC during same wave as trauma.
+
+1/3/19--EBL--Added in headers to text file.
+MH--Revisions to diagnosis codes made. New tables made using TBI, Hip, and other. Added in NSOC III data.  
+*/
+
+	
+
+H="*******below is all old*********"
 
 
 H="xtable 1"
@@ -2350,6 +2048,116 @@ frmttable using "${outpath}\table_1_preandpost`c(current_date)'.rtf", ///
 statmat(tab) title("Characteristics of Sample: `title'") ///
 ctitles("" "Pre-trauma" "Post-trauma" "P-value") varlabels ///
 sdec(2,2,3) annotate(stars) asymbol(*,**,NR) replace
+
+
+H="xmerge pre/post into longitudinal dataset"
+use "${intpath}\trauma_dyad_nhatspost", clear
+duplicates report spid
+keep spid wave ivw_date index_date
+foreach x of varlist w i* {
+rename `x' `x'_n1
+}
+gen wave=wave+1
+tempfile pre
+save `pre'
+
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match master) 
+replace _m=1 if !sp_ivw
+replace ivw_date=mdy(ivw_month,1,ivw_year) if missing(ivw_date)
+
+gen cat=_m==1
+replace cat=2 if lml==1
+replace cat=3 if _m==3 & cat!=2
+replace cat=4 if _m==3 & wave==8 & lml!=1
+label define cat 1 "No p1 interviews" 2 "LML interview only" 3 "P1 interview in waves 2-7" 4 "P1 interview wave 8" 
+label values cat cat
+tab cat
+drop _m
+replace wave=wave_n1
+tempfile t1
+save `t1'
+
+
+use "${intpath}\trauma_dyad_nhatspre", clear
+duplicates report spid
+keep spid wave ivw_date index_date
+foreach x of varlist w i* {
+rename `x' `x'_p1
+}
+gen wave=wave-1
+tempfile pre
+save `pre'
+
+merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match master) gen(othm)
+replace othm=1 if !sp_ivw
+
+
+*append using `t1'
+*merge 1:1 spid wave using `t1'
+gen cat=1 if othm==1
+replace cat=2 if othm==3 
+label define cat2 1 "First trauma prior to first interview" 2 "N1 interview in waves 1-6, P1 2-7" 3 "N1 interview wave 7, P1 8" 4 "N1 interview, only LML following trauma" 5 "No P1 interview following trauma" 6 "P1 interview, but >365 days after trauma", modify
+label values cat cat2
+
+tab cat
+gen set=!missing(othm)
+label var set "NHATS post trauma"
+tempfile cat 
+save `cat'
+tab cat
+
+use `t1', clear
+tab cat
+rename cat catn1
+gen time=ivw_date-index_date
+keep spid catn1 wave_n1 time index_date_n1
+
+merge 1:1 spid using `cat'
+
+replace cat=3 if catn1==4 & missing(cat)
+replace cat=4 if catn1==2 & missing(cat)
+replace cat=5 if catn1==1 & missing(cat)
+replace cat=6 if missing(cat)
+
+keep if inrange(cat,1,3)
+replace wave_p1=8 if missing(wave_p1)
+keep spid wave_n1 wave_p1 cat
+
+tempfile t1 
+save `t1'
+
+local p post
+foreach x in n1 p1 {
+	preserve
+	keep spid wave_`x'
+
+	rename wave wave 
+	merge 1:1 spid wave using "${intpath}\trauma_dyad_nhats`p'", keep(match) nogen keepusing(age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair spouse_help_ind ivw_date adl_cat help_cat soc_iso adverse_sc adverse_mo adverse_hh adverse_any soc_iso frail income_adj charls_index_wt ch3plus ind_trauma_hosp)
+
+	rename * *_`x'
+	rename spid spid
+
+	tempfile `x'
+	save ``x''
+	restore
+local p pre
+}
+
+use "${intpath}\trauma_dyad_nhatspre", clear
+gen t=1
+append using "${intpath}\trauma_dyad_nhatspost"
+replace t=0 if missing(t)
+sort spid t
+by spid: keep if _n==1
+keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw //income_adj
+tempfile t2
+save `t2'
+use `t1', clear
+merge 1:1 spid wave_n1 using `n1', nogen
+merge 1:1 spid wave_p1 using `p1', nogen
+merge 1:1 spid using `t2', nogen keep(match)
+
+save "${datapath}\sample_final.dta", replace
 
 
 H="xinjury & hospitalization characteristics"
@@ -10897,272 +10705,6 @@ drop index_date inj_cat
 save "${datapath}\sample_final_unr.dta", replace
 
 
-H="new longitudinal dataset, starting from n1"
-set seed 123
-use "${intpath}\trauma_dyad_nhatspost", clear
-preserve
-merge 1:1 spid using "${intpath}\index.dta", keepusing(bene_id) nogen keep(match)
-merge 1:m bene_id using "D:\NHATS\Shared\base_data\CMS_claims\Stata\snf_09_17.dta", keep(match) nogen keepusing(admit_date disch_date)
-keep if inrange(ivw_date,admit_date,disch_date)
-gen ind_snf=1
-label var ind_snf "In a SNF at the time of the interview"
-keep spid ind_snf
-duplicates drop
-tempfile t11
-save `t11'
-
-restore
-preserve
-replace iss=niss if inlist(iss,0,99,.)
-//replace iss=niss
-drop if inlist(iss,0,99)
-
-keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw traum2ivw ind_trauma_hosp apc  fall iss  iss_cat los icu_days ind_procedure ind_comp_any n_readmit n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  ecodec *iss orth_surg lst lst_1
-
-tempfile t1
-save `t1'
-
-
-restore
-drop help_cat
-
-
-
-gen help_cat=ind_no_helpers
-replace help_cat=2 if !ind_paid & !ind_no_helpers
-replace help_cat=3 if ind_paid 
-*replace help_cat=4 if n_helpers==n_paid & ind_paid
-label var help_cat "Caregiving, categorical"
-label values help_cat help_cat
-label define help_cat 3 "Has paid help", modify
-replace race=1 if race==3
-
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso  help_cat  adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5 {
-rename `x' `x'_n1
-}
-
-gen wave=wave+1
-drop ivw_date
-
-merge 1:1 spid wave using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_1_8.dta", keep(match) gen(othm)
-rename race_cat race
-drop if lml==1 
-keep if sp_ivw==1
-
-gen help_cat=ind_no_helpers
-replace help_cat=2 if !ind_paid_helper & !ind_no_helpers
-replace help_cat=3 if ind_paid_helper
-label var help_cat "Caregiving, categorical"
-label values help_cat help_cat
-
-egen adverse_mo=rowmax(adverse_insd adverse_out adverse_bed)
-label var adverse_mo "Adv. cons. of unmet need: mobility"
-egen adverse_sc=rowmax(adverse_dres adverse_toil adverse_bath adverse_eat)
-label var adverse_sc "Adv. cons. of unmet need: self-care"
-egen adverse_hh=rowmax(adverse_laun adverse_shop adverse_meal adverse_bank)
-label var adverse_hh "Adv. cons. of unmet need: household"
-egen adverse_any=rowmax(adverse_mo adverse_sc adverse_hh)
-label var adverse_any "Adv. cons. of unmet need: any"
-
-replace livearrang=livearrang-1 if livearrang>2
-replace livearrang=4 if rcfres==1
-replace livearrang=5 if nhres==1
-label define livearrang 1 "Lives alone" 3 "With others (and not spouse)" 4 "Residential Care Facility" ///
-5 "Nursing Home", modify
-
-replace married=0 if livearrang==1 & missing(married)
-replace race=1 if race==3
-
-gen adl_cat=adl_index==0 if !missing(adl_index)
-replace adl_cat=2 if inrange(adl_index,1,2)
-replace adl_cat=3 if inrange(adl_index,3,6)
-label var adl_cat "ADLs, categorical"
-label values adl_cat adl_cat
-
-
-rename traum2ivw ivw2traum
-label var ivw2 "Days from interview to trauma"
-gen traum2ivw=ivw_date-index_date
-label var traum2ivw "Days from trauma to interview"
-foreach x in age female race education educ_hs_ind aveincome maritalstat medicaid medigap tricare wave livearrang livealone sr_phq2_depressed sr_gad2_anxiety dem_3_cat sr_numconditions1 reg_doc_have reg_doc_seen reg_doc_homevisit sr_hosp_ind sr_hosp_stays n_helpers n_paid_helpers ind_paid_helper ind_no_helpers income_quart married nhres rcfres prob_dem adl_index adl_impair adverse adverse_laun adverse_shop adverse_meal adverse_bank adverse_eat adverse_bath adverse_toil adverse_dres adverse_out adverse_insd adverse_bed adverse_sc adverse_hh adverse_mo adverse_any spouse_help_ind frail soc_iso help_cat adl_cat income_adj charls_index_wt ch3plus imputed_inc1 imputed_inc2 imputed_inc3 imputed_inc4 imputed_inc5 {
-rename `x' `x'_p1
-}
-
-*keep spid *p1 *n1 ivw2traum traum2ivw
-merge 1:1 spid using `t1', nogen keep(match)
-merge 1:1 spid using `t11', nogen keep(match master)
-replace ind_snf=0 if missing(ind_snf)
-label var apc "Anatomic Profile"
-label var fall "Injury mechanism: fall"
-label var icu_days "Days in the ICU during index stay"
-label var ind_ed_vis "ED visit w/in 12 weeks of discharge"
-label var ind_hh_days "HH use w/in 12 weeks of discharge"
-label var ind_procedure "Any procedure performed during index stay"
-label var ind_rea "Any readmission w/in 12 weeks of discharge"
-label var ind_snf "In SNF <30 days prior to P1 interview"
-label var ind_snf_d "SNF use w/in 12 weeks of discharge"
-label var los "LOS for index stay"
-label var apc "Anatomic Profile Category for injury"
-/*drop index_date inj_cat
-save "${datapath}\sample_final_unr.dta", replace
-
-
-H="stay and utilization chars on prepost"
-/* stay and utilization tables */
-
-
-/*gen _row1=.
-label var _row1 "Trauma characteristics"
-gen _row2=.
-label var _row2 "Stay characteristics"
-gen _row3=. 
-label var _row3 "12 week utilization and outcomes"
-*/
-clear all
-use  "${datapath}\sample_final_unr", clear
-label var lst "Life Sustaining treatments"
-label var orth_surg "Orthopedic Surgery"
-gen wave=wave_n1
-merge 1:1 spid using "${intpath}\trauma_dyad_nhatspost", keep(match)
-local cvars1 ivw2traum traum2ivw
-local ivars1  ind_trauma_hosp
-local catvars1 apc //inj_cat
-local cvars2
-local ivars2 fall vehicle_crash orth_surg lst 
-local catvars2
-local cvars3 iss
-local ivars3 
-local catvars3 iss_cat //apc
-local cvars4 los icu_days
-local ivars4 ind_procedure //ind_comp_any 
-local catvars4 
-local cvars5 n_readmit n_snf_days n_hh_days n_ed_vis
-local ivars5 ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84
-local catvars5 
-
-di "`period'"
-forvalues i=1/5 {
-	di "`i'"
-	foreach x of local catvars`i' {
-		local cativars`i'
-		di "`x'"
-		local `x'
-		di "``x''"	
-		levelsof `x', local(levels)
-		foreach l of local levels {
-			gen `x'`l'=`x'==`l' if !missing(`x')
-			local lab : label `x' `l'
-			label var `x'`l' "`lab'"
-			local `x' ``x'' `x'`l'
-}
-		di "``x''"
-		local cativars`i' `cativars`i'' ``x''
-}
-}
-
-di "`catvars1'"
-di "`cativars1'"
-
-local rows
-forvalues i=1/5 {
-local rows `rows' `cvars`i'' `cvars`i'' `cvars`i'' `ivars`i'' `cativars`i''
-}
-
-local rn : word count `rows' 1
-local r=1
-local c=1
-
-mat tab=J(`rn',2,.)
-mat stars=J(`rn',2,0)
-
-local n=_N
-forvalues i=1/5 {
-	foreach x of local cvars`i' {
-		qui sum `x' /*if inlist(dem_cohort,`y')*/, d
-		mat tab[`r',`c']=r(mean)
-		mat tab [`r'+1,`c']=r(sd)
-		mat tab[`r'+2,`c']=r(p50)
-		if `n'-r(N)>=11 | `n'==r(N) mat tab[`r',`c'+1]=`n'-r(N)
-		else mat stars[`r',`c'+1]=3
-		local r=`r'+3
-		
-}
-	foreach x of local ivars`i' {
-		qui sum `x' 
-		if (r(N)*r(mean)>=11 & r(N)-r(N)*r(mean)>=11) | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',`c']=r(mean)*100
-		else mat stars[`r',`c']=3
-		if `n'-r(N)>=11 | `n'==r(N) mat tab[`r',`c'+1]=`n'-r(N)
-		else mat stars[`r',`c'+1]=3
-		local r=`r'+1
-}
-	foreach x of local catvars`i' {
-		qui sum `x'
-		if `n'-r(N)>=11 | `n'==r(N) mat tab[`r',`c'+1]=`n'-r(N)
-		else mat stars[`r',`c'+1]=3
-		foreach z of local `x' {
-			qui sum `z' 
-			if r(N)*r(mean)>=11 | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',`c']=r(mean)*100
-			else mat stars[`r',`c']=3
-			local r=`r'+1
-}
-}
-}
-mat tab[`r',`c']=`n'
-	
-/*
-local cvars1 traum2ivw
-local ivars1  
-local catvars1 inj_cat
-local cvars2
-local ivars2 fall vehicle_crash 
-local catvars2
-local cvars3 iss
-local ivars3 
-local catvars3 iss_cat
-local cvars4 los icu_days
-local ivars4 ind_procedure ind_comp_any 
-local catvars4 
-local cvars5 n_readmit n_snf_days n_hh_days n_ed_vis
-local ivars5 ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84
-local catvars5 
-*/
-mat rownames tab=ivw2traum SD Median traum2ivw SD Median `ivars1' `cativars1' `ivars2' `cativars2' ///
-`cvars3' SD Median `ivars3' `cativars3' los SD Median icu_days SD Median `ivars4' `cativars4' ///
-n_readmit SD Median n_snf_days SD Median n_hh_days SD Median n_ed_vis SD Median `ivars5' `cativars5' N
-
-if "`period'"=="pre" local title Trauma with NHATS interview following
-else local title Trauma with prior NHATS interview
-frmttable using "${outpath}\stay_and_util_tables_`period'`c(current_date)'.rtf", ///
-statmat(tab) title("Characteristics of trauma and utilization:" "`title'") ///
-ctitles("" "Mean/%" "N Missing") varlabels ///
-sdec(2,0) annotate(stars) asymbol(*,**,NR) replace
-
-local rn : word count ind_comp_intraop ind_comp_cardiac ind_comp_resp ind_comp_vasc ind_comp_wound ind_comp_genitourinary ind_comp_gastro ind_comp_neuro ind_comp_infect ind_comp_misc ind_comp_any
-
-//ebl--9/6/19--drop this for now because there's so little that's shareable. worth looking at again after update for icd10.
-/*
-mat tab=J(`rn',2,.)
-mat stars=J(`rn',2,0)
-local r=1
-
-foreach x of varlist ind_comp* {
-	qui sum `x' 
-	if (r(N)*r(mean)>=11 & r(N)-r(N)*r(mean)>=11) | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',1]=r(mean)*r(N)
-	else mat stars[`r',1]=3
-	if (r(N)*r(mean)>=11 & r(N)-r(N)*r(mean)>=11) | r(N)==0 | r(N)-r(N)*r(mean)==0 mat tab[`r',2]=r(mean)*100
-	else mat stars[`r',2]=3
-	local r=`r'+1
-}
-
-mat rownames tab=ind_comp_intraop ind_comp_cardiac ind_comp_resp ind_comp_vasc ind_comp_wound ind_comp_genitourinary ind_comp_gastro ind_comp_neuro ind_comp_infect ind_comp_misc ind_comp_any
-
-frmttable using "${outpath}\stay_and_util_tables_`period'`c(current_date)'.rtf", ///
-addtable statmat(tab) title("Complications, detailed") ///
-ctitles("" "N" "%") sdec(0,2) annotate(stars) asymbol(*,**,NR)
-*/
-
-
-
 H="xxxxxtable 1 on unresticted"
 use "${intpath}\trauma_dyad_nhatspre", clear
 preserve
@@ -11264,40 +10806,6 @@ label var apc "Anatomic Profile Category for injury"
 drop index_date inj_cat
 save "${datapath}\sample_final_unr.dta", replace
 
-
-H="sens analyses"
-//note, you need to run the unrestricted sample code and comment out dropping the index date in order for this to run
-
-use"${datapath}\sample_final_unr", clear
-merge 1:m spid using "${nhats}\sp_round_1_8.dta", keep(match) nogen keepusing(death_date)
-replace iss=. if inlist(iss,0,99)
-duplicates drop
-replace los=1 if !los
-gen lnlos=ln(los)
-gen died_12=death_date-index_date<=365
-gen died_6=death_date-index_date<=183
-reg died_12 iss
-reg died_12 iss if traum2ivw<=91
-local xvars iss c.age_n1 female_n1 i.race_n1  married_n1 educ_hs_ind_n1 ind_trauma_hosp prob_dem_n1
-local xvarslim c.age_n1 female_n1 married_n1
-gen iss9=iss>9 if !missing(iss)
-
-label var died_6 "Died within 6 months"
-
-logit died_6 iss `xvarslim' if traum2ivw<=91 
-outreg, varlabels stats(e_b e_ci p) ctitles("" "1")
-logit died_6 iss `xvarslim' if traum2ivw<=183
-outreg, varlabels stats(e_b e_ci p)  merge ctitles("" "2")
-
-logit died_6 iss9 `xvarslim' if traum2ivw<=91
-outreg, varlabels stats(e_b e_ci p) merge ctitles("" "3")
-logit died_6 iss9 `xvarslim' if traum2ivw<=183
-outreg using "${outpath}\sensitivity_regs", varlabels stats(e_b e_ci p) merge ctitles("" "4") replace note("Regressions 1-4 are death within 6 months"\ "Regressions 1 and 3 among those with interviews within 3 months after trauma"\ "2 and 4 among all ivws within 6 mos after trauma" \"Full covariates not included because of small sample size and perfect collinearity")
-
-reg los iss `xvars'
-outreg, varlabels stats(b ci p)  ctitles("" "ln(LOS)")
-reg los iss9 `xvars'
-outreg  using "${outpath}\sensitivity_regs", addtable varlabels stats(b ci p) merge ctitles("" "ln(LOS)") note( "Regressions are on the natural log of the LOS of the index stay, among full sample")
 
 H="sample derivation"
 //all sps, with inpatient claim following interview, trauma, with p1 ivw
@@ -11455,41 +10963,6 @@ mat rownames tab2=`sampvars'
 frmttable, statmat(tab) varlabels sdec(0) title("Sample Derivation, from interview prior to trauma") 
 
 frmttable using "${outpath}\sample_derivation`c(current_date)'.rtf", statmat(tab2) varlabels sdec(0) title("Sample Derivation, from interview following trauma") addtable
-
-H="Changelog"
-
-
-********************Change Log******************** 
-
-
-
-Updates:
-
-02/25/2020--MH -- Updated to include life sustaining treatment and orthopedic surgery. Also re-running tables. 
-
-10/7/19--MH--converted codes to icd9 in the "get index" tab. 
-
-10/3/19--EBL--added a table 1 just looking at the pre/post group.
-
-9/19/19--EBL--matched traumas with both the N1 and P1 interviews and combined, amended table 1 to pull from the new sample, added the pre/post characteristics table.
-
-7/25/19--EBL--split NHATS and NSOC datasets.
-
-7/18/19--EBL--Coded NHATS table 1.
-
-6/27/19--EBL--Finished coding up the trauma and ISS.
-
-6/25/19--EBL--Finished setting up SAS code to identify in SAS, then decided just to do the whole thing in Stata. Started "get index in Stata" header.
-
-6/24/19--EBL--Set up the outline and libraries, imported codes from excel using Stata.
-
-1/9/19--EBL--Pulled sample estimates for folks with NSOC during same wave as trauma.
-
-1/3/19--EBL--Added in headers to text file.
-MH--Revisions to diagnosis codes made. New tables made using TBI, Hip, and other. Added in NSOC III data.  
-*/
-
-	
 
 H="*******from the initial look in January 2019********"
 
