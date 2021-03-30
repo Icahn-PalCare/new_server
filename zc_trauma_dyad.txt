@@ -1,4 +1,4 @@
-= V4 Outline MultiLine NoSorting TabWidth=30
+= V7 Outline MultiLine NoSorting TabWidth=30
 
 H="Outline"
 /* 
@@ -1478,10 +1478,12 @@ tempfile t11
 save `t11'
 
 restore
-preserve
+
+replace iss=xiss if !missing(xiss)
 replace iss=niss if inlist(iss,0,99,.)
 //replace iss=niss
-drop if inlist(iss,0,99)
+drop if inlist(iss,0,99) | missing(ecodec)
+preserve
 
 keep spid index_date traum2ivw inj_cat /*charls_index_wt ch3plus*/ n_readmit n_ip_ed n_op_ed n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  traum2ivw traum2ivw ind_trauma_hosp apc  fall iss  iss_cat los icu_days ind_procedure ind_comp_any n_readmit n_snf_days n_hh_days n_ed_vis ind_readmit ind_snf_days ind_hh_days ind_ed_vis ind_died_84  ecodec *iss orth_surg lst lst_1
 
@@ -1569,7 +1571,7 @@ label var ind_snf "In SNF <30 days prior to P1 interview"
 label var ind_snf_d "SNF use w/in 12 weeks of discharge"
 label var los "LOS for index stay"
 label var apc "Anatomic Profile Category for injury"
-/*drop index_date inj_cat
+drop index_date inj_cat
 save "${datapath}\sample_final_unr.dta", replace
 
 
