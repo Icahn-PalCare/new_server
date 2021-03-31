@@ -13420,6 +13420,7 @@ quit;
 data core_00_16_3 (drop=r13iwbeg);
 set core_00_16_2;
 if core_year=2016 then c_ivw_date=r13iwbeg;
+if core_year=2018 then c_ivw_year=year(c_ivw_date);
 run;
 
 /*save core dataset with interview date in the hrs_cleaned directory*/
