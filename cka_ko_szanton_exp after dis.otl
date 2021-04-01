@@ -2152,8 +2152,8 @@ merge 1:m spid ivw_date using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_
 
 gen days_ivw_death= death_date-ivw_date
 drop ivw_date death_date nhats_death_date
-
-save "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\working file_merged nhats.dta", replace
+drop ivw_day nhats_death_day ivw_month death_month
+save "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\working file_merged nhats_apr 1.dta", replace
 
 H="variable cleaning"
 use "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\working file_merged nhats.dta"
