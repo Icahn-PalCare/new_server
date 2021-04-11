@@ -2139,7 +2139,7 @@ replace mc_quarter_7p=. if cont_ffs_p_mos<21
 replace mc_quarter_8p=. if cont_ffs_p_mos<24
 
 *get data ready to merge
-keep spid index_date non_hmo_d_p_mos cont_ffs_p_mos part_ab_p_mos mc_quarter_1p mc_quarter_2p mc_quarter_3p mc_quarter_4p
+keep spid index_date non_hmo_d_p_mos cont_ffs_p_mos part_ab_p_mos ind_ed_adm_3mp ind_ed_adm_6mp ind_ed_adm_9mp ind_ed_adm_12mp ind_ed_adm_15mp ind_ed_adm_18mp ind_ed_adm_21mp ind_ed_adm_24mp n_ed_op_visits_3p ind_ed_op_3p n_ed_op_visits_6p ind_ed_op_6p n_ed_op_visits_9p ind_ed_op_9p n_ed_op_visits_12p ind_ed_op_12p n_ed_op_visits_15p ind_ed_op_15p n_ed_op_visits_18p ind_ed_op_18p n_ed_op_visits_21p ind_ed_op_21p n_ed_op_visits_24p ind_ed_op_24p tot_paid_by_mc_p_3m tot_paid_by_mc_p_6m tot_paid_by_mc_p_9m tot_paid_by_mc_p_12m tot_paid_by_mc_p_15m tot_paid_by_mc_p_18m tot_paid_by_mc_p_21m tot_paid_by_mc_p_24m mc_quarter_1p mc_quarter_2p mc_quarter_3p mc_quarter_4p mc_quarter_5p mc_quarter_6p mc_quarter_7p mc_quarter_8p
 rename index_date ivw_date
 
 
@@ -2153,7 +2153,7 @@ merge 1:m spid ivw_date using "D:\NHATS\Shared\base_data\NHATS cleaned\sp_round_
 gen days_ivw_death= death_date-ivw_date
 drop ivw_date death_date nhats_death_date
 drop ivw_day nhats_death_day ivw_month death_month
-save "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\working file_merged nhats_apr 1.dta", replace
+save "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\working file_merged nhats_apr 11.dta", replace
 
 H="variable cleaning"
 use "D:\NHATS\Projects\trajectories and disability\cka_ko_exp after dis\data\fin_data\working file_merged nhats.dta"
