@@ -15437,6 +15437,953 @@ save "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\dat
 
 saveold "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\aim2_outcomes_12.dta", replace version(12)
 
+H="xxget long term nursing home stay from MDS (check)"
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_2_99_10.dta", clear
+gen adate=date(ab1_,"YMD")
+gen tdate=date(trgt_dt,"YMD")
+sort bid tdate
+by bid: carryforward adate, replace
+sort bid adate tdate
+by bid adate: keep if _n==_N
+gen ltstay=tdate-adate>100
+keep bid adate tdate ltstay
+tempfile mds2
+save `mds2'
+
+
+use "D:\HRS\Shared\base_data\hrs_cms\Stata\mds_3_10_16.dta", clear
+gen adate=date(a1900_,"YMD")
+gen pdate=date(v0100c,"YMD")
+foreach x in a b c {
+gen `x'start=date(o0400`x'5,"YMD")
+}
+egen first=rowmin(*start)
+replace adate=first if missing(adate)
+
+gen tdate=date(trgt_dt,"YMD")
+sort bid tdate
+by bid: carryforward adate, replace
+sort bid adate tdate
+by bid adate: keep if _n==_N
+gen ltstay=tdate-adate>100
+keep bid adate tdate ltstay
+
+append using `mds2'
+
+merge m:1 bid using "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\index_dates.dta", keep(match using) nogen
+
+by bid, sort: egen ind_start_ltc=max(cond(ltstay==1 & adate>=index_date-365,1,0))
+by bid: egen ind_any_ltc=max(cond(ltstay==1 & tdate>=index_date-365,1,0))
+label var ind_start_ltc "Admission to long-term nursing stay in the last year of life"
+label var ind_any_ltc "Any long-term nursing stay in the last year of life"
+drop adate tdate ltstay
+duplicates drop
+tempfile mds
+save `mds'
+
+
+use "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\index_dates.dta", clear
+
+merge 1:m bid using "D:\HRS\Shared\base_data\hrs_cms\Stata\hs_1998_2016.dta", keep(match master) keepusing(admit_date disch_date stus_cd pdgns_cd typesrvc)
+
+
+gen hs_loc_death_cat=1 if stus_cd=="40" | (stus_cd=="42" & typesrvc=="1")
+replace hs_loc_death_cat=2 if stus_cd=="41" | (stus_cd=="42" & typesrvc=="2")
+replace hs_loc_death_cat=3 if stus_cd=="41" & typesrvc=="2"
+replace hs_loc_death_cat=4 if inlist(stus_cd,"40","41","42") & missing(hs_loc_death_cat)
+
+label define hs_loc_death_cat 1 "Home" 2 "Hospice while in institution (hospital or other)" 3 "Inpatient hospice" 4 "Unknown (last claim indicated still patient)"
+label values hs_loc_death_cat hs_loc_death_cat
+by bid, sort: egen a=max(hs_loc_death_cat)
+replace hs_loc_death_cat=a
+drop a types
+
+replace admit_date=index_date if admit_date>=index_date & !missing(admit_date)
+replace disch_date=index_date if disch_date>=index_date & !missing(disch_date)
+
+gen los=disch_date-admit_date
+replace los=1 if los==0
+by bid, sort: egen totlos=total(los)
+gen lteq3=index_date-admit_date<=3 if !missing(admit_date)
+
+sort bid admit_date
+by bid: gen last=1 if _n==_N & admit_date!=.
+by bid: gen same=1 if last==1 & admit_date-1==disch_date[_n-1]
+//by bid: gen same=1 if last[_n+1]==1 & admit_date[_n+1]-1==disch_date
+
+by bid: gen ad=1 if admit_date==disch_date[_n-1] & admit_date!=.
+
+gen ind_hs_gt6m=totlos>183 if _merge==3
+
+by bid, sort: egen ind_hs_lteq3d=max(lteq3)
+label var ind_hs_lteq3d "<3 days indicator"
+
+gen ind_hs_lteq3d_dth_all=0 if _merge==3
+replace ind_hs_lteq3d_dth_all=1 if (same==1 | ad==1) & los[_n-1]+los<=3 &_merge==3
+replace ind_hs_lteq3d_dth_all=1 if los<=3 & same==. & last==1
+sort id admit_date
+by id: gen n1stus=stus_cd[_n-1]
+replace ind_hs_lteq3d_dth_all=0 if n1stus=="30"
+by bid, sort: egen ind_hs_lteq3d_dth_all1=max(ind_hs_lteq3d_dth_all)
+drop n1stus
+
+drop ind_hs_lteq3d_dth_all
+rename ind_hs_lteq3d_dth_all1 ind_hs_lteq3d_dth_all
+
+label var ind_hs_lteq3d_dth_all "<=3 days in hospice before death"
+/*
+gen test=.
+replace test=0 if index_date-admit_date>3 & index_date-admit_date!=.
+replace test=1 if index_date-admit_date<=3 & index_date-admit_date!=. & same==1
+
+by bid_hrs_22: egen ind_hs_lteq3d_dth_all=max(test) 
+label var ind_hs_lteq3d_dth_all "<=3 days in hospice before death"
+
+gen test1=.
+replace test1=0 if index_date-admit_date>=3 & index_date-admit_date!=. 
+replace test1=1 if index_date-admit_date<3 & index_date-admit_date!=. & totlos<3 & same==1
+
+by bid_hrs_22: egen ind_hs_lteq3d_dth_3=max(test1)
+label var ind_hs_lteq3d_dth_3 "<=3 days in hospice before death, when totlos<=3"
+*/
+
+by bid: egen ind_hs_live_disch=max(cond(!inlist(stus_cd,"30","40","41","42") & !missing(stus_cd),1,0))
+replace ind_hs_live_disch=. if _m==1
+
+//getting status and discharge date of last live hospice discharge
+preserve 
+keep if !inlist(stus_cd,"30","40","41","42") & !missing(stus_cd)
+
+sort bid disch_date
+bys bid: keep if _n==_N
+
+gen live_disch_stat_cd=stus_cd
+
+gen disch_date_live=disch_date
+format disch_date_live %td
+
+tempfile hs_disc
+save `hs_disc'
+restore
+ 
+merge m:1 bid_hrs_22 using "`hs_disc'", keepusing(live_disch_stat_cd disch_date_live) nogen
+
+label var disch_date_live "Discharge date when live discharged"
+label var live_disch_stat_cd "Status when live discharged"
+label var ind_hs_gt6m ">183 days on hospice"
+label var ind_hs_lteq3d "<=3 days on hospice"
+replace hs_loc_death_cat=4 if  missing(hs_loc_death_cat) & !missing(stus_cd) & !ind_hs_live_disch
+
+
+
+gen ind_hs_suboptimal=ind_hs_gt | ind_hs_lteq3d if !missing(ind_hs_gt)
+label var ind_hs_suboptimal "<=3 or >183 days on hospice"
+label var ind_hs_live_disch "Live discharge from hospice"
+gen ind_hs=_m==3
+label var ind_hs "Any hospice use"
+
+
+//getting total los up to this point for live disch after 183 days
+sort bid admit_date
+by bid: gen obsnum=_n
+gen los_sofar=los if obsnum==1
+levelsof obsnum, local(levels)
+foreach l of local levels {
+	if `l'>1  {
+		by bid: replace los_sofar=los+los_sofar[_n-1] if obsnum==`l'
+}
+}
+
+by bid: egen ind_hs_gt6m_then_live_disch=max(cond(!inlist(stus_cd,"30","40","41","42") & !missing(stus_cd) & los_sofar>=183,1,0))
+label var ind_hs_gt6m_then_live_disch "Live discharge after 183 days on hospice"
+
+local ccw4 (substr(pdgns_cd,1,5) ==	"29011"	 ///
+| substr(pdgns_cd,1,5) ==	"29012"	 ///
+| substr(pdgns_cd,1,5) ==	"29013"	 ///
+| substr(pdgns_cd,1,5) ==	"29010"	 ///
+| substr(pdgns_cd,1,5) ==	"29021"	 ///
+| substr(pdgns_cd,1,5) ==	"29020"	 ///
+| substr(pdgns_cd,1,4) ==	"2903"	 ///
+| substr(pdgns_cd,1,5) ==	"29041"	 ///
+| substr(pdgns_cd,1,5) ==	"29042"	 ///
+| substr(pdgns_cd,1,5) ==	"29043"	 ///
+| substr(pdgns_cd,1,5) ==	"29040"	 ///
+| substr(pdgns_cd,1,4) ==	"2900"	 ///
+| substr(pdgns_cd,1,5) ==	"29410"	 ///
+| substr(pdgns_cd,1,5) ==	"29411"	 ///
+| substr(pdgns_cd,1,5) ==	"29420"	 ///
+| substr(pdgns_cd,1,5) ==	"29421"	 ///
+| substr(pdgns_cd,1,4) ==	"2940"	 ///
+| substr(pdgns_cd,1,4) ==	"2948"	 ///
+| substr(pdgns_cd,1,5) ==	"33111"	 ///
+| substr(pdgns_cd,1,5) ==	"33119"	 ///
+| substr(pdgns_cd,1,4) ==	"3312"	 ///
+| substr(pdgns_cd,1,4) ==	"3317"	 ///
+| substr(pdgns_cd,1,4) ==	"3310"	 ///
+| substr(pdgns_cd,1,3) ==	"797"	 ///
+| substr(pdgns_cd,1,5) ==	"F0150"	 ///
+| substr(pdgns_cd,1,5) ==	"F0151"	 ///
+| substr(pdgns_cd,1,5) ==	"F0280"	 ///
+| substr(pdgns_cd,1,5) ==	"F0281"	 ///
+| substr(pdgns_cd,1,5) ==	"F0390"	 ///
+| substr(pdgns_cd,1,5) ==	"F0391"	 ///
+| substr(pdgns_cd,1,3) ==	"F04"	 ///
+| substr(pdgns_cd,1,3) ==	"F05"	 ///
+| substr(pdgns_cd,1,4) ==	"F061"	 ///
+| substr(pdgns_cd,1,4) ==	"F068"	 ///
+| substr(pdgns_cd,1,4) ==	"G138"	 ///
+| substr(pdgns_cd,1,4) ==	"G300"	 ///
+| substr(pdgns_cd,1,4) ==	"G301"	 ///
+| substr(pdgns_cd,1,4) ==	"G308"	 ///
+| substr(pdgns_cd,1,4) ==	"G309"	 ///
+| substr(pdgns_cd,1,5) ==	"G3101"	 ///
+| substr(pdgns_cd,1,5) ==	"G3109"	 ///
+| substr(pdgns_cd,1,4) ==	"G311"	 ///
+| substr(pdgns_cd,1,4) ==	"G312"	 ///
+| substr(pdgns_cd,1,3) ==	"G94"	 ///
+| substr(pdgns_cd,1,5) ==	"R4181"	 ///
+| substr(pdgns_cd,1,3) ==	"R54")
+
+
+local ccw15 (substr(pdgns_cd,1,5) ==	"39891"	 ///
+| substr(pdgns_cd,1,5) ==	"40201"	 ///
+| substr(pdgns_cd,1,5) ==	"40211"	 ///
+| substr(pdgns_cd,1,5) ==	"40291"	 ///
+| substr(pdgns_cd,1,5) ==	"40401"	 ///
+| substr(pdgns_cd,1,5) ==	"40403"	 ///
+| substr(pdgns_cd,1,5) ==	"40411"	 ///
+| substr(pdgns_cd,1,5) ==	"40413"	 ///
+| substr(pdgns_cd,1,5) ==	"40491"	 ///
+| substr(pdgns_cd,1,5) ==	"40493"	 ///
+| substr(pdgns_cd,1,4) ==	"4281"	 ///
+| substr(pdgns_cd,1,5) ==	"42821"	 ///
+| substr(pdgns_cd,1,5) ==	"42822"	 ///
+| substr(pdgns_cd,1,5) ==	"42823"	 ///
+| substr(pdgns_cd,1,5) ==	"42820"	 ///
+| substr(pdgns_cd,1,5) ==	"42831"	 ///
+| substr(pdgns_cd,1,5) ==	"42832"	 ///
+| substr(pdgns_cd,1,5) ==	"42833"	 ///
+| substr(pdgns_cd,1,5) ==	"42830"	 ///
+| substr(pdgns_cd,1,5) ==	"42841"	 ///
+| substr(pdgns_cd,1,5) ==	"42842"	 ///
+| substr(pdgns_cd,1,5) ==	"42843"	 ///
+| substr(pdgns_cd,1,5) ==	"42840"	 ///
+| substr(pdgns_cd,1,4) ==	"4289"	 ///
+| substr(pdgns_cd,1,4) ==	"4280"	 ///
+| substr(pdgns_cd,1,5) ==	"I0981"	 ///
+| substr(pdgns_cd,1,4) ==	"I110"	 ///
+| substr(pdgns_cd,1,4) ==	"I130"	 ///
+| substr(pdgns_cd,1,4) ==	"I132"	 ///
+| substr(pdgns_cd,1,4) ==	"I501"	 ///
+| substr(pdgns_cd,1,5) ==	"I5020"	 ///
+| substr(pdgns_cd,1,5) ==	"I5021"	 ///
+| substr(pdgns_cd,1,5) ==	"I5022"	 ///
+| substr(pdgns_cd,1,5) ==	"I5023"	 ///
+| substr(pdgns_cd,1,5) ==	"I5030"	 ///
+| substr(pdgns_cd,1,5) ==	"I5031"	 ///
+| substr(pdgns_cd,1,5) ==	"I5032"	 ///
+| substr(pdgns_cd,1,5) ==	"I5033"	 ///
+| substr(pdgns_cd,1,5) ==	"I5040"	 ///
+| substr(pdgns_cd,1,5) ==	"I5041"	 ///
+| substr(pdgns_cd,1,5) ==	"I5042"	 ///
+| substr(pdgns_cd,1,5) ==	"I5043"	 ///
+| substr(pdgns_cd,1,6) ==	"I50810"	 ///
+| substr(pdgns_cd,1,6) ==	"I50811"	 ///
+| substr(pdgns_cd,1,6) ==	"I50812"	 ///
+| substr(pdgns_cd,1,6) ==	"I50813"	 ///
+| substr(pdgns_cd,1,6) ==	"I50814"	 ///
+| substr(pdgns_cd,1,5) ==	"I5082"	 ///
+| substr(pdgns_cd,1,5) ==	"I5083"	 ///
+| substr(pdgns_cd,1,5) ==	"I5084"	 ///
+| substr(pdgns_cd,1,5) ==	"I5089"	 ///
+| substr(pdgns_cd,1,4) ==	"I509")
+
+local ccw19 (substr(pdgns_cd,1,5) ==	"41001"	 ///
+| substr(pdgns_cd,1,5) ==	"41002"	 ///
+| substr(pdgns_cd,1,5) ==	"41011"	 ///
+| substr(pdgns_cd,1,5) ==	"41012"	 ///
+| substr(pdgns_cd,1,5) ==	"41010"	 ///
+| substr(pdgns_cd,1,5) ==	"41021"	 ///
+| substr(pdgns_cd,1,5) ==	"41022"	 ///
+| substr(pdgns_cd,1,5) ==	"41020"	 ///
+| substr(pdgns_cd,1,5) ==	"41031"	 ///
+| substr(pdgns_cd,1,5) ==	"41032"	 ///
+| substr(pdgns_cd,1,5) ==	"41030"	 ///
+| substr(pdgns_cd,1,5) ==	"41041"	 ///
+| substr(pdgns_cd,1,5) ==	"41042"	 ///
+| substr(pdgns_cd,1,5) ==	"41040"	 ///
+| substr(pdgns_cd,1,5) ==	"41051"	 ///
+| substr(pdgns_cd,1,5) ==	"41052"	 ///
+| substr(pdgns_cd,1,5) ==	"41050"	 ///
+| substr(pdgns_cd,1,5) ==	"41061"	 ///
+| substr(pdgns_cd,1,5) ==	"41062"	 ///
+| substr(pdgns_cd,1,5) ==	"41060"	 ///
+| substr(pdgns_cd,1,5) ==	"41071"	 ///
+| substr(pdgns_cd,1,5) ==	"41072"	 ///
+| substr(pdgns_cd,1,5) ==	"41070"	 ///
+| substr(pdgns_cd,1,5) ==	"41081"	 ///
+| substr(pdgns_cd,1,5) ==	"41082"	 ///
+| substr(pdgns_cd,1,5) ==	"41080"	 ///
+| substr(pdgns_cd,1,5) ==	"41091"	 ///
+| substr(pdgns_cd,1,5) ==	"41092"	 ///
+| substr(pdgns_cd,1,5) ==	"41090"	 ///
+| substr(pdgns_cd,1,5) ==	"41000"	 ///
+| substr(pdgns_cd,1,4) ==	"4111"	 ///
+| substr(pdgns_cd,1,5) ==	"41181"	 ///
+| substr(pdgns_cd,1,5) ==	"41189"	 ///
+| substr(pdgns_cd,1,4) ==	"4110"	 ///
+| substr(pdgns_cd,1,3) ==	"412"	 ///
+| substr(pdgns_cd,1,4) ==	"4131"	 ///
+| substr(pdgns_cd,1,4) ==	"4139"	 ///
+| substr(pdgns_cd,1,4) ==	"4130"	 ///
+| substr(pdgns_cd,1,5) ==	"41401"	 ///
+| substr(pdgns_cd,1,5) ==	"41402"	 ///
+| substr(pdgns_cd,1,5) ==	"41403"	 ///
+| substr(pdgns_cd,1,5) ==	"41404"	 ///
+| substr(pdgns_cd,1,5) ==	"41405"	 ///
+| substr(pdgns_cd,1,5) ==	"41406"	 ///
+| substr(pdgns_cd,1,5) ==	"41407"	 ///
+| substr(pdgns_cd,1,5) ==	"41412"	 ///
+| substr(pdgns_cd,1,4) ==	"4142"	 ///
+| substr(pdgns_cd,1,4) ==	"4143"	 ///
+| substr(pdgns_cd,1,4) ==	"4144"	 ///
+| substr(pdgns_cd,1,4) ==	"4148"	 ///
+| substr(pdgns_cd,1,4) ==	"4149"	 ///
+| substr(pdgns_cd,1,5) ==	"41400"	 ///
+| substr(pdgns_cd,1,4) ==	"I200"	 ///
+| substr(pdgns_cd,1,4) ==	"I201"	 ///
+| substr(pdgns_cd,1,4) ==	"I208"	 ///
+| substr(pdgns_cd,1,4) ==	"I209"	 ///
+| substr(pdgns_cd,1,5) ==	"I2101"	 ///
+| substr(pdgns_cd,1,5) ==	"I2102"	 ///
+| substr(pdgns_cd,1,5) ==	"I2109"	 ///
+| substr(pdgns_cd,1,5) ==	"I2111"	 ///
+| substr(pdgns_cd,1,5) ==	"I2119"	 ///
+| substr(pdgns_cd,1,5) ==	"I2121"	 ///
+| substr(pdgns_cd,1,5) ==	"I2129"	 ///
+| substr(pdgns_cd,1,4) ==	"I213"	 ///
+| substr(pdgns_cd,1,4) ==	"I214"	 ///
+| substr(pdgns_cd,1,5) ==	"I21A1"	 ///
+| substr(pdgns_cd,1,5) ==	"I21A9"	 ///
+| substr(pdgns_cd,1,4) ==	"I220"	 ///
+| substr(pdgns_cd,1,4) ==	"I221"	 ///
+| substr(pdgns_cd,1,4) ==	"I222"	 ///
+| substr(pdgns_cd,1,4) ==	"I228"	 ///
+| substr(pdgns_cd,1,4) ==	"I229"	 ///
+| substr(pdgns_cd,1,4) ==	"I230"	 ///
+| substr(pdgns_cd,1,4) ==	"I231"	 ///
+| substr(pdgns_cd,1,4) ==	"I232"	 ///
+| substr(pdgns_cd,1,4) ==	"I233"	 ///
+| substr(pdgns_cd,1,4) ==	"I234"	 ///
+| substr(pdgns_cd,1,4) ==	"I235"	 ///
+| substr(pdgns_cd,1,4) ==	"I236"	 ///
+| substr(pdgns_cd,1,4) ==	"I237"	 ///
+| substr(pdgns_cd,1,4) ==	"I238"	 ///
+| substr(pdgns_cd,1,4) ==	"I240"	 ///
+| substr(pdgns_cd,1,4) ==	"I241"	 ///
+| substr(pdgns_cd,1,4) ==	"I248"	 ///
+| substr(pdgns_cd,1,4) ==	"I249"	 ///
+| substr(pdgns_cd,1,5) ==	"I2510"	 ///
+| substr(pdgns_cd,1,6) ==	"I25110"	 ///
+| substr(pdgns_cd,1,6) ==	"I25111"	 ///
+| substr(pdgns_cd,1,6) ==	"I25118"	 ///
+| substr(pdgns_cd,1,6) ==	"I25119"	 ///
+| substr(pdgns_cd,1,4) ==	"I252"	 ///
+| substr(pdgns_cd,1,4) ==	"I253"	 ///
+| substr(pdgns_cd,1,5) ==	"I2541"	 ///
+| substr(pdgns_cd,1,5) ==	"I2542"	 ///
+| substr(pdgns_cd,1,4) ==	"I255"	 ///
+| substr(pdgns_cd,1,4) ==	"I256"	 ///
+| substr(pdgns_cd,1,6) ==	"I25700"	 ///
+| substr(pdgns_cd,1,6) ==	"I25701"	 ///
+| substr(pdgns_cd,1,6) ==	"I25708"	 ///
+| substr(pdgns_cd,1,6) ==	"I25709"	 ///
+| substr(pdgns_cd,1,6) ==	"I25710"	 ///
+| substr(pdgns_cd,1,6) ==	"I25711"	 ///
+| substr(pdgns_cd,1,6) ==	"I25718"	 ///
+| substr(pdgns_cd,1,6) ==	"I25719"	 ///
+| substr(pdgns_cd,1,6) ==	"I25720"	 ///
+| substr(pdgns_cd,1,6) ==	"I25721"	 ///
+| substr(pdgns_cd,1,6) ==	"I25728"	 ///
+| substr(pdgns_cd,1,6) ==	"I25729"	 ///
+| substr(pdgns_cd,1,6) ==	"I25730"	 ///
+| substr(pdgns_cd,1,6) ==	"I25731"	 ///
+| substr(pdgns_cd,1,6) ==	"I25738"	 ///
+| substr(pdgns_cd,1,6) ==	"I25739"	 ///
+| substr(pdgns_cd,1,6) ==	"I25750"	 ///
+| substr(pdgns_cd,1,6) ==	"I25751"	 ///
+| substr(pdgns_cd,1,6) ==	"I25758"	 ///
+| substr(pdgns_cd,1,6) ==	"I25759"	 ///
+| substr(pdgns_cd,1,6) ==	"I25760"	 ///
+| substr(pdgns_cd,1,6) ==	"I25761"	 ///
+| substr(pdgns_cd,1,6) ==	"I25768"	 ///
+| substr(pdgns_cd,1,6) ==	"I25769"	 ///
+| substr(pdgns_cd,1,6) ==	"I25790"	 ///
+| substr(pdgns_cd,1,6) ==	"I25791"	 ///
+| substr(pdgns_cd,1,6) ==	"I25798"	 ///
+| substr(pdgns_cd,1,6) ==	"I25799"	 ///
+| substr(pdgns_cd,1,6) ==	"I25810"	 ///
+| substr(pdgns_cd,1,6) ==	"I25811"	 ///
+| substr(pdgns_cd,1,6) ==	"I25812"	 ///
+| substr(pdgns_cd,1,5) ==	"I2582"	 ///
+| substr(pdgns_cd,1,5) ==	"I2583"	 ///
+| substr(pdgns_cd,1,5) ==	"I2584"	 ///
+| substr(pdgns_cd,1,5) ==	"I2589"	 ///
+| substr(pdgns_cd,1,4) ==	"I259")
+
+*COPD/Bronchitectasis
+local ccw11 (substr(pdgns_cd,1,3) =="490" ///
+| substr(pdgns_cd,1,4) =="4911" ///
+| substr(pdgns_cd,1,5) =="49121" ///
+| substr(pdgns_cd,1,5) =="49122" ///
+| substr(pdgns_cd,1,4) =="4912" ///
+| substr(pdgns_cd,1,4) =="4918" ///
+| substr(pdgns_cd,1,4) =="4919" ///
+| substr(pdgns_cd,1,4) =="4910" ///
+| substr(pdgns_cd,1,4) =="4928" ///
+| substr(pdgns_cd,1,4) =="4920" ///
+| substr(pdgns_cd,1,4) =="4941" ///
+| substr(pdgns_cd,1,4) =="4940" ///
+| substr(pdgns_cd,1,3) =="496" ///
+| substr(pdgns_cd,1,3) =="J40" ///
+| substr(pdgns_cd,1,4) =="J410" ///
+| substr(pdgns_cd,1,4) =="J411" ///
+| substr(pdgns_cd,1,4) =="J418" ///
+| substr(pdgns_cd,1,3) =="J42" ///
+| substr(pdgns_cd,1,4) =="J430" ///
+| substr(pdgns_cd,1,4) =="J431" ///
+| substr(pdgns_cd,1,4) =="J432" ///
+| substr(pdgns_cd,1,4) =="J438" ///
+| substr(pdgns_cd,1,4) =="J439" ///
+| substr(pdgns_cd,1,4) =="J440" ///
+| substr(pdgns_cd,1,4) =="J441" ///
+| substr(pdgns_cd,1,4) =="J449" ///
+| substr(pdgns_cd,1,4) =="J470" ///
+| substr(pdgns_cd,1,4) =="J471" ///
+| substr(pdgns_cd,1,4) =="J479")
+
+* Stroke 
+local ccw22 (substr(pdgns_cd,1,3) =="430" ///
+| substr(pdgns_cd,1,3) =="431" ///
+| substr(pdgns_cd,1,5) =="43301" ///
+| substr(pdgns_cd,1,5) =="43311" ///
+| substr(pdgns_cd,1,5) =="43321" ///
+| substr(pdgns_cd,1,5) =="43331" ///
+| substr(pdgns_cd,1,5) =="43381" ///
+| substr(pdgns_cd,1,5) =="43391" ///
+| substr(pdgns_cd,1,5) =="43401" ///
+| substr(pdgns_cd,1,5) =="43411" ///
+| substr(pdgns_cd,1,5) =="43410" ///
+| substr(pdgns_cd,1,5) =="43491" ///
+| substr(pdgns_cd,1,5) =="43490" ///
+| substr(pdgns_cd,1,5) =="43400" ///
+| substr(pdgns_cd,1,4) =="4351" ///
+| substr(pdgns_cd,1,4) =="4353" ///
+| substr(pdgns_cd,1,4) =="4358" ///
+| substr(pdgns_cd,1,4) =="4359" ///
+| substr(pdgns_cd,1,4) =="4350" ///
+| substr(pdgns_cd,1,3) =="436" ///
+| substr(pdgns_cd,1,5) =="99702" ///
+| substr(pdgns_cd,1,4) =="G450" ///
+| substr(pdgns_cd,1,4) =="G451" ///
+| substr(pdgns_cd,1,4) =="G452" ///
+| substr(pdgns_cd,1,4) =="G458" ///
+| substr(pdgns_cd,1,4) =="G459" ///
+| substr(pdgns_cd,1,4) =="G460" ///
+| substr(pdgns_cd,1,4) =="G461" ///
+| substr(pdgns_cd,1,4) =="G462" ///
+| substr(pdgns_cd,1,4) =="G463" ///
+| substr(pdgns_cd,1,4) =="G464" ///
+| substr(pdgns_cd,1,4) =="G465" ///
+| substr(pdgns_cd,1,4) =="G466" ///
+| substr(pdgns_cd,1,4) =="G467" ///
+| substr(pdgns_cd,1,4) =="G468" ///
+| substr(pdgns_cd,1,5) =="G9731" ///
+| substr(pdgns_cd,1,5) =="G9732" ///
+| substr(pdgns_cd,1,5) =="I6000" ///
+| substr(pdgns_cd,1,5) =="I6001" ///
+| substr(pdgns_cd,1,5) =="I6002" ///
+| substr(pdgns_cd,1,5) =="I6010" ///
+| substr(pdgns_cd,1,5) =="I6011" ///
+| substr(pdgns_cd,1,5) =="I6012" ///
+| substr(pdgns_cd,1,5) =="I6020" ///
+| substr(pdgns_cd,1,5) =="I6021" ///
+| substr(pdgns_cd,1,5) =="I6022" ///
+| substr(pdgns_cd,1,5) =="I6030" ///
+| substr(pdgns_cd,1,5) =="I6031" ///
+| substr(pdgns_cd,1,5) =="I6032" ///
+| substr(pdgns_cd,1,4) =="I604" ///
+| substr(pdgns_cd,1,5) =="I6050" ///
+| substr(pdgns_cd,1,5) =="I6051" ///
+| substr(pdgns_cd,1,5) =="I6052" ///
+| substr(pdgns_cd,1,4) =="I606" ///
+| substr(pdgns_cd,1,4) =="I607" ///
+| substr(pdgns_cd,1,4) =="I608" ///
+| substr(pdgns_cd,1,4) =="I609" ///
+| substr(pdgns_cd,1,4) =="I610" ///
+| substr(pdgns_cd,1,4) =="I611" ///
+| substr(pdgns_cd,1,4) =="I612" ///
+| substr(pdgns_cd,1,4) =="I613" ///
+| substr(pdgns_cd,1,4) =="I614" ///
+| substr(pdgns_cd,1,4) =="I615" ///
+| substr(pdgns_cd,1,4) =="I616" ///
+| substr(pdgns_cd,1,4) =="I618" ///
+| substr(pdgns_cd,1,4) =="I619" ///
+| substr(pdgns_cd,1,5) =="I6300" ///
+| substr(pdgns_cd,1,6) =="I63011" ///
+| substr(pdgns_cd,1,6) =="I63012" ///
+| substr(pdgns_cd,1,6) =="I63013" ///
+| substr(pdgns_cd,1,6) =="I63019" ///
+| substr(pdgns_cd,1,5) =="I6302" ///
+| substr(pdgns_cd,1,5) =="I6302" ///
+| substr(pdgns_cd,1,6) =="I63031" ///
+| substr(pdgns_cd,1,6) =="I63032" ///
+| substr(pdgns_cd,1,6) =="I63039" ///
+| substr(pdgns_cd,1,5) =="I6309" ///
+| substr(pdgns_cd,1,5) =="I6310" ///
+| substr(pdgns_cd,1,6) =="I63111" ///
+| substr(pdgns_cd,1,6) =="I63112" ///
+| substr(pdgns_cd,1,6) =="I63119" ///
+| substr(pdgns_cd,1,5) =="I6312" ///
+| substr(pdgns_cd,1,6) =="I63131" ///
+| substr(pdgns_cd,1,6) =="I63132" ///
+| substr(pdgns_cd,1,6) =="I63139" ///
+| substr(pdgns_cd,1,5) =="I6319" ///
+| substr(pdgns_cd,1,5) =="I6320" ///
+| substr(pdgns_cd,1,6) =="I63211" ///
+| substr(pdgns_cd,1,6) =="I63212" ///
+| substr(pdgns_cd,1,6) =="I63213" ///
+| substr(pdgns_cd,1,6) =="I63219" ///
+| substr(pdgns_cd,1,5) =="I6322" ///
+| substr(pdgns_cd,1,6) =="I63231" ///
+| substr(pdgns_cd,1,6) =="I63232" ///
+| substr(pdgns_cd,1,6) =="I63233" ///
+| substr(pdgns_cd,1,6) =="I63239" ///
+| substr(pdgns_cd,1,5) =="I6329" ///
+| substr(pdgns_cd,1,5) =="I6330" ///
+| substr(pdgns_cd,1,6) =="I63311" ///
+| substr(pdgns_cd,1,6) =="I63312" ///
+| substr(pdgns_cd,1,6) =="I63313" ///
+| substr(pdgns_cd,1,6) =="I63319" ///
+| substr(pdgns_cd,1,6) =="I63321" ///
+| substr(pdgns_cd,1,6) =="I63322" ///
+| substr(pdgns_cd,1,6) =="I63323" ///
+| substr(pdgns_cd,1,6) =="I63329" ///
+| substr(pdgns_cd,1,6) =="I63331" ///
+| substr(pdgns_cd,1,6) =="I63332" ///
+| substr(pdgns_cd,1,6) =="I63333" ///
+| substr(pdgns_cd,1,6) =="I63339" ///
+| substr(pdgns_cd,1,6) =="I63341" ///
+| substr(pdgns_cd,1,6) =="I63342" ///
+| substr(pdgns_cd,1,6) =="I63343" ///
+| substr(pdgns_cd,1,6) =="I63349" ///
+| substr(pdgns_cd,1,5) =="I6339" ///
+| substr(pdgns_cd,1,5) =="I6340" ///
+| substr(pdgns_cd,1,6) =="I63411" ///
+| substr(pdgns_cd,1,6) =="I63412" ///
+| substr(pdgns_cd,1,6) =="I63413" ///
+| substr(pdgns_cd,1,6) =="I63419" ///
+| substr(pdgns_cd,1,6) =="I63421" ///
+| substr(pdgns_cd,1,6) =="I63422" ///
+| substr(pdgns_cd,1,6) =="I63423" ///
+| substr(pdgns_cd,1,6) =="I63429" ///
+| substr(pdgns_cd,1,6) =="I63431" ///
+| substr(pdgns_cd,1,6) =="I63432" ///
+| substr(pdgns_cd,1,6) =="I63433" ///
+| substr(pdgns_cd,1,6) =="I63439" ///
+| substr(pdgns_cd,1,6) =="I63441" ///
+| substr(pdgns_cd,1,6) =="I63442" ///
+| substr(pdgns_cd,1,6) =="I63443" ///
+| substr(pdgns_cd,1,6) =="I63449" ///
+| substr(pdgns_cd,1,5) =="I6349" ///
+| substr(pdgns_cd,1,5) =="I6350" ///
+| substr(pdgns_cd,1,6) =="I63511" ///
+| substr(pdgns_cd,1,6) =="I63512" ///
+| substr(pdgns_cd,1,6) =="I63513" ///
+| substr(pdgns_cd,1,6) =="I63519" ///
+| substr(pdgns_cd,1,6) =="I63521" ///
+| substr(pdgns_cd,1,6) =="I63522" ///
+| substr(pdgns_cd,1,6) =="I63523" ///
+| substr(pdgns_cd,1,6) =="I63529" ///
+| substr(pdgns_cd,1,6) =="I63531" ///
+| substr(pdgns_cd,1,6) =="I63532" ///
+| substr(pdgns_cd,1,6) =="I63533" ///
+| substr(pdgns_cd,1,6) =="I63539" ///
+| substr(pdgns_cd,1,6) =="I63541" ///
+| substr(pdgns_cd,1,6) =="I63542" ///
+| substr(pdgns_cd,1,6) =="I63543" ///
+| substr(pdgns_cd,1,6) =="I63549" ///
+| substr(pdgns_cd,1,5) =="I6359" ///
+| substr(pdgns_cd,1,4) =="I636" ///
+| substr(pdgns_cd,1,4) =="I638" ///
+| substr(pdgns_cd,1,4) =="I639" ///
+| substr(pdgns_cd,1,5) =="I6601" ///
+| substr(pdgns_cd,1,5) =="I6602" ///
+| substr(pdgns_cd,1,5) =="I6603" ///
+| substr(pdgns_cd,1,5) =="I6609" ///
+| substr(pdgns_cd,1,5) =="I6611" ///
+| substr(pdgns_cd,1,5) =="I6612" ///
+| substr(pdgns_cd,1,5) =="I6613" ///
+| substr(pdgns_cd,1,5) =="I6619" ///
+| substr(pdgns_cd,1,5) =="I6621" ///
+| substr(pdgns_cd,1,5) =="I6622" ///
+| substr(pdgns_cd,1,5) =="I6623" ///
+| substr(pdgns_cd,1,5) =="I6629" ///
+| substr(pdgns_cd,1,4) =="I663" ///
+| substr(pdgns_cd,1,4) =="I668" ///
+| substr(pdgns_cd,1,4) =="I669" ///
+| substr(pdgns_cd,1,6) =="I67841" ///
+| substr(pdgns_cd,1,6) =="I67848" ///
+| substr(pdgns_cd,1,5) =="I6789" ///
+| substr(pdgns_cd,1,6) =="I97810" ///
+| substr(pdgns_cd,1,6) =="I97811" ///
+| substr(pdgns_cd,1,6) =="I97820" ///
+| substr(pdgns_cd,1,6) =="I97821")
+
+*CKD  
+local ccw10 (substr(pdgns_cd,1,5) =="1601" ///
+| substr(pdgns_cd,1,5) =="1602" ///
+| substr(pdgns_cd,1,5) =="1603" ///
+| substr(pdgns_cd,1,5) =="1604" ///
+| substr(pdgns_cd,1,5) =="1605" ///
+| substr(pdgns_cd,1,5) =="1606" ///
+| substr(pdgns_cd,1,5) =="1600" ///
+| substr(pdgns_cd,1,4) =="1899" ///
+| substr(pdgns_cd,1,4) =="1890" ///
+| substr(pdgns_cd,1,4) =="2230" ///
+| substr(pdgns_cd,1,5) =="23691" ///
+| substr(pdgns_cd,1,5) =="24941" ///
+| substr(pdgns_cd,1,5) =="24940" ///
+| substr(pdgns_cd,1,5) =="25041" ///
+| substr(pdgns_cd,1,5) =="25042" ///
+| substr(pdgns_cd,1,5) =="25043" ///
+| substr(pdgns_cd,1,5) =="25040" ///
+| substr(pdgns_cd,1,4) =="2714" ///
+| substr(pdgns_cd,1,5) =="27410" ///
+| substr(pdgns_cd,1,5) =="28311" ///
+| substr(pdgns_cd,1,5) =="40301" ///
+| substr(pdgns_cd,1,5) =="40311" ///
+| substr(pdgns_cd,1,5) =="40391" ///
+| substr(pdgns_cd,1,5) =="40402" ///
+| substr(pdgns_cd,1,5) =="40403" ///
+| substr(pdgns_cd,1,5) =="40412" ///
+| substr(pdgns_cd,1,5) =="40413" ///
+| substr(pdgns_cd,1,5) =="40492" ///
+| substr(pdgns_cd,1,5) =="40493" ///
+| substr(pdgns_cd,1,4) =="4401" ///
+| substr(pdgns_cd,1,4) =="4421" ///
+| substr(pdgns_cd,1,4) =="5724" ///
+| substr(pdgns_cd,1,4) =="5804" ///
+| substr(pdgns_cd,1,5) =="58081" ///
+| substr(pdgns_cd,1,5) =="58089" ///
+| substr(pdgns_cd,1,4) =="5809" ///
+| substr(pdgns_cd,1,4) =="5800" ///
+| substr(pdgns_cd,1,4) =="5811" ///
+| substr(pdgns_cd,1,4) =="5812" ///
+| substr(pdgns_cd,1,4) =="5813" ///
+| substr(pdgns_cd,1,5) =="58181" ///
+| substr(pdgns_cd,1,5) =="58189" ///
+| substr(pdgns_cd,1,4) =="5819" ///
+| substr(pdgns_cd,1,4) =="5810" ///
+| substr(pdgns_cd,1,4) =="5821" ///
+| substr(pdgns_cd,1,4) =="5822" ///
+| substr(pdgns_cd,1,4) =="5824" ///
+| substr(pdgns_cd,1,5) =="58281" ///
+| substr(pdgns_cd,1,5) =="58289" ///
+| substr(pdgns_cd,1,4) =="5829" ///
+| substr(pdgns_cd,1,4) =="5820" ///
+| substr(pdgns_cd,1,4) =="5831" ///
+| substr(pdgns_cd,1,4) =="5832" ///
+| substr(pdgns_cd,1,4) =="5834" ///
+| substr(pdgns_cd,1,4) =="5836" ///
+| substr(pdgns_cd,1,4) =="5837" ///
+| substr(pdgns_cd,1,5) =="58381" ///
+| substr(pdgns_cd,1,5) =="58389" ///
+| substr(pdgns_cd,1,4) =="5839" ///
+| substr(pdgns_cd,1,4) =="5830" ///
+| substr(pdgns_cd,1,4) =="5845" ///
+| substr(pdgns_cd,1,4) =="5846" ///
+| substr(pdgns_cd,1,4) =="5847" ///
+| substr(pdgns_cd,1,4) =="5848" ///
+| substr(pdgns_cd,1,4) =="5849" ///
+| substr(pdgns_cd,1,4) =="5851" ///
+| substr(pdgns_cd,1,4) =="5852" ///
+| substr(pdgns_cd,1,4) =="5853" ///
+| substr(pdgns_cd,1,4) =="5854" ///
+| substr(pdgns_cd,1,4) =="5855" ///
+| substr(pdgns_cd,1,4) =="5856" ///
+| substr(pdgns_cd,1,4) =="5859" ///
+| substr(pdgns_cd,1,3) =="586" ///
+| substr(pdgns_cd,1,3) =="587" ///
+| substr(pdgns_cd,1,4) =="5881" ///
+| substr(pdgns_cd,1,5) =="58881" ///
+| substr(pdgns_cd,1,5) =="58889" ///
+| substr(pdgns_cd,1,4) =="5889" ///
+| substr(pdgns_cd,1,4) =="5880" ///
+| substr(pdgns_cd,1,3) =="591" ///
+| substr(pdgns_cd,1,5) =="75312" ///
+| substr(pdgns_cd,1,5) =="75313" ///
+| substr(pdgns_cd,1,5) =="75314" ///
+| substr(pdgns_cd,1,5) =="75315" ///
+| substr(pdgns_cd,1,5) =="75316" ///
+| substr(pdgns_cd,1,5) =="75317" ///
+| substr(pdgns_cd,1,5) =="75319" ///
+| substr(pdgns_cd,1,5) =="75321" ///
+| substr(pdgns_cd,1,5) =="75322" ///
+| substr(pdgns_cd,1,5) =="75323" ///
+| substr(pdgns_cd,1,5) =="75329" ///
+| substr(pdgns_cd,1,5) =="75320" ///
+| substr(pdgns_cd,1,4) =="7944" ///
+| substr(pdgns_cd,1,4) =="954" ///
+| substr(pdgns_cd,1,5) =="A1811" ///
+| substr(pdgns_cd,1,5) =="A5275" ///
+| substr(pdgns_cd,1,4) =="B520" ///
+| substr(pdgns_cd,1,4) =="C641" ///
+| substr(pdgns_cd,1,4) =="C642" ///
+| substr(pdgns_cd,1,4) =="C649" ///
+| substr(pdgns_cd,1,4) =="C689" ///
+| substr(pdgns_cd,1,5) =="D3000" ///
+| substr(pdgns_cd,1,5) =="D3001" ///
+| substr(pdgns_cd,1,5) =="D3002" ///
+| substr(pdgns_cd,1,5) =="D4100" ///
+| substr(pdgns_cd,1,5) =="D4101" ///
+| substr(pdgns_cd,1,5) =="D4102" ///
+| substr(pdgns_cd,1,5) =="D4110" ///
+| substr(pdgns_cd,1,5) =="D4111" ///
+| substr(pdgns_cd,1,5) =="D4112" ///
+| substr(pdgns_cd,1,5) =="D4120" ///
+| substr(pdgns_cd,1,5) =="D4121" ///
+| substr(pdgns_cd,1,5) =="D4122" ///
+| substr(pdgns_cd,1,4) =="D593" ///
+| substr(pdgns_cd,1,5) =="E0821" ///
+| substr(pdgns_cd,1,5) =="E0822" ///
+|substr(pdgns_cd,1,5) =="E0829" ///
+| substr(pdgns_cd,1,5) =="E0865" ///
+| substr(pdgns_cd,1,5) =="E0921" ///
+| substr(pdgns_cd,1,5) =="E0922" ///
+| substr(pdgns_cd,1,5) =="E0929" ///
+| substr(pdgns_cd,1,5) =="E1021" ///
+| substr(pdgns_cd,1,5) =="E1022" ///
+| substr(pdgns_cd,1,5) =="E1029" ///
+| substr(pdgns_cd,1,5) =="E1065" ///
+| substr(pdgns_cd,1,5) =="E1121" ///
+| substr(pdgns_cd,1,5) =="E1122" ///
+| substr(pdgns_cd,1,5) =="E1129" ///
+| substr(pdgns_cd,1,5) =="E1165" ///
+| substr(pdgns_cd,1,5) =="E1321" ///
+| substr(pdgns_cd,1,5) =="E1322" ///
+| substr(pdgns_cd,1,5) =="E1329" ///
+| substr(pdgns_cd,1,4) =="E748" ///
+| substr(pdgns_cd,1,4) =="I120" ///
+| substr(pdgns_cd,1,4) =="I129" ///
+| substr(pdgns_cd,1,4) =="I130" ///
+| substr(pdgns_cd,1,5) =="I1310" ///
+| substr(pdgns_cd,1,5) =="I1311" ///
+| substr(pdgns_cd,1,4) =="I132" ///
+| substr(pdgns_cd,1,4) =="I701" ///
+| substr(pdgns_cd,1,4) =="I722" ///
+| substr(pdgns_cd,1,4) =="K767" ///
+| substr(pdgns_cd,1,5) =="M1030" ///
+| substr(pdgns_cd,1,6) =="M10311" ///
+| substr(pdgns_cd,1,6) =="M10312" ///
+| substr(pdgns_cd,1,6) =="M10319" ///
+| substr(pdgns_cd,1,6) =="M10321" ///
+| substr(pdgns_cd,1,6) =="M10322" ///
+| substr(pdgns_cd,1,6) =="M10329" ///
+| substr(pdgns_cd,1,6) =="M10331" ///
+| substr(pdgns_cd,1,6) =="M10332" ///
+| substr(pdgns_cd,1,6) =="M10339" ///
+| substr(pdgns_cd,1,6) =="M10341" ///
+| substr(pdgns_cd,1,6) =="M10342" ///
+| substr(pdgns_cd,1,6) =="M10349" ///
+| substr(pdgns_cd,1,6) =="M10351" ///
+| substr(pdgns_cd,1,6) =="M10352" ///
+| substr(pdgns_cd,1,6) =="M10359" ///
+| substr(pdgns_cd,1,6) =="M10361" ///
+| substr(pdgns_cd,1,6) =="M10362" ///
+| substr(pdgns_cd,1,6) =="M10369" ///
+| substr(pdgns_cd,1,6) =="M10371" ///
+| substr(pdgns_cd,1,6) =="M10372" ///
+| substr(pdgns_cd,1,6) =="M10379")
+
+local ccw99 ( substr(pdgns_cd,1,5) =="M1038" ///
+| substr(pdgns_cd,1,5) =="M1039" ///
+| substr(pdgns_cd,1,5) =="M3214" ///
+| substr(pdgns_cd,1,5) =="M3215" ///
+| substr(pdgns_cd,1,5) =="M3504" ///
+| substr(pdgns_cd,1,4) =="N000" ///
+| substr(pdgns_cd,1,4) =="N001" ///
+| substr(pdgns_cd,1,4) =="N002" ///
+| substr(pdgns_cd,1,4) =="N003" ///
+| substr(pdgns_cd,1,4) =="N004" ///
+| substr(pdgns_cd,1,4) =="N005" ///
+| substr(pdgns_cd,1,4) =="N006" ///
+| substr(pdgns_cd,1,4) =="N007" ///
+| substr(pdgns_cd,1,4) =="N008" ///
+| substr(pdgns_cd,1,4) =="N009" ///
+| substr(pdgns_cd,1,4) =="N010" ///
+| substr(pdgns_cd,1,4) =="N011" ///
+| substr(pdgns_cd,1,4) =="N012" ///
+| substr(pdgns_cd,1,4) =="N013" ///
+| substr(pdgns_cd,1,4) =="N014" ///
+| substr(pdgns_cd,1,4) =="N015" ///
+| substr(pdgns_cd,1,4) =="N016" ///
+| substr(pdgns_cd,1,4) =="N017" ///
+| substr(pdgns_cd,1,4) =="N018" ///
+| substr(pdgns_cd,1,4) =="N019" ///
+| substr(pdgns_cd,1,4) =="N020" ///
+| substr(pdgns_cd,1,4) =="N021" ///
+| substr(pdgns_cd,1,4) =="N022" ///
+| substr(pdgns_cd,1,4) =="N023" ///
+| substr(pdgns_cd,1,4) =="N024" ///
+| substr(pdgns_cd,1,4) =="N025" ///
+| substr(pdgns_cd,1,4) =="N026" ///
+| substr(pdgns_cd,1,4) =="N027" ///
+| substr(pdgns_cd,1,4) =="N028" ///
+| substr(pdgns_cd,1,4) =="N029" ///
+| substr(pdgns_cd,1,4) =="N030" ///
+| substr(pdgns_cd,1,4) =="N031" ///
+| substr(pdgns_cd,1,4) =="N032" ///
+| substr(pdgns_cd,1,4) =="N033" ///
+| substr(pdgns_cd,1,4) =="N034" ///
+| substr(pdgns_cd,1,4) =="N035" ///
+| substr(pdgns_cd,1,4) =="N036" ///
+| substr(pdgns_cd,1,4) =="N037" ///
+| substr(pdgns_cd,1,4) =="N038" ///
+| substr(pdgns_cd,1,4) =="N039" ///
+| substr(pdgns_cd,1,4) =="N040" ///
+| substr(pdgns_cd,1,4) =="N041" ///
+| substr(pdgns_cd,1,4) =="N042" ///
+| substr(pdgns_cd,1,4) =="N043" ///
+| substr(pdgns_cd,1,4) =="N044" ///
+| substr(pdgns_cd,1,4) =="N045" ///
+| substr(pdgns_cd,1,4) =="N046" ///
+| substr(pdgns_cd,1,4) =="N047" ///
+| substr(pdgns_cd,1,4) =="N048" ///
+| substr(pdgns_cd,1,4) =="N049" ///
+| substr(pdgns_cd,1,4) =="N050" ///
+| substr(pdgns_cd,1,4) =="N051" ///
+| substr(pdgns_cd,1,4) =="N052" ///
+| substr(pdgns_cd,1,4) =="N053" ///
+| substr(pdgns_cd,1,4) =="N054" ///
+| substr(pdgns_cd,1,4) =="N055" ///
+| substr(pdgns_cd,1,4) =="N056" ///
+| substr(pdgns_cd,1,4) =="N057" ///
+| substr(pdgns_cd,1,4) =="N058" ///
+| substr(pdgns_cd,1,4) =="N059" ///
+| substr(pdgns_cd,1,4) =="N060" ///
+| substr(pdgns_cd,1,4) =="N061" ///
+| substr(pdgns_cd,1,4) =="N062" ///
+| substr(pdgns_cd,1,4) =="N063" ///
+| substr(pdgns_cd,1,4) =="N064" ///
+| substr(pdgns_cd,1,4) =="N065" ///
+| substr(pdgns_cd,1,4) =="N066" ///
+| substr(pdgns_cd,1,4) =="N067" ///
+| substr(pdgns_cd,1,4) =="N068" ///
+| substr(pdgns_cd,1,4) =="N069" ///
+| substr(pdgns_cd,1,4) =="N070" ///
+| substr(pdgns_cd,1,4) =="N071" ///
+| substr(pdgns_cd,1,4) =="N072" ///
+| substr(pdgns_cd,1,4) =="N073" ///
+| substr(pdgns_cd,1,4) =="N074" ///
+| substr(pdgns_cd,1,4) =="N075" ///
+| substr(pdgns_cd,1,4) =="N076" ///
+| substr(pdgns_cd,1,4) =="N077" ///
+| substr(pdgns_cd,1,4) =="N078" ///
+| substr(pdgns_cd,1,4) =="N079" ///
+| substr(pdgns_cd,1,3) =="N08" ///
+| substr(pdgns_cd,1,4) =="N131" ///
+| substr(pdgns_cd,1,4) =="N132" ///
+| substr(pdgns_cd,1,5) =="N1330" ///
+| substr(pdgns_cd,1,5) =="N1339" ///
+| substr(pdgns_cd,1,4) =="N140" ///
+| substr(pdgns_cd,1,4) =="N141" ///
+| substr(pdgns_cd,1,4) =="N142" ///
+| substr(pdgns_cd,1,4) =="N143" ///
+| substr(pdgns_cd,1,4) =="N144" ///
+| substr(pdgns_cd,1,4) =="N150" ///
+| substr(pdgns_cd,1,4) =="N158" ///
+| substr(pdgns_cd,1,4) =="N159" ///
+| substr(pdgns_cd,1,3) =="N16" ///
+| substr(pdgns_cd,1,4) =="N170" ///
+| substr(pdgns_cd,1,4) =="N171" ///
+| substr(pdgns_cd,1,4) =="N172" ///
+| substr(pdgns_cd,1,4) =="N178" ///
+| substr(pdgns_cd,1,4) =="N179" ///
+| substr(pdgns_cd,1,4) =="N181" ///
+| substr(pdgns_cd,1,4) =="N182" ///
+| substr(pdgns_cd,1,4) =="N183" ///
+| substr(pdgns_cd,1,4) =="N184" ///
+| substr(pdgns_cd,1,4) =="N185" ///
+| substr(pdgns_cd,1,4) =="N186" ///
+| substr(pdgns_cd,1,4) =="N189" ///
+| substr(pdgns_cd,1,3) =="N19" ///
+| substr(pdgns_cd,1,4) =="N250" ///
+| substr(pdgns_cd,1,4) =="N251" ///
+| substr(pdgns_cd,1,5) =="N2581" ///
+| substr(pdgns_cd,1,5) =="N2589" ///
+| substr(pdgns_cd,1,4) =="N259" ///
+| substr(pdgns_cd,1,4) =="N261" ///
+| substr(pdgns_cd,1,4) =="N269" ///
+| substr(pdgns_cd,1,5) =="Q6102" ///
+| substr(pdgns_cd,1,5) =="Q6111" ///
+| substr(pdgns_cd,1,5) =="Q6119" ///
+| substr(pdgns_cd,1,4) =="Q612" ///
+| substr(pdgns_cd,1,4) =="Q613" ///
+| substr(pdgns_cd,1,4) =="Q614" ///
+| substr(pdgns_cd,1,4) =="Q615" ///
+| substr(pdgns_cd,1,4) =="Q618" ///
+| substr(pdgns_cd,1,4) =="Q620" ///
+| substr(pdgns_cd,1,5) =="Q6210" ///
+| substr(pdgns_cd,1,5) =="Q6211" ///
+| substr(pdgns_cd,1,5) =="Q6212" ///
+| substr(pdgns_cd,1,4) =="Q622" ///
+| substr(pdgns_cd,1,5) =="Q6231" ///
+| substr(pdgns_cd,1,5) =="Q6232" ///
+| substr(pdgns_cd,1,5) =="Q6239" ///
+| substr(pdgns_cd,1,4) =="R944") 
+
+
+gen hs_admit_cat=1 if `ccw4'
+replace hs_admit_cat=2 if  inrange(real(substr(pdgns_cd,1,3)),140,239) | substr(pdgns_cd,1,1)=="C" | (substr(pdgns_cd,1,1)=="D" & real(substr(pdgns_cd,2,2))<50)
+replace hs_admit_cat=3 if `ccw15' //| `ccw19'
+replace hs_admit_cat=4 if `ccw11'
+replace hs_admit_cat=5 if `ccw22'
+replace hs_admit_cat=6 if `ccw10' 
+replace hs_admit_cat=6 if `ccw99'
+
+
+replace hs_admit_cat=7 if missing(hs_admit_cat) & ind_hs==1
+
+/*duplicates tag bid_hrs_22 hs_admit_cat if _merge==3, gen(a)
+duplicates tag bid_hrs_22 if _merge==3, gen(b)
+
+duplicates drop bid_hrs_22 hs_admit_cat if _merge==3, force
+
+duplicates report bid_hrs_22 if _merge==3
+
+codebook bid_hrs_22 if _merge==3
+*/
+
+by bid, sort: egen a=min(hs_admit_cat)
+replace hs_admit_cat=a
+drop a
+label define hs_admit_cat 1 "Dementia" 2 "Cancer" 3 "Heart failure" 4 "COPD" 5 " Stroke" 6 "CKD" 7 "Other"
+label values hs_admit_cat hs_admit_cat
+/*
+sort bid_hrs_22 admit_date disch_date
+by bid_hrs_22: gen last_status_hs=stus_cd[_N]
+label var last_status_hs "Last hospice claim discharge code"
+*/
+drop _m admit_date stus_cd disch_date lteq3 same last los_sofar obsnum pdgns_cd ad los los_sofar
+duplicates drop
+merge 1:1 bid using `mds', nogen
+
+
+save "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\aim2_outcomes_4_22.dta", replace
+
+saveold "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\data\int_data\aim2_outcomes_12_4_22.dta", replace version(12)
+
 H="Final Sample "
 
 import excel "D:\HRS\Projects\dementia_decedents\ask_r01_sa2_patient_qual_indicators\ref_docs\Medicaid generosity.xlsx", sheet("Sheet1") firstrow case(lower) clear
