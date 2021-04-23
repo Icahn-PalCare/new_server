@@ -1,0 +1,659 @@
+/* Burdensome Transitions code
+This is tailored to the definiton for ASK's R01, where burdensome transitions occur in the last 90 days of life. 
+
+Initially we start off by using the death date and are interested in days 120 days prior to death. 
+
+/* Starting with death date as index and look 120 days back. */
+
+/* Raj looking at incident Dementia in HRS interview. Thus index date is interview with incident dementia */
+
+libname clean 'D:\HRS\Shared\base_data\hrs_cms\SAS';
+
+libname medi 'D:\HRS\Shared\base_data\hrs_cms\SAS';
+
+proc import datafile="D:\HRS\Projects\incident_dementia\rk_days_at_home\data\int_data\index_dates.dta" out=index_date dbms=stata replace; run;
+
+proc sql;
+create table index as select
+a.*, b.*
+from clean.xref2015medicare a inner join
+index_date b
+on a.hhid=b.hhid and a.pn=b.pn;
+quit;
+
+
+data index;
+set index;
+index_date=c_ivw_date;
+run; 
+
+proc sort data=index out=index1 nodupkey;
+by bid_hrs_22 id index_date;
+run;
+
+*%let days='91', '182';
+*%let quarter='0', '1';
+
+/*negative*/
+
+%macro dates(days=, quarter=, name=);
+
+/* can loop over and change the 0 to make it i=1/8 */
+data index_n&days.;
+set index1;
+index_date_og=index_date;
+index_date=index_date-(&quarter.*91);
+quarter="&name.";
+format index_date date9.;
+format index_date_og date9.;
+run;
+
+
+
+data index_n&days._91 (keep=id hhid pn hhidpn bid_hrs_22 date index_date index_date_og index_date_91 core_year c_ivw_date index_&days. quarter) ;
+set index_n&days.;
+index_&days.=index_date-91;
+do i=index_&days. to index_date;
+date=i;
+output;
+end;
+format date date9.;
+format index_date date9.;
+format index_&days. date9.;
+run;
+run;
+
+%mend;
+
+%dates(days=91, quarter=0, name=nq1);
+%dates(days=182, quarter=1, name=nq2);
+%dates(days=273, quarter=2, name=nq3);
+%dates(days=365, quarter=3, name=nq4);
+%dates(days=456, quarter=4, name=nq5);
+%dates(days=547, quarter=5, name=nq6);
+%dates(days=638, quarter=6, name=nq7);
+%dates(days=730, quarter=7, name=nq8);
+
+
+/*positive*/
+
+%macro dates(days=, quarter=, name=);
+
+/* can loop over and change the 0 to make it i=1/8 */
+data index_p&days.;
+set index1;
+index_date_og=index_date;
+index_date=index_date+(&quarter.*91);
+quarter="&name.";
+format index_date date9.;
+format index_date_og date9.;
+run;
+
+
+
+data index_p&days._91 (keep=id hhid pn hhidpn bid_hrs_22 date index_date index_date_og index_date_91 core_year c_ivw_date index_&days. quarter) ;
+set index_p&days.;
+index_&days.=index_date+91;
+do i=index_&days. to index_date;
+date=i;
+output;
+end;
+format date date9.;
+format index_date date9.;
+format index_&days. date9.;
+run;
+run;
+
+%mend;
+
+%dates(days=91, quarter=0, name=pq1);
+%dates(days=182, quarter=1, name=pq2);
+%dates(days=273, quarter=2, name=pq3);
+%dates(days=365, quarter=3, name=pq4);
+%dates(days=456, quarter=4, name=pq5);
+%dates(days=547, quarter=5, name=pq6);
+%dates(days=638, quarter=6, name=pq7);
+%dates(days=730, quarter=7, name=pq8);
+
+/**************************************************************************/
+/**************** Claims Before Death  ******************************/
+/**************************************************************************/
+/*macro to get claims 120 days before death
+saves datasets for each claim type */
+%macro claimspre(days_start=,days_bef_index=,source=,suf=, days=);
+
+/*claims fully within x time of death date*/
+proc sql;
+create table &source._meet_1_n&days._91 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2015 a inner join
+index_n&days._91 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and &days_start<=b.index_date-a.admit_date<=&days_bef_index ;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table &source._meet_2_n&days._91 as select a.*,b.index_date,b.id 
+from medi.&source._1998_2015 a inner join
+index_n&days._91 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.admit_date>&days_bef_index and b.index_date-a.disch_date<=&days_bef_index;
+quit;
+
+data &source._meet_&suf._n&days._91(compress=yes)  ;
+set &source._meet_1_n&days._91  &source._meet_2_n&days._91;
+format admit_date date9.;
+format disch_date date9.;
+run;
+
+data &source._meet_&suf._n&days._91 (keep= bid_hrs_22 admit_date disch_date index_date ORGNPINM rvcntr01-rvcntr45 hcpscd01-hcpscd45 rvunt01-rvunt45 id admit_year provider quarter);
+set &source._meet_&suf._n&days._91;
+run;
+
+proc sort data=&source._meet_&suf._n&days._91 out=&source._meet_&suf._n&days._91 nodupkey;
+by bid_hrs_22 id admit_date disch_date;
+run;
+
+proc datasets lib=work nolist;
+delete &source._meet_1_n&days._91 &source._meet_2_n&days._91;
+quit;
+run;
+
+%mend;
+
+/*4m before death*/
+%claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m, days=91); /*home health*/
+%claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m, days=91); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m, days=91); /*dme*/
+%claimspre(days_start=0,days_bef_index=120,source=op,suf=4m, days=91); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m, days=91); /*carrier*/
+%claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m, days=91); /*snf*/
+
+%claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m, days=182); /*home health*/
+%claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m, days=182); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m, days=182); /*dme*/
+%claimspre(days_start=0,days_bef_index=120,source=op,suf=4m, days=182); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m, days=182); /*carrier*/
+%claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m, days=182); /*snf*/
+
+%claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m, days=273); /*home health*/
+%claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m, days=273); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m, days=273); /*dme*/
+%claimspre(days_start=0,days_bef_index=120,source=op,suf=4m, days=273); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m, days=273); /*carrier*/
+%claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m, days=273); /*snf*/
+
+%claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m, days=365); /*home health*/
+%claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m, days=365); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m, days=365); /*dme*/
+%claimspre(days_start=0,days_bef_index=120,source=op,suf=4m, days=365); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m, days=365); /*carrier*/
+%claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m, days=365); /*snf*/
+
+/*4m before death*/
+%claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m, days=456); /*home health*/
+%claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m, days=456); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m, days=456); /*dme*/
+%claimspre(days_start=0,days_bef_index=120,source=op,suf=4m, days=456); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m, days=456); /*carrier*/
+%claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m, days=456); /*snf*/
+
+%claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m, days=547); /*home health*/
+%claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m, days=547); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m, days=547); /*dme*/
+%claimspre(days_start=0,days_bef_index=120,source=op,suf=4m, days=547); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m, days=547); /*carrier*/
+%claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m, days=547); /*snf*/
+
+%claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m, days=638); /*home health*/
+%claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m, days=638); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m, days=638); /*dme*/
+%claimspre(days_start=0,days_bef_index=120,source=op,suf=4m, days=638); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m, days=638); /*carrier*/
+%claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m, days=638); /*snf*/
+
+%claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m, days=730); /*home health*/
+%claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m, days=730); /*inpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m, days=730); /*dme*/
+%claimspre(days_start=0,days_bef_index=120,source=op,suf=4m, days=730); /*outpatient*/
+%claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m, days=730); /*carrier*/
+%claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m, days=730); /*snf*/
+
+/* Hospice file a little different format than the rest, but does the same as above */
+
+
+
+data hs_1998_2015 (keep= hspcstrt hs_start admit_date disch_date bid_hrs_22 provider) ;
+set medi.hs_1998_2015;
+hs_start=input(put(hspcstrt, 8.), yymmdd8.);
+format hs_start date9.;
+format admit_date date9.;
+run;
+
+%macro hs_claims(days=);
+
+/*claims fully within x time of death date*/
+proc sql;
+create table hs_meet_1_n&days._91 as select a.*,b.index_date,b.id 
+from hs_1998_2015 a inner join
+index_n&days._91 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and 0<=b.index_date-a.hs_start<=120;
+quit;
+
+/*claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table hs_meet_2_n&days._91 as select a.*,b.index_date,b.id 
+from hs_1998_2015 a inner join
+index_n&days._91 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.hs_start>120 and b.index_date-a.disch_date<=120;
+quit;
+
+data hs_meet_4m_n&days._91 (keep= bid_hrs_22 admit_date disch_date index_date ORGNPINM id admit_year provider);
+set hs_meet_4m_n&days._91;
+run;
+
+data hs_meet_4m_n&days._91 (compress=yes);
+set hs_meet_1_n&days._91 hs_meet_2_n&days._91;
+run;
+
+proc datasets lib=work nolist;
+delete hs_meet_1_n&days._91 hs_meet_2_n&days._91;
+quit;
+run;
+
+%mend;
+
+/*4m before death*/
+%hs_claims(days=91);
+%hs_claims(days=182);
+%hs_claims(days=273);
+%hs_claims(days=365);
+%hs_claims(days=456);
+%hs_claims(days=547);
+%hs_claims(days=638);
+%hs_claims(days=730);
+
+
+/*emergency and observation stays identified from the inpatient and outpatient file. */
+
+%macro er_obs(source=, days=);
+
+data &source._meet_4m_n&days._91_er_obs;
+set &source._meet_4m_n&days._91;
+er_flag = 0;
+obs_flag = 0;
+array rvcntr rvcntr01-rvcntr45;
+array hcpcs hcpscd01-hcpscd45;
+array rvunt rvunt01-rvunt45;
+do over rvcntr;
+do over hcpcs;
+do over rvunt;
+if strip(rvcntr) in:("0450", "0451", "0452", "0456", "0459", "0981") then er_flag = 1;
+if strip(rvcntr) in:("0762") then obs_flag =1;
+/*if strip(rvcntr) in:("0760") and strip(hcpcs) in: ("G0378") and rvunt>=8 then obs_flag =1;*/
+end;
+end;
+end;
+run;
+
+data &source._er_meet_4m_n&days._91;
+set &source._meet_4m_n&days._91_er_obs;
+if er_flag=1;
+run;
+
+data &source._obs_meet_4m_n&days._91;
+set &source._meet_4m_n&days._91_er_obs;
+if obs_flag=1;
+run;
+
+%mend;
+
+/*4m before death*/
+%er_obs(source=ip, days=91); /*inpatient file*/
+%er_obs(source=ip, days=182); /*inpatient file*/
+%er_obs(source=ip, days=273); /*inpatient file*/
+%er_obs(source=ip, days=365); /*inpatient file*/
+%er_obs(source=ip, days=456); /*inpatient file*/
+%er_obs(source=ip, days=547); /*inpatient file*/
+%er_obs(source=ip, days=638); /*inpatient file*/
+%er_obs(source=ip, days=730); /*inpatient file*/
+
+%er_obs(source=op, days=91); /*outpatient file*/
+%er_obs(source=op, days=182); /*outpatient file*/
+%er_obs(source=op, days=273); /*outpatient file*/
+%er_obs(source=op, days=365); /*outpatient file*/
+%er_obs(source=op, days=456); /*outpatient file*/
+%er_obs(source=op, days=547); /*outpatient file*/
+%er_obs(source=op, days=638); /*outpatient file*/
+%er_obs(source=op, days=730); /*outpatient file*/
+
+
+/* Putting stays into 1 observation per day format. Flagging if they go to a different facility, but are still IP.*/
+
+%macro dates(source=,suf=, npi=, days=);
+
+data &source._meet_&suf._n&days._91_d;
+set &source._meet_&suf._n&days._91;
+format index_date date9.;
+format admit_date date9.;
+format disch_date date9.;
+day_a=index_date-admit_date;
+day_d=index_date-disch_date;
+run;
+
+data &source._meet_&suf._n&days._91_dates;
+set &source._meet_&suf._n&days._91_d;
+do i=admit_date to disch_date;
+date=i;
+output;
+end;
+format date date9.;
+run;
+
+data &source._&suf._n&days._91; 
+set &source._meet_&suf._n&days._91_dates;
+where 0<=index_date-date<=120;
+&source.=1;
+&source._npi=&npi.;
+run;
+
+proc sort data=&source._&suf._n&days._91 out=&source._&suf._n&days._91 ;
+by bid_hrs_22 date ;
+run;
+
+data &source._n&days._91_dup (keep= bid_hrs_22 bid_n hhidpn index_date flag date admit_date disch_date days_a days_d &source. fac_type provider &source._npi at_upin) ;
+set &source._&suf._n&days._91;
+if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and (provider~=lag(provider) or &npi.~=lag(&npi.)) then flag=1;
+run;
+
+proc sort data=&source._n&days._91_dup nodupkey;
+by bid_hrs_22 date &source. &source._npi;
+run;
+
+%mend;
+
+%dates(source=ip,suf=4m,npi=ORGNPINM, days=91);
+%dates(source=op_er,suf=4m,npi=ORGNPINM, days=91);
+%dates(source=op_obs,suf=4m,npi=ORGNPINM, days=91);
+%dates(source=ip_er,suf=4m,npi=ORGNPINM, days=91);
+%dates(source=ip_obs,suf=4m,npi=ORGNPINM, days=91);
+%dates(source=sn,suf=4m,npi=ORGNPINM, days=91);
+%dates(source=hh,suf=4m,npi=ORGNPINM, days=91);
+%dates(source=hs,suf=4m,npi=ORGNPINM, days=91);
+
+%dates(source=ip,suf=4m,npi=ORGNPINM, days=182);
+%dates(source=op_er,suf=4m,npi=ORGNPINM, days=182);
+%dates(source=op_obs,suf=4m,npi=ORGNPINM, days=182);
+%dates(source=ip_er,suf=4m,npi=ORGNPINM, days=182);
+%dates(source=ip_obs,suf=4m,npi=ORGNPINM, days=182);
+%dates(source=sn,suf=4m,npi=ORGNPINM, days=182);
+%dates(source=hh,suf=4m,npi=ORGNPINM, days=182);
+%dates(source=hs,suf=4m,npi=ORGNPINM, days=182);
+
+%dates(source=ip,suf=4m,npi=ORGNPINM, days=273);
+%dates(source=op_er,suf=4m,npi=ORGNPINM, days=273);
+%dates(source=op_obs,suf=4m,npi=ORGNPINM, days=273);
+%dates(source=ip_er,suf=4m,npi=ORGNPINM, days=273);
+%dates(source=ip_obs,suf=4m,npi=ORGNPINM, days=273);
+%dates(source=sn,suf=4m,npi=ORGNPINM, days=273);
+%dates(source=hh,suf=4m,npi=ORGNPINM, days=273);
+%dates(source=hs,suf=4m,npi=ORGNPINM, days=273);
+
+%dates(source=ip,suf=4m,npi=ORGNPINM, days=365);
+%dates(source=op_er,suf=4m,npi=ORGNPINM, days=365);
+%dates(source=op_obs,suf=4m,npi=ORGNPINM, days=365);
+%dates(source=ip_er,suf=4m,npi=ORGNPINM, days=365);
+%dates(source=ip_obs,suf=4m,npi=ORGNPINM, days=365);
+%dates(source=sn,suf=4m,npi=ORGNPINM, days=365);
+%dates(source=hh,suf=4m,npi=ORGNPINM, days=365);
+%dates(source=hs,suf=4m,npi=ORGNPINM, days=365);
+
+%dates(source=ip,suf=4m,npi=ORGNPINM, days=456);
+%dates(source=op_er,suf=4m,npi=ORGNPINM, days=456);
+%dates(source=op_obs,suf=4m,npi=ORGNPINM, days=456);
+%dates(source=ip_er,suf=4m,npi=ORGNPINM, days=456);
+%dates(source=ip_obs,suf=4m,npi=ORGNPINM, days=456);
+%dates(source=sn,suf=4m,npi=ORGNPINM, days=456);
+%dates(source=hh,suf=4m,npi=ORGNPINM, days=456);
+%dates(source=hs,suf=4m,npi=ORGNPINM, days=456);
+
+%dates(source=ip,suf=4m,npi=ORGNPINM, days=547);
+%dates(source=op_er,suf=4m,npi=ORGNPINM, days=547);
+%dates(source=op_obs,suf=4m,npi=ORGNPINM, days=547);
+%dates(source=ip_er,suf=4m,npi=ORGNPINM, days=547);
+%dates(source=ip_obs,suf=4m,npi=ORGNPINM, days=547);
+%dates(source=sn,suf=4m,npi=ORGNPINM, days=547);
+%dates(source=hh,suf=4m,npi=ORGNPINM, days=547);
+%dates(source=hs,suf=4m,npi=ORGNPINM, days=547);
+
+%dates(source=ip,suf=4m,npi=ORGNPINM, days=638);
+%dates(source=op_er,suf=4m,npi=ORGNPINM, days=638);
+%dates(source=op_obs,suf=4m,npi=ORGNPINM, days=638);
+%dates(source=ip_er,suf=4m,npi=ORGNPINM, days=638);
+%dates(source=ip_obs,suf=4m,npi=ORGNPINM, days=638);
+%dates(source=sn,suf=4m,npi=ORGNPINM, days=638);
+%dates(source=hh,suf=4m,npi=ORGNPINM, days=638);
+%dates(source=hs,suf=4m,npi=ORGNPINM, days=638);
+
+%dates(source=ip,suf=4m,npi=ORGNPINM, days=730);
+%dates(source=op_er,suf=4m,npi=ORGNPINM, days=730);
+%dates(source=op_obs,suf=4m,npi=ORGNPINM, days=730);
+%dates(source=ip_er,suf=4m,npi=ORGNPINM, days=730);
+%dates(source=ip_obs,suf=4m,npi=ORGNPINM, days=730);
+%dates(source=sn,suf=4m,npi=ORGNPINM, days=730);
+%dates(source=hh,suf=4m,npi=ORGNPINM, days=730);
+%dates(source=hs,suf=4m,npi=ORGNPINM, days=730);
+
+/* Bringing in MDS section*/
+
+libname proj_int "D:\HRS\Projects\incident_dementia\rk_days_at_home\data\int_data";
+
+proc import out=proj_int.mds datafile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\mds.dta" replace; 
+run;
+
+%macro mds_claims(days=);
+
+/*MDS claims fully within x time of death date*/
+proc sql;
+create table mds_meet_1_n&days._91 as select a.*,b.index_date,b.id 
+from proj_int.mds a inner join
+index_n&days._91 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and 0<=b.index_date-a.admit<=120 ;
+quit;
+
+/*MDS claims that start earlier than x time but span into x time before death*/
+proc sql;
+create table mds_meet_2_n&days._91 as select a.*,b.index_date,b.id 
+from proj_int.mds a inner join
+index_n&days._91 b
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+and b.index_date-a.admit>120 and b.index_date-a.discharge<=0;
+quit;
+
+data mds_meet_4m_n&days._91 (compress=yes);
+set mds_meet_1_n&days._91 mds_meet_2_n&days._91;
+run;
+
+
+data mds_meet_4m_n&days._91_d;
+set mds_meet_4m_n&days._91;
+format index_date date9.;
+day_a=index_date-admit;
+day_d=index_date-discharge;
+rename date=date_1;
+run;
+
+
+data mds_meet_4m_n&days._91_dates;
+set mds_meet_4m_n&days._91_d;
+do i=admit to discharge;
+date=i;
+output;
+end;
+format date date9.;
+run;
+
+
+data mds_4m_n&days._91; 
+set mds_meet_4m_n&days._91_dates;
+where 0<=index_date-date<=120;
+mds=1;
+run;
+
+proc sort data=mds_4m_n&days._91 out=mds_4m_n&days._91 ;
+by bid_hrs_22 date ;
+run;
+
+data mds_n&days._91_dup (keep= bid_hrs_22 target date admission discharge index_date day_a day_d date_1 mds flag) ;
+set mds_4m_n&days._91;
+if date=lag(date) and bid_hrs_22=lag(bid_hrs_22) and fac_int_id~=lag(fac_int_id) then flag=1;
+run;
+
+proc freq data=mds_n&days._91_dup;
+table flag;
+run;
+
+proc sort data=index_n&days._91;
+by bid_hrs_22 date;
+run;
+
+%mend;
+
+%mds_claims(days=91);
+%mds_claims(days=182);
+%mds_claims(days=273);
+%mds_claims(days=365);
+%mds_claims(days=456);
+%mds_claims(days=547);
+%mds_claims(days=638);
+%mds_claims(days=730);
+
+
+%macro merge(days=);
+
+/* merging all files together*/
+
+data all_claims_n&days.;
+merge index_n&days._91 ip_n&days._91_dup ip_er_n&days._91_dup ip_obs_n&days._91_dup op_er_n&days._91_dup op_obs_n&days._91_dup sn_n&days._91_dup hh_n&days._91_dup hs_n&days._91_dup mds_n&days._91_dup;
+by bid_hrs_22 date;
+run;
+
+/* keeping only 90 days before index(death) date). */
+data all_claims_n&days.;
+set all_claims_n&days.;
+if index_date-date<=90 then days_90=1;
+run;
+
+data all_claims_n&days._90;
+set all_claims_n&days.;
+where days_90=1;
+run;
+
+proc freq data=all_claims_n&days._90;
+table flag;
+run;
+
+/* Creating order based off of RHF paper, dictating which claims if overlap should be primary. */
+data all_claims_n&days._90_order;
+set all_claims_n&days._90;
+order=. ;
+npi=.;
+if (ip=1 or ip_er=1 or ip_obs=1) then order=1;
+if ip_npi~=. or ip_er_npi~=. or ip_obs_npi~=. then npi=ip_npi;
+if (op_er=1 or op_obs=1) and order=. then order=2;
+if  op_er_npi~=. and npi=. then npi=op_er_npi;
+if  op_obs_npi~=. and npi=. then npi=op_obs_npi;
+if sn=1 and order=. then order=3;
+if  sn_npi~=. and npi=. then npi=sn_npi;
+if hh=1 and order=. then order=4;
+if  hh_npi~=. and npi=. then npi=hh_npi;
+if hs=1 and order=. then order=5;
+if  hs_npi~=. and npi=. then npi=hs_npi;
+if mds=1 and order=. then order=6;
+if order=. then order=0;
+run;
+
+proc sort data=all_claims_n&days._90_order out=all_claims_n&days._90_order ;
+by bid_hrs_22 date ;
+run;
+
+/* Creating transitions */
+data transit_n&days._90;
+set all_claims_n&days._90_order;
+transition=0;
+if bid_hrs_22=lag(bid_hrs_22) and (order~=lag(order) or (order=lag(order) and (npi~=lag(npi) or flag~=lag(flag)))) then transition=1;
+run;
+
+data transit_n&days._90_cnt;
+set transit_n&days._90;
+by bid_hrs_22;
+if first.bid_hrs_22 then t_count=0;
+if transition=1 then t_count+1;
+run;
+
+proc freq data=transit_n&days._90_cnt;
+table t_count;
+run;
+
+proc sort data=transit_n&days._90_cnt;
+by bid_hrs_22 descending t_count;
+run;
+
+/* Finding if there are enough transitions to be budensome */
+data transit_n&days._90_cnt_1;
+set transit_n&days._90_cnt;
+by bid_hrs_22;
+retain burd_t;
+if first.bid_hrs_22 then burd_t=t_count;
+run;
+
+proc sort data=transit_n&days._90_cnt_1  ;
+by bid_hrs_22 date ;
+run;
+
+/* Using burden transitions definition of 3 or more transitions to flag for a burdensome transition, as per burdensome transition definition */
+data burd_n&days._90;
+set transit_n&days._90_cnt_1;
+flag_burd=0;
+if burd_t>=3 then flag_burd=1 ;
+run;
+
+
+proc sort data=burd_n&days._90 nodupkey;
+by bid_hrs_22 ;
+run;
+
+proc freq data=burd_n&days._90;
+table flag_burd;
+run;
+
+data burd_n&days._90_label (keep=id bid_hrs_22 death_year index_date days_90 burd_t flag_burd)  ;
+set burd_n&days._90;
+label	days_90 = "90 days bef. index"
+	  	flag_burd = "burdensome transition"
+		burd_t = "# of burdensome transitions" ;
+run;
+
+
+%mend;
+
+%merge(days=91);
+%merge(days=182);
+%merge(days=273);
+%merge(days=365);
+%merge(days=456);
+%merge(days=547);
+%merge(days=638);
+%merge(days=730);
+
+
+proc export data=burd_90_label outfile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta" replace; 
+run;
+
+
+
+
+
