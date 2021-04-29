@@ -116,7 +116,7 @@ run;
 %dates(days=730, quarter=7, name=pq8);
 
 /**************************************************************************/
-/**************** Claims Before Death  ******************************/
+/**************** Claims Before Index  ******************************/
 /**************************************************************************/
 /*macro to get claims 120 days before death
 saves datasets for each claim type */
@@ -190,7 +190,6 @@ run;
 %claimspre(days_start=0,days_bef_index=120,source=pb,suf=4m, days=365); /*carrier*/
 %claimspre(days_start=0,days_bef_index=120,source=sn,suf=4m, days=365); /*snf*/
 
-/*4m before death*/
 %claimspre(days_start=0,days_bef_index=120,source=hh,suf=4m, days=456); /*home health*/
 %claimspre(days_start=0,days_bef_index=120,source=ip,suf=4m, days=456); /*inpatient*/
 %claimspre(days_start=0,days_bef_index=120,source=dm,suf=4m, days=456); /*dme*/
@@ -250,12 +249,12 @@ on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
 and b.index_date-a.hs_start>120 and b.index_date-a.disch_date<=120;
 quit;
 
-data hs_meet_4m_n&days._91 (keep= bid_hrs_22 admit_date disch_date index_date ORGNPINM id admit_year provider);
-set hs_meet_4m_n&days._91;
-run;
-
 data hs_meet_4m_n&days._91 (compress=yes);
 set hs_meet_1_n&days._91 hs_meet_2_n&days._91;
+run;
+
+data hs_meet_4m_n&days._91 (keep= bid_hrs_22 admit_date disch_date index_date ORGNPINM id admit_year provider);
+set hs_meet_4m_n&days._91;
 run;
 
 proc datasets lib=work nolist;
@@ -580,6 +579,41 @@ proc sort data=all_claims_n&days._90_order out=all_claims_n&days._90_order ;
 by bid_hrs_22 date ;
 run;
 
+data all_clm_n&days._90_ord_h_days;
+set all_claims_n&days._90_order;
+if (order ne 0 and order ne 4) then delete;
+run;
+
+proc sql;
+create table all_clm_n&days._90_ord_h_days_cnt as select bid_hrs_22, count(order) as home_days
+from all_clm_n&days._90_ord_h_days
+group by bid_hrs_22;
+quit;
+
+data all_clm_n&days._90_ord_ip;
+set all_claims_n&days._90_order;
+if order ne 1 then delete;
+run;
+
+proc sql;
+create table all_clm_n&days._90_ord_ip_cnt as select bid_hrs_22, count(order) as ip_days
+from all_clm_n&days._90_ord_ip
+group by bid_hrs_22;
+quit;
+
+data all_clm_n&days._90_ord_nh;
+set all_claims_n&days._90_order;
+if (order ne 3 and order ne 6) then delete;
+run;
+
+proc sql;
+create table all_clm_n&days._90_ord_nh_cnt as select bid_hrs_22, count(order) as nh_days
+from all_clm_n&days._90_ord_nh
+group by bid_hrs_22;
+quit;
+
+
+
 /* Creating transitions */
 data transit_n&days._90;
 set all_claims_n&days._90_order;
@@ -638,6 +672,21 @@ label	days_90 = "90 days bef. index"
 run;
 
 
+proc sql;
+create table full_counts_n&days. as select * from
+index1 a full outer join
+all_clm_n&days._90_ord_h_days_cnt b 
+on trim(left(a.bid_hrs_22))=trim(left(b.bid_hrs_22))
+full outer join all_clm_n&days._90_ord_ip_cnt c
+on trim(left(a.bid_hrs_22))=trim(left(c.bid_hrs_22))
+full outer join
+all_clm_n&days._90_ord_nh_cnt d
+on trim(left(a.bid_hrs_22))=trim(left(d.bid_hrs_22))
+full outer join 
+burd_n&days._90_label e
+on trim(left(a.bid_hrs_22))=trim(left(e.bid_hrs_22));
+quit;
+
 %mend;
 
 %merge(days=91);
@@ -650,7 +699,28 @@ run;
 %merge(days=730);
 
 
-proc export data=burd_90_label outfile="D:\HRS\Projects\dementia_decedents\ask_r01_financial_burden_dementia_7_yrs\data\int_data\transitions.dta" replace; 
+proc export data=full_counts_n91 outfile="D:\HRS\Projects\incident_dementia\rk_days_at_home\data\int_data\transitions_n91.dta" replace; 
+run;
+
+proc export data=full_counts_n182 outfile="D:\HRS\Projects\incident_dementia\rk_days_at_home\data\int_data\transitions_n182.dta" replace; 
+run;
+
+proc export data=full_counts_n273 outfile="D:\HRS\Projects\incident_dementia\rk_days_at_home\data\int_data\transitions_n273.dta" replace; 
+run;
+
+proc export data=full_counts_n365 outfile="D:\HRS\Projects\incident_dementia\rk_days_at_home\data\int_data\transitions_n365.dta" replace; 
+run;
+
+proc export data=full_counts_n456 outfile="D:\HRS\Projects\incident_dementia\rk_days_at_home\data\int_data\transitions_n456.dta" replace; 
+run;
+
+proc export data=full_counts_n547 outfile="D:\HRS\Projects\incident_dementia\rk_days_at_home\data\int_data\transitions_n547.dta" replace; 
+run;
+
+proc export data=full_counts_n638 outfile="D:\HRS\Projects\incident_dementia\rk_days_at_home\data\int_data\transitions_n638.dta" replace; 
+run;
+
+proc export data=full_counts_n730 outfile="D:\HRS\Projects\incident_dementia\rk_days_at_home\data\int_data\transitions_n730.dta" replace; 
 run;
 
 
